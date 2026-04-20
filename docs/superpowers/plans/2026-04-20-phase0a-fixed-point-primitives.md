@@ -385,7 +385,7 @@ cd /home/exedev/g729 && git add internal/fixed/saturate.go internal/fixed/satura
 
 Spec: `add(a, b)` returns `Saturate(a + b)` with the sum computed in 32-bit. `sub(a, b)` is the same with subtraction.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `internal/fixed/arith16_test.go`:
 ```go
@@ -445,14 +445,14 @@ func TestSub(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run "TestAdd|TestSub"
 ```
 Expected: compile error — `undefined: Add`, `undefined: Sub`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `internal/fixed/arith16.go`:
 ```go
@@ -488,14 +488,14 @@ func AbsS(a Word16) Word16 {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run "TestAdd|TestSub" -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/arith16.go internal/fixed/arith16_test.go && git commit -m "feat(fixed): add saturating Add/Sub/Negate/AbsS"
