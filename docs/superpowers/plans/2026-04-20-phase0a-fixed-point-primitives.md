@@ -68,7 +68,7 @@ Use Conventional Commits style: `feat:`, `test:`, `chore:`, `docs:`. Keep messag
 - Create: `LICENSE`
 - Create: `.gitignore`
 
-- [ ] **Step 1: Initialize the module**
+- [x] **Step 1: Initialize the module**
 
 Run in repo root:
 ```bash
@@ -79,7 +79,7 @@ Expected: creates `go.mod` with module path and Go directive.
 
 The module path `github.com/exedev/g729` is a placeholder. The project owner can rename later with `go mod edit -module github.com/<owner>/g729` without touching any other file, because no file imports using the full module path yet (all imports so far are within `internal/fixed`).
 
-- [ ] **Step 2: Pin the Go version**
+- [x] **Step 2: Pin the Go version**
 
 Open `go.mod` and ensure the `go` directive is at least `1.22`. If `go mod init` produced an older version, edit it:
 ```
@@ -88,7 +88,7 @@ module github.com/exedev/g729
 go 1.22
 ```
 
-- [ ] **Step 3: Create `.gitignore`**
+- [x] **Step 3: Create `.gitignore`**
 
 Write to `/home/exedev/g729/.gitignore`:
 ```
@@ -105,7 +105,7 @@ Write to `/home/exedev/g729/.gitignore`:
 .DS_Store
 ```
 
-- [ ] **Step 4: Create MIT LICENSE**
+- [x] **Step 4: Create MIT LICENSE**
 
 Write to `/home/exedev/g729/LICENSE`:
 ```
@@ -132,7 +132,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-- [ ] **Step 5: Verify the module builds**
+- [x] **Step 5: Verify the module builds**
 
 Run:
 ```bash
@@ -140,7 +140,7 @@ cd /home/exedev/g729 && go build ./...
 ```
 Expected: no output, no errors (no Go files yet, that's fine).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add go.mod .gitignore LICENSE && git commit -m "chore: initialize Go module and MIT license"

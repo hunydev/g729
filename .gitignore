@@ -1,0 +1,11 @@
+# Go build artifacts
+*.test
+*.out
+/coverage.out
+/bin/
+
+# Editor
+.idea/
+.vscode/
+*.swp
+.DS_Store
