@@ -90,3 +90,73 @@ func TestPack_ReusesBuffer(t *testing.T) {
 		}
 	}
 }
+
+func TestUnpack_AllZero(t *testing.T) {
+var bits [FrameBytes]byte
+var f Frame
+if err := Unpack(bits[:], &f); err != nil {
+t.Fatalf("Unpack: %v", err)
+}
+want := Frame{}
+if f != want {
+t.Errorf("Unpack(zero) = %+v, want %+v", f, want)
+}
+}
+
+func TestUnpack_AllOnes(t *testing.T) {
+bits := make([]byte, FrameBytes)
+for i := range bits {
+bits[i] = 0xFF
+}
+var f Frame
+if err := Unpack(bits, &f); err != nil {
+t.Fatalf("Unpack: %v", err)
+}
+want := Frame{
+L0: 1, L1: 0x7F, L2: 0x1F, L3: 0x1F,
+P1: 0xFF, P0: 1,
+C1: 0x1FFF, S1: 0xF, GA1: 7, GB1: 0xF,
+P2: 0x1F,
+C2: 0x1FFF, S2: 0xF, GA2: 7, GB2: 0xF,
+}
+if f != want {
+t.Errorf("Unpack(all ones) = %+v, want %+v", f, want)
+}
+}
+
+func TestUnpack_ShortInput(t *testing.T) {
+short := make([]byte, FrameBytes-1)
+var f Frame
+if err := Unpack(short, &f); !errors.Is(err, ErrShortInput) {
+t.Errorf("Unpack short = %v, want ErrShortInput", err)
+}
+}
+
+func TestPackUnpack_RoundTrip(t *testing.T) {
+cases := []Frame{
+{},
+{L0: 1, L1: 0x7F, L2: 0x1F, L3: 0x1F,
+P1: 0xFF, P0: 1,
+C1: 0x1FFF, S1: 0xF, GA1: 7, GB1: 0xF,
+P2: 0x1F,
+C2: 0x1FFF, S2: 0xF, GA2: 7, GB2: 0xF,
+},
+{L0: 0, L1: 42, L2: 17, L3: 9, P1: 128, P0: 0,
+C1: 0x1234, S1: 5, GA1: 3, GB1: 11,
+P2: 7, C2: 0x0ABC, S2: 9, GA2: 2, GB2: 6,
+},
+}
+for i, f := range cases {
+var buf [FrameBytes]byte
+if err := Pack(&f, buf[:]); err != nil {
+t.Fatalf("case %d Pack: %v", i, err)
+}
+var got Frame
+if err := Unpack(buf[:], &got); err != nil {
+t.Fatalf("case %d Unpack: %v", i, err)
+}
+if got != f {
+t.Errorf("case %d round-trip: got %+v, want %+v", i, got, f)
+}
+}
+}
