@@ -920,7 +920,7 @@ Semantics from spec:
 - Create: `internal/fixed/shift16.go`
 - Create: `internal/fixed/shift16_test.go`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `internal/fixed/shift16_test.go`:
 ```go
@@ -987,14 +987,14 @@ func TestShr(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run "TestShl|TestShr"
 ```
 Expected: compile error.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `internal/fixed/shift16.go`:
 ```go
@@ -1043,14 +1043,14 @@ func Shr(a, n Word16) Word16 {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run "TestShl|TestShr" -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/shift16.go internal/fixed/shift16_test.go && git commit -m "feat(fixed): add saturating Shl and Shr"
