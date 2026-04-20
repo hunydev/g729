@@ -1,6 +1,6 @@
 # Phase 0b.1 — Bitstream G.192 Zero-Allocation Refactor Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Refactor `WriteG192Frame` and `ReadG192Frame` in `internal/bitstream` so both functions report `0 allocs/op` in benchmarks, without changing their public signatures or observable behavior. Bring the G.192 I/O path into line with the original zero-allocation contract the user requested during brainstorming.
 
@@ -67,7 +67,7 @@ At the end of the plan:
 
 We add the two new cases first and watch them fail on the current implementation. This is the red step of the TDD cycle.
 
-- [ ] **Step 1: Add the failing test cases**
+- [x] **Step 1: Add the failing test cases**
 
 Open `internal/bitstream/alloc_test.go` and replace the file contents with:
 
@@ -158,7 +158,7 @@ var _ io.Reader = (*bytes.Reader)(nil)
 
 Note: `bytes.NewReader(encodedBytes)` creates a `*bytes.Reader` which is 24 bytes on 64-bit platforms. `AllocsPerRun` measures heap allocations inside the function; `bytes.NewReader` returns a pointer, but the escape analysis may or may not stack-allocate the `bytes.Reader` depending on whether `ReadG192Frame`'s parameter is inlined. If `bytes.NewReader` escapes to the heap, the test would report 1 alloc not attributable to our code. If that happens in Step 3 verification, swap `bytes.NewReader` for a small reusable struct (see the fallback note below).
 
-- [ ] **Step 2: Run the new assertion and watch it fail**
+- [x] **Step 2: Run the new assertion and watch it fail**
 
 Run:
 ```
@@ -167,7 +167,7 @@ go test -run TestNoAllocation_G192IO -v ./internal/bitstream/...
 
 Expected: both `WriteG192Frame` and `ReadG192Frame` sub-tests FAIL with output of the form `WriteG192Frame allocated 2.00 times per call, want 0` (or similar non-zero count). This confirms the baseline matches the completion report.
 
-- [ ] **Step 3: Commit the red test**
+- [x] **Step 3: Commit the red test**
 
 ```bash
 git add internal/bitstream/alloc_test.go
@@ -194,7 +194,7 @@ readFn := func() {
 **Files:**
 - Modify: `internal/bitstream/g192.go:27-56` (function `WriteG192Frame`)
 
-- [ ] **Step 1: Replace the function body**
+- [x] **Step 1: Replace the function body**
 
 In `internal/bitstream/g192.go`, replace the entire `WriteG192Frame` function (the doc comment plus the body — lines starting with `// WriteG192Frame writes ...` through the closing `}`) with the following:
 
@@ -243,7 +243,7 @@ The key differences from the previous implementation:
 - A single `w.Write(buf[:])` delivers the whole frame. Passing `buf[:]` to `Write` does not force `buf` to escape because the callee does not retain the slice.
 - `FrameBits` is a `uint16` constant (`80`) so it can be passed directly to `PutUint16`.
 
-- [ ] **Step 2: Run the package tests**
+- [x] **Step 2: Run the package tests**
 
 Run:
 ```
@@ -258,7 +258,7 @@ go test -run TestNoAllocation_G192IO/WriteG192Frame -v ./internal/bitstream/...
 ```
 Expected: PASS.
 
-- [ ] **Step 3: Run the existing benchmark and confirm allocation dropped to zero**
+- [x] **Step 3: Run the existing benchmark and confirm allocation dropped to zero**
 
 Run:
 ```
@@ -272,7 +272,7 @@ BenchmarkWriteG192Frame-<N>   <ops>    <ns> ns/op    0 B/op    0 allocs/op
 
 If any allocation remains, stop and investigate before committing. Most likely cause: the `bytes.Buffer` in the benchmark not being pre-grown — that would be a test-harness allocation, not a production allocation; check by temporarily writing to `io.Discard` and re-benchmarking.
 
-- [ ] **Step 4: `go vet`**
+- [x] **Step 4: `go vet`**
 
 Run:
 ```
@@ -280,7 +280,7 @@ go vet ./internal/bitstream/...
 ```
 Expected: no output.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/bitstream/g192.go
@@ -294,7 +294,7 @@ git commit -m "perf(bitstream): make WriteG192Frame zero-allocation"
 **Files:**
 - Modify: `internal/bitstream/g192.go:58-107` (function `ReadG192Frame`)
 
-- [ ] **Step 1: Replace the function body**
+- [x] **Step 1: Replace the function body**
 
 In `internal/bitstream/g192.go`, replace the entire `ReadG192Frame` function (doc comment + body, from `// ReadG192Frame reads ...` through the closing `}` of `ReadG192Frame`) with the following:
 
@@ -377,7 +377,7 @@ Notes on the EOF handling:
 - `io.ReadFull` documents: "Reads 0 bytes → returns io.EOF. Reads some but not all → returns io.ErrUnexpectedEOF." That matches the semantics the existing tests (and `ReadG192File`) rely on, so the switch above preserves behavior.
 - We return `io.EOF` *only* when no bytes at all were available at the start of the frame. This is what lets `ReadG192File` terminate iteration cleanly.
 
-- [ ] **Step 2: Run all package tests**
+- [x] **Step 2: Run all package tests**
 
 Run:
 ```
@@ -386,7 +386,7 @@ go test ./internal/bitstream/... -race
 
 Expected: all tests PASS, including `TestNoAllocation_G192IO/ReadG192Frame`.
 
-- [ ] **Step 3: Verify the allocation assertion directly**
+- [x] **Step 3: Verify the allocation assertion directly**
 
 Run:
 ```
@@ -396,7 +396,7 @@ Expected: both sub-tests `WriteG192Frame` and `ReadG192Frame` PASS.
 
 If `ReadG192Frame` still reports a non-zero allocation count, apply the Task 1 Step 3 fallback (use `var br bytes.Reader; br.Reset(encodedBytes)`) in the test and re-run. `bytes.Reader` has well-known zero-alloc behavior when used this way; `bytes.NewReader` allocates 24 bytes on the heap if escape analysis decides the pointer escapes.
 
-- [ ] **Step 4: `go vet`**
+- [x] **Step 4: `go vet`**
 
 Run:
 ```
@@ -404,7 +404,7 @@ go vet ./internal/bitstream/...
 ```
 Expected: no output.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/bitstream/g192.go
@@ -418,7 +418,7 @@ git commit -m "perf(bitstream): make ReadG192Frame zero-allocation"
 **Files:**
 - Modify: `internal/bitstream/bench_test.go`
 
-- [ ] **Step 1: Add the benchmark**
+- [x] **Step 1: Add the benchmark**
 
 Open `internal/bitstream/bench_test.go` and append the following function to the end of the file:
 
@@ -446,7 +446,7 @@ func BenchmarkReadG192Frame(b *testing.B) {
 }
 ```
 
-- [ ] **Step 2: Run all benchmarks with -benchmem and record the numbers**
+- [x] **Step 2: Run all benchmarks with -benchmem and record the numbers**
 
 Run:
 ```
@@ -464,7 +464,7 @@ BenchmarkReadG192Frame-<N>    ...    0 B/op    0 allocs/op
 
 Any non-zero `B/op` or `allocs/op` on a bench other than a future `ReadG192File` bench (not added here) means the refactor is incomplete — stop and diagnose.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/bitstream/bench_test.go
@@ -479,7 +479,7 @@ git commit -m "test(bitstream): add ReadG192Frame benchmark"
 - Modify: `docs/superpowers/plans/2026-04-20-phase0b-bitstream.md` (append a one-line note only)
 - Modify: `docs/superpowers/plans/2026-04-20-phase0b-bitstream-completion-report.md` (append a "Resolved" note)
 
-- [ ] **Step 1: Append the resolution note to the completion report**
+- [x] **Step 1: Append the resolution note to the completion report**
 
 In `docs/superpowers/plans/2026-04-20-phase0b-bitstream-completion-report.md`, append at the end of the file:
 
@@ -492,7 +492,7 @@ In `docs/superpowers/plans/2026-04-20-phase0b-bitstream-completion-report.md`, a
 The allocation issue flagged in the "주의 사항" section above was closed by the Phase 0b.1 refactor (`docs/superpowers/plans/2026-04-20-phase0b1-bitstream-zero-alloc.md`). `WriteG192Frame` and `ReadG192Frame` both report `0 B/op, 0 allocs/op`; `ReadG192File` intentionally still allocates because it returns a slice of frames.
 ```
 
-- [ ] **Step 2: Verify plans and reports compile as plain Markdown**
+- [x] **Step 2: Verify plans and reports compile as plain Markdown**
 
 Run:
 ```
@@ -500,7 +500,7 @@ go test ./internal/bitstream/... -race && go vet ./internal/bitstream/...
 ```
 Expected: clean. (No markdown linter is wired up, so we verify via the code suite which is the only hard gate.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/superpowers/plans/2026-04-20-phase0b-bitstream-completion-report.md
@@ -511,10 +511,10 @@ git commit -m "docs(plans): note Phase 0b.1 resolves G.192 I/O allocation"
 
 ## Completion criteria
 
-- [ ] `go test ./internal/bitstream/... -race` PASSES.
-- [ ] `go vet ./internal/bitstream/...` prints nothing.
-- [ ] `go test -run TestNoAllocation -v ./internal/bitstream/...` PASSES for all five sub-tests (`Pack`, `Unpack`, `Parity`, `WriteG192Frame`, `ReadG192Frame`).
-- [ ] `go test -bench=. -benchmem -run=^$ ./internal/bitstream/...` shows `0 B/op, 0 allocs/op` for all five benchmarks (`Pack`, `Unpack`, `Parity`, `WriteG192Frame`, `ReadG192Frame`).
-- [ ] No public API signature change in `internal/bitstream` — callers elsewhere (when they exist in later phases) require no edits.
-- [ ] `ReadG192File` remains intentionally allocating; no refactor needed.
-- [ ] Plan checkboxes above are all marked `[x]`.
+- [x] `go test ./internal/bitstream/... -race` PASSES.
+- [x] `go vet ./internal/bitstream/...` prints nothing.
+- [x] `go test -run TestNoAllocation -v ./internal/bitstream/...` PASSES for all five sub-tests (`Pack`, `Unpack`, `Parity`, `WriteG192Frame`, `ReadG192Frame`).
+- [x] `go test -bench=. -benchmem -run=^$ ./internal/bitstream/...` shows `0 B/op, 0 allocs/op` for all five benchmarks (`Pack`, `Unpack`, `Parity`, `WriteG192Frame`, `ReadG192Frame`).
+- [x] No public API signature change in `internal/bitstream` — callers elsewhere (when they exist in later phases) require no edits.
+- [x] `ReadG192File` remains intentionally allocating; no refactor needed.
+- [x] Plan checkboxes above are all marked `[x]`.

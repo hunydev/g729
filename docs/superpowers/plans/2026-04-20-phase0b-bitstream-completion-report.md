@@ -100,3 +100,30 @@ Phase 0c 플랜 문서가 필요한 시점이며, 작성/제공해 주시면 동
 - 커밋/PR 메시지에 "포팅", "bcg729", "ITU C 참조" 등의 단어 없음
 - 비트 할당표는 Phase 0b 플랜 문서가 ITU-T G.729 + Annex A에서 가져온 것을 그대로 사용
 - G.192 상수 (0x6B21, 0x6B20, 0x0081, 0x007F)는 ITU-T G.191 STL 사양에서 정의된 값
+
+## Resolved 2026-04-20 — Phase 0b.1
+
+                                      플랜이 명시적으로 허용했던 `WriteG192Frame` / `ReadG192Frame`의 할당
+(`make([]uint16, 82)` + `binary.Write` / `binary.Read`)을 후속 Phase 0b.1
+ 0 allocs/op로 리팩터링하.
+
+**변경점:**
+- 두 함수 모두 `sync.Pool`로 풀링한 `*[G192FrameBytes]byte` 스크래치 버퍼를 사용
+- 직렬화/역직렬화는 `binary.LittleEndian.PutUint16` / `Uint16`으로 수행
+- 출력은 단일 `w.Write(buf)` / 입력은 단일 `io.ReadFull(r, buf)`
+- 공개 API 시그니처 무변경
+
+**플랜과의 차이:** Phase 0b.1 플랜은 함수 로컬 `var buf [G192FrameBytes]byte`
+            {                 echo ___BEGIN___COMMAND_OUTPUT_MARKER___;                 PS1="";PS2="";unset HISTFILE;                 EC=$?;                 echo "___BEGIN___COMMAND_DONE_MARKER___$EC";             }  충분할 것으로 가정했으나, Go 1.26 기준 `io.Writer.Write` /
+`io.ReadFull`이 인터페이스 호출이라 escape analysis가 보수적으로 배열을
+echo 올린다 (`go build -gcflags='-m=2'`로 확인). 이 때문에
+`sync.Pool`로 변경하여 amortized 0 alloc을 달성했다.
+
+**최종 벤치 (AMD EPYC 9554P, Go 1.26.1):**
+```
+BenchmarkPack-2             15942702    72.49 ns/op   0 B/op   0 allocs/op
+BenchmarkUnpack-2           13483154    98.12 ns/op   0 B/op   0 allocs/op
+BenchmarkParity-2          305236654     3.79 ns/op   0 B/op   0 allocs/op
+BenchmarkWriteG192Frame-2    7415689   137.2 ns/op    0 B/op   0 allocs/op
+BenchmarkReadG192Frame-2    14608914    87.12 ns/op   0 B/op   0 allocs/op
+```
