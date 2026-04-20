@@ -131,3 +131,56 @@ i, outWhole[i], outChunked[i])
 }
 }
 }
+
+func TestPreProcessor_ImpulseMatchesReference(t *testing.T) {
+const (
+magnitude = 16384.0
+n         = 32
+// 6 LSB tolerance: Q13 coefficient quantization plus int16 output
+// rounding accumulates ~4.2 LSB by sample 31. 6 LSB still catches
+// gross transcription errors (those would diff in the hundreds).
+tol       = 6.0
+)
+const (
+a1 = 1.9059465
+a2 = -0.9114024
+b0 = 0.46363718
+b1 = -0.92724705
+b2 = 0.46363718
+)
+var refX1, refX2, refY1, refY2 float64
+ref := make([]float64, n)
+for i := 0; i < n; i++ {
+var x float64
+if i == 0 {
+x = magnitude
+}
+y := a1*refY1 + a2*refY2 + b0*x + b1*refX1 + b2*refX2
+ref[i] = y
+refX2 = refX1
+refX1 = x
+refY2 = refY1
+refY1 = y
+}
+
+var p PreProcessor
+in := make([]int16, n)
+out := make([]int16, n)
+in[0] = int16(magnitude)
+p.Process(in, out)
+
+for i := 0; i < n; i++ {
+diff := mathAbs(float64(out[i]) - ref[i])
+if diff > tol {
+t.Errorf("sample %d: impl=%d ref=%.3f diff=%.3f (tol %.1f)",
+i, out[i], ref[i], diff, tol)
+}
+}
+}
+
+func mathAbs(x float64) float64 {
+if x < 0 {
+return -x
+}
+return x
+}
