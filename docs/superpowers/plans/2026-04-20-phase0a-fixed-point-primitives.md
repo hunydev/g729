@@ -2059,7 +2059,7 @@ cd /home/exedev/g729 && git add internal/fixed/alloc_test.go && git commit -m "t
 **Files:**
 - Create: `internal/fixed/bench_test.go`
 
-- [ ] **Step 1: Write benchmarks**
+- [x] **Step 1: Write benchmarks**
 
 Create `internal/fixed/bench_test.go`:
 ```go
@@ -2104,7 +2104,7 @@ func BenchmarkNormL(b *testing.B) {
 }
 ```
 
-- [ ] **Step 2: Run the benchmarks once (informational)**
+- [x] **Step 2: Run the benchmarks once (informational)**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -bench=. -benchmem -run=^$
@@ -2113,7 +2113,7 @@ Expected: ns/op printed per benchmark, `0 B/op, 0 allocs/op`.
 
 Report these numbers into the commit message for historical reference. Exact numbers do not gate the task.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/bench_test.go && git commit -m "test(fixed): add primitive benchmarks"
