@@ -101,7 +101,7 @@ Same conventional-commit style as Phase 0a: `feat(bitstream)`, `test(bitstream)`
 - Create: `internal/bitstream/errors.go`
 - Create: `internal/bitstream/types_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `internal/bitstream/types_test.go`:
 ```go
@@ -127,7 +127,7 @@ func TestFrameZeroValue(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify the test fails**
+- [x] **Step 2: Verify the test fails**
 
 Run:
 ```bash
@@ -135,7 +135,7 @@ cd /home/exedev/g729 && go test ./internal/bitstream/...
 ```
 Expected: compile error — `undefined: FrameBits`, `undefined: Frame`, etc.
 
-- [ ] **Step 3: Create `internal/bitstream/types.go`**
+- [x] **Step 3: Create `internal/bitstream/types.go`**
 
 ```go
 package bitstream
@@ -171,7 +171,7 @@ type Frame struct {
 }
 ```
 
-- [ ] **Step 4: Create `internal/bitstream/errors.go`**
+- [x] **Step 4: Create `internal/bitstream/errors.go`**
 
 ```go
 package bitstream
@@ -199,7 +199,7 @@ var ErrBadG192Length = errors.New("bitstream: invalid G.192 length word")
 var ErrBadG192Bit = errors.New("bitstream: invalid G.192 data word")
 ```
 
-- [ ] **Step 5: Create `internal/bitstream/doc.go`**
+- [x] **Step 5: Create `internal/bitstream/doc.go`**
 
 ```go
 // Package bitstream converts G.729 frame parameters to and from their
@@ -229,14 +229,14 @@ var ErrBadG192Bit = errors.New("bitstream: invalid G.192 data word")
 package bitstream
 ```
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -v
 ```
 Expected: `TestConstants` and `TestFrameZeroValue` pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/bitstream/ && git commit -m "feat(bitstream): package skeleton with Frame struct and errors"
@@ -252,7 +252,7 @@ cd /home/exedev/g729 && git add internal/bitstream/ && git commit -m "feat(bitst
 
 A tiny helper. `bitPos` tracks the next bit to write (bit 0 of `bitPos = 0` is the MSB of `buf[0]`). `Write(value, n)` writes the low `n` bits of `value`, MSB of that slice first.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `internal/bitstream/bitio_test.go`:
 ```go
@@ -318,14 +318,14 @@ func TestBitWriter_CrossesByteBoundary(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run TestBitWriter
 ```
 Expected: compile error — `undefined: BitWriter`.
 
-- [ ] **Step 3: Implement `BitWriter`**
+- [x] **Step 3: Implement `BitWriter`**
 
 Create `internal/bitstream/bitio.go`:
 ```go
@@ -367,14 +367,14 @@ func (w *BitWriter) Write(value uint16, n int) {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run TestBitWriter -v
 ```
 Expected: all four subtests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/bitstream/bitio.go internal/bitstream/bitio_test.go && git commit -m "feat(bitstream): add MSB-first BitWriter"
@@ -388,7 +388,7 @@ cd /home/exedev/g729 && git add internal/bitstream/bitio.go internal/bitstream/b
 - Modify: `internal/bitstream/bitio.go` (append)
 - Modify: `internal/bitstream/bitio_test.go` (append)
 
-- [ ] **Step 1: Append failing tests**
+- [x] **Step 1: Append failing tests**
 
 Append to `internal/bitstream/bitio_test.go`:
 ```go
@@ -469,14 +469,14 @@ func TestBitWriter_ReadRoundTrip(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run TestBitReader
 ```
 Expected: compile error — `undefined: BitReader`.
 
-- [ ] **Step 3: Implement `BitReader`**
+- [x] **Step 3: Implement `BitReader`**
 
 Append to `internal/bitstream/bitio.go`:
 ```go
@@ -514,14 +514,14 @@ func (r *BitReader) Read(n int) uint16 {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run "TestBitReader|TestBitWriter_ReadRoundTrip" -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/bitstream/bitio.go internal/bitstream/bitio_test.go && git commit -m "feat(bitstream): add MSB-first BitReader"
@@ -535,7 +535,7 @@ cd /home/exedev/g729 && git add internal/bitstream/bitio.go internal/bitstream/b
 - Create: `internal/bitstream/pack.go`
 - Create: `internal/bitstream/pack_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `internal/bitstream/pack_test.go`:
 ```go
@@ -633,14 +633,14 @@ func TestPack_ReusesBuffer(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run TestPack
 ```
 Expected: compile error — `undefined: Pack`.
 
-- [ ] **Step 3: Implement `Pack`**
+- [x] **Step 3: Implement `Pack`**
 
 Create `internal/bitstream/pack.go`:
 ```go
@@ -682,14 +682,14 @@ func Pack(f *Frame, out []byte) error {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run TestPack -v
 ```
 Expected: all subtests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/bitstream/pack.go internal/bitstream/pack_test.go && git commit -m "feat(bitstream): add Pack (Frame to 10 bytes)"
@@ -703,7 +703,7 @@ cd /home/exedev/g729 && git add internal/bitstream/pack.go internal/bitstream/pa
 - Modify: `internal/bitstream/pack.go` (append)
 - Modify: `internal/bitstream/pack_test.go` (append)
 
-- [ ] **Step 1: Append failing tests**
+- [x] **Step 1: Append failing tests**
 
 Append to `internal/bitstream/pack_test.go`:
 ```go
@@ -778,14 +778,14 @@ func TestPackUnpack_RoundTrip(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run "TestUnpack|TestPackUnpack_RoundTrip"
 ```
 Expected: compile error — `undefined: Unpack`.
 
-- [ ] **Step 3: Implement `Unpack`**
+- [x] **Step 3: Implement `Unpack`**
 
 Append to `internal/bitstream/pack.go`:
 ```go
@@ -817,14 +817,14 @@ func Unpack(bits []byte, f *Frame) error {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run "TestUnpack|TestPackUnpack_RoundTrip" -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/bitstream/pack.go internal/bitstream/pack_test.go && git commit -m "feat(bitstream): add Unpack (10 bytes to Frame)"
@@ -840,7 +840,7 @@ cd /home/exedev/g729 && git add internal/bitstream/pack.go internal/bitstream/pa
 - Create: `internal/bitstream/parity.go`
 - Create: `internal/bitstream/parity_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `internal/bitstream/parity_test.go`:
 ```go
@@ -874,14 +874,14 @@ func TestParity(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run TestParity
 ```
 Expected: compile error — `undefined: Parity`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `internal/bitstream/parity.go`:
 ```go
@@ -901,14 +901,14 @@ func Parity(p1 uint16) uint16 {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run TestParity -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/bitstream/parity.go internal/bitstream/parity_test.go && git commit -m "feat(bitstream): add Parity helper for P0 field"
@@ -924,7 +924,7 @@ cd /home/exedev/g729 && git add internal/bitstream/parity.go internal/bitstream/
 
 `WriteG192Frame(w, frame, bad)` takes a 10-byte packed frame and emits `1 sync + 1 length + 80 data = 82` little-endian 16-bit words into `w`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `internal/bitstream/g192_test.go`:
 ```go
@@ -1035,14 +1035,14 @@ func TestWriteG192Frame_ShortFrame(t *testing.T) {
 var _ = io.Discard
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run "TestG192Constants|TestWriteG192Frame"
 ```
 Expected: compile error — undefined symbols.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `internal/bitstream/g192.go`:
 ```go
@@ -1104,14 +1104,14 @@ func WriteG192Frame(w io.Writer, frame []byte, bad bool) error {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run "TestG192Constants|TestWriteG192Frame" -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/bitstream/g192.go internal/bitstream/g192_test.go && git commit -m "feat(bitstream): add G.192 constants and WriteG192Frame"
@@ -1127,7 +1127,7 @@ cd /home/exedev/g729 && git add internal/bitstream/g192.go internal/bitstream/g1
 
 `ReadG192Frame(r, frame) (bad, err)` reads one G.192 frame from `r`, validates sync and length words, and fills `frame` with the packed bits. Returns whether the sync indicated a bad (erasure) frame.
 
-- [ ] **Step 1: Append failing tests**
+- [x] **Step 1: Append failing tests**
 
 Append to `internal/bitstream/g192_test.go`:
 ```go
@@ -1268,14 +1268,14 @@ func TestG192RoundTrip(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run "TestReadG192Frame|TestG192RoundTrip"
 ```
 Expected: compile error — `undefined: ReadG192Frame`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `internal/bitstream/g192.go`:
 ```go
@@ -1331,14 +1331,14 @@ func ReadG192Frame(r io.Reader, frame []byte) (bool, error) {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run "TestReadG192Frame|TestG192RoundTrip" -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/bitstream/g192.go internal/bitstream/g192_test.go && git commit -m "feat(bitstream): add ReadG192Frame"
@@ -1354,7 +1354,7 @@ cd /home/exedev/g729 && git add internal/bitstream/g192.go internal/bitstream/g1
 
 A convenience wrapper: read until EOF, returning a slice of packed frames and a parallel slice of bad-flags. This is what Phase 2 encoder tests will use to load ITU `.bit` files.
 
-- [ ] **Step 1: Append failing test**
+- [x] **Step 1: Append failing test**
 
 Append to `internal/bitstream/g192_test.go`:
 ```go
@@ -1401,14 +1401,14 @@ func TestReadG192File_Empty(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run TestReadG192File
 ```
 Expected: compile error — `undefined: ReadG192File`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `internal/bitstream/g192.go`:
 ```go
@@ -1437,14 +1437,14 @@ func ReadG192File(r io.Reader) ([][]byte, []bool, error) {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run TestReadG192File -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/bitstream/g192.go internal/bitstream/g192_test.go && git commit -m "feat(bitstream): add ReadG192File convenience reader"
@@ -1459,7 +1459,7 @@ cd /home/exedev/g729 && git add internal/bitstream/g192.go internal/bitstream/g1
 
 Pack, Unpack, and Parity are called per frame by the encoder/decoder; they must not allocate. G.192 I/O is not hot-path and is allowed to allocate.
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 Create `internal/bitstream/alloc_test.go`:
 ```go
@@ -1495,21 +1495,21 @@ func TestNoAllocation_PackUnpackParity(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the test**
+- [x] **Step 2: Run the test**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -run TestNoAllocation -v
 ```
 Expected: all pass (Pack/Unpack/Parity each 0 allocs).
 
-- [ ] **Step 3: Run the full package suite with race detector and vet**
+- [x] **Step 3: Run the full package suite with race detector and vet**
 
 ```bash
 cd /home/exedev/g729 && go test ./... -race && go vet ./...
 ```
 Expected: all tests pass, `go vet` clean.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/bitstream/alloc_test.go && git commit -m "test(bitstream): assert zero allocation on hot-path functions"
@@ -1522,7 +1522,7 @@ cd /home/exedev/g729 && git add internal/bitstream/alloc_test.go && git commit -
 **Files:**
 - Create: `internal/bitstream/bench_test.go`
 
-- [ ] **Step 1: Write benchmarks**
+- [x] **Step 1: Write benchmarks**
 
 Create `internal/bitstream/bench_test.go`:
 ```go
@@ -1575,14 +1575,14 @@ func BenchmarkWriteG192Frame(b *testing.B) {
 }
 ```
 
-- [ ] **Step 2: Run benchmarks once (informational)**
+- [x] **Step 2: Run benchmarks once (informational)**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/bitstream/... -bench=. -benchmem -run=^$
 ```
 Expected: Pack/Unpack/Parity report `0 B/op, 0 allocs/op`. WriteG192Frame will show a small alloc per call (documented behavior).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/bitstream/bench_test.go && git commit -m "test(bitstream): add Pack/Unpack/G192 benchmarks"
@@ -1595,7 +1595,7 @@ cd /home/exedev/g729 && git add internal/bitstream/bench_test.go && git commit -
 **Files:**
 - Modify: `internal/bitstream/doc.go`
 
-- [ ] **Step 1: Rewrite `internal/bitstream/doc.go`**
+- [x] **Step 1: Rewrite `internal/bitstream/doc.go`**
 
 Replace the contents of `internal/bitstream/doc.go`:
 ```go
@@ -1644,21 +1644,21 @@ Replace the contents of `internal/bitstream/doc.go`:
 package bitstream
 ```
 
-- [ ] **Step 2: Render godoc locally**
+- [x] **Step 2: Render godoc locally**
 
 ```bash
 cd /home/exedev/g729 && go doc ./internal/bitstream
 ```
 Expected: the sections above render.
 
-- [ ] **Step 3: Run the full suite once more**
+- [x] **Step 3: Run the full suite once more**
 
 ```bash
 cd /home/exedev/g729 && go test ./... -race && go vet ./...
 ```
 Expected: all pass, vet clean.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/bitstream/doc.go && git commit -m "docs(bitstream): expand package doc with layers and ordering"
