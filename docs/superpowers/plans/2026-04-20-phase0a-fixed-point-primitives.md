@@ -1834,7 +1834,7 @@ Semantics from ITU spec:
 - Create: `internal/fixed/div.go`
 - Create: `internal/fixed/div_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `internal/fixed/div_test.go`:
 ```go
@@ -1893,14 +1893,14 @@ func TestDivSExactCases(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run TestDivS
 ```
 Expected: compile error.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `internal/fixed/div.go`:
 ```go
@@ -1944,14 +1944,14 @@ func DivS(num, den Word16) Word16 {
 
 Note: the algorithm above is one of several that yield the same Q15 output for the allowed input range. Implementation style differs from the ITU reference C code; the *observable function* must match within the standard's tolerance.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run TestDivS -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/div.go internal/fixed/div_test.go && git commit -m "feat(fixed): add DivS (Q15 fractional division)"
