@@ -155,7 +155,7 @@ cd /home/exedev/g729 && git add go.mod .gitignore LICENSE && git commit -m "chor
 - Create: `internal/fixed/doc.go`
 - Create: `internal/fixed/types.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `internal/fixed/types_test.go`:
 ```go
@@ -193,7 +193,7 @@ func TestTypeSizes(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify test fails (compile error, types not defined)**
+- [x] **Step 2: Verify test fails (compile error, types not defined)**
 
 Run:
 ```bash
@@ -201,7 +201,7 @@ cd /home/exedev/g729 && go test ./internal/fixed/...
 ```
 Expected: compilation error — `undefined: Word16`, `undefined: Max16`, etc.
 
-- [ ] **Step 3: Create `internal/fixed/types.go`**
+- [x] **Step 3: Create `internal/fixed/types.go`**
 
 ```go
 // Package fixed implements the ITU-T G.191 basic operations used
@@ -234,7 +234,7 @@ const (
 
 Use `type Word16 = int16` (alias, not definition). This lets callers pass `int16` literals directly without conversion, which is the common pattern.
 
-- [ ] **Step 4: Create `internal/fixed/doc.go` with the name mapping**
+- [x] **Step 4: Create `internal/fixed/doc.go` with the name mapping**
 
 ```go
 // Package fixed — ITU-T G.191 basic operations in Go.
@@ -264,7 +264,7 @@ Use `type Word16 = int16` (alias, not definition). This lets callers pass `int16
 package fixed
 ```
 
-- [ ] **Step 5: Create module-level `doc.go`**
+- [x] **Step 5: Create module-level `doc.go`**
 
 Write `/home/exedev/g729/doc.go`:
 ```go
@@ -276,14 +276,14 @@ Write `/home/exedev/g729/doc.go`:
 package g729
 ```
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./...
 ```
 Expected: `ok  github.com/exedev/g729/internal/fixed`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add doc.go internal/fixed/ && git commit -m "feat(fixed): package skeleton with Word16/Word32 types"
