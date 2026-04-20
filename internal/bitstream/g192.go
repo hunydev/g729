@@ -3,6 +3,7 @@ package bitstream
 import (
 	"encoding/binary"
 	"io"
+	"sync"
 )
 
 // G.192 serial bitstream word values (ITU-T G.191 STL).
@@ -29,30 +30,48 @@ const (
 // format produced by Pack. If bad is true, the erasure sync marker is
 // emitted instead of the good-frame marker.
 //
-// Allocates one G192FrameBytes-sized buffer internally.
+// Zero-allocation: the implementation serializes through a pooled
+// G192FrameBytes-sized buffer and performs a single w.Write call.
 func WriteG192Frame(w io.Writer, frame []byte, bad bool) error {
 	if len(frame) < FrameBytes {
 		return ErrShortInput
 	}
-	words := make([]uint16, G192FrameWords)
+
+	bufp := g192BufPool.Get().(*[G192FrameBytes]byte)
+	defer g192BufPool.Put(bufp)
+	buf := bufp[:]
+
 	if bad {
-		words[0] = G192SyncBad
+		binary.LittleEndian.PutUint16(buf[0:2], G192SyncBad)
 	} else {
-		words[0] = G192SyncGood
+		binary.LittleEndian.PutUint16(buf[0:2], G192SyncGood)
 	}
-	words[1] = FrameBits
+	binary.LittleEndian.PutUint16(buf[2:4], FrameBits)
 
 	for i := 0; i < FrameBits; i++ {
 		byteIdx := i >> 3
 		bitIdx := 7 - (i & 7)
+		word := G192Bit0
 		if (frame[byteIdx]>>uint(bitIdx))&1 == 1 {
-			words[2+i] = G192Bit1
-		} else {
-			words[2+i] = G192Bit0
+			word = G192Bit1
 		}
+		// Data words begin at byte offset 4 (after sync + length).
+		off := 4 + 2*i
+		binary.LittleEndian.PutUint16(buf[off:off+2], word)
 	}
 
-	return binary.Write(w, binary.LittleEndian, words)
+	_, err := w.Write(buf)
+	return err
+}
+
+// g192BufPool holds reusable G192FrameBytes-sized scratch buffers used
+// by WriteG192Frame and ReadG192Frame to keep them zero-allocation. A
+// fixed-size byte array would otherwise escape to the heap because
+// io.Writer.Write / io.ReadFull are interface calls and Go's escape
+// analysis conservatively heap-allocates any address handed to an
+// interface method.
+var g192BufPool = sync.Pool{
+	New: func() any { return new([G192FrameBytes]byte) },
 }
 
 // ReadG192Frame reads one G.192 frame from r. frame must be at least
