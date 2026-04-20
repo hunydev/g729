@@ -2128,7 +2128,7 @@ cd /home/exedev/g729 && git add internal/fixed/bench_test.go && git commit -m "t
 
 Add a worked example and a "Caveats" section. Improves godoc discoverability for engineers implementing later blocks.
 
-- [ ] **Step 1: Rewrite `internal/fixed/doc.go`**
+- [x] **Step 1: Rewrite `internal/fixed/doc.go`**
 
 Replace the file contents with:
 ```go
@@ -2188,21 +2188,21 @@ Replace the file contents with:
 package fixed
 ```
 
-- [ ] **Step 2: Render godoc locally to verify**
+- [x] **Step 2: Render godoc locally to verify**
 
 ```bash
 cd /home/exedev/g729 && go doc ./internal/fixed
 ```
 Expected: package doc renders with the sections above.
 
-- [ ] **Step 3: Run full test suite once more**
+- [x] **Step 3: Run full test suite once more**
 
 ```bash
 cd /home/exedev/g729 && go test ./... -race
 ```
 Expected: all pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/doc.go && git commit -m "docs(fixed): expand package doc with mapping and example"
