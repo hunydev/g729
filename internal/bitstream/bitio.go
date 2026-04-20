@@ -34,3 +34,36 @@ func (w *BitWriter) Write(value uint16, n int) {
 		w.bitPos++
 	}
 }
+
+// BitReader reads bits MSB-first from a caller-owned byte slice.
+type BitReader struct {
+buf    []byte
+bitPos int
+}
+
+// Init resets the reader to the start of buf.
+func (r *BitReader) Init(buf []byte) {
+r.buf = buf
+r.bitPos = 0
+}
+
+// BitPos returns the number of bits consumed so far.
+func (r *BitReader) BitPos() int { return r.bitPos }
+
+// Read reads the next n bits, MSB first, and returns them as the low
+// n bits of the result. Reads past len(buf)*8 return 0 bits silently;
+// callers must ensure the buffer is long enough.
+func (r *BitReader) Read(n int) uint16 {
+var out uint16
+for i := 0; i < n; i++ {
+byteIdx := r.bitPos >> 3
+bitIdx := 7 - (r.bitPos & 7)
+var bit uint16
+if byteIdx < len(r.buf) {
+bit = uint16((r.buf[byteIdx] >> uint(bitIdx)) & 1)
+}
+out = (out << 1) | bit
+r.bitPos++
+}
+return out
+}
