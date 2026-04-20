@@ -1333,7 +1333,7 @@ Semantics: `LMult(a, b) = Saturate32(2 * a * b)`. Only overflow case is `a = b =
 - Create: `internal/fixed/mult.go`
 - Create: `internal/fixed/mult_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `internal/fixed/mult_test.go`:
 ```go
@@ -1369,14 +1369,14 @@ func TestLMult(t *testing.T) {
 
 Note: `max * max` is `32767 * 32767 * 2 = 2147352578`, which fits in Word32. Only `min * min = -32768 * -32768 * 2 = 2^31` overflows.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run TestLMult
 ```
 Expected: compile error.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `internal/fixed/mult.go`:
 ```go
@@ -1392,14 +1392,14 @@ func LMult(a, b Word16) Word32 {
 }
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run TestLMult -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/mult.go internal/fixed/mult_test.go && git commit -m "feat(fixed): add LMult (16x16 to 32-bit saturating multiply)"
