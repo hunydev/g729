@@ -299,7 +299,7 @@ cd /home/exedev/g729 && git add doc.go internal/fixed/ && git commit -m "feat(fi
 
 `Saturate(L)` returns `L` clamped to the `Word16` range. This is the foundation every 16-bit operation builds on.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `internal/fixed/saturate_test.go`:
 ```go
@@ -335,7 +335,7 @@ func TestSaturate(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify test fails**
+- [x] **Step 2: Verify test fails**
 
 Run:
 ```bash
@@ -343,7 +343,7 @@ cd /home/exedev/g729 && go test ./internal/fixed/... -run TestSaturate
 ```
 Expected: compilation error — `undefined: Saturate`.
 
-- [ ] **Step 3: Implement `Saturate`**
+- [x] **Step 3: Implement `Saturate`**
 
 Create `internal/fixed/saturate.go`:
 ```go
@@ -362,14 +362,14 @@ func Saturate(x Word32) Word16 {
 }
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run TestSaturate -v
 ```
 Expected: all subtests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/saturate.go internal/fixed/saturate_test.go && git commit -m "feat(fixed): add Saturate (32-to-16 saturation)"
