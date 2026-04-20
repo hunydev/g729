@@ -1616,7 +1616,7 @@ cd /home/exedev/g729 && git add internal/fixed/mult.go internal/fixed/mult_test.
 - Create: `internal/fixed/round.go`
 - Create: `internal/fixed/round_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `internal/fixed/round_test.go`:
 ```go
@@ -1649,14 +1649,14 @@ func TestRound(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run TestRound
 ```
 Expected: compile error.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `internal/fixed/round.go`:
 ```go
@@ -1669,14 +1669,14 @@ func Round(x Word32) Word16 {
 }
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run TestRound -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/round.go internal/fixed/round_test.go && git commit -m "feat(fixed): add Round (32-to-16 with half-up rounding)"
