@@ -575,7 +575,7 @@ cd /home/exedev/g729 && git add internal/fixed/arith16_test.go && git commit -m 
 
 Go's bare `+` wraps on `int32` overflow. We detect overflow by doing the sum in `int64`, then saturate.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `internal/fixed/arith32_test.go`:
 ```go
@@ -632,14 +632,14 @@ func TestLSub(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run "TestLAdd|TestLSub"
 ```
 Expected: compile error — `undefined: LAdd`, `undefined: LSub`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `internal/fixed/arith32.go`:
 ```go
@@ -687,14 +687,14 @@ func LAbs(a Word32) Word32 {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run "TestLAdd|TestLSub" -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/arith32.go internal/fixed/arith32_test.go && git commit -m "feat(fixed): add saturating LAdd/LSub/LNegate/LAbs"
