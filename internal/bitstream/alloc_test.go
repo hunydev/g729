@@ -51,14 +51,15 @@ func TestNoAllocation_G192IO(t *testing.T) {
 	writeBuf.Grow(G192FrameBytes)
 
 	var readBuf [FrameBytes]byte
+	var br bytes.Reader
 
 	writeFn := func() {
 		writeBuf.Reset()
 		_ = WriteG192Frame(&writeBuf, frame, false)
 	}
 	readFn := func() {
-		r := bytes.NewReader(encodedBytes)
-		_, _ = ReadG192Frame(r, readBuf[:])
+		br.Reset(encodedBytes)
+		_, _ = ReadG192Frame(&br, readBuf[:])
 	}
 
 	cases := []struct {

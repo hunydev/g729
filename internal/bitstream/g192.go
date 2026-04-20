@@ -83,46 +83,63 @@ var g192BufPool = sync.Pool{
 // ErrBadG192Sync / ErrBadG192Length / ErrBadG192Bit if the stream
 // content does not match the G.192 conventions.
 //
-// Allocates one G192FrameBytes-sized buffer internally.
+// ReadG192Frame reads one G.192 frame from r. frame must be at least
+// FrameBytes long and is overwritten with the packed bit pattern.
+// Returns bad = true if the sync word indicated a frame erasure.
+//
+// Returns io.EOF if the reader is empty at the start of a frame, or
+// io.ErrUnexpectedEOF if the reader ends mid-frame. Returns
+// ErrBadG192Sync / ErrBadG192Length / ErrBadG192Bit if the stream
+// content does not match the G.192 conventions.
+//
+// Zero-allocation: the implementation reads into a pooled
+// G192FrameBytes-sized buffer via a single io.ReadFull call.
 func ReadG192Frame(r io.Reader, frame []byte) (bool, error) {
-if len(frame) < FrameBytes {
-return false, ErrShortOutput
-}
-words := make([]uint16, G192FrameWords)
-if err := binary.Read(r, binary.LittleEndian, words); err != nil {
-return false, err
-}
+	if len(frame) < FrameBytes {
+		return false, ErrShortOutput
+	}
 
-var bad bool
-switch words[0] {
-case G192SyncGood:
-bad = false
-case G192SyncBad:
-bad = true
-default:
-return false, ErrBadG192Sync
-}
-if words[1] != FrameBits {
-return false, ErrBadG192Length
-}
+	bufp := g192BufPool.Get().(*[G192FrameBytes]byte)
+	defer g192BufPool.Put(bufp)
+	buf := bufp[:]
 
-out := frame[:FrameBytes]
-for i := range out {
-out[i] = 0
-}
-for i := 0; i < FrameBits; i++ {
-switch words[2+i] {
-case G192Bit1:
-byteIdx := i >> 3
-bitIdx := 7 - (i & 7)
-out[byteIdx] |= 1 << uint(bitIdx)
-case G192Bit0:
-// nothing to set
-default:
-return false, ErrBadG192Bit
-}
-}
-return bad, nil
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return false, err
+	}
+
+	sync := binary.LittleEndian.Uint16(buf[0:2])
+	var bad bool
+	switch sync {
+	case G192SyncGood:
+		bad = false
+	case G192SyncBad:
+		bad = true
+	default:
+		return false, ErrBadG192Sync
+	}
+	if binary.LittleEndian.Uint16(buf[2:4]) != FrameBits {
+		return false, ErrBadG192Length
+	}
+
+	out := frame[:FrameBytes]
+	for i := range out {
+		out[i] = 0
+	}
+	for i := 0; i < FrameBits; i++ {
+		off := 4 + 2*i
+		word := binary.LittleEndian.Uint16(buf[off : off+2])
+		switch word {
+		case G192Bit1:
+			byteIdx := i >> 3
+			bitIdx := 7 - (i & 7)
+			out[byteIdx] |= 1 << uint(bitIdx)
+		case G192Bit0:
+		// nothing to set
+		default:
+			return false, ErrBadG192Bit
+		}
+	}
+	return bad, nil
 }
 
 // ReadG192File reads G.192 frames from r until EOF. It returns a slice
@@ -133,18 +150,18 @@ return bad, nil
 // Intended for loading ITU test-vector .bit files, not for the hot
 // path: it allocates one backing buffer for the full output.
 func ReadG192File(r io.Reader) ([][]byte, []bool, error) {
-var frames [][]byte
-var bads []bool
-for {
-frame := make([]byte, FrameBytes)
-bad, err := ReadG192Frame(r, frame)
-if err == io.EOF {
-return frames, bads, nil
-}
-if err != nil {
-return frames, bads, err
-}
-frames = append(frames, frame)
-bads = append(bads, bad)
-}
+	var frames [][]byte
+	var bads []bool
+	for {
+		frame := make([]byte, FrameBytes)
+		bad, err := ReadG192Frame(r, frame)
+		if err == io.EOF {
+			return frames, bads, nil
+		}
+		if err != nil {
+			return frames, bads, err
+		}
+		frames = append(frames, frame)
+		bads = append(bads, bad)
+	}
 }
