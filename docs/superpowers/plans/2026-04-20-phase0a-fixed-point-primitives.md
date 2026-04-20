@@ -707,7 +707,7 @@ cd /home/exedev/g729 && git add internal/fixed/arith32.go internal/fixed/arith32
 **Files:**
 - Modify: `internal/fixed/arith32_test.go` (append)
 
-- [ ] **Step 1: Append tests**
+- [x] **Step 1: Append tests**
 
 Append to `internal/fixed/arith32_test.go`:
 ```go
@@ -746,14 +746,14 @@ func TestLAbs(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run "TestLNegate|TestLAbs" -v
 ```
 Expected: all pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/arith32_test.go && git commit -m "test(fixed): LNegate and LAbs boundary tests"
