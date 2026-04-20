@@ -1156,7 +1156,7 @@ cd /home/exedev/g729 && git add internal/fixed/shift16.go internal/fixed/shift16
 
 Semantics mirror the 16-bit versions but saturate to `Max32` / `Min32`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `internal/fixed/shift32_test.go`:
 ```go
@@ -1240,14 +1240,14 @@ func TestLShrR(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run "TestLShl|TestLShr|TestLShrR"
 ```
 Expected: compile error.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `internal/fixed/shift32.go`:
 ```go
@@ -1310,14 +1310,14 @@ func LShrR(a Word32, n Word16) Word32 {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run "TestLShl|TestLShr|TestLShrR" -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/shift32.go internal/fixed/shift32_test.go && git commit -m "feat(fixed): add saturating 32-bit shifts LShl/LShr/LShrR"
