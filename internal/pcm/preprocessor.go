@@ -16,10 +16,17 @@ const FrameLength = 80
 // PreProcessor is not safe for concurrent use. Each channel of a
 // multi-channel encoder should own a dedicated PreProcessor.
 type PreProcessor struct {
-	// State fields are filled in by a later task. They are intentionally
-	// unnamed here so the skeleton compiles without prejudging the
-	// Q-format of the state.
-	_unused byte
+	// x1, x2 are the two previous input samples (Q0 int16 widened to
+	// int32 only for uniform field typing; the low 16 bits are the
+	// meaningful value).
+	x1, x2 int32
+
+	// y1, y2 are the two previous output values kept in accumulator
+	// precision (Q(BQ), i.e. Q13 with the default coefficient
+	// Q-format) so that rounding error is not fed back into the next
+	// step. The Q15 representation of the rounded output is derived
+	// from these on demand.
+	y1, y2 int32
 }
 
 // Reset returns the filter to its initial state (all memory zero). A
