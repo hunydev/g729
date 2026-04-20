@@ -1066,7 +1066,7 @@ Semantics: `ShrR(a, n) = Shr(Add(a, 1<<(n-1)), n)` for `n > 0`, `ShrR(a, 0) = a`
 - Modify: `internal/fixed/shift16.go` (append)
 - Modify: `internal/fixed/shift16_test.go` (append)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `internal/fixed/shift16_test.go`:
 ```go
@@ -1105,14 +1105,14 @@ else:         L_out = shr(a, n); if ((a & (1 << (n-1))) != 0) L_out = add(L_out,
 For `n == 15` and `a = 32767` (binary `0111111111111111`): bit 14 is 1 → result = Shr(a, 15) + 1 = 0 + 1 = 1.
 For `n == 15` and `a = -32768`: bit 14 is 0 → result = Shr(a, 15) = -1.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run TestShrR
 ```
 Expected: compile error.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `internal/fixed/shift16.go`:
 ```go
@@ -1133,14 +1133,14 @@ func ShrR(a, n Word16) Word16 {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run TestShrR -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/shift16.go internal/fixed/shift16_test.go && git commit -m "feat(fixed): add ShrR (shift right with rounding)"
