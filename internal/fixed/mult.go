@@ -19,3 +19,23 @@ return LAdd(acc, LMult(a, b))
 func LMsu(acc Word32, a, b Word16) Word32 {
 return LSub(acc, LMult(a, b))
 }
+
+// Mult returns (a*b) >> 15 saturated to Word16. Models a fractional
+// multiply in Q15 format.
+func Mult(a, b Word16) Word16 {
+if a == Min16 && b == Min16 {
+return Max16
+}
+prod := Word32(a) * Word32(b)
+return Word16(prod >> 15)
+}
+
+// MultR returns ((a*b) + 0x4000) >> 15 saturated to Word16. Fractional
+// multiply with rounding.
+func MultR(a, b Word16) Word16 {
+if a == Min16 && b == Min16 {
+return Max16
+}
+prod := Word32(a)*Word32(b) + 0x4000
+return Saturate(prod >> 15)
+}

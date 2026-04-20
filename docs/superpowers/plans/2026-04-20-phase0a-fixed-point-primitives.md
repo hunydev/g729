@@ -1513,7 +1513,7 @@ Both saturate when `a = b = Min16`.
 - Modify: `internal/fixed/mult.go` (append)
 - Modify: `internal/fixed/mult_test.go` (append)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `internal/fixed/mult_test.go`:
 ```go
@@ -1559,14 +1559,14 @@ func TestMultR(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run "TestMult|TestMultR"
 ```
 Expected: compile error.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `internal/fixed/mult.go`:
 ```go
@@ -1593,14 +1593,14 @@ func MultR(a, b Word16) Word16 {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run "TestMult|TestMultR" -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/mult.go internal/fixed/mult_test.go && git commit -m "feat(fixed): add Mult and MultR (Q15 fractional multiply)"

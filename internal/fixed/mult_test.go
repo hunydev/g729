@@ -69,3 +69,44 @@ t.Errorf("LMsu(%d, %d, %d) = %d, want %d", tc.acc, tc.a, tc.b, got, tc.want)
 })
 }
 }
+
+func TestMult(t *testing.T) {
+tests := []struct {
+name string
+a, b Word16
+want Word16
+}{
+{"zero", 0, 0, 0},
+{"half times half", 16384, 16384, 8192},
+{"one-ish times max", Max16, Max16, 32766},
+{"saturate", Min16, Min16, Max16},
+{"pos * neg", 16384, -16384, -8192},
+}
+for _, tc := range tests {
+t.Run(tc.name, func(t *testing.T) {
+if got := Mult(tc.a, tc.b); got != tc.want {
+t.Errorf("Mult(%d, %d) = %d, want %d", tc.a, tc.b, got, tc.want)
+}
+})
+}
+}
+
+func TestMultR(t *testing.T) {
+tests := []struct {
+name string
+a, b Word16
+want Word16
+}{
+{"zero", 0, 0, 0},
+{"half times half rounds", 16384, 16384, 8192},
+{"saturates like Mult", Min16, Min16, Max16},
+{"rounds up", 32767, 2, 2},
+}
+for _, tc := range tests {
+t.Run(tc.name, func(t *testing.T) {
+if got := MultR(tc.a, tc.b); got != tc.want {
+t.Errorf("MultR(%d, %d) = %d, want %d", tc.a, tc.b, got, tc.want)
+}
+})
+}
+}
