@@ -1699,7 +1699,7 @@ Equivalent formulations: `NormS(x) = 15 - bit_length(|x|)` for `x != 0`, using s
 - Create: `internal/fixed/norm.go`
 - Create: `internal/fixed/norm_test.go`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `internal/fixed/norm_test.go`:
 ```go
@@ -1751,14 +1751,14 @@ func TestNormL(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run "TestNormS|TestNormL"
 ```
 Expected: compile error.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `internal/fixed/norm.go`:
 ```go
@@ -1807,14 +1807,14 @@ func NormL(x Word32) Word16 {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run "TestNormS|TestNormL" -v
 ```
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/norm.go internal/fixed/norm_test.go && git commit -m "feat(fixed): add NormS and NormL (leading-bit normalization)"
