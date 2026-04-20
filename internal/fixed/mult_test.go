@@ -26,3 +26,46 @@ func TestLMult(t *testing.T) {
 		})
 	}
 }
+
+func TestLMac(t *testing.T) {
+tests := []struct {
+name string
+acc  Word32
+a, b Word16
+want Word32
+}{
+{"zero acc", 0, 100, 200, 40_000},
+{"acc add", 1000, 100, 200, 41_000},
+{"acc subtract", 100_000, 100, -200, 60_000},
+{"saturate acc high", Max32 - 10, 100, 100, Max32},
+{"saturate on mult only", 0, Min16, Min16, Max32},
+}
+for _, tc := range tests {
+t.Run(tc.name, func(t *testing.T) {
+if got := LMac(tc.acc, tc.a, tc.b); got != tc.want {
+t.Errorf("LMac(%d, %d, %d) = %d, want %d", tc.acc, tc.a, tc.b, got, tc.want)
+}
+})
+}
+}
+
+func TestLMsu(t *testing.T) {
+tests := []struct {
+name string
+acc  Word32
+a, b Word16
+want Word32
+}{
+{"zero acc", 0, 100, 200, -40_000},
+{"acc minus", 100_000, 100, 200, 60_000},
+{"acc minus neg prod", 1000, 100, -200, 41_000},
+{"saturate low", Min32 + 10, 100, 100, Min32},
+}
+for _, tc := range tests {
+t.Run(tc.name, func(t *testing.T) {
+if got := LMsu(tc.acc, tc.a, tc.b); got != tc.want {
+t.Errorf("LMsu(%d, %d, %d) = %d, want %d", tc.acc, tc.a, tc.b, got, tc.want)
+}
+})
+}
+}
