@@ -103,3 +103,139 @@ func TestWriteG192Frame_ShortFrame(t *testing.T) {
 // Placeholder for stdlib; keeps the test file self-contained even if
 // editors auto-import differently.
 var _ = io.Discard
+
+func TestReadG192Frame_GoodZeroFrame(t *testing.T) {
+// Build a valid G.192 representation of an all-zero frame.
+words := make([]uint16, G192FrameWords)
+words[0] = G192SyncGood
+words[1] = FrameBits
+for i := 0; i < FrameBits; i++ {
+words[2+i] = G192Bit0
+}
+var buf bytes.Buffer
+if err := binary.Write(&buf, binary.LittleEndian, words); err != nil {
+t.Fatalf("binary.Write: %v", err)
+}
+
+var frame [FrameBytes]byte
+bad, err := ReadG192Frame(&buf, frame[:])
+if err != nil {
+t.Fatalf("ReadG192Frame: %v", err)
+}
+if bad {
+t.Errorf("bad = true, want false")
+}
+for i, b := range frame {
+if b != 0 {
+t.Errorf("frame[%d] = %#x, want 0", i, b)
+}
+}
+}
+
+func TestReadG192Frame_BadFlagPropagates(t *testing.T) {
+words := make([]uint16, G192FrameWords)
+words[0] = G192SyncBad
+words[1] = FrameBits
+for i := 0; i < FrameBits; i++ {
+words[2+i] = G192Bit0
+}
+var buf bytes.Buffer
+_ = binary.Write(&buf, binary.LittleEndian, words)
+
+var frame [FrameBytes]byte
+bad, err := ReadG192Frame(&buf, frame[:])
+if err != nil {
+t.Fatalf("ReadG192Frame: %v", err)
+}
+if !bad {
+t.Errorf("bad = false, want true")
+}
+}
+
+func TestReadG192Frame_FirstBitSet(t *testing.T) {
+words := make([]uint16, G192FrameWords)
+words[0] = G192SyncGood
+words[1] = FrameBits
+words[2] = G192Bit1
+for i := 1; i < FrameBits; i++ {
+words[2+i] = G192Bit0
+}
+var buf bytes.Buffer
+_ = binary.Write(&buf, binary.LittleEndian, words)
+
+var frame [FrameBytes]byte
+if _, err := ReadG192Frame(&buf, frame[:]); err != nil {
+t.Fatalf("ReadG192Frame: %v", err)
+}
+want := [FrameBytes]byte{0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+if frame != want {
+t.Errorf("frame = % x, want % x", frame, want)
+}
+}
+
+func TestReadG192Frame_BadSync(t *testing.T) {
+words := make([]uint16, G192FrameWords)
+words[0] = 0xFFFF
+words[1] = FrameBits
+var buf bytes.Buffer
+_ = binary.Write(&buf, binary.LittleEndian, words)
+
+var frame [FrameBytes]byte
+if _, err := ReadG192Frame(&buf, frame[:]); !errors.Is(err, ErrBadG192Sync) {
+t.Errorf("err = %v, want ErrBadG192Sync", err)
+}
+}
+
+func TestReadG192Frame_BadLength(t *testing.T) {
+words := make([]uint16, G192FrameWords)
+words[0] = G192SyncGood
+words[1] = 40 // not FrameBits
+var buf bytes.Buffer
+_ = binary.Write(&buf, binary.LittleEndian, words)
+
+var frame [FrameBytes]byte
+if _, err := ReadG192Frame(&buf, frame[:]); !errors.Is(err, ErrBadG192Length) {
+t.Errorf("err = %v, want ErrBadG192Length", err)
+}
+}
+
+func TestReadG192Frame_BadDataWord(t *testing.T) {
+words := make([]uint16, G192FrameWords)
+words[0] = G192SyncGood
+words[1] = FrameBits
+words[2] = 0xDEAD
+var buf bytes.Buffer
+_ = binary.Write(&buf, binary.LittleEndian, words)
+
+var frame [FrameBytes]byte
+if _, err := ReadG192Frame(&buf, frame[:]); !errors.Is(err, ErrBadG192Bit) {
+t.Errorf("err = %v, want ErrBadG192Bit", err)
+}
+}
+
+func TestReadG192Frame_EOF(t *testing.T) {
+var empty bytes.Buffer
+var frame [FrameBytes]byte
+if _, err := ReadG192Frame(&empty, frame[:]); !errors.Is(err, io.EOF) {
+t.Errorf("err = %v, want io.EOF", err)
+}
+}
+
+func TestG192RoundTrip(t *testing.T) {
+original := []byte{0xAA, 0x55, 0x01, 0x80, 0xFF, 0x00, 0x12, 0x34, 0x56, 0x78}
+var buf bytes.Buffer
+if err := WriteG192Frame(&buf, original, false); err != nil {
+t.Fatalf("WriteG192Frame: %v", err)
+}
+var got [FrameBytes]byte
+bad, err := ReadG192Frame(&buf, got[:])
+if err != nil {
+t.Fatalf("ReadG192Frame: %v", err)
+}
+if bad {
+t.Errorf("bad = true, want false")
+}
+if !bytes.Equal(got[:], original) {
+t.Errorf("round-trip: got % x, want % x", got, original)
+}
+}

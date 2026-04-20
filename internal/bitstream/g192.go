@@ -54,3 +54,54 @@ func WriteG192Frame(w io.Writer, frame []byte, bad bool) error {
 
 	return binary.Write(w, binary.LittleEndian, words)
 }
+
+// ReadG192Frame reads one G.192 frame from r. frame must be at least
+// FrameBytes long and is overwritten with the packed bit pattern.
+// Returns bad = true if the sync word indicated a frame erasure.
+//
+// Returns io.EOF if the reader is empty at the start of a frame, or
+// io.ErrUnexpectedEOF if the reader ends mid-frame. Returns
+// ErrBadG192Sync / ErrBadG192Length / ErrBadG192Bit if the stream
+// content does not match the G.192 conventions.
+//
+// Allocates one G192FrameBytes-sized buffer internally.
+func ReadG192Frame(r io.Reader, frame []byte) (bool, error) {
+if len(frame) < FrameBytes {
+return false, ErrShortOutput
+}
+words := make([]uint16, G192FrameWords)
+if err := binary.Read(r, binary.LittleEndian, words); err != nil {
+return false, err
+}
+
+var bad bool
+switch words[0] {
+case G192SyncGood:
+bad = false
+case G192SyncBad:
+bad = true
+default:
+return false, ErrBadG192Sync
+}
+if words[1] != FrameBits {
+return false, ErrBadG192Length
+}
+
+out := frame[:FrameBytes]
+for i := range out {
+out[i] = 0
+}
+for i := 0; i < FrameBits; i++ {
+switch words[2+i] {
+case G192Bit1:
+byteIdx := i >> 3
+bitIdx := 7 - (i & 7)
+out[byteIdx] |= 1 << uint(bitIdx)
+case G192Bit0:
+// nothing to set
+default:
+return false, ErrBadG192Bit
+}
+}
+return bad, nil
+}
