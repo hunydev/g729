@@ -1966,7 +1966,7 @@ cd /home/exedev/g729 && git add internal/fixed/div.go internal/fixed/div_test.go
 
 Verify the whole package compiles and tests pass cleanly, and confirm the primitives do not allocate (they should not, since they return primitive types).
 
-- [ ] **Step 1: Write the allocation test**
+- [x] **Step 1: Write the allocation test**
 
 Create `internal/fixed/alloc_test.go`:
 ```go
@@ -2025,28 +2025,28 @@ func TestNoAllocationInPrimitives(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the full test suite**
+- [x] **Step 2: Run the full test suite**
 
 ```bash
 cd /home/exedev/g729 && go test ./... -v
 ```
 Expected: all tests (including the allocation suite) pass.
 
-- [ ] **Step 3: Run with race detector**
+- [x] **Step 3: Run with race detector**
 
 ```bash
 cd /home/exedev/g729 && go test ./... -race
 ```
 Expected: no race detector output, all pass.
 
-- [ ] **Step 4: Run vet**
+- [x] **Step 4: Run vet**
 
 ```bash
 cd /home/exedev/g729 && go vet ./...
 ```
 Expected: no output (clean).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/alloc_test.go && git commit -m "test(fixed): assert zero allocation in primitive calls"
