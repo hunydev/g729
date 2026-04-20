@@ -52,3 +52,40 @@ func TestSub(t *testing.T) {
 		})
 	}
 }
+
+func TestNegate(t *testing.T) {
+tests := []struct {
+in, want Word16
+}{
+{0, 0},
+{1, -1},
+{-1, 1},
+{100, -100},
+{-100, 100},
+{Max16, -Max16},
+{Min16, Max16},
+}
+for _, tc := range tests {
+if got := Negate(tc.in); got != tc.want {
+t.Errorf("Negate(%d) = %d, want %d", tc.in, got, tc.want)
+}
+}
+}
+
+func TestAbsS(t *testing.T) {
+tests := []struct {
+in, want Word16
+}{
+{0, 0},
+{100, 100},
+{-100, 100},
+{Max16, Max16},
+{Min16, Max16},
+{-1, 1},
+}
+for _, tc := range tests {
+if got := AbsS(tc.in); got != tc.want {
+t.Errorf("AbsS(%d) = %d, want %d", tc.in, got, tc.want)
+}
+}
+}

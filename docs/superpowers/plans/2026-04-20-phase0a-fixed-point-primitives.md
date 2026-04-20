@@ -510,7 +510,7 @@ Implementations landed in Task 4; now add their dedicated tests.
 **Files:**
 - Modify: `internal/fixed/arith16_test.go` (append)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `internal/fixed/arith16_test.go`:
 ```go
@@ -552,14 +552,14 @@ func TestAbsS(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests**
+- [x] **Step 2: Run the tests**
 
 ```bash
 cd /home/exedev/g729 && go test ./internal/fixed/... -run "TestNegate|TestAbsS" -v
 ```
 Expected: all pass (already implemented in Task 4).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /home/exedev/g729 && git add internal/fixed/arith16_test.go && git commit -m "test(fixed): Negate and AbsS boundary tests"
