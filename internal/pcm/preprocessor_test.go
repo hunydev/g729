@@ -184,3 +184,44 @@ return -x
 }
 return x
 }
+
+func TestPreProcessor_SaturatesOnFullScaleAlternation(t *testing.T) {
+var p PreProcessor
+const n = 256
+in := make([]int16, n)
+out := make([]int16, n)
+for i := range in {
+if i%2 == 0 {
+in[i] = 32767
+} else {
+in[i] = -32768
+}
+}
+p.Process(in, out)
+any := false
+for _, v := range out {
+if v != 0 {
+any = true
+break
+}
+}
+if !any {
+t.Fatal("filter produced all-zero output on full-scale alternating input")
+}
+}
+
+func TestPreProcessor_SaturatesOnDCStep(t *testing.T) {
+var p PreProcessor
+const n = 512
+in := make([]int16, n)
+out := make([]int16, n)
+for i := range in {
+in[i] = 32767
+}
+p.Process(in, out)
+for i := n - 16; i < n; i++ {
+if out[i] > 8 || out[i] < -8 {
+t.Errorf("DC step not rejected: out[%d] = %d", i, out[i])
+}
+}
+}
