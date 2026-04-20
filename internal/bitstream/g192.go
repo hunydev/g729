@@ -105,3 +105,27 @@ return false, ErrBadG192Bit
 }
 return bad, nil
 }
+
+// ReadG192File reads G.192 frames from r until EOF. It returns a slice
+// of packed frame bytes (each FrameBytes long) and a parallel slice of
+// bad-frame flags. A clean EOF at a frame boundary terminates reading
+// normally. A truncated last frame returns io.ErrUnexpectedEOF.
+//
+// Intended for loading ITU test-vector .bit files, not for the hot
+// path: it allocates one backing buffer for the full output.
+func ReadG192File(r io.Reader) ([][]byte, []bool, error) {
+var frames [][]byte
+var bads []bool
+for {
+frame := make([]byte, FrameBytes)
+bad, err := ReadG192Frame(r, frame)
+if err == io.EOF {
+return frames, bads, nil
+}
+if err != nil {
+return frames, bads, err
+}
+frames = append(frames, frame)
+bads = append(bads, bad)
+}
+}

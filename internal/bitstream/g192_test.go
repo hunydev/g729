@@ -239,3 +239,45 @@ if !bytes.Equal(got[:], original) {
 t.Errorf("round-trip: got % x, want % x", got, original)
 }
 }
+
+func TestReadG192File_MultipleFrames(t *testing.T) {
+frames := [][]byte{
+{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A},
+{0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90, 0xA0},
+}
+bads := []bool{false, true}
+
+var buf bytes.Buffer
+for i, f := range frames {
+if err := WriteG192Frame(&buf, f, bads[i]); err != nil {
+t.Fatalf("WriteG192Frame[%d]: %v", i, err)
+}
+}
+
+gotFrames, gotBads, err := ReadG192File(&buf)
+if err != nil {
+t.Fatalf("ReadG192File: %v", err)
+}
+if len(gotFrames) != len(frames) {
+t.Fatalf("frame count = %d, want %d", len(gotFrames), len(frames))
+}
+for i := range frames {
+if !bytes.Equal(gotFrames[i], frames[i]) {
+t.Errorf("frame[%d] = % x, want % x", i, gotFrames[i], frames[i])
+}
+if gotBads[i] != bads[i] {
+t.Errorf("bad[%d] = %v, want %v", i, gotBads[i], bads[i])
+}
+}
+}
+
+func TestReadG192File_Empty(t *testing.T) {
+var buf bytes.Buffer
+frames, bads, err := ReadG192File(&buf)
+if err != nil {
+t.Fatalf("ReadG192File empty: %v", err)
+}
+if len(frames) != 0 || len(bads) != 0 {
+t.Errorf("empty file -> %d frames, want 0", len(frames))
+}
+}
