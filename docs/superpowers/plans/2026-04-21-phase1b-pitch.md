@@ -996,7 +996,7 @@ v[n] = v[n - T_int]      for n ∈ [T_int, 40)
 
 This uses `v` itself as if past excitation were periodic with period `T_int`. Applies to both `T_frac = 0` (straight copy for first T_int) and fractional (FIR-interpolated for first T_int).
 
-- [ ] **Step 1: Add the failing short-pitch tests**
+- [x] **Step 1: Add the failing short-pitch tests**
 
 Append to `internal/pitch/adaptive_test.go`:
 
@@ -1041,12 +1041,12 @@ func TestAdaptiveCodebookShortPitchBoundary(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `go test ./internal/pitch/ -run TestAdaptiveCodebookShortPitch -v`
 Expected: FAIL — the current `AdaptiveCodebook` zero-fills when `tInt < 40`.
 
-- [ ] **Step 3: Implement the short-pitch path**
+- [x] **Step 3: Implement the short-pitch path**
 
 Modify the `AdaptiveCodebook` function body, replacing the zero-fill fallback:
 
@@ -1081,12 +1081,12 @@ func AdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[40]int16) {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify pass**
+- [x] **Step 4: Run tests to verify pass**
 
 Run: `go test ./internal/pitch/ -run TestAdaptiveCodebook -v`
 Expected: PASS (all subtests: integer-delay, fractional, short-pitch).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/pitch/adaptive.go internal/pitch/adaptive_test.go

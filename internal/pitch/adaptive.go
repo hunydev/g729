@@ -50,9 +50,19 @@ func AdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[40]int16) {
 		return
 	}
 
-	// Short-pitch (tInt < 40) — handled in Task 8.
-	for n := 0; n < 40; n++ {
-		v[n] = 0
+	// Short pitch (tInt < 40): fill v[0..tInt-1] from past excitation
+	// (interpolated if fractional), then replicate forward by period
+	// tInt: v[n] = v[n - tInt] for n in [tInt, 40).
+	if tFrac == 0 {
+		base := len(pastExc) - tInt
+		for n := 0; n < tInt; n++ {
+			v[n] = pastExc[base+n]
+		}
+	} else {
+		firInterpolate(tInt, tFrac, pastExc, v, 0, tInt)
+	}
+	for n := tInt; n < 40; n++ {
+		v[n] = v[n-tInt]
 	}
 }
 
