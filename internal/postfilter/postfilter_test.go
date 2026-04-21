@@ -107,3 +107,59 @@ func TestFilter_ZeroLPCIsApproximateIdentity(t *testing.T) {
 		}
 	}
 }
+
+func TestFilter_ResetRestoresZeroValueDeterminism(t *testing.T) {
+	a := [11]int16{4096, 1500, -800, 300, -100, 50, 0, 0, 0, 0, 0}
+	var s [subframeLen]int16
+	for i := range s {
+		s[i] = int16(200 + i*5)
+	}
+
+	var pfRef Postfilter
+	var sRef [subframeLen]int16
+	pfRef.Filter(&a, 40, &s, &sRef)
+
+	var pfUUT Postfilter
+	var dummy [subframeLen]int16
+	pfUUT.Filter(&a, 60, &dummy, &dummy)
+	pfUUT.Reset()
+
+	var sUUT [subframeLen]int16
+	pfUUT.Filter(&a, 40, &s, &sUUT)
+
+	for i := range sRef {
+		if sRef[i] != sUUT[i] {
+			t.Errorf("sPf[%d] = %d, want %d (Reset non-deterministic)",
+				i, sUUT[i], sRef[i])
+		}
+	}
+}
+
+func TestFilter_StatePropagatesAcrossSubframes(t *testing.T) {
+	a := [11]int16{4096, 1500, -800, 300, -100, 50, 0, 0, 0, 0, 0}
+	var s1, s2 [subframeLen]int16
+	for i := range s1 {
+		s1[i] = int16(200 + i*5)
+		s2[i] = int16(500 - i*3)
+	}
+
+	var pfA Postfilter
+	var a1, a2 [subframeLen]int16
+	pfA.Filter(&a, 40, &s1, &a1)
+	pfA.Filter(&a, 40, &s2, &a2)
+
+	var pfB Postfilter
+	var b2 [subframeLen]int16
+	pfB.Filter(&a, 40, &s2, &b2)
+
+	different := false
+	for i := range a2 {
+		if a2[i] != b2[i] {
+			different = true
+			break
+		}
+	}
+	if !different {
+		t.Error("a2 == b2 — postfilter state did not carry across subframes")
+	}
+}
