@@ -1104,7 +1104,7 @@ git commit -m "feat(pitch): short-pitch periodicity extension (T_int < 40)"
 
 Lock in the zero-allocation hot path for all public functions and add canonical benchmarks.
 
-- [ ] **Step 1: Write the failing allocation tests**
+- [x] **Step 1: Write the failing allocation tests**
 
 Create `internal/pitch/alloc_test.go`:
 
@@ -1156,12 +1156,12 @@ func TestNoAllocationInAdaptiveCodebook(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the allocation tests**
+- [x] **Step 2: Run the allocation tests**
 
 Run: `go test ./internal/pitch/ -run TestNoAllocation -v`
 Expected: PASS. If any fails, use `go build -gcflags='-m' ./internal/pitch` to locate the escape site. Common culprits: passing the `pastExc[:]` slice inside the test closure causes the array to escape — the slice variable declared outside the closure prevents that (see the `slice := pastExc[:]` pattern above).
 
-- [ ] **Step 3: Write the benchmark**
+- [x] **Step 3: Write the benchmark**
 
 Create `internal/pitch/bench_test.go`:
 
@@ -1213,12 +1213,12 @@ func BenchmarkAdaptiveCodebookShortPitch(b *testing.B) {
 }
 ```
 
-- [ ] **Step 4: Run the benchmarks and confirm zero allocs**
+- [x] **Step 4: Run the benchmarks and confirm zero allocs**
 
 Run: `go test -bench=. -benchmem -run=^$ ./internal/pitch/`
 Expected: `0 B/op   0 allocs/op` on every benchmark.
 
-- [ ] **Step 5: Polish the package documentation**
+- [x] **Step 5: Polish the package documentation**
 
 Rewrite `internal/pitch/doc.go` to match the real pipeline:
 
@@ -1287,13 +1287,13 @@ Rewrite `internal/pitch/doc.go` to match the real pipeline:
 package pitch
 ```
 
-- [ ] **Step 6: Run the full test + vet pass**
+- [x] **Step 6: Run the full test + vet pass**
 
 Run in parallel:
 - `go test -race ./internal/pitch/... ./internal/tables/...` → all PASS
 - `go vet ./internal/pitch/... ./internal/tables/...` → silent
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add internal/pitch/alloc_test.go internal/pitch/bench_test.go internal/pitch/doc.go
