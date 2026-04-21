@@ -33,3 +33,81 @@ func TestClampPitchGainForEnhancement(t *testing.T) {
 		})
 	}
 }
+
+func TestApplyPitchEnhancement_IdentityAtBetaZero(t *testing.T) {
+var c [40]int16
+c[5] = PulseAmplitude
+c[10] = -PulseAmplitude
+original := c
+applyPitchEnhancement(&c, 20, 0)
+if c != original {
+t.Fatalf("β=0 must leave c unchanged; got %v, want %v", c, original)
+}
+}
+
+func TestApplyPitchEnhancement_BelowLagUnchanged(t *testing.T) {
+var c [40]int16
+c[5] = PulseAmplitude
+c[10] = -PulseAmplitude
+applyPitchEnhancement(&c, 20, 8192)
+for n := 0; n < 20; n++ {
+want := int16(0)
+if n == 5 {
+want = PulseAmplitude
+} else if n == 10 {
+want = -PulseAmplitude
+}
+if c[n] != want {
+t.Errorf("c[%d] = %d, want %d (unchanged below lag)", n, c[n], want)
+}
+}
+}
+
+func TestApplyPitchEnhancement_SinglePulsePropagationAtBetaHalf(t *testing.T) {
+var c [40]int16
+c[0] = PulseAmplitude
+applyPitchEnhancement(&c, 20, 8192)
+if c[0] != PulseAmplitude {
+t.Errorf("c[0] = %d, want %d (source unchanged)", c[0], PulseAmplitude)
+}
+if diff := c[20] - 4096; diff > 1 || diff < -1 {
+t.Errorf("c[20] = %d, want ≈4096 (±1 for rounding)", c[20])
+}
+for n := 21; n < 40; n++ {
+if c[n] != 0 {
+t.Errorf("c[%d] = %d, want 0 (no further propagation for T=20)", n, c[n])
+}
+}
+}
+
+func TestApplyPitchEnhancement_CascadeAtBeta08(t *testing.T) {
+var c [40]int16
+c[0] = PulseAmplitude
+applyPitchEnhancement(&c, 10, 13107)
+
+if diff := c[10] - 6554; diff > 2 || diff < -2 {
+t.Errorf("c[10] = %d, want ≈6554", c[10])
+}
+if diff := c[20] - 5243; diff > 3 || diff < -3 {
+t.Errorf("c[20] = %d, want ≈5243", c[20])
+}
+if diff := c[30] - 4194; diff > 3 || diff < -3 {
+t.Errorf("c[30] = %d, want ≈4194", c[30])
+}
+}
+
+func TestApplyPitchEnhancement_InPlaceIIRNotFIR(t *testing.T) {
+var c [40]int16
+c[0] = PulseAmplitude
+applyPitchEnhancement(&c, 5, 8192)
+
+want := []int16{0, 0, 0, 0, 0, 4096, 0, 0, 0, 0, 2048, 0, 0, 0, 0, 1024}
+for n := 0; n < len(want); n++ {
+if n == 0 {
+continue
+}
+if diff := c[n] - want[n]; diff > 1 || diff < -1 {
+t.Errorf("c[%d] = %d, want ≈%d (IIR cascade)", n, c[n], want[n])
+}
+}
+}

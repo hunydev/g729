@@ -1,5 +1,7 @@
 package fcb
 
+import "github.com/exedev/g729/internal/fixed"
+
 // Pitch enhancement filter coefficient endpoints (Q14), per ITU-T
 // G.729 §3.8 equation (47): β = ĝ_p^(m-1) bounded by 0.2 ≤ β ≤ 0.8.
 const (
@@ -19,4 +21,34 @@ func ClampPitchGainForEnhancement(gpPrevQ14 int16) int16 {
 		return betaUpperQ14
 	}
 	return gpPrevQ14
+}
+
+// applyPitchEnhancement runs the in-place IIR pitch enhancement
+// filter c'(n) = c(n) + β·c'(n−T) for n = T..39, per ITU-T G.729
+// §3.8 equation (46), applied only when the integer pitch lag T is
+// less than the subframe size 40 (eq. 48).
+//
+// Q-format chain (β is Q14, c is Q13):
+//
+//prod32 = LMult(βQ14, c[n-t])     →  Q28 (LMult doubles)
+//prod32 = LShl(prod32, 1)          →  Q29
+//delta  = Round(prod32)            →  Q13 (saturating)
+//c[n]   = Add(c[n], delta)         →  Q13 (saturating)
+//
+// In-place update means c[n-t] for n in [t..39] is the post-filtered
+// (cascaded) value, giving the correct IIR behaviour.
+func applyPitchEnhancement(c *[40]int16, t int, betaQ14 int16) {
+if t < 1 || t >= 40 {
+return
+}
+if betaQ14 == 0 {
+return
+}
+bQ14 := fixed.Word16(betaQ14)
+for n := t; n < 40; n++ {
+prod := fixed.LMult(bQ14, fixed.Word16(c[n-t]))
+prod = fixed.LShl(prod, 1)
+delta := fixed.Round(prod)
+c[n] = int16(fixed.Add(fixed.Word16(c[n]), delta))
+}
 }
