@@ -7,7 +7,10 @@ package lsp
 //
 // The zero value is a valid Reset state.
 type Decoder struct {
-	// Filled in by subsequent tasks.
+	// pastResiduals holds the 4 previous frames' quantized residual
+	// vectors r̂(n-1)..r̂(n-4), all Q13. pastResiduals[0] is the most
+	// recent (r̂(n-1)).
+	pastResiduals [4][10]int16
 }
 
 // Reset returns the decoder to its initial state.
