@@ -1,6 +1,6 @@
 # Phase 1b — internal/pitch Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Implement the `internal/pitch` package — decoder-side pitch delay decoding (8-bit P1 + 1-bit parity P0 for subframe 1, 5-bit P2 for subframe 2) and adaptive codebook vector construction via 1/3-sample fractional interpolation on the past-excitation signal. Output a 40-sample adaptive codebook vector `v[40]` (Q0 int16) for each subframe that Phase 1e's synthesis filter and Phase 1d's gain application will consume.
 
@@ -173,7 +173,7 @@ Final (Task 9 completion criteria):
 
 Stand up the package with the `Indices` value type before any algorithm lands.
 
-- [ ] **Step 1: Write the failing shape test**
+- [x] **Step 1: Write the failing shape test**
 
 Create `internal/pitch/types_test.go`:
 
@@ -190,12 +190,12 @@ func TestIndicesZeroValue(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `go test ./internal/pitch/ -run TestIndicesZeroValue -v`
 Expected: FAIL with "undefined: Indices".
 
-- [ ] **Step 3: Create `types.go`**
+- [x] **Step 3: Create `types.go`**
 
 ```go
 package pitch
@@ -210,7 +210,7 @@ type Indices struct {
 }
 ```
 
-- [ ] **Step 4: Create a minimal `doc.go`**
+- [x] **Step 4: Create a minimal `doc.go`**
 
 ```go
 // Package pitch implements ITU-T G.729 + Annex A §3.7 / §4.1.3 /
@@ -225,12 +225,12 @@ type Indices struct {
 package pitch
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 Run: `go test ./internal/pitch/ -run TestIndicesZeroValue -v`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/pitch/doc.go internal/pitch/types.go internal/pitch/types_test.go
@@ -257,7 +257,7 @@ where `b7..b0` are bits of P1 with `b7` most significant. Odd parity means `XOR 
 
 Verify whether §3.7.2 uses odd or even parity, and whether the bit range is `b7..b2` (upper 6) or another selection.
 
-- [ ] **Step 1: Write the failing parity test**
+- [x] **Step 1: Write the failing parity test**
 
 Create `internal/pitch/parity_test.go`:
 
@@ -303,12 +303,12 @@ func TestCheckParityExhaustive(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `go test ./internal/pitch/ -run TestCheckParity -v`
 Expected: FAIL with "undefined: CheckParity".
 
-- [ ] **Step 3: Implement `CheckParity`**
+- [x] **Step 3: Implement `CheckParity`**
 
 Create `internal/pitch/parity.go`:
 
@@ -334,12 +334,12 @@ func CheckParity(p1, p0 uint8) bool {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `go test ./internal/pitch/ -run TestCheckParity -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/pitch/parity.go internal/pitch/parity_test.go
@@ -356,7 +356,7 @@ git commit -m "feat(pitch): parity check on P1 upper 6 bits"
 
 Decode P1 (8 bits) into integer and fractional pitch delay. Return `T_int` in `[19, 143]` and `T_frac` in `{-1, 0, +1}`.
 
-- [ ] **Step 1: Write the failing subframe-1 decode test**
+- [x] **Step 1: Write the failing subframe-1 decode test**
 
 Create `internal/pitch/delay_test.go`:
 
@@ -406,12 +406,12 @@ func TestDecodeDelaySubframe1RangeInvariants(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `go test ./internal/pitch/ -run TestDecodeDelaySubframe1 -v`
 Expected: FAIL with "undefined: DecodeDelaySubframe1".
 
-- [ ] **Step 3: Implement `DecodeDelaySubframe1`**
+- [x] **Step 3: Implement `DecodeDelaySubframe1`**
 
 Create `internal/pitch/delay.go`:
 
@@ -448,12 +448,12 @@ func DecodeDelaySubframe1(p1 uint8) (tInt, tFrac int) {
 
 Update both `DecodeDelaySubframe1` and the test's `subframe1Cases` if the spec differs.
 
-- [ ] **Step 4: Run tests to verify pass**
+- [x] **Step 4: Run tests to verify pass**
 
 Run: `go test ./internal/pitch/ -run TestDecodeDelaySubframe1 -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/pitch/delay.go internal/pitch/delay_test.go
@@ -472,7 +472,7 @@ git commit -m "feat(pitch): subframe-1 pitch delay decoding"
 
 Range: `T2 ∈ [T1_rounded − 5 1/3, T1_rounded + 4 2/3]` with 1/3 resolution → 30 values in 5 bits.
 
-- [ ] **Step 1: Add the failing subframe-2 decode test**
+- [x] **Step 1: Add the failing subframe-2 decode test**
 
 Append to `internal/pitch/delay_test.go`:
 
@@ -540,12 +540,12 @@ func TestDecodeDelaySubframe2LowerClamp(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `go test ./internal/pitch/ -run TestDecodeDelaySubframe2 -v`
 Expected: FAIL with "undefined: DecodeDelaySubframe2".
 
-- [ ] **Step 3: Implement `DecodeDelaySubframe2`**
+- [x] **Step 3: Implement `DecodeDelaySubframe2`**
 
 Append to `internal/pitch/delay.go`:
 
@@ -583,12 +583,12 @@ func DecodeDelaySubframe2(p2 uint8, t1Rounded int) (tInt, tFrac int) {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify pass**
+- [x] **Step 4: Run tests to verify pass**
 
 Run: `go test ./internal/pitch/ -run TestDecodeDelaySubframe2 -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/pitch/delay.go internal/pitch/delay_test.go
@@ -609,7 +609,7 @@ A common storage layout (used by the ITU reference distribution) is a single fla
 
 Transcribe from the ITU reference distribution's `tab_ld8a.c` data-array initializer (per the MEMORY.md merger-doctrine policy). **Do NOT read any algorithmic C file**, only the flat numerical initializer.
 
-- [ ] **Step 1: Write the failing shape test**
+- [x] **Step 1: Write the failing shape test**
 
 Create `internal/tables/pitch_interp_test.go`:
 
@@ -638,12 +638,12 @@ func TestPitchInterpFIRRange(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `go test ./internal/tables/ -run TestPitchInterpFIR -v`
 Expected: FAIL with "undefined: PitchInterpFIR".
 
-- [ ] **Step 3: Transcribe the FIR table**
+- [x] **Step 3: Transcribe the FIR table**
 
 Create `internal/tables/pitch_interp.go`:
 
@@ -673,12 +673,12 @@ var PitchInterpFIR = [33]int16{
 
 Adjust the array length (`[33]int16`) to match whatever the spec specifies. Update `TestPitchInterpFIRShape`'s `want` constant to match.
 
-- [ ] **Step 4: Run tests to verify pass**
+- [x] **Step 4: Run tests to verify pass**
 
 Run: `go test ./internal/tables/ -run TestPitchInterpFIR -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/tables/pitch_interp.go internal/tables/pitch_interp_test.go
@@ -697,7 +697,7 @@ Implement the integer-delay fast path first (T_frac = 0): `v[n] = pastExc[len - 
 
 This is a pure copy with no multiplications. It lets the filter-based implementation (Task 7) be tested against a zero-fraction ground truth.
 
-- [ ] **Step 1: Write the failing integer-delay test**
+- [x] **Step 1: Write the failing integer-delay test**
 
 Create `internal/pitch/adaptive_test.go`:
 
@@ -742,12 +742,12 @@ func TestAdaptiveCodebookIntegerDelayLargest(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `go test ./internal/pitch/ -run TestAdaptiveCodebook -v`
 Expected: FAIL with "undefined: AdaptiveCodebook".
 
-- [ ] **Step 3: Implement the integer-delay path**
+- [x] **Step 3: Implement the integer-delay path**
 
 Create `internal/pitch/adaptive.go`:
 
@@ -786,12 +786,12 @@ func AdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[40]int16) {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify pass**
+- [x] **Step 4: Run tests to verify pass**
 
 Run: `go test ./internal/pitch/ -run TestAdaptiveCodebook -v`
 Expected: PASS (both integer-delay subtests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/pitch/adaptive.go internal/pitch/adaptive_test.go
@@ -818,7 +818,7 @@ where `h[k, t_frac]` is the FIR coefficient for tap offset `k` and fractional in
 
 The interpolation index-into-PitchInterpFIR for a given `(k, t_frac)` depends on the spec's table layout. The pseudocode below assumes a `h[3][Linter + 1]`-like shape where `h[0][·]` is t_frac = −1/3, `h[1][·]` is t_frac = 0 (identity), `h[2][·]` is t_frac = +1/3; your implementation must match the actual layout transcribed in Task 5.
 
-- [ ] **Step 1: Add the failing fractional-delay tests**
+- [x] **Step 1: Add the failing fractional-delay tests**
 
 Append to `internal/pitch/adaptive_test.go`:
 
@@ -867,12 +867,12 @@ func TestAdaptiveCodebookFractionalVariesWithTFrac(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `go test ./internal/pitch/ -run TestAdaptiveCodebookFractional -v`
 Expected: FAIL with "v[n] = 0 ... want ≈ 1" from the partition-of-unity test (the current stub zeros out the fractional case).
 
-- [ ] **Step 3: Replace the stub with the FIR-based interpolation**
+- [x] **Step 3: Replace the stub with the FIR-based interpolation**
 
 Modify `internal/pitch/adaptive.go`:
 
@@ -968,12 +968,12 @@ func interpolate(tInt, tFrac int, pastExc []int16, v *[40]int16, start, end int)
 
 **`firCoeff` needs the spec-exact index formula.** Implement it once Task 5's table is landed — the initializer's structure (striding, sign convention, offset) dictates the arithmetic. The partition-of-unity test in Step 1 will catch gross indexing errors; the "varies with tFrac" test will catch flat-out-wrong lookups.
 
-- [ ] **Step 4: Run tests to verify pass**
+- [x] **Step 4: Run tests to verify pass**
 
 Run: `go test ./internal/pitch/ -run TestAdaptiveCodebook -v`
 Expected: PASS (integer-delay, partition-of-unity, and varies-with-tFrac subtests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/pitch/adaptive.go internal/pitch/adaptive_test.go
