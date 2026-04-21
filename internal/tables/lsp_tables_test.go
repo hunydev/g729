@@ -24,3 +24,26 @@ func TestLSPCodebookL1Range(t *testing.T) {
 		}
 	}
 }
+
+func TestLSPCodebookL2Shape(t *testing.T) {
+if len(LSPCodebookL2) != 32 {
+t.Fatalf("LSPCodebookL2: rows = %d, want 32", len(LSPCodebookL2))
+}
+for i, row := range LSPCodebookL2 {
+if len(row) != 5 {
+t.Fatalf("LSPCodebookL2[%d]: cols = %d, want 5", i, len(row))
+}
+}
+}
+
+func TestLSPCodebookL2Range(t *testing.T) {
+const cap = 2 * 25736
+for i, row := range LSPCodebookL2 {
+for j, v := range row {
+if int(v) > cap || int(v) < -cap {
+t.Errorf("LSPCodebookL2[%d][%d] = %d out of sane range ±%d",
+i, j, v, cap)
+}
+}
+}
+}
