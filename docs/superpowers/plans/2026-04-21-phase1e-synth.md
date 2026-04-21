@@ -122,7 +122,7 @@ func (synth *Synthesizer) Reset()
 - Create: `internal/synth/types.go`
 - Create: `internal/synth/synthesizer_test.go`
 
-- [ ] **Step 1: Write the failing test for Synthesizer zero-value**
+- [x] **Step 1: Write the failing test for Synthesizer zero-value**
 
 Write to `internal/synth/synthesizer_test.go`:
 
@@ -156,13 +156,13 @@ func TestSynthesizer_ResetZerosState(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify the test fails (package doesn't exist yet)**
+- [x] **Step 2: Verify the test fails (package doesn't exist yet)**
 
 Run: `go test ./internal/synth/...`
 
 Expected: compile error — `package synth` or `Synthesizer`/`Reset` undefined.
 
-- [ ] **Step 3: Create `internal/synth/doc.go` placeholder**
+- [x] **Step 3: Create `internal/synth/doc.go` placeholder**
 
 ```go
 // Package synth implements the G.729 + Annex A decoder's excitation
@@ -172,7 +172,7 @@ Expected: compile error — `package synth` or `Synthesizer`/`Reset` undefined.
 package synth
 ```
 
-- [ ] **Step 4: Create `internal/synth/types.go`**
+- [x] **Step 4: Create `internal/synth/types.go`**
 
 ```go
 package synth
@@ -196,13 +196,13 @@ func (synth *Synthesizer) Reset() {
 }
 ```
 
-- [ ] **Step 5: Verify tests pass**
+- [x] **Step 5: Verify tests pass**
 
 Run: `go test -race ./internal/synth/...`
 
 Expected: `PASS`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/synth/doc.go internal/synth/types.go internal/synth/synthesizer_test.go
@@ -234,7 +234,7 @@ In this task we implement only the pitch half, with tests that zero out `c[]` an
 
 Sanity: `gpQ14 = 16384` (1.0 in Q14) and `v[n] = 1000` → `LMult = 32,768,000` (Q15); `LShl(·, 1) = 65,536,000` (Q16); `Round` → `65,536,000 >> 16 = 1000`. Pass-through when g_p = 1.0. ✓
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Write to `internal/synth/excitation_test.go`:
 
@@ -298,13 +298,13 @@ func TestBuildExcitation_ZeroGains(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify tests fail (BuildExcitation undefined)**
+- [x] **Step 2: Verify tests fail (BuildExcitation undefined)**
 
 Run: `go test ./internal/synth/...`
 
 Expected: compile error — `BuildExcitation` undefined.
 
-- [ ] **Step 3: Write the initial BuildExcitation (pitch half only)**
+- [x] **Step 3: Write the initial BuildExcitation (pitch half only)**
 
 Write to `internal/synth/excitation.go`:
 
@@ -342,13 +342,13 @@ func BuildExcitation(gpQ14, gcQ12 int16, v, c *[40]int16, u *[40]int16) {
 }
 ```
 
-- [ ] **Step 4: Verify tests pass**
+- [x] **Step 4: Verify tests pass**
 
 Run: `go test -race ./internal/synth/...`
 
 Expected: `PASS` for all three tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/synth/excitation.go internal/synth/excitation_test.go
@@ -390,7 +390,7 @@ Wait, `c[n] = 8192` in Q13 represents `8192/8192 = 1.0`. So `g_c · c = 1.0 · 1
 - `LShl(·, 1) = 131,072` (Q16).
 - `Round` → `131,072 >> 16 = 2`. ✓
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `internal/synth/excitation_test.go`:
 
@@ -450,13 +450,13 @@ func TestBuildExcitation_PitchAndCodeCombined(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify tests fail**
+- [x] **Step 2: Verify tests fail**
 
 Run: `go test ./internal/synth/ -run 'TestBuildExcitation_Code|TestBuildExcitation_PitchAndCode' -v`
 
 Expected: `FAIL` — `u[i] = 0` because we haven't wired the code half yet.
 
-- [ ] **Step 3: Implement the code contribution**
+- [x] **Step 3: Implement the code contribution**
 
 Replace the body of `BuildExcitation` in `internal/synth/excitation.go`:
 
@@ -478,13 +478,13 @@ func BuildExcitation(gpQ14, gcQ12 int16, v, c *[40]int16, u *[40]int16) {
 }
 ```
 
-- [ ] **Step 4: Verify all tests pass**
+- [x] **Step 4: Verify all tests pass**
 
 Run: `go test -race ./internal/synth/...`
 
 Expected: `PASS` for all (including the Task 2 tests that should still pass).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/synth/excitation.go internal/synth/excitation_test.go
@@ -507,7 +507,7 @@ EOF
 
 ITU's `L_mult`/`L_add`/`round` saturate to `MAX_32` / `MIN_32` / `MAX_16` / `MIN_16` on overflow. Verify this is what `fixed.LMult` + `fixed.LAdd` + `fixed.Round` do (they should, per Phase 0 / `internal/fixed` contract), by constructing extreme inputs.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `internal/synth/excitation_test.go`:
 
@@ -571,7 +571,7 @@ func TestBuildExcitation_SaturatesOnBothContributionsHigh(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests — they should already pass**
+- [x] **Step 2: Run the tests — they should already pass**
 
 Run: `go test -race ./internal/synth/...`
 
@@ -579,7 +579,7 @@ Expected: `PASS`. The existing BuildExcitation already uses saturating primitive
 
 If a test fails, investigate: the culprit is likely `LShl`/`LShr` not saturating, or the down-shift in the code half interacting oddly with MIN_32. Do **not** short-circuit with manual clamps; instead read `internal/fixed`'s contract and route the offending arithmetic through the correct primitive (e.g. `LShlS` if an explicit saturating left-shift is needed).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/synth/excitation_test.go
@@ -618,7 +618,7 @@ With `a[1..10] = 0`, the filter degenerates to `s(n) = u(n)` — a direct-pass t
 - `LShl(·, 3) = 65,536,000` (Q16).
 - `Round → 65,536,000 >> 16 = 1000` (Q0). ✓
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Write to `internal/synth/filter_test.go`:
 
@@ -656,13 +656,13 @@ func TestFilter_ZeroLPCIsIdentity(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify the test fails**
+- [x] **Step 2: Verify the test fails**
 
 Run: `go test ./internal/synth/ -run TestFilter_ZeroLPCIsIdentity -v`
 
 Expected: compile error — `filterSubframe` undefined.
 
-- [ ] **Step 3: Implement the filter (direct form, no past-state integration yet)**
+- [x] **Step 3: Implement the filter (direct form, no past-state integration yet)**
 
 Write to `internal/synth/filter.go`:
 
@@ -708,13 +708,13 @@ func (synth *Synthesizer) filterSubframe(a *[11]int16, u, s *[40]int16) {
 }
 ```
 
-- [ ] **Step 4: Verify the test passes**
+- [x] **Step 4: Verify the test passes**
 
 Run: `go test -race ./internal/synth/ -run TestFilter_ZeroLPCIsIdentity -v`
 
 Expected: `PASS`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/synth/filter.go internal/synth/filter_test.go
@@ -755,7 +755,7 @@ With `pastSynth = 0`:
 
 Check bit-exactly with fixed-point rounding at the last step.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `internal/synth/filter_test.go`:
 
@@ -807,7 +807,7 @@ func TestFilter_FirstOrderPositiveFeedback(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests — they should already pass**
+- [x] **Step 2: Run the tests — they should already pass**
 
 Run: `go test -race ./internal/synth/ -run 'TestFilter_FirstOrder' -v`
 
@@ -815,7 +815,7 @@ Expected: `PASS` (the implementation from Task 5 already supports arbitrary `a[1
 
 If a test fails with an off-by-one in the decaying response (e.g. s[1] = -1999 instead of -2000), this is the Q13→Q16→Round half-LSB rounding direction and the ±1 LSB tolerance in the test should already absorb it. If the error is larger, re-derive the Q-format carefully.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/synth/filter_test.go
@@ -843,7 +843,7 @@ Tests in this task cover:
 3. Two back-to-back calls produce a filter output continuous across the
    subframe boundary (i.e. the state carries correctly).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `internal/synth/filter_test.go`:
 
@@ -951,7 +951,7 @@ func TestFilter_IIRDecayAcrossBoundary(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests — they should already pass**
+- [x] **Step 2: Run the tests — they should already pass**
 
 Run: `go test -race ./internal/synth/ -run 'TestFilter_PastState|TestFilter_StateUpdate|TestFilter_TwoSubframe|TestFilter_IIRDecay' -v`
 
@@ -959,7 +959,7 @@ Expected: `PASS`. The state-carry logic was written into `filterSubframe` in Tas
 
 If `TestFilter_StateUpdate` fails with `pastSynth[i] = 0`, the copy destination/source are swapped. If `TestFilter_PastStateContributes` returns zero, `copy(work[:10], synth.pastSynth[:])` was omitted.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/synth/filter_test.go
@@ -986,7 +986,7 @@ EOF
 `Synthesize` is the public entry point composing both. It allocates no heap
 temporaries — the intermediate `u[40]` lives on the stack of `Synthesize`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `internal/synth/synthesizer_test.go`:
 
@@ -1050,13 +1050,13 @@ func TestSynthesize_MatchesPiecewiseComposition(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify tests fail (Synthesize undefined)**
+- [x] **Step 2: Verify tests fail (Synthesize undefined)**
 
 Run: `go test ./internal/synth/ -run TestSynthesize -v`
 
 Expected: compile error — `Synthesize` undefined on `*Synthesizer`.
 
-- [ ] **Step 3: Implement Synthesize**
+- [x] **Step 3: Implement Synthesize**
 
 Write to `internal/synth/synthesizer.go`:
 
@@ -1087,13 +1087,13 @@ func (synth *Synthesizer) Synthesize(a *[11]int16, v, c *[40]int16, gpQ14, gcQ12
 }
 ```
 
-- [ ] **Step 4: Verify tests pass**
+- [x] **Step 4: Verify tests pass**
 
 Run: `go test -race ./internal/synth/...`
 
 Expected: `PASS`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/synth/synthesizer.go internal/synth/synthesizer_test.go
@@ -1117,7 +1117,7 @@ These tests pin down:
 2. After Reset, the next Synthesize produces the same output as a fresh Synthesizer on identical inputs (determinism).
 3. State actually propagates across two Synthesize calls (belt-and-suspenders against accidental regressions in Task 7/8).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `internal/synth/synthesizer_test.go`:
 
@@ -1185,7 +1185,7 @@ func TestSynthesize_StatePropagatesAcrossSubframes(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests — they should already pass**
+- [x] **Step 2: Run the tests — they should already pass**
 
 Run: `go test -race ./internal/synth/ -run 'TestSynthesize_Reset|TestSynthesize_StatePropagates' -v`
 
@@ -1193,7 +1193,7 @@ Expected: `PASS` (Reset is already implemented in Task 1; state propagation in T
 
 If `TestSynthesize_StatePropagatesAcrossSubframes` shows `s2 = 0`, revisit the `copy(synth.pastSynth[:], work[40:])` line in `filterSubframe`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/synth/synthesizer_test.go
@@ -1223,7 +1223,7 @@ not escape. If the go compiler flags an escape (rare; happens if a caller
 uses `any`/interface boxing), use `go build -gcflags="-m"` to locate the
 escape point.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Write to `internal/synth/alloc_test.go`:
 
@@ -1281,7 +1281,7 @@ func TestNoAllocationInReset(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run — should pass. If any allocs are reported, investigate.**
+- [x] **Step 2: Run — should pass. If any allocs are reported, investigate.**
 
 Run: `go test -race ./internal/synth/ -run 'TestNoAllocation' -v`
 
@@ -1292,7 +1292,7 @@ If a test reports non-zero allocs:
 - Likely suspects: `u [40]int16` inside `Synthesize` escaping to heap, or `work [50]int16` inside `filterSubframe` escaping.
 - Fix: rearrange so the array does not cross a function boundary that forces escape (e.g. pass-by-pointer internally).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/synth/alloc_test.go
@@ -1312,7 +1312,7 @@ EOF
 - Create: `internal/synth/bench_test.go`
 - Rewrite: `internal/synth/doc.go`
 
-- [ ] **Step 1: Write the benchmarks**
+- [x] **Step 1: Write the benchmarks**
 
 Write to `internal/synth/bench_test.go`:
 
@@ -1361,7 +1361,7 @@ func BenchmarkFilterSubframe(b *testing.B) {
 }
 ```
 
-- [ ] **Step 2: Run the benchmarks and record results**
+- [x] **Step 2: Run the benchmarks and record results**
 
 Run: `go test -bench=. -benchmem -run=^$ ./internal/synth/`
 
@@ -1375,7 +1375,7 @@ BenchmarkFilterSubframe-N      X   Y ns/op   0 B/op   0 allocs/op
 
 All three must show `0 B/op, 0 allocs/op`. A typical Synthesize budget at modern x86 is <200 ns/op per subframe (the inner loop is 40 × 10 = 400 `LMsu` calls plus 40 rounds).
 
-- [ ] **Step 3: Polish the package documentation**
+- [x] **Step 3: Polish the package documentation**
 
 Overwrite `internal/synth/doc.go`:
 
@@ -1433,7 +1433,7 @@ Overwrite `internal/synth/doc.go`:
 package synth
 ```
 
-- [ ] **Step 4: Run all tests one last time**
+- [x] **Step 4: Run all tests one last time**
 
 Run: `go test -race ./...`
 
@@ -1443,7 +1443,7 @@ Run: `go vet ./internal/synth/...`
 
 Expected: silent.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/synth/bench_test.go internal/synth/doc.go
@@ -1459,12 +1459,12 @@ EOF
 
 ## Completion criteria
 
-- [ ] All 11 tasks checked off.
-- [ ] `go test -race ./...` passes.
-- [ ] `go vet ./...` silent.
-- [ ] `BenchmarkBuildExcitation`, `BenchmarkSynthesize`, `BenchmarkFilterSubframe` all report `0 B/op, 0 allocs/op`.
-- [ ] `git log --oneline` shows 11 commits on `main` for Phase 1e, in task order.
-- [ ] Completion report saved to `docs/superpowers/plans/2026-04-21-phase1e-synth-completion-report.md` (template below).
+- [x] All 11 tasks checked off.
+- [x] `go test -race ./...` passes.
+- [x] `go vet ./...` silent.
+- [x] `BenchmarkBuildExcitation`, `BenchmarkSynthesize`, `BenchmarkFilterSubframe` all report `0 B/op, 0 allocs/op`.
+- [x] `git log --oneline` shows 11 commits on `main` for Phase 1e, in task order.
+- [x] Completion report saved to `docs/superpowers/plans/2026-04-21-phase1e-synth-completion-report.md` (template below).
 
 ---
 
