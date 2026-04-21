@@ -70,3 +70,32 @@ i, j, v, cap)
 }
 }
 }
+
+func TestMAPredictorsLSPShape(t *testing.T) {
+if len(MAPredictorsLSP) != 2 {
+t.Fatalf("MAPredictorsLSP: selectors = %d, want 2", len(MAPredictorsLSP))
+}
+for s, sel := range MAPredictorsLSP {
+if len(sel) != 4 {
+t.Fatalf("MAPredictorsLSP[%d]: taps = %d, want 4", s, len(sel))
+}
+for k, tap := range sel {
+if len(tap) != 10 {
+t.Fatalf("MAPredictorsLSP[%d][%d]: dims = %d, want 10", s, k, len(tap))
+}
+}
+}
+}
+
+func TestMAPredictorsLSPRange(t *testing.T) {
+for s, sel := range MAPredictorsLSP {
+for k, tap := range sel {
+for i, v := range tap {
+if v > 32767 || v < -32768 {
+t.Errorf("MAPredictorsLSP[%d][%d][%d] = %d out of Q15 range",
+s, k, i, v)
+}
+}
+}
+}
+}
