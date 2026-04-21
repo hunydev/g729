@@ -27,8 +27,8 @@ import (
 func BuildExcitation(gpQ14, gcQ12 int16, v, c *[40]int16, u *[40]int16) {
 	for n := 0; n < 40; n++ {
 		lPitch := fixed.LMult(fixed.Word16(gpQ14), fixed.Word16(v[n]))
-		u[n] = int16(fixed.Round(fixed.LShl(lPitch, 1)))
+		lCode := fixed.LShr(fixed.LMult(fixed.Word16(gcQ12), fixed.Word16(c[n])), 11)
+		lSum := fixed.LAdd(lPitch, lCode)
+		u[n] = int16(fixed.Round(fixed.LShl(lSum, 1)))
 	}
-	_ = gcQ12
-	_ = c
 }
