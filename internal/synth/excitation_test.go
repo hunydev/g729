@@ -82,3 +82,43 @@ t.Errorf("u[%d] = %d, want 100 or 101", i, u[i])
 }
 }
 }
+
+func TestBuildExcitation_SaturatesOnHighPitchGain(t *testing.T) {
+var v, c, u [40]int16
+for i := range v {
+v[i] = 32767
+}
+BuildExcitation(32767, 0, &v, &c, &u)
+for i := range u {
+if u[i] != 32767 {
+t.Errorf("u[%d] = %d, want MAX_16", i, u[i])
+}
+}
+}
+
+func TestBuildExcitation_SaturatesOnNegativeExtreme(t *testing.T) {
+var v, c, u [40]int16
+for i := range v {
+v[i] = -32768
+}
+BuildExcitation(32767, 0, &v, &c, &u)
+for i := range u {
+if u[i] != -32768 {
+t.Errorf("u[%d] = %d, want MIN_16", i, u[i])
+}
+}
+}
+
+func TestBuildExcitation_SaturatesOnBothContributionsHigh(t *testing.T) {
+var v, c, u [40]int16
+for i := range v {
+v[i] = 32767
+c[i] = 32767
+}
+BuildExcitation(32767, 32767, &v, &c, &u)
+for i := range u {
+if u[i] != 32767 {
+t.Errorf("u[%d] = %d, want MAX_16", i, u[i])
+}
+}
+}
