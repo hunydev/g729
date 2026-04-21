@@ -60,3 +60,50 @@ func TestPostfilter_ResetZerosState(t *testing.T) {
 		t.Errorf("after Reset, agcGainPrev = %d, want 0", pf.agcGainPrev)
 	}
 }
+
+// End-to-end smoke: Filter with zero input must produce zero output.
+func TestFilter_ZeroInputZeroOutput(t *testing.T) {
+	var pf Postfilter
+	a := [11]int16{4096, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	var s, sPf [subframeLen]int16
+
+	pf.Filter(&a, 40, &s, &sPf)
+
+	for i := range sPf {
+		if sPf[i] != 0 {
+			t.Errorf("sPf[%d] = %d, want 0 (zero input)", i, sPf[i])
+		}
+	}
+}
+
+func TestFilter_ZeroLPCIsApproximateIdentity(t *testing.T) {
+	var pf Postfilter
+	a := [11]int16{4096, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	var s, sPf [subframeLen]int16
+	for i := range s {
+		s[i] = int16(500 + i*3)
+	}
+
+	// AGC time constant ≈ 100 samples (α ≈ 0.99), so several hundred
+	// samples (≈ 25+ subframes) are needed before g_pf settles within
+	// 10% of g_target = 1.0.
+	for k := 0; k < 50; k++ {
+		pf.Filter(&a, 40, &s, &sPf)
+	}
+
+	for i := range sPf {
+		want := int(s[i])
+		got := int(sPf[i])
+		diff := got - want
+		if diff < 0 {
+			diff = -diff
+		}
+		tol := want / 10
+		if tol < 5 {
+			tol = 5
+		}
+		if diff > tol {
+			t.Errorf("sPf[%d] = %d, want ≈ %d (tol %d)", i, got, want, tol)
+		}
+	}
+}
