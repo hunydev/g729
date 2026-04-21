@@ -88,3 +88,24 @@ func TestGainVQJointSumsViaImapInRange(t *testing.T) {
 		}
 	}
 }
+
+func TestGainMAPredictorShape(t *testing.T) {
+	if len(GainMAPredictor) != 4 {
+		t.Fatalf("GainMAPredictor length = %d, want 4", len(GainMAPredictor))
+	}
+}
+
+func TestGainMAPredictorCoefficientsPositive(t *testing.T) {
+	for i, c := range GainMAPredictor {
+		if c <= 0 || c >= 8192 {
+			t.Errorf("GainMAPredictor[%d] = %d, outside (0, 8192) Q13", i, c)
+		}
+	}
+}
+
+
+func TestGainMeanEnergyConstant(t *testing.T) {
+	if GainMeanEnergyQ10 != 30720 {
+		t.Errorf("GainMeanEnergyQ10 = %d, want 30720 (30 dB Q10)", GainMeanEnergyQ10)
+	}
+}
