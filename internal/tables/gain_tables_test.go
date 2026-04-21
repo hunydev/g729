@@ -103,9 +103,54 @@ func TestGainMAPredictorCoefficientsPositive(t *testing.T) {
 	}
 }
 
-
 func TestGainMeanEnergyConstant(t *testing.T) {
 	if GainMeanEnergyQ10 != 30720 {
 		t.Errorf("GainMeanEnergyQ10 = %d, want 30720 (30 dB Q10)", GainMeanEnergyQ10)
+	}
+}
+
+func TestPow2TableShape(t *testing.T) {
+	if len(Pow2Table) != 33 {
+		t.Fatalf("Pow2Table length = %d, want 33", len(Pow2Table))
+	}
+}
+
+func TestPow2TableEndpointsAndMonotonic(t *testing.T) {
+	// Pow2Table[i] approximates 2^(i/32) for i ∈ [0, 32], in Q14
+	// (the entries land in [16384, 32767] = [1.0, ~2.0)).
+	if Pow2Table[0] != 16384 {
+		t.Errorf("Pow2Table[0] = %d, want 16384 (= 2^0 in Q14)", Pow2Table[0])
+	}
+	if Pow2Table[32] != 32767 {
+		t.Errorf("Pow2Table[32] = %d, want 32767 (≈ 2^1 in Q14, saturated)", Pow2Table[32])
+	}
+	for i := 1; i < len(Pow2Table); i++ {
+		if Pow2Table[i] <= Pow2Table[i-1] {
+			t.Errorf("Pow2Table non-monotonic at i=%d: %d not > %d",
+				i, Pow2Table[i], Pow2Table[i-1])
+		}
+	}
+}
+
+func TestLog2TableShape(t *testing.T) {
+	if len(Log2Table) != 33 {
+		t.Fatalf("Log2Table length = %d, want 33", len(Log2Table))
+	}
+}
+
+func TestLog2TableEndpointsAndMonotonic(t *testing.T) {
+	// Log2Table[i] approximates log2(1 + i/32) for i ∈ [0, 32], in
+	// Q15 (entries in [0, 32767] ≈ [0, 1.0)).
+	if Log2Table[0] != 0 {
+		t.Errorf("Log2Table[0] = %d, want 0 (= log2(1))", Log2Table[0])
+	}
+	if Log2Table[32] != 32767 {
+		t.Errorf("Log2Table[32] = %d, want 32767 (≈ log2(2) in Q15)", Log2Table[32])
+	}
+	for i := 1; i < len(Log2Table); i++ {
+		if Log2Table[i] <= Log2Table[i-1] {
+			t.Errorf("Log2Table non-monotonic at i=%d: %d not > %d",
+				i, Log2Table[i], Log2Table[i-1])
+		}
 	}
 }
