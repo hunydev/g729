@@ -9,3 +9,11 @@
 .vscode/
 *.swp
 .DS_Store
+
+# ITU test vectors (third-party, ITU-licensed) - kept locally for
+# Phase 1g+ integration testing but not redistributed via this repo.
+/testdata/itu/
+
+# ITU specification PDF (kept locally for clean-room transcription
+# during development; not redistributed via this repo).
+/docs/superpowers/specs/itu/
