@@ -47,3 +47,77 @@ func TestDecodeDelaySubframe1RangeInvariants(t *testing.T) {
 		}
 	}
 }
+
+// Subframe-2 cases derived from ITU-T G.729 §3.7 (search-range
+// derivation) and §3.7.1 equation (42):
+//
+//	t_min = max(20, min(int(T1) − 5, 134))   (clamped per §3.7)
+//	P2    = 3*(T2_int − t_min) + frac + 2,   frac ∈ {-1, 0, 1}
+//
+// Inverting: y = P2 + 2; d = y/3 − 1; T2_int = t_min + d;
+// T_frac = y%3 − 1. Range: d ∈ [-1, 10], T_frac ∈ {-1, 0, 1}.
+//
+// Note: the spec uses int(T1) (the integer part of T1, i.e.
+// T1_int from DecodeDelaySubframe1) — *not* a rounded value.
+func TestDecodeDelaySubframe2Center(t *testing.T) {
+	// t1Int=50 → t_min=45.  P2=16 ⇒ y=18, d=5, frac=-1
+	//   ⇒ T2_int=50, T2_frac=-1 (delay 49 + 2/3).
+	gotInt, gotFrac := DecodeDelaySubframe2(16, 50)
+	if gotInt != 50 || gotFrac != -1 {
+		t.Errorf("DecodeDelaySubframe2(16, 50) = (%d, %d), want (50, -1)",
+			gotInt, gotFrac)
+	}
+}
+
+func TestDecodeDelaySubframe2BoundaryIndices(t *testing.T) {
+	// t1Int=60 → t_min=55.
+	// P2=0  ⇒ y=2, d=-1, frac=1 ⇒ (54, 1).
+	gotInt, gotFrac := DecodeDelaySubframe2(0, 60)
+	if gotInt != 54 || gotFrac != 1 {
+		t.Errorf("DecodeDelaySubframe2(0, 60) = (%d, %d), want (54, 1)",
+			gotInt, gotFrac)
+	}
+	// P2=31 ⇒ y=33, d=10, frac=-1 ⇒ (65, -1) (delay 64+2/3).
+	gotInt, gotFrac = DecodeDelaySubframe2(31, 60)
+	if gotInt != 65 || gotFrac != -1 {
+		t.Errorf("DecodeDelaySubframe2(31, 60) = (%d, %d), want (65, -1)",
+			gotInt, gotFrac)
+	}
+}
+
+func TestDecodeDelaySubframe2LowerClamp(t *testing.T) {
+	// t1Int=20 → t_min raw = 15, clamped up to 20.
+	// P2=0 ⇒ d=-1, frac=1 ⇒ T_int=19. Lower bound 19 satisfied
+	// implicitly by the t_min clamp (no separate output clamp).
+	gotInt, gotFrac := DecodeDelaySubframe2(0, 20)
+	if gotInt != 19 || gotFrac != 1 {
+		t.Errorf("DecodeDelaySubframe2(0, 20) = (%d, %d), want (19, 1)",
+			gotInt, gotFrac)
+	}
+}
+
+func TestDecodeDelaySubframe2UpperClamp(t *testing.T) {
+	// t1Int=140 → raw 135, clamped down to 134 (so t_max=143).
+	// P2=31 ⇒ d=10, frac=-1 ⇒ T_int=144, frac=-1.  Note: T_int=144
+	// is intentional; the encoded delay is 143+2/3, valid because
+	// the FIR interpolation reaches one sample past T_int.
+	gotInt, gotFrac := DecodeDelaySubframe2(31, 140)
+	if gotInt != 144 || gotFrac != -1 {
+		t.Errorf("DecodeDelaySubframe2(31, 140) = (%d, %d), want (144, -1)",
+			gotInt, gotFrac)
+	}
+}
+
+func TestDecodeDelaySubframe2RangeInvariants(t *testing.T) {
+	for t1 := 19; t1 <= 143; t1++ {
+		for p2 := 0; p2 < 32; p2++ {
+			tInt, tFrac := DecodeDelaySubframe2(uint8(p2), t1)
+			if tInt < 19 || tInt > 144 {
+				t.Errorf("t1=%d, p2=%d → T_int=%d out of [19, 144]", t1, p2, tInt)
+			}
+			if tFrac < -1 || tFrac > 1 {
+				t.Errorf("t1=%d, p2=%d → T_frac=%d out of {-1,0,1}", t1, p2, tFrac)
+			}
+		}
+	}
+}
