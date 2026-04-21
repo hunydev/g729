@@ -47,3 +47,26 @@ i, j, v, cap)
 }
 }
 }
+
+func TestLSPCodebookL3Shape(t *testing.T) {
+if len(LSPCodebookL3) != 32 {
+t.Fatalf("LSPCodebookL3: rows = %d, want 32", len(LSPCodebookL3))
+}
+for i, row := range LSPCodebookL3 {
+if len(row) != 5 {
+t.Fatalf("LSPCodebookL3[%d]: cols = %d, want 5", i, len(row))
+}
+}
+}
+
+func TestLSPCodebookL3Range(t *testing.T) {
+const cap = 2 * 25736
+for i, row := range LSPCodebookL3 {
+for j, v := range row {
+if int(v) > cap || int(v) < -cap {
+t.Errorf("LSPCodebookL3[%d][%d] = %d out of sane range ±%d",
+i, j, v, cap)
+}
+}
+}
+}
