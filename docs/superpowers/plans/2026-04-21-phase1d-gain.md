@@ -235,7 +235,7 @@ Final (Task 12 completion criteria):
 
 Stand up the package with `Indices` and `Decoder` before any algorithm lands.
 
-- [ ] **Step 1: Write the failing shape tests**
+- [x] **Step 1: Write the failing shape tests**
 
 Create `internal/gain/types_test.go`:
 
@@ -282,12 +282,12 @@ func TestDecoderResetClearsState(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `go test ./internal/gain/ -run Test -v`
 Expected: FAIL with "undefined: Indices" / "undefined: Decoder" / "undefined: Reset".
 
-- [ ] **Step 3: Create `types.go`**
+- [x] **Step 3: Create `types.go`**
 
 ```go
 package gain
@@ -314,7 +314,7 @@ func (d *Decoder) Reset() {
 }
 ```
 
-- [ ] **Step 4: Create a minimal `doc.go`**
+- [x] **Step 4: Create a minimal `doc.go`**
 
 ```go
 // Package gain implements ITU-T G.729 + Annex A §3.9 / §4.1.6 gain
@@ -328,12 +328,12 @@ func (d *Decoder) Reset() {
 package gain
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `go test ./internal/gain/ -run Test -v`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/gain/doc.go internal/gain/types.go internal/gain/types_test.go
@@ -352,7 +352,7 @@ Transcribe the 8-entry first-stage VQ codebook from ITU-T G.729 §3.9 Table 14 /
 
 **Licensing disclaimer required in the file header** (merger-doctrine transcription — see prior phases).
 
-- [ ] **Step 1: Write the failing shape test**
+- [x] **Step 1: Write the failing shape test**
 
 Create `internal/tables/gain_tables_test.go`:
 
@@ -383,12 +383,12 @@ func TestGainGBK1EntriesInSpecRange(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `go test ./internal/tables/ -run TestGainGBK1 -v`
 Expected: FAIL with "undefined: GainGBK1".
 
-- [ ] **Step 3: Create `gain_gbk1.go`**
+- [x] **Step 3: Create `gain_gbk1.go`**
 
 Header template:
 
@@ -417,12 +417,12 @@ var GainGBK1 = [8][2]int16{
 
 **The engineer implementing this task must open `tab_ld8a.c` and transcribe the 8-row initializer verbatim. No algorithmic C code may be consulted from the same file.**
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `go test ./internal/tables/ -run TestGainGBK1 -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/tables/gain_gbk1.go internal/tables/gain_tables_test.go
@@ -439,7 +439,7 @@ git commit -m "feat(tables): add GainGBK1 first-stage gain VQ codebook from ITU 
 
 Transcribe the 16-entry second-stage VQ codebook from §3.9 Table 14 / `gbk2` in `tab_ld8a.c`.
 
-- [ ] **Step 1: Write the failing shape test**
+- [x] **Step 1: Write the failing shape test**
 
 Append to `internal/tables/gain_tables_test.go`:
 
@@ -471,12 +471,12 @@ func TestGainVQComponentwiseSumsInRange(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `go test ./internal/tables/ -run TestGainGBK2 -v`
 Expected: FAIL with "undefined: GainGBK2".
 
-- [ ] **Step 3: Create `gain_gbk2.go`**
+- [x] **Step 3: Create `gain_gbk2.go`**
 
 Header template:
 
@@ -500,12 +500,12 @@ var GainGBK2 = [16][2]int16{
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `go test ./internal/tables/ -run TestGainGBK2 -v`
 Expected: PASS — including `TestGainVQComponentwiseSumsInRange`, which cross-checks both tables together.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/tables/gain_gbk2.go internal/tables/gain_tables_test.go
@@ -522,7 +522,7 @@ git commit -m "feat(tables): add GainGBK2 second-stage gain VQ codebook from ITU
 
 Transcribe the 4-tap MA predictor coefficients from §3.9 eq. (69) / `pred[]` in `tab_ld8a.c`, plus the mean-energy constant (a scalar, typically 30 dB in Q10).
 
-- [ ] **Step 1: Write the failing shape tests**
+- [x] **Step 1: Write the failing shape tests**
 
 Append to `internal/tables/gain_tables_test.go`:
 
@@ -564,12 +564,12 @@ func TestGainMeanEnergyConstant(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `go test ./internal/tables/ -run TestGainMA -v` and `go test ./internal/tables/ -run TestGainMeanEnergy -v`
 Expected: FAIL with "undefined: GainMAPredictor" / "undefined: GainMeanEnergyQ10".
 
-- [ ] **Step 3: Create `gain_ma.go`**
+- [x] **Step 3: Create `gain_ma.go`**
 
 Header template:
 
@@ -594,12 +594,12 @@ var GainMAPredictor = [4]int16{
 const GainMeanEnergyQ10 int16 = 30720
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `go test ./internal/tables/ -run "TestGainMA|TestGainMeanEnergy" -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/tables/gain_ma.go internal/tables/gain_tables_test.go
@@ -616,7 +616,7 @@ git commit -m "feat(tables): add MA predictor coefficients and mean energy from 
 
 Transcribe the pow2 interpolation LUT from §3.9 / `tabpow[]` in `tab_ld8a.c`. Typical layout: 33 entries of Q15 values approximating `2^(i/32)` for `i ∈ [0, 32]`. Used by both `log2Fixed` and `pow2Fixed` helpers in Task 7 and Task 8.
 
-- [ ] **Step 1: Write the failing shape tests**
+- [x] **Step 1: Write the failing shape tests**
 
 Append to `internal/tables/gain_tables_test.go`:
 
@@ -653,12 +653,12 @@ func TestPow2TableMonotonic(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `go test ./internal/tables/ -run TestPow2Table -v`
 Expected: FAIL with "undefined: Pow2Table".
 
-- [ ] **Step 3: Create `gain_pow2.go`**
+- [x] **Step 3: Create `gain_pow2.go`**
 
 Header template:
 
@@ -680,12 +680,12 @@ var Pow2Table = [33]int16{
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `go test ./internal/tables/ -run TestPow2Table -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/tables/gain_pow2.go internal/tables/gain_tables_test.go
@@ -702,7 +702,7 @@ git commit -m "feat(tables): add Pow2Table LUT for log/pow helpers from ITU §3.
 
 Compute `E_c = Σ c[n]²` as a Word32. With `c` in Q13 each product `c[n]·c[n]` is ≤ `8192² = 2²⁶`; the sum of 40 such products stays ≤ `40·2²⁶ < 2³¹`, so no saturation is possible for canonical 4-pulse codebook vectors.
 
-- [ ] **Step 1: Write the failing energy test**
+- [x] **Step 1: Write the failing energy test**
 
 Create `internal/gain/energy_test.go`:
 
@@ -759,12 +759,12 @@ func TestFixedCodebookEnergy_SquaringIsUnsigned(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `go test ./internal/gain/ -run TestFixedCodebookEnergy -v`
 Expected: FAIL with "undefined: fixedCodebookEnergy".
 
-- [ ] **Step 3: Implement `energy.go`**
+- [x] **Step 3: Implement `energy.go`**
 
 ```go
 package gain
@@ -792,12 +792,12 @@ func fixedCodebookEnergy(c *[40]int16) fixed.Word32 {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `go test ./internal/gain/ -run TestFixedCodebookEnergy -v`
 Expected: PASS on all 4 sub-tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/gain/energy.go internal/gain/energy_test.go
@@ -833,7 +833,7 @@ Compute `log2(x) · 2^10` (Q10 signed int16) for Word32 `x > 0`. Uses `fixed.Nor
 
 **The exact bit-splitting between mantissa index and interpolation fraction is spec-defined. Implement per §3.9.**
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `internal/gain/log2_test.go`:
 
@@ -893,12 +893,12 @@ func TestLog2Fixed_NegativeReturnsZero(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `go test ./internal/gain/ -run TestLog2Fixed -v`
 Expected: FAIL with "undefined: log2Fixed".
 
-- [ ] **Step 3: Implement `log2.go`**
+- [x] **Step 3: Implement `log2.go`**
 
 ```go
 package gain
@@ -963,12 +963,12 @@ func log2Fixed(x fixed.Word32) int16 {
 
 **Note:** The derivation sketch above (`fracLog2Q10 = (idx<<5) + ((interp*32)>>10)`) is a placeholder first cut. **Read §3.9 carefully and adjust the arithmetic until `TestLog2Fixed_Log2OfThreeApprox` passes within ±4 and `TestLog2Fixed_PowersOfTwoAreExact` passes within ±1.** If the spec uses a different table arrangement (some editions split mantissa into 5+10 bits differently), follow the spec and update the test tolerances in the completion report notes only if the spec tolerates looser bounds.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `go test ./internal/gain/ -run TestLog2Fixed -v`
 Expected: PASS on all 4 sub-tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/gain/log2.go internal/gain/log2_test.go
@@ -995,7 +995,7 @@ Inverse of `log2Fixed`: given a Q10 log2 value, return `2^x` as a Word32.
 5. Return as Word32.
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `internal/gain/pow2_test.go`:
 
@@ -1052,12 +1052,12 @@ func TestPow2Fixed_RoundTripsThroughLog2(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `go test ./internal/gain/ -run TestPow2Fixed -v`
 Expected: FAIL with "undefined: pow2Fixed".
 
-- [ ] **Step 3: Implement `pow2.go`**
+- [x] **Step 3: Implement `pow2.go`**
 
 ```go
 package gain
@@ -1102,12 +1102,12 @@ func pow2Fixed(xQ10 int16) fixed.Word32 {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `go test ./internal/gain/ -run TestPow2Fixed -v`
 Expected: PASS on all 3 sub-tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/gain/pow2.go internal/gain/pow2_test.go
@@ -1142,7 +1142,7 @@ Add E̅_Q10 via fixed.Add.
 
 **The exact alignment is spec-defined. Verify against §3.9 before finalizing.** The values above are derivation sketch.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `internal/gain/predictor_test.go`:
 
@@ -1190,12 +1190,12 @@ func TestPredictedLogGain_OnlyFirstTapContributes(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `go test ./internal/gain/ -run TestPredictedLogGain -v`
 Expected: FAIL with "undefined: predictedLogGain".
 
-- [ ] **Step 3: Implement `predictor.go`**
+- [x] **Step 3: Implement `predictor.go`**
 
 ```go
 package gain
@@ -1224,12 +1224,12 @@ func (d *Decoder) predictedLogGain() int16 {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `go test ./internal/gain/ -run TestPredictedLogGain -v`
 Expected: PASS on all 3 sub-tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/gain/predictor.go internal/gain/predictor_test.go
@@ -1246,7 +1246,7 @@ git commit -m "feat(gain): MA-predicted log gain Ê(m) per ITU §3.9 eq. (69)"
 
 Decode the two-stage VQ: `(g_p, γ̂_c) = GBK1[GA] + GBK2[GB]`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `internal/gain/vq_test.go`:
 
@@ -1301,12 +1301,12 @@ func TestDecodeVQ_GPInSpecRange(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `go test ./internal/gain/ -run TestDecodeVQ -v`
 Expected: FAIL with "undefined: decodeVQ".
 
-- [ ] **Step 3: Implement `vq.go`**
+- [x] **Step 3: Implement `vq.go`**
 
 ```go
 package gain
@@ -1330,12 +1330,12 @@ func decodeVQ(idx Indices) (gpQ14, gammaCQ14 int16) {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `go test ./internal/gain/ -run TestDecodeVQ -v`
 Expected: PASS on the 128-combination exhaustive check and the range check.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/gain/vq.go internal/gain/vq_test.go
@@ -1372,7 +1372,7 @@ Wire everything together:
 
 **The dB↔log2 conversion, the `10·log10(E_c/40)` formulation, and the final g_c Q-format are all spec-defined. Read §3.9 + §4.1.6 and implement verbatim.** Below is a candidate implementation using the helpers from Tasks 6–10; the engineer must verify each shift and Q-format against the spec.
 
-- [ ] **Step 1: Write the failing integration test**
+- [x] **Step 1: Write the failing integration test**
 
 Create `internal/gain/decode_test.go`:
 
@@ -1455,12 +1455,12 @@ func TestDecode_ResetRestoresZeroValueDeterminism(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `go test ./internal/gain/ -run TestDecode_ -v`
 Expected: FAIL with "undefined: Decode".
 
-- [ ] **Step 3: Implement `decode.go`**
+- [x] **Step 3: Implement `decode.go`**
 
 ```go
 package gain
@@ -1536,7 +1536,7 @@ func (d *Decoder) Decode(idx Indices, c *[40]int16) (gpQ14, gcQ1 int16) {
 
 The integration tests deliberately use wide tolerance ranges and focus on **structural** correctness (state update, reset determinism, output ranges) rather than exact output values. **Bit-exact gain values are Phase 1g's validation territory.**
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `go test ./internal/gain/ -run TestDecode_ -v`
 Expected: PASS on all 3 sub-tests.
@@ -1546,7 +1546,7 @@ Also run the full package suite:
 Run: `go test -race ./internal/gain/...`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/gain/decode.go internal/gain/decode_test.go
@@ -1564,7 +1564,7 @@ git commit -m "feat(gain): top-level Decode with MA state update per ITU §3.9 /
 
 Lock in the zero-allocation hot path and add a canonical benchmark.
 
-- [ ] **Step 1: Write the failing allocation test**
+- [x] **Step 1: Write the failing allocation test**
 
 Create `internal/gain/alloc_test.go`:
 
@@ -1598,12 +1598,12 @@ func TestNoAllocationInReset(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the allocation tests**
+- [x] **Step 2: Run the allocation tests**
 
 Run: `go test ./internal/gain/ -run TestNoAllocation -v`
 Expected: PASS. If failing, `go build -gcflags='-m' ./internal/gain` to locate the escape site. Typical culprits: a `[]int16` slice created inside Decode, or the pointer receiver accidentally escaping.
 
-- [ ] **Step 3: Write the benchmark**
+- [x] **Step 3: Write the benchmark**
 
 Create `internal/gain/bench_test.go`:
 
@@ -1626,12 +1626,12 @@ func BenchmarkDecode(b *testing.B) {
 }
 ```
 
-- [ ] **Step 4: Run the benchmark and confirm zero allocs**
+- [x] **Step 4: Run the benchmark and confirm zero allocs**
 
 Run: `go test -bench=. -benchmem -run=^$ ./internal/gain/`
 Expected: `0 B/op   0 allocs/op`.
 
-- [ ] **Step 5: Polish the package documentation**
+- [x] **Step 5: Polish the package documentation**
 
 Replace `internal/gain/doc.go` with:
 
@@ -1698,13 +1698,13 @@ Replace `internal/gain/doc.go` with:
 package gain
 ```
 
-- [ ] **Step 6: Run the full test + vet pass**
+- [x] **Step 6: Run the full test + vet pass**
 
 Run in parallel:
 - `go test -race ./internal/gain/... ./internal/tables/...` → all PASS
 - `go vet ./internal/gain/... ./internal/tables/...` → silent
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add internal/gain/alloc_test.go internal/gain/bench_test.go internal/gain/doc.go
