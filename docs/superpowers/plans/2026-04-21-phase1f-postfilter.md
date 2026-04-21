@@ -1,6 +1,6 @@
 # Phase 1f Implementation Plan — `internal/postfilter`: Annex A Adaptive Postfilter
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Implement the G.729 Annex A adaptive postfilter chain per ITU-T G.729 §A.4.2 (referenced from §3.10 with the §B.4 Annex A simplifications). Consumes the pre-postfilter synthesis `s[n]` from `internal/synth` together with the decoded LP coefficients `a[11]` and the integer pitch delay `t_int`, and produces perceptually enhanced speech `s_pf[n]` ready for the output high-pass stage.
 
@@ -139,7 +139,7 @@ func (pf *Postfilter) Reset()
 - Create: `internal/postfilter/types.go`
 - Create: `internal/postfilter/postfilter_test.go`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Write to `internal/postfilter/postfilter_test.go`:
 
@@ -208,13 +208,13 @@ func TestPostfilter_ResetZerosState(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify the test fails (package doesn't exist)**
+- [x] **Step 2: Verify the test fails (package doesn't exist)**
 
 Run: `go test ./internal/postfilter/...`
 
 Expected: compile error — `package postfilter` / `Postfilter` / `Reset` undefined.
 
-- [ ] **Step 3: Create `internal/postfilter/doc.go` placeholder**
+- [x] **Step 3: Create `internal/postfilter/doc.go` placeholder**
 
 ```go
 // Package postfilter implements the G.729 Annex A adaptive postfilter
@@ -223,7 +223,7 @@ Expected: compile error — `package postfilter` / `Postfilter` / `Reset` undefi
 package postfilter
 ```
 
-- [ ] **Step 4: Create `internal/postfilter/types.go`**
+- [x] **Step 4: Create `internal/postfilter/types.go`**
 
 ```go
 package postfilter
@@ -252,13 +252,13 @@ func (pf *Postfilter) Reset() {
 }
 ```
 
-- [ ] **Step 5: Verify tests pass**
+- [x] **Step 5: Verify tests pass**
 
 Run: `go test -race ./internal/postfilter/...`
 
 Expected: `PASS`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/postfilter/doc.go internal/postfilter/types.go internal/postfilter/postfilter_test.go
@@ -285,7 +285,7 @@ EOF
 - Compute iteratively: start with `gamma_pow = γ` (Q15); each iteration multiply `a[i]` by `gamma_pow` and scale `gamma_pow` by γ.
 - Per sample: `a_scaled[i] = round(a[i] · gamma_pow)` where `a[i] · gamma_pow` is Q12·Q15 → Q27 via `LMult` → `Round` after `LShl(·, 0)` depending on convention.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Write to `internal/postfilter/bandwidth_test.go`:
 
@@ -358,13 +358,13 @@ func TestExpandBandwidth_HalfGammaGeometricDecay(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run: `go test ./internal/postfilter/ -run TestExpandBandwidth -v`
 
 Expected: compile error — `expandBandwidth` undefined.
 
-- [ ] **Step 3: Implement the helper**
+- [x] **Step 3: Implement the helper**
 
 Write to `internal/postfilter/bandwidth.go`:
 
@@ -405,13 +405,13 @@ func expandBandwidth(a *[11]int16, gammaQ15 int16, out *[11]int16) {
 
 **Note:** the above uses direct int32 multiplication for simplicity. If Phase 1g shows Q-format mismatch against ITU vectors, rewrite using `fixed.LMult` + `fixed.Round` for ITU-compliant saturation. The structural tests above tolerate ±2 LSB so the rounding direction (truncate vs round-to-nearest) is not pinned here; Phase 1g will pin it.
 
-- [ ] **Step 4: Verify tests pass**
+- [x] **Step 4: Verify tests pass**
 
 Run: `go test -race ./internal/postfilter/ -run TestExpandBandwidth -v`
 
 Expected: `PASS`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/postfilter/bandwidth.go internal/postfilter/bandwidth_test.go
@@ -464,7 +464,7 @@ r[n] = Round(L_temp)                    // Q0 Word16
 
 Where `s_or_past(n-i) = pf.pastS[lpcOrder + (n-i)]` if `n-i < 0`, else `s[n-i]`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Write to `internal/postfilter/residual_test.go`:
 
@@ -556,13 +556,13 @@ func TestComputeResidual_UpdatesPastS(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run: `go test ./internal/postfilter/ -run TestComputeResidual -v`
 
 Expected: compile error — `computeResidual` undefined.
 
-- [ ] **Step 3: Implement the residual FIR**
+- [x] **Step 3: Implement the residual FIR**
 
 Write to `internal/postfilter/residual.go`:
 
@@ -599,13 +599,13 @@ func (pf *Postfilter) computeResidual(aNum *[11]int16, s, r *[subframeLen]int16)
 }
 ```
 
-- [ ] **Step 4: Verify tests pass**
+- [x] **Step 4: Verify tests pass**
 
 Run: `go test -race ./internal/postfilter/ -run TestComputeResidual -v`
 
 Expected: `PASS`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/postfilter/residual.go internal/postfilter/residual_test.go
@@ -649,7 +649,7 @@ return best_T
 
 **Addressing convention.** On entry to `refinePitch`, `pastResidual[:pitchMax]` holds the last `pitchMax` samples of r from the previous subframe; `pastResidual[pitchMax:pitchMax+subframeLen]` holds this subframe's just-computed r. Then `r(n-T)` = `pastResidual[pitchMax + n - T]`. If `n-T < -pitchMax` (shouldn't happen when `T ≤ pitchMax`), the value is zero (initial condition).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Write to `internal/postfilter/longterm_test.go`:
 
@@ -725,13 +725,13 @@ func TestRefinePitch_ClampsAtUpperEdge(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run: `go test ./internal/postfilter/ -run TestRefinePitch -v`
 
 Expected: compile error — `refinePitch` undefined.
 
-- [ ] **Step 3: Implement refinePitch**
+- [x] **Step 3: Implement refinePitch**
 
 Write to `internal/postfilter/longterm.go`:
 
@@ -789,13 +789,13 @@ func (pf *Postfilter) refinePitch(r *[subframeLen]int16, tInt int) int {
 
 **Note on int64 arithmetic.** The cross-correlation sum of 40 products of Word16 values stays well within Word64 range. ITU's reference implementation uses different scaling (split normalisation across `Corr` and `Energy` Q-format), but for Annex A §A.4.2.2 a clear int64 accumulator is spec-faithful and matches the algorithm's intent. Phase 1g can swap to the ITU `DOT_PRODUCT` primitive if bit-exactness demands.
 
-- [ ] **Step 4: Verify tests pass**
+- [x] **Step 4: Verify tests pass**
 
 Run: `go test -race ./internal/postfilter/ -run TestRefinePitch -v`
 
 Expected: `PASS`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/postfilter/longterm.go internal/postfilter/longterm_test.go
@@ -841,7 +841,7 @@ For the application: `(r(n) + g_l·r(n-T)) / (1 + g_l)`. If `g_l = 0.5` then div
 
 Use Form A.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `internal/postfilter/longterm_test.go`:
 
@@ -901,13 +901,13 @@ func sign(x int) int16 {
 }
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run: `go test ./internal/postfilter/ -run TestApplyLongTerm -v`
 
 Expected: compile error — `applyLongTerm` undefined.
 
-- [ ] **Step 3: Implement applyLongTerm**
+- [x] **Step 3: Implement applyLongTerm**
 
 Append to `internal/postfilter/longterm.go`:
 
@@ -989,13 +989,13 @@ func (pf *Postfilter) applyLongTerm(r *[subframeLen]int16, T int, rOut *[subfram
 
 **Note.** The arithmetic above is a direct spec-faithful implementation without relying on ITU primitives for every step; a Phase 1g pass may rewrite hot-loop operations using `fixed.LMult`/`LMac` for ITU-compliant saturation semantics. The structural tests (identity on zero-correlation; preservation of periodic signals) validate the functional contract independent of the exact rounding mode.
 
-- [ ] **Step 4: Verify tests pass**
+- [x] **Step 4: Verify tests pass**
 
 Run: `go test -race ./internal/postfilter/ -run TestApplyLongTerm -v`
 
 Expected: `PASS`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/postfilter/longterm.go internal/postfilter/longterm_test.go
@@ -1040,7 +1040,7 @@ to avoid cross-package coupling of a private helper. The two loops
 are small enough (~15 lines) that duplication is cleaner than
 refactoring.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Write to `internal/postfilter/shortterm_test.go`:
 
@@ -1112,13 +1112,13 @@ func TestApplyShortTerm_UpdatesPastSynthPost(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run: `go test ./internal/postfilter/ -run TestApplyShortTerm -v`
 
 Expected: compile error.
 
-- [ ] **Step 3: Implement applyShortTerm**
+- [x] **Step 3: Implement applyShortTerm**
 
 Write to `internal/postfilter/shortterm.go`:
 
@@ -1151,13 +1151,13 @@ func (pf *Postfilter) applyShortTerm(aDen *[11]int16, rIn *[subframeLen]int16, s
 }
 ```
 
-- [ ] **Step 4: Verify tests pass**
+- [x] **Step 4: Verify tests pass**
 
 Run: `go test -race ./internal/postfilter/ -run TestApplyShortTerm -v`
 
 Expected: `PASS`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/postfilter/shortterm.go internal/postfilter/shortterm_test.go
@@ -1198,7 +1198,7 @@ where `k_1 = −r_h(1) / r_h(0)`, `r_h(i)` = autocorrelation lag i of `h(n)` (im
 
 For the structural plan here, we specify the *shape* of the computation and leave the exact formula to the engineer (who must read §A.4.2.3). The tests below validate the structural properties.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Write to `internal/postfilter/tilt_test.go`:
 
@@ -1265,13 +1265,13 @@ func TestApplyTilt_UpdatesPastTiltInput(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run: `go test ./internal/postfilter/ -run TestApplyTilt -v`
 
 Expected: compile error.
 
-- [ ] **Step 3: Implement the tilt filter + (separately) computeTiltMu**
+- [x] **Step 3: Implement the tilt filter + (separately) computeTiltMu**
 
 Write to `internal/postfilter/tilt.go`:
 
@@ -1323,13 +1323,13 @@ func (pf *Postfilter) applyTiltWithMu(sIn *[subframeLen]int16, muQ15 int16, sOut
 
 **Important.** `computeTiltMu` is intentionally a placeholder returning 0. Fill it in from §A.4.2.3. When Phase 1f's top-level `Filter` is wired (Task 9), it will call `computeTiltMu(aNum, aDen)` and pass the result to `applyTiltWithMu`. For Task 7 we test only `applyTiltWithMu` with explicitly supplied μ values. The spec-faithful `computeTiltMu` implementation will be verified implicitly via Phase 1g ITU test vectors.
 
-- [ ] **Step 4: Verify tests pass**
+- [x] **Step 4: Verify tests pass**
 
 Run: `go test -race ./internal/postfilter/ -run TestApplyTilt -v`
 
 Expected: `PASS`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/postfilter/tilt.go internal/postfilter/tilt_test.go
@@ -1380,7 +1380,7 @@ square-root or equivalent. The plan leaves the exact algorithmic choice
 engineer, guided by §A.4.2.4. The structural tests below validate the
 functional contract.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Write to `internal/postfilter/agc_test.go`:
 
@@ -1447,13 +1447,13 @@ func TestApplyAGC_SmoothingDoesNotOvershoot(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run: `go test ./internal/postfilter/ -run 'TestComputeAGC|TestApplyAGC' -v`
 
 Expected: compile error.
 
-- [ ] **Step 3: Implement computeAGCTargetGain and applyAGC**
+- [x] **Step 3: Implement computeAGCTargetGain and applyAGC**
 
 Write to `internal/postfilter/agc.go`:
 
@@ -1539,13 +1539,13 @@ func (pf *Postfilter) applyAGC(sTilt *[subframeLen]int16, gTargetQ14 int16, sPf 
 }
 ```
 
-- [ ] **Step 4: Verify tests pass**
+- [x] **Step 4: Verify tests pass**
 
 Run: `go test -race ./internal/postfilter/ -run 'TestComputeAGC|TestApplyAGC' -v`
 
 Expected: `PASS`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/postfilter/agc.go internal/postfilter/agc_test.go
@@ -1580,7 +1580,7 @@ EOF
 10. `sPf = applyAGC(sTilt, gTarget)`.
 11. Slide `pastResidual` left by `subframeLen` so the next call finds `r` in the same tail slot.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `internal/postfilter/postfilter_test.go`:
 
@@ -1636,13 +1636,13 @@ func TestFilter_ZeroLPCIsApproximateIdentity(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run: `go test ./internal/postfilter/ -run TestFilter_ -v`
 
 Expected: compile error — `Filter` undefined on `*Postfilter`.
 
-- [ ] **Step 3: Implement Filter**
+- [x] **Step 3: Implement Filter**
 
 Write to `internal/postfilter/postfilter.go`:
 
@@ -1696,7 +1696,7 @@ func (pf *Postfilter) Filter(a *[11]int16, tInt int, s *[subframeLen]int16, sPf 
 }
 ```
 
-- [ ] **Step 4: Verify tests pass**
+- [x] **Step 4: Verify tests pass**
 
 Run: `go test -race ./internal/postfilter/...`
 
@@ -1707,7 +1707,7 @@ output with printf debugging to isolate where identity breaks down. With
 zero-LPC every internal stage must be identity (except AGC which converges
 toward 1.0).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/postfilter/postfilter.go internal/postfilter/postfilter_test.go
@@ -1726,7 +1726,7 @@ EOF
 **Files:**
 - Modify: `internal/postfilter/postfilter_test.go` (add tests)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `internal/postfilter/postfilter_test.go`:
 
@@ -1798,13 +1798,13 @@ func TestFilter_StatePropagatesAcrossSubframes(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the tests — they should already pass**
+- [x] **Step 2: Run the tests — they should already pass**
 
 Run: `go test -race ./internal/postfilter/ -run 'TestFilter_Reset|TestFilter_StatePropagates' -v`
 
 Expected: `PASS`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/postfilter/postfilter_test.go
@@ -1825,7 +1825,7 @@ EOF
 - Create: `internal/postfilter/bench_test.go`
 - Rewrite: `internal/postfilter/doc.go`
 
-- [ ] **Step 1: Write zero-allocation tests**
+- [x] **Step 1: Write zero-allocation tests**
 
 Write to `internal/postfilter/alloc_test.go`:
 
@@ -1867,7 +1867,7 @@ func TestNoAllocationInReset(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Write benchmarks**
+- [x] **Step 2: Write benchmarks**
 
 Write to `internal/postfilter/bench_test.go`:
 
@@ -1897,7 +1897,7 @@ func BenchmarkFilter(b *testing.B) {
 }
 ```
 
-- [ ] **Step 3: Run the benchmarks and record results**
+- [x] **Step 3: Run the benchmarks and record results**
 
 Run: `go test -bench=. -benchmem -run=^$ ./internal/postfilter/`
 
@@ -1912,7 +1912,7 @@ If allocations are flagged, the usual suspects are:
 
 Use `go build -gcflags="-m" ./internal/postfilter/` to pinpoint.
 
-- [ ] **Step 4: Polish doc.go**
+- [x] **Step 4: Polish doc.go**
 
 Overwrite `internal/postfilter/doc.go`:
 
@@ -1960,13 +1960,13 @@ Overwrite `internal/postfilter/doc.go`:
 package postfilter
 ```
 
-- [ ] **Step 5: Full run**
+- [x] **Step 5: Full run**
 
 Run: `go test -race ./... && go vet ./...`
 
 Expected: all packages `ok`; `go vet` silent.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/postfilter/alloc_test.go internal/postfilter/bench_test.go internal/postfilter/doc.go
@@ -1982,12 +1982,12 @@ EOF
 
 ## Completion criteria
 
-- [ ] All 11 tasks checked off.
-- [ ] `go test -race ./...` passes.
-- [ ] `go vet ./...` silent.
-- [ ] `BenchmarkFilter` reports `0 B/op, 0 allocs/op`.
-- [ ] `git log --oneline` shows 11 commits on `main` for Phase 1f.
-- [ ] Completion report saved to `docs/superpowers/plans/2026-04-21-phase1f-postfilter-completion-report.md`.
+- [x] All 11 tasks checked off.
+- [x] `go test -race ./...` passes.
+- [x] `go vet ./...` silent.
+- [x] `BenchmarkFilter` reports `0 B/op, 0 allocs/op`.
+- [x] `git log --oneline` shows 11 commits on `main` for Phase 1f.
+- [x] Completion report saved to `docs/superpowers/plans/2026-04-21-phase1f-postfilter-completion-report.md`.
 
 ---
 
