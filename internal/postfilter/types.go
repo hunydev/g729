@@ -15,7 +15,11 @@ type Postfilter struct {
 	pastResidual  [pitchMax + subframeLen]int16
 	pastSynthPost [lpcOrder]int16
 	pastTiltInput int16
-	agcGainPrev   int16
+	// agcGainPrev is the AGC gain used in the last sample of the previous
+	// subframe, held at Q24 internally for steady-state precision (the
+	// plan's struct comment notes the format is the engineer's call).
+	// Reset to 0 by Reset(); Filter writes the final per-subframe gain back.
+	agcGainPrev int32
 }
 
 // Reset clears all postfilter state to the zero initial condition.
