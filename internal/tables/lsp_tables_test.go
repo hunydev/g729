@@ -99,3 +99,36 @@ s, k, i, v)
 }
 }
 }
+
+func TestCosLSPShape(t *testing.T) {
+// Per ITU-T G.729 §3.2.5 the cosine LUT covers the half-period
+// [0, π] with 64 uniform steps (65 entries including both
+// endpoints). The plan originally proposed a [0, π/2] layout
+// but the spec uses the full [0, π] range, so the length
+// remains 65 while the value range spans both signs.
+const want = 65
+if len(CosLSP) != want {
+t.Fatalf("CosLSP: entries = %d, want %d", len(CosLSP), want)
+}
+}
+
+func TestCosLSPEndpoints(t *testing.T) {
+if CosLSP[0] != 32767 {
+t.Errorf("CosLSP[0] = %d, want 32767 (cos 0 ≈ +1)", CosLSP[0])
+}
+if CosLSP[32] != 0 {
+t.Errorf("CosLSP[32] = %d, want 0 (cos π/2)", CosLSP[32])
+}
+if CosLSP[64] != -32768 {
+t.Errorf("CosLSP[64] = %d, want -32768 (cos π = -1)", CosLSP[64])
+}
+}
+
+func TestCosLSPMonotonic(t *testing.T) {
+for i := 1; i < len(CosLSP); i++ {
+if CosLSP[i] > CosLSP[i-1] {
+t.Errorf("CosLSP[%d]=%d > CosLSP[%d]=%d, not monotone non-increasing",
+i, CosLSP[i], i-1, CosLSP[i-1])
+}
+}
+}
