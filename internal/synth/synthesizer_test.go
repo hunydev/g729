@@ -73,3 +73,54 @@ t.Errorf("pastSynth[%d] mismatch", i)
 }
 }
 }
+
+func TestSynthesize_ResetRestoresZeroValueDeterminism(t *testing.T) {
+var v, c [40]int16
+a := [11]int16{4096, 1500, -800, 300, -100, 50, 0, 0, 0, 0, 0}
+
+for i := range v {
+v[i] = int16(i * 13)
+c[i] = int16((i - 10) * 200)
+}
+
+var synthRef Synthesizer
+var sRef [40]int16
+synthRef.Synthesize(&a, &v, &c, 12000, 1500, &sRef)
+
+var synthUUT Synthesizer
+for i := range synthUUT.pastSynth {
+synthUUT.pastSynth[i] = int16(5000 - i*50)
+}
+synthUUT.Reset()
+
+var sUUT [40]int16
+synthUUT.Synthesize(&a, &v, &c, 12000, 1500, &sUUT)
+
+for i := range sRef {
+if sRef[i] != sUUT[i] {
+t.Errorf("s[%d] = %d, want %d", i, sUUT[i], sRef[i])
+}
+}
+}
+
+func TestSynthesize_StatePropagatesAcrossSubframes(t *testing.T) {
+var synth Synthesizer
+var v1, v2, c, s1, s2 [40]int16
+a := [11]int16{4096, 4000, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+
+v1[0] = 4000
+
+synth.Synthesize(&a, &v1, &c, 16384, 0, &s1)
+synth.Synthesize(&a, &v2, &c, 0, 0, &s2)
+
+anyNonZero := false
+for i := range s2 {
+if s2[i] != 0 {
+anyNonZero = true
+break
+}
+}
+if !anyNonZero {
+t.Error("s2 is all zero — state did not propagate")
+}
+}
