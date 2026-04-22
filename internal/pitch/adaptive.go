@@ -81,11 +81,25 @@ func firInterpolate(tInt, tFrac int, pastExc []int16, v *[40]int16, start, end i
 
 	base := len(pastExc) - k
 	fir := tables.PitchInterpFIR
+	N := len(pastExc)
 	for n := start; n < end; n++ {
 		var acc fixed.Word32
 		for i := 0; i < Linter; i++ {
-			acc = fixed.LMac(acc, fir[posPhase+3*i], pastExc[base+n-i])
-			acc = fixed.LMac(acc, fir[negPhase+3*i], pastExc[base+n+1+i])
+			// Per §3.7.1: at the time the adaptive codebook is
+			// constructed for the current subframe, samples u(0+)
+			// have not yet been computed and are treated as 0.
+			// Symmetrically, samples older than the buffer are 0.
+			backIdx := base + n - i
+			fwdIdx := base + n + 1 + i
+			var back, fwd int16
+			if backIdx >= 0 && backIdx < N {
+				back = pastExc[backIdx]
+			}
+			if fwdIdx >= 0 && fwdIdx < N {
+				fwd = pastExc[fwdIdx]
+			}
+			acc = fixed.LMac(acc, fir[posPhase+3*i], back)
+			acc = fixed.LMac(acc, fir[negPhase+3*i], fwd)
 		}
 		v[n] = fixed.Round(acc)
 	}
