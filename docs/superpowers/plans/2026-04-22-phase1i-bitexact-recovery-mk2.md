@@ -1058,7 +1058,7 @@ func TestDecode_Frame0Sample0_MatchesALGTHM(t *testing.T) {
 
 (`loadG192File`, `loadPstFile`, `packFrame` should already exist from Phase 1g's `testdata_helpers_test.go`; if not, reuse the pattern from the existing ITU bit-exact tests.)
 
-- [ ] **Step 2: Run — expect PASS**
+- [x] **Step 2: Run — expect PASS**
 
 Run: `go test -run TestDecode_Frame0Sample0_MatchesALGTHM -v ./internal/decoder`
 
@@ -1068,7 +1068,7 @@ Expected: PASS (after Tasks 1–7 it should match). If FAIL, the remaining devia
 - `got = -want` → sign inversion in postfilter or HP filter
 - `got close to want but not equal` → minor constant / rounding bug
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/decoder/decode_test.go

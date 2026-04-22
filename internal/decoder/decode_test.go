@@ -538,3 +538,28 @@ t.Skip("Phase 1h INCOMPLETE: OVERFLOW.BIT fails G.192 parsing in " +
 "recovery branch is exercised correctly.")
 runITUVectorBitExact(t, "OVERFLOW")
 }
+
+// TestDecode_Frame0Sample0_MatchesALGTHM runs the decoder against
+// ALGTHM frame 0 and asserts that output sample 0 equals the ITU
+// reference .pst's sample 0. Sharper-grained signal than the per-
+// vector bit-exact tests.
+func TestDecode_Frame0Sample0_MatchesALGTHM(t *testing.T) {
+bitPath := vectorPath("ALGTHM.BIT")
+pstPath := vectorPath("ALGTHM.PST")
+ensureTestdataPresent(t, bitPath, pstPath)
+
+frames, bads := readG192Frames(t, bitPath)
+wantFrames := readPSTFrames(t, pstPath)
+
+var d Decoder
+var out [frameSamples]int16
+if err := d.Decode(frames[0], bads[0], out[:]); err != nil {
+t.Fatalf("Decode frame 0 returned error: %v", err)
+}
+if out[0] != wantFrames[0][0] {
+t.Errorf("frame 0 sample 0: got=%d want=%d (Δ=%d)",
+out[0], wantFrames[0][0], int32(out[0])-int32(wantFrames[0][0]))
+t.Logf("out[:8]  = %v", out[:8])
+t.Logf("want[:8] = %v", wantFrames[0][:8])
+}
+}
