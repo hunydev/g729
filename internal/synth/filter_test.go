@@ -145,3 +145,61 @@ t.Errorf("s2[%d] = %d, expected |·| ≤ 2", i, s2[i])
 }
 }
 }
+
+// TestFilter_SaturationTriggersTwoPassRecovery: construct an input
+// large enough that the single-pass Q13 accumulator saturates, and
+// verify that the two-pass recovery produces non-saturated output.
+//
+// We cannot easily read internal saturation flags from the public API,
+// so we assert on output shape: with the two-pass guard, the output
+// should not sit at Word16 saturation for more than a handful of
+// samples; without the guard, it flat-lines at ±32767 once the
+// accumulator clamps.
+func TestFilter_SaturationTriggersTwoPassRecovery(t *testing.T) {
+// Multi-tap LP with all positive feedback contributions and large
+// past-synth state: every LMsu in the pass-1 chain pushes the
+// accumulator further past Word32 range, causing the original (non-
+// saturating-aware) filter to flat-line at Word16 saturation for the
+// entire subframe.  With the §3.10 two-pass guard, the recovery pass
+// runs on a 1/4-scaled u and pastSynth and produces output that
+// preserves dynamic information instead of collapsing to ±32767.
+a := [11]int16{4096, 2000, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500}
+var u [40]int16
+var s [40]int16
+var syn Synthesizer
+for i := range syn.pastSynth {
+syn.pastSynth[i] = 20000
+}
+syn.Filter(&a, &u, &s)
+
+nSat := 0
+for _, v := range s {
+if v == 32767 || v == -32768 {
+nSat++
+}
+}
+// Without the guard, all 40 samples saturate.  The recovery pass
+// should leave at least 10 unsaturated samples.
+if nSat > 30 {
+t.Fatalf("saturation recovery missing: %d/40 samples at Word16 saturation — two-pass guard not applied", nSat)
+}
+}
+
+// TestFilter_NonSaturatingInputIsUnchanged: small inputs that do NOT
+// trigger saturation must produce non-saturated output (the guard must
+// not perturb the hot path).
+func TestFilter_NonSaturatingInputIsUnchanged(t *testing.T) {
+a := [11]int16{4096, 2000, -500, 0, 0, 0, 0, 0, 0, 0, 0}
+var u [40]int16
+for i := range u {
+u[i] = int16(100 + 3*i)
+}
+var s [40]int16
+var syn Synthesizer
+syn.Filter(&a, &u, &s)
+for _, v := range s {
+if v == 32767 || v == -32768 {
+t.Fatalf("non-pathological input saturated output: %v", s)
+}
+}
+}
