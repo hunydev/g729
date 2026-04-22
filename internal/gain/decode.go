@@ -43,11 +43,30 @@ func (d *Decoder) Decode(idx Indices, c *[40]int16) (gpQ14, gcQ12 int16) {
 		d.initialized = true
 	}
 
-	// 1. Predict log-gain Ê(m) from past errors (Q10 dB).
+	// 1. E̅_c = 10·log10(E_c / 40) Q10 dB.
+	ecEnergy := fixedCodebookEnergy(c)
+
+	// Zero-energy guard: log10(0) is mathematically -∞; flooring it
+	// inside log2Fixed produces an artificially boosted gc that
+	// saturates to int16 extrema. The decoder should be robust to a
+	// zero (or near-zero) fixed codebook by suppressing the fixed-
+	// codebook contribution entirely for the current subframe and
+	// re-seeding the MA predictor's history with the long-term default
+	// (−14 dB Q10) so the next subframe's prediction is well-defined.
+	if ecEnergy <= 0 {
+		gp, _ := decodeVQ(idx)
+		gpQ14 = gp
+		gcQ12 = 0
+		d.pastErrors[3] = d.pastErrors[2]
+		d.pastErrors[2] = d.pastErrors[1]
+		d.pastErrors[1] = d.pastErrors[0]
+		d.pastErrors[0] = pastErrorsDefault
+		return
+	}
+
+	// 2. Predict log-gain Ê(m) from past errors (Q10 dB).
 	predicted := d.predictedLogGain()
 
-	// 2. E̅_c = 10·log10(E_c / 40) Q10 dB.
-	ecEnergy := fixedCodebookEnergy(c)
 	ecLog2Q10 := log2Fixed(ecEnergy)
 	ecDbQ10 := int16((int32(ecLog2Q10)*dbPerLog2Q13 + (1 << 12)) >> 13)
 	ecBarDbQ10 := fixed.Sub(ecDbQ10, tenLog10_40Q10)
