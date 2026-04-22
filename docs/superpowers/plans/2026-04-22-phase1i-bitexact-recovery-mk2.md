@@ -408,7 +408,7 @@ This task adds a sticky-overflow flag to `internal/fixed` that any saturating ba
 - Modify: `internal/fixed/shift32.go` (set overflow on LShl saturation)
 - Modify: `internal/fixed/saturate.go` (set overflow on Saturate trim)
 
-- [ ] **Step 1: Add overflow.go with the public API**
+- [x] **Step 1: Add overflow.go with the public API**
 
 Create `internal/fixed/overflow.go`:
 
@@ -446,7 +446,7 @@ func setOverflow() {
 }
 ```
 
-- [ ] **Step 2: Add overflow unit tests (failing baseline)**
+- [x] **Step 2: Add overflow unit tests (failing baseline)**
 
 Create `internal/fixed/overflow_test.go`:
 
@@ -523,13 +523,13 @@ func TestLMsu_Saturation_SetsOverflow(t *testing.T) {
 }
 ```
 
-- [ ] **Step 3: Run — expect FAILS for ops that don't yet set the flag**
+- [x] **Step 3: Run — expect FAILS for ops that don't yet set the flag**
 
 Run: `go test -run 'TestClearOverflow|TestLAdd|TestLSub|TestLShl|TestSaturate|TestLMac|TestLMsu' ./internal/fixed -v`
 
 Expected: the first two PASS (flag setter/clearer work); all saturation tests FAIL (ops don't set the flag yet).
 
-- [ ] **Step 4: Make LAdd / LSub set the flag**
+- [x] **Step 4: Make LAdd / LSub set the flag**
 
 Inspect `internal/fixed/arith32.go`. For each function that saturates (`LAdd`, `LSub`, `LNegate`, `LAbs`), insert `setOverflow()` on the saturation branches.
 
@@ -552,17 +552,17 @@ func LAdd(a, b Word32) Word32 {
 
 Apply the same pattern to `LSub`, `LNegate` (only int32-min-negation saturates), and `LAbs`.
 
-- [ ] **Step 5: Make LMac / LMsu set the flag**
+- [x] **Step 5: Make LMac / LMsu set the flag**
 
 In `internal/fixed/mult.go`: `LMac` and `LMsu` are defined in terms of `LMult` plus `LAdd`/`LSub`. `LMult(32767, 32767) = 2·32767² = 0x7FFFFFFE` never saturates on its own (max is +2^31-2). `LMac(acc, a, b) = LAdd(acc, LMult(a, b))`, so the saturation path is already inside `LAdd` (Step 4). **No changes needed to LMac / LMsu if they delegate to LAdd/LSub**, because Step 4 already set the flag there. Verify by reading `mult.go` and confirming.
 
 If `LMac`/`LMsu` inline the addition (not calling `LAdd`), add `setOverflow()` in their own saturation branch.
 
-- [ ] **Step 6: Make LShl set the flag**
+- [x] **Step 6: Make LShl set the flag**
 
 In `internal/fixed/shift32.go`, find `LShl`. On the saturation branches (LShl by positive n where the result would exceed Word32 range), insert `setOverflow()`.
 
-- [ ] **Step 7: Make Saturate set the flag**
+- [x] **Step 7: Make Saturate set the flag**
 
 In `internal/fixed/saturate.go`:
 
@@ -580,13 +580,13 @@ func Saturate(x Word32) Word16 {
 }
 ```
 
-- [ ] **Step 8: Re-run overflow tests — expect all PASS**
+- [x] **Step 8: Re-run overflow tests — expect all PASS**
 
 Run: `go test ./internal/fixed -count=1`
 
 Expected: PASS. No regressions in existing fixed-package tests (any pre-existing test that didn't call ClearOverflow won't observe the flag state; spurious `setOverflow()` calls inside existing ops won't change return values).
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add internal/fixed/overflow.go internal/fixed/overflow_test.go internal/fixed/arith32.go internal/fixed/mult.go internal/fixed/shift32.go internal/fixed/saturate.go

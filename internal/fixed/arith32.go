@@ -1,11 +1,14 @@
 package fixed
 
-// saturate64 clamps a 64-bit value to the Word32 range.
+// saturate64 clamps a 64-bit value to the Word32 range. Sets the
+// package-global Overflow flag (see overflow.go) on clamp.
 func saturate64(x int64) Word32 {
 	switch {
 	case x > int64(Max32):
+		setOverflow()
 		return Max32
 	case x < int64(Min32):
+		setOverflow()
 		return Min32
 	default:
 		return Word32(x)
@@ -25,6 +28,7 @@ func LSub(a, b Word32) Word32 {
 // LNegate returns -a with saturation (Min32 -> Max32).
 func LNegate(a Word32) Word32 {
 	if a == Min32 {
+		setOverflow()
 		return Max32
 	}
 	return -a
@@ -33,6 +37,7 @@ func LNegate(a Word32) Word32 {
 // LAbs returns |a| with saturation (Min32 -> Max32).
 func LAbs(a Word32) Word32 {
 	if a == Min32 {
+		setOverflow()
 		return Max32
 	}
 	if a < 0 {

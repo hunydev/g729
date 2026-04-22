@@ -11,9 +11,11 @@ func LShl(a Word32, n Word16) Word32 {
 	}
 	if n >= 32 {
 		if a > 0 {
+			setOverflow()
 			return Max32
 		}
 		if a < 0 {
+			setOverflow()
 			return Min32
 		}
 		return 0
