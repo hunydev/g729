@@ -25,6 +25,12 @@ import (
 //
 // Accuracy: ±2 LSB at Q10 across the table interior (verified against
 // the closed form), exact at the 33 tabulated breakpoints.
+//
+// Q-format CONTRACT: this function treats `x` as a Q0 integer and
+// returns log2(x) at Q10. If a caller passes a Qk value (k > 0) as
+// `x`, the returned log2 is off by k·1024 (log2(value·2^k) = log2(value)
+// + k). Callers with a Qk input MUST subtract k·1024 from the result
+// to recover the spec-intended log2. See decode.go's ecLog2Q10 handling.
 func log2Fixed(x fixed.Word32) fixed.Word32 {
 	if x <= 0 {
 		return 0

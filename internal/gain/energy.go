@@ -2,15 +2,22 @@ package gain
 
 import "github.com/exedev/g729/internal/fixed"
 
-// fixedCodebookEnergy returns Σ c[n]² as a non-negative Q0 Word32.
+// fixedCodebookEnergy returns the inner sum Σ c[n]² as a non-negative
+// Word32.
 //
-// Per ITU-T G.729 §3.9 eq. (66), the mean energy used downstream is
-// E̅_c = 10·log10((1/40)·Σc²); this helper provides the inner sum in
-// Q0 so that subsequent log2 conversion can apply the (1/40) and the
-// dB scaling without intermediate precision loss.
+// Q-format: the caller's c is Q13 pulse amplitudes (±8192 for ITU Annex A
+// ACELP). Each squared term is therefore Q26, and the 40-term sum is at
+// Q26 as well. The sum is always non-negative and bounded above by
+// 40·8192² = 2^28·40/1 < 2^31, so no saturation can occur.
 //
-// Each pulse magnitude is bounded by ±8192 (Q13 unit pulse), so the
-// 40-term sum cannot exceed 40·8192² < 2³¹ and never saturates.
+// Returning the raw sum at Q26 (rather than pre-applying the /40 of
+// spec eq (66)) preserves precision for the downstream log2 conversion.
+// The 10·log10(1/40) correction is absorbed into the compile-time
+// constant tenLog10_40Q10 applied in decode.go.
+//
+// Callers must ALSO apply a Q-format correction to account for the
+// Q26-vs-Q0 mismatch against the spec's log2 of a Q0 sum: see the
+// comment in decode.go at the `ecLog2Q10 = ... - 26*1024` line.
 func fixedCodebookEnergy(c *[40]int16) fixed.Word32 {
 	var acc fixed.Word32
 	for n := 0; n < 40; n++ {

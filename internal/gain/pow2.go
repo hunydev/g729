@@ -23,6 +23,11 @@ import (
 // The result is then shifted to absorb the 2^intPart factor; values whose
 // magnitude underflows Q0 saturate to 0 (this is the desired behavior for
 // gain reconstruction where x < 0 corresponds to a vanishing gain).
+//
+// Q-format CONTRACT: `x` is interpreted as Q10 and the result is a Q0
+// Word32. Callers wanting 2^x at some Qk should pre-add k·1024 to `x`
+// before the call (e.g. `pow2Fixed(log2Gc_Q10 + 14*1024)` returns
+// 2^log2Gc × 2^14 as a Q0 integer, i.e., the value at Q14 stored in Q0).
 func pow2Fixed(x fixed.Word32) fixed.Word32 {
 	// Arithmetic shift on Word32 (int32 in Go) gives floor division by 1024.
 	intPart := int32(x) >> 10
