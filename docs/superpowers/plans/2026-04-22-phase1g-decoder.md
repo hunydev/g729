@@ -196,7 +196,7 @@ The slide in step 9 has to happen *after* step 2 (AdaptiveCodebook must read the
 - Create: `internal/decoder/errors.go`
 - Create: `internal/decoder/decode_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 File: `internal/decoder/decode_test.go`
 
@@ -224,12 +224,12 @@ func TestResetAfterUse(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests — verify they fail to compile**
+- [x] **Step 2: Run tests — verify they fail to compile**
 
 Run: `go test ./internal/decoder/... -run '^TestDecoderZeroValueIsUsable$'`
 Expected: compile error ("undefined: Decoder" or similar).
 
-- [ ] **Step 3: Write `doc.go`**
+- [x] **Step 3: Write `doc.go`**
 
 File: `internal/decoder/doc.go`
 
@@ -288,7 +288,7 @@ File: `internal/decoder/doc.go`
 package decoder
 ```
 
-- [ ] **Step 4: Write `errors.go`**
+- [x] **Step 4: Write `errors.go`**
 
 File: `internal/decoder/errors.go`
 
@@ -308,7 +308,7 @@ var (
 )
 ```
 
-- [ ] **Step 5: Write `types.go`**
+- [x] **Step 5: Write `types.go`**
 
 File: `internal/decoder/types.go`
 
@@ -355,7 +355,7 @@ func (d *Decoder) Reset() {
 }
 ```
 
-- [ ] **Step 6: Write placeholder `decode.go`**
+- [x] **Step 6: Write placeholder `decode.go`**
 
 File: `internal/decoder/decode.go`
 
@@ -386,17 +386,17 @@ func (d *Decoder) Decode(packed []byte, bad bool, out []int16) error {
 }
 ```
 
-- [ ] **Step 7: Run tests — verify they pass**
+- [x] **Step 7: Run tests — verify they pass**
 
 Run: `go test ./internal/decoder/...`
 Expected: PASS (only Reset tests; Decode body is placeholder).
 
-- [ ] **Step 8: Run `go vet`**
+- [x] **Step 8: Run `go vet`**
 
 Run: `go vet ./internal/decoder/...`
 Expected: silent.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add internal/decoder/doc.go internal/decoder/types.go \
@@ -425,7 +425,7 @@ EOF
 - Modify: `internal/synth/synthesizer.go`
 - Modify: `internal/synth/synthesizer_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `internal/synth/synthesizer_test.go`:
 
@@ -473,12 +473,12 @@ func TestFilter_ZeroExcitationIsZero(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run test — verify it fails**
+- [x] **Step 2: Run test — verify it fails**
 
 Run: `go test ./internal/synth/... -run '^TestFilter_'`
 Expected: compile error ("synSplit.Filter undefined").
 
-- [ ] **Step 3: Add the `Filter` method**
+- [x] **Step 3: Add the `Filter` method**
 
 In `internal/synth/synthesizer.go`, append below `Synthesize`:
 
@@ -496,17 +496,17 @@ func (synth *Synthesizer) Filter(a *[11]int16, u, out *[40]int16) {
 }
 ```
 
-- [ ] **Step 4: Run tests — verify they pass**
+- [x] **Step 4: Run tests — verify they pass**
 
 Run: `go test ./internal/synth/...`
 Expected: PASS (all Phase 1e tests + the two new ones).
 
-- [ ] **Step 5: Confirm zero-alloc is preserved**
+- [x] **Step 5: Confirm zero-alloc is preserved**
 
 Run: `go test -bench=BenchmarkSynthesize -benchmem -run='^$' ./internal/synth/`
 Expected: still `0 B/op, 0 allocs/op` — `Filter` is a direct call to the same unexported helper, no stack changes.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/synth/synthesizer.go internal/synth/synthesizer_test.go
@@ -543,7 +543,7 @@ A gotcha: the impulse passed through `A(z/γ_n)` gives `h_num(0) = 1 (Q12 = 4096
 - Modify: `internal/postfilter/tilt.go`
 - Modify: `internal/postfilter/tilt_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Overwrite the placeholder `TestComputeTiltMu_ReturnsZero` (or whatever Phase 1f named it) with real-value tests in `internal/postfilter/tilt_test.go`. Keep any `applyTiltWithMu` tests as-is — those are unchanged.
 
@@ -599,12 +599,12 @@ func TestComputeTiltMu_SinglePoleMinusHalf(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests — verify they fail**
+- [x] **Step 2: Run tests — verify they fail**
 
 Run: `go test ./internal/postfilter/... -run '^TestComputeTiltMu_'`
 Expected: FAIL — current placeholder returns 0 for all inputs, so the `SinglePoleHalf` cases fail with "got 0".
 
-- [ ] **Step 3: Replace `computeTiltMu` body**
+- [x] **Step 3: Replace `computeTiltMu` body**
 
 Open `internal/postfilter/tilt.go`. Find the existing `computeTiltMu` body (returns 0 unconditionally per Phase 1f). Replace with:
 
@@ -708,24 +708,24 @@ func (pf *Postfilter) computeTiltMu(aNum, aDen *[lpcOrder + 1]int16) int16 {
 }
 ```
 
-- [ ] **Step 4: Run tests — verify they pass**
+- [x] **Step 4: Run tests — verify they pass**
 
 Run: `go test ./internal/postfilter/... -run '^TestComputeTiltMu_'`
 Expected: PASS (identity μ=0; single-pole ±0.5 cases within ±8 LSB of ±14746).
 
-- [ ] **Step 5: Run the full postfilter suite — verify nothing else regressed**
+- [x] **Step 5: Run the full postfilter suite — verify nothing else regressed**
 
 Run: `go test -race ./internal/postfilter/...`
 Expected: PASS. In particular, the Phase 1f `TestFilter_ZeroLPCIsApproximateIdentity` still passes (it runs 50 iterations under AGC convergence; μ is now non-zero early but converges to the same steady state).
 
 If that test fails, the likely cause is that non-zero μ breaks the AGC fixed-point the test was relying on. In that case, re-parameterise the test LP coefficients to a true zero-filter (`a = {4096, 0, …}`) so both `aNum` and `aDen` stay identity and μ = 0 — the test's intent is "zero LPC ⇒ identity postfilter", which is unchanged.
 
-- [ ] **Step 6: Confirm zero-alloc is preserved**
+- [x] **Step 6: Confirm zero-alloc is preserved**
 
 Run: `go test -bench=BenchmarkFilter -benchmem -run='^$' ./internal/postfilter/`
 Expected: still `0 B/op, 0 allocs/op`. The `h[22]int32` and two int64 accumulators live on the stack.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add internal/postfilter/tilt.go internal/postfilter/tilt_test.go
@@ -793,7 +793,7 @@ The plan's sketch above uses careful widening to avoid overflow. The engineer MU
 - Create: `internal/decoder/hpfilter.go`
 - Create: `internal/decoder/hpfilter_test.go`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 File: `internal/decoder/hpfilter_test.go`
 
@@ -891,12 +891,12 @@ func TestHPFilter_StatePropagatesAcrossCalls(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests — verify they fail**
+- [x] **Step 2: Run tests — verify they fail**
 
 Run: `go test ./internal/decoder/... -run '^TestHPFilter_'`
 Expected: compile error ("d.hpFilter undefined").
 
-- [ ] **Step 3: Implement `hpfilter.go`**
+- [x] **Step 3: Implement `hpfilter.go`**
 
 File: `internal/decoder/hpfilter.go`
 
@@ -973,14 +973,14 @@ func (d *Decoder) hpFilter(in *[subframeLen]int16, out []int16) {
 }
 ```
 
-- [ ] **Step 4: Run tests — verify they pass**
+- [x] **Step 4: Run tests — verify they pass**
 
 Run: `go test ./internal/decoder/... -run '^TestHPFilter_'`
 Expected: PASS.
 
 If `TestHPFilter_ImpulseResponseNonTrivial` trips by ±>20 LSB on `y[0]`, the likely cause is the Q13 → Q12 halving on the feed-forward term — verify that `ff >>= 1` matches the Q-format table above. If `TestHPFilter_DCStepDecaysToZero` leaves a residual > 50, the Q12 state width may not be enough for the pole pair (poles have magnitude √(a2) ≈ 0.967, well inside unit circle); double-check `hpA2Q13` and `hpNegA1Q12` against the constants above.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/decoder/hpfilter.go internal/decoder/hpfilter_test.go
@@ -1002,7 +1002,7 @@ This is the largest single task. It wires the five per-subframe packages (pitch,
 - Create: `internal/decoder/subframe.go`
 - Create: `internal/decoder/subframe_test.go`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 File: `internal/decoder/subframe_test.go`
 
@@ -1099,12 +1099,12 @@ func TestDecodeSubframe_TwoCallsDiffer(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests — verify they fail**
+- [x] **Step 2: Run tests — verify they fail**
 
 Run: `go test ./internal/decoder/... -run '^TestDecodeSubframe_'`
 Expected: compile error.
 
-- [ ] **Step 3: Implement `subframe.go`**
+- [x] **Step 3: Implement `subframe.go`**
 
 File: `internal/decoder/subframe.go`
 
@@ -1177,17 +1177,17 @@ func (d *Decoder) decodeSubframe(
 }
 ```
 
-- [ ] **Step 4: Run tests — verify they pass**
+- [x] **Step 4: Run tests — verify they pass**
 
 Run: `go test ./internal/decoder/... -run '^TestDecodeSubframe_'`
 Expected: PASS.
 
-- [ ] **Step 5: Confirm zero-alloc is still achievable**
+- [x] **Step 5: Confirm zero-alloc is still achievable**
 
 Run: `go test ./internal/decoder/... -count=1`
 Expected: PASS. (Alloc lock test is added in Task 11 across the full Decode path.)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/decoder/subframe.go internal/decoder/subframe_test.go
@@ -1207,7 +1207,7 @@ EOF
 - Modify: `internal/decoder/decode.go`
 - Modify: `internal/decoder/decode_test.go`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `internal/decoder/decode_test.go`:
 
@@ -1310,12 +1310,12 @@ func TestDecode_BadFlagAcceptedButIgnored(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests — verify they fail**
+- [x] **Step 2: Run tests — verify they fail**
 
 Run: `go test ./internal/decoder/... -run '^TestDecode_'`
 Expected: most fail with `errNotImplemented`.
 
-- [ ] **Step 3: Replace `Decode` body**
+- [x] **Step 3: Replace `Decode` body**
 
 Rewrite `internal/decoder/decode.go`:
 
@@ -1384,13 +1384,13 @@ func (d *Decoder) Decode(packed []byte, bad bool, out []int16) error {
 
 Also drop the unused `errNotImplemented` var from Task 1; it has served its purpose.
 
-- [ ] **Step 4: Fix `lsp.Indices` field types**
+- [x] **Step 4: Fix `lsp.Indices` field types**
 
 The call above assumes `lsp.Indices` has fields `L0, L1, L2, L3`. Open `internal/lsp/types.go` and confirm the exact field types (likely all `uint8`). If `lsp.Indices.L0` is a 1-bit value as `uint8`, the cast from `f.L0 uint16` works via `uint8(f.L0)`. If any field is a wider type, adjust the call. No changes to `internal/lsp` itself.
 
 Similarly for `fcb.Indices{Positions, Signs}`: the existing `decodeSubframe` uses `Positions: C, Signs: S` where C is `uint16` and S is `uint16`. Confirm fcb.Indices field types in `internal/fcb/types.go`.
 
-- [ ] **Step 5: Run tests — verify they pass**
+- [x] **Step 5: Run tests — verify they pass**
 
 Run: `go test -race ./internal/decoder/...`
 Expected: PASS.
@@ -1400,12 +1400,12 @@ Common first-run failures and fixes:
 - `fcb.Indices` field names differ from assumed `Positions`/`Signs` → check `internal/fcb/types.go`. If different, update `decodeSubframe` call (Task 5) to match.
 - `TestDecode_TwoFramesStateAdvance` fails ⇒ `decodeSubframe`'s FIFO slide is backward; re-check the order of the two `copy` calls in step 9.
 
-- [ ] **Step 6: Run `go vet` + full repo test**
+- [x] **Step 6: Run `go vet` + full repo test**
 
 Run: `go vet ./... && go test -race ./...`
 Expected: silent vet; all packages pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add internal/decoder/decode.go internal/decoder/decode_test.go
@@ -1428,7 +1428,7 @@ The zero value of `Decoder` relies on each sub-package's lazy first-frame init. 
 **Files:**
 - Modify: `internal/decoder/decode_test.go`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `internal/decoder/decode_test.go`:
 
@@ -1491,14 +1491,14 @@ func TestDecode_FirstThreeFramesAreNontrivial(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests — verify they pass**
+- [x] **Step 2: Run tests — verify they pass**
 
 Run: `go test ./internal/decoder/... -run '^TestDecode_(SubStatesZeroedByReset|FirstThreeFramesAreNontrivial)$'`
 Expected: PASS (both tests rely solely on what was built in Task 1–6; no new production code needed).
 
 If `TestDecode_SubStatesZeroedByReset` fails with a Reset-missing-a-field error, audit `(*Decoder).Reset` — it must be `*d = Decoder{}`, not a field-by-field assignment that could drift.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/decoder/decode_test.go
@@ -1517,7 +1517,7 @@ EOF
 **Files:**
 - Create: `internal/decoder/testdata_helpers_test.go`
 
-- [ ] **Step 1: Write the helpers (test-only file, so no production TDD)**
+- [x] **Step 1: Write the helpers (test-only file, so no production TDD)**
 
 File: `internal/decoder/testdata_helpers_test.go`
 
@@ -1600,12 +1600,12 @@ func ensureTestdataPresent(tb testing.TB, paths ...string) {
 var _ = io.EOF
 ```
 
-- [ ] **Step 2: Sanity check — test file compiles**
+- [x] **Step 2: Sanity check — test file compiles**
 
 Run: `go test ./internal/decoder/... -count=1`
 Expected: PASS (no new test cases; helpers are used starting in Task 9).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/decoder/testdata_helpers_test.go
@@ -1626,7 +1626,7 @@ EOF
 **Files:**
 - Modify: `internal/decoder/decode_test.go` (append)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `internal/decoder/decode_test.go`:
 
@@ -1670,13 +1670,13 @@ func TestDecode_ITUVectorAlgthmBitExact(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run test — first pass**
+- [x] **Step 2: Run test — first pass**
 
 Run: `go test ./internal/decoder/... -run '^TestDecode_ITUVectorAlgthmBitExact$' -v`
 
 This is where things get real. The test WILL most likely fail on the first run. The Phase 1f completion report flagged seven items likely to need ±1 LSB adjustment (see "Open items for Phase 1g" §4, items 2–7). When the test fails, proceed to Step 3.
 
-- [ ] **Step 3: Diagnosis loop**
+- [x] **Step 3: Diagnosis loop**
 
 If the test fails, the engineer must diagnose the first divergent sample. Use the following order of investigation, from cheapest to most expensive:
 
@@ -1691,14 +1691,14 @@ If the test fails, the engineer must diagnose the first divergent sample. Use th
 
 Iterate: fix one item, re-run, observe new divergence pattern. Commit incrementally — each fix gets its own small commit, NOT rolled into the main Task 9 commit.
 
-- [ ] **Step 4: Run test to verify PASS**
+- [x] **Step 4: Run test to verify PASS**
 
 Run: `go test ./internal/decoder/... -run '^TestDecode_ITUVectorAlgthmBitExact$' -v`
 Expected: PASS on all 35 frames.
 
 If the divergence cannot be closed within reasonable effort (say, 3 hours of iteration), do NOT abandon the plan — stop, write up what you've found (divergence location, hypotheses tried, hypotheses ruled out), and commit the test as `t.Skip()`'d with a detailed skip reason pointing to a follow-up issue. Phase 1h will inherit the unresolved discrepancies.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/decoder/decode_test.go
@@ -1723,7 +1723,7 @@ Fix commits (if any) from Step 3's diagnosis loop should be committed *before* t
 **Files:**
 - Modify: `internal/decoder/decode_test.go` (append)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append:
 
@@ -1763,26 +1763,26 @@ func TestDecode_ITUVectorSpeechBitExact(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run test**
+- [x] **Step 2: Run test**
 
 Run: `go test ./internal/decoder/... -run '^TestDecode_ITUVectorSpeechBitExact$' -v`
 
 If ALGTHM was fully bit-exact, SPEECH should be too. If it diverges partway through (e.g. at frame 1247), the likely culprit is a drift bug in a state variable that ALGTHM's short duration never exercised. Suspects: AGC `agcGainPrev` Q-format drift, MA predictor overflow after many frames, `pastResidual` slide off-by-one that only manifests when the history wraps past a boundary.
 
-- [ ] **Step 3: Diagnose any divergence**
+- [x] **Step 3: Diagnose any divergence**
 
 Same diagnosis loop as Task 9 step 3, but focused on accumulation/drift. Useful tools:
 
 - Binary-search the divergence frame: bisect between the last known-good frame and the first bad frame until a single-subframe regression is isolated.
 - Dump all sub-decoder state at frame N and frame N+1 just before and after the divergence; diff them against a reference trace if available.
 
-- [ ] **Step 4: Run test to verify PASS**
+- [x] **Step 4: Run test to verify PASS**
 
 Expected: PASS on all 3750 frames.
 
 Timing note: this test processes 37.5 s of audio through the full codec. Expect the test to take 1–5 seconds in single-frame mode. If it takes > 30 s, the HP filter or postfilter may be doing extra per-sample work; check the benchmark in Task 11.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/decoder/decode_test.go
@@ -1804,7 +1804,7 @@ EOF
 - Create: `internal/decoder/bench_test.go`
 - Modify: `internal/decoder/doc.go` (final polish — add any algorithmic notes discovered during 9/10)
 
-- [ ] **Step 1: Write the failing allocation test**
+- [x] **Step 1: Write the failing allocation test**
 
 File: `internal/decoder/alloc_test.go`
 
@@ -1840,7 +1840,7 @@ func TestNoAllocationInReset(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run — verify PASS (or diagnose)**
+- [x] **Step 2: Run — verify PASS (or diagnose)**
 
 Run: `go test ./internal/decoder/... -run '^TestNoAllocation' -v`
 Expected: PASS.
@@ -1852,7 +1852,7 @@ If it fails, the most likely suspects are:
 
 If an escape is real, the fix is either to pass output parameters by pointer (changes internal API) or to restructure the call. Do NOT paper over with `//go:nosplit` or similar.
 
-- [ ] **Step 3: Write the benchmark**
+- [x] **Step 3: Write the benchmark**
 
 File: `internal/decoder/bench_test.go`
 
@@ -1873,21 +1873,21 @@ func BenchmarkDecode(b *testing.B) {
 }
 ```
 
-- [ ] **Step 4: Run the benchmark**
+- [x] **Step 4: Run the benchmark**
 
 Run: `go test -bench=BenchmarkDecode -benchmem -run='^$' ./internal/decoder/`
 Expected: zero allocations. Typical performance at this point will be on the order of 3–8 μs per frame (combining ~770 ns synth + ~1600 ns postfilter + ~200 ns HP + ~300 ns adaptive codebook + ~100 ns each for fcb/gain/lsp interp). A 10 ms frame processed in < 10 μs is a 1000:1 real-time factor — easily sufficient for any deployment.
 
-- [ ] **Step 5: Polish `doc.go`**
+- [x] **Step 5: Polish `doc.go`**
 
 If any algorithmic notes surfaced during Tasks 9/10 (e.g. "γ_n was nudged from 18022 → 18023 to match ITU", or "voicing branch for tilt-μ uses g_l-lastwritten, not agcGainPrev"), add a short "Implementation notes" section at the bottom of `doc.go` documenting them. Keep it under 30 lines — detailed rationale belongs in the completion report, not in production source.
 
-- [ ] **Step 6: Run full test suite + vet once more**
+- [x] **Step 6: Run full test suite + vet once more**
 
 Run: `go test -race ./... && go vet ./...`
 Expected: all packages pass, vet silent.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add internal/decoder/alloc_test.go internal/decoder/bench_test.go internal/decoder/doc.go
@@ -1905,16 +1905,16 @@ EOF
 
 All of the following must be true before writing the Phase 1g completion report:
 
-- [ ] All 11 tasks' checkboxes are flipped.
-- [ ] `go test -race ./...` passes for every package (now 11 packages including `internal/decoder`).
-- [ ] `go vet ./...` silent.
-- [ ] `BenchmarkDecode` reports `0 B/op, 0 allocs/op`.
-- [ ] `TestDecode_ITUVectorAlgthmBitExact` passes on all 35 ALGTHM frames, with exact int16 equality at every sample.
-- [ ] `TestDecode_ITUVectorSpeechBitExact` passes on all 3750 SPEECH frames, with exact int16 equality at every sample.
-- [ ] `internal/synth.Synthesizer.Filter` exported and tested.
-- [ ] `internal/postfilter.computeTiltMu` implements the §A.4.2.3 impulse-response-autocorrelation derivation and passes the single-pole tests.
-- [ ] At least 11 commits on `main` for Phase 1g tasks, each task-scoped, plus any interleaved `fix(...)` commits from the diagnosis loops in Tasks 9/10. Each commit carries the `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>` trailer.
-- [ ] Completion report saved to `docs/superpowers/plans/2026-04-22-phase1g-decoder-completion-report.md` covering:
+- [x] All 11 tasks' checkboxes are flipped.
+- [x] `go test -race ./...` passes for every package (now 11 packages including `internal/decoder`).
+- [x] `go vet ./...` silent.
+- [x] `BenchmarkDecode` reports `0 B/op, 0 allocs/op`.
+- [x] `TestDecode_ITUVectorAlgthmBitExact` passes on all 35 ALGTHM frames, with exact int16 equality at every sample.
+- [x] `TestDecode_ITUVectorSpeechBitExact` passes on all 3750 SPEECH frames, with exact int16 equality at every sample.
+- [x] `internal/synth.Synthesizer.Filter` exported and tested.
+- [x] `internal/postfilter.computeTiltMu` implements the §A.4.2.3 impulse-response-autocorrelation derivation and passes the single-pole tests.
+- [x] At least 11 commits on `main` for Phase 1g tasks, each task-scoped, plus any interleaved `fix(...)` commits from the diagnosis loops in Tasks 9/10. Each commit carries the `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>` trailer.
+- [x] Completion report saved to `docs/superpowers/plans/2026-04-22-phase1g-decoder-completion-report.md` covering:
   - Spec sections referenced
   - All plan deviations with ±1 LSB constant tuning decisions (which constants moved, by how much, what ITU divergence they closed)
   - Benchmark results
