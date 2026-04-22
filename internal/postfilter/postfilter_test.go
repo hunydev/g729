@@ -192,3 +192,35 @@ if sPf[0] < 50 || sPf[0] > 150 {
 t.Fatalf("Filter output sample 0 = %d; expected ≈100 (input was 100 flat, AGC should pass unity).", sPf[0])
 }
 }
+
+// TestFilter_SmoothPositiveInput_PreservesPolarity asserts that a
+// monotonically-positive synth input produces a predominantly-
+// positive postfilter output (at least 75 % of samples must be
+// non-negative).
+func TestFilter_SmoothPositiveInput_PreservesPolarity(t *testing.T) {
+var pf Postfilter
+
+var a [11]int16
+a[0] = 4096
+a[1] = -2048
+a[2] = 1024
+
+var s [subframeLen]int16
+for i := range s {
+s[i] = int16(500 + i*10)
+}
+
+var sPf [subframeLen]int16
+pf.Filter(&a, 40, &s, &sPf)
+
+negCount := 0
+for _, v := range sPf {
+if v < 0 {
+negCount++
+}
+}
+if negCount > subframeLen/4 {
+t.Fatalf("Postfilter inverted %d/%d samples on a monotonically-positive input. sPf=%v",
+negCount, subframeLen, sPf[:])
+}
+}

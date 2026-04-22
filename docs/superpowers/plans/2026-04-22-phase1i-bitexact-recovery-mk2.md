@@ -311,7 +311,7 @@ EOF
 **Files:**
 - Test: `internal/postfilter/postfilter_test.go` (append new test)
 
-- [ ] **Step 1: Add the diagnostic test**
+- [x] **Step 1: Add the diagnostic test**
 
 Append to `internal/postfilter/postfilter_test.go`:
 
@@ -363,7 +363,7 @@ func TestFilter_SmoothPositiveInput_PreservesPolarity(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the test — observe PASS or FAIL**
+- [x] **Step 2: Run the test — observe PASS or FAIL**
 
 Run: `go test -run TestFilter_SmoothPositiveInput_PreservesPolarity ./internal/postfilter -v`
 
@@ -376,7 +376,7 @@ Run: `go test -run TestFilter_SmoothPositiveInput_PreservesPolarity ./internal/p
 
 Once identified and fixed, the test should pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/postfilter/postfilter_test.go
