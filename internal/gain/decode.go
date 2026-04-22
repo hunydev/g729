@@ -12,12 +12,12 @@ const pastErrorsDefault int16 = -14336
 // existing G.729 implementation):
 //
 //	dbPerLog2Q13 = 10·log10(2) · 2¹³  ≈ 24660  // dB per unit log2
-//	tenLog10_40Q10 = 10·log10(40) · 2¹⁰ ≈ 16402  // 10·log10(40) Q10 dB
+//	tenLog10_40Q10 = 10·log10(40) · 2¹⁰ ≈ 16405  // 10·log10(40) Q10 dB
 //	invDbScaleQ15  = 1 / (20·log10(2)) · 2¹⁵ ≈ 5443  // log2 per dB
 //	dbPerLog2Q10   = 20·log10(2) · 2¹⁰  ≈ 6165   // dB per unit log2
 const (
 	dbPerLog2Q13   = 24660
-	tenLog10_40Q10 = 16402
+	tenLog10_40Q10 = 16405
 	invDbScaleQ15  = 5443
 	dbPerLog2Q10   = 6165
 )

@@ -613,7 +613,7 @@ EOF
 - Test: `internal/gain/decode_test.go` (append new constant-derivation invariant test)
 - Modify: `internal/gain/decode.go` (correct constant if needed)
 
-- [ ] **Step 1: Add a failing constant-derivation test**
+- [x] **Step 1: Add a failing constant-derivation test**
 
 Append to `internal/gain/decode_test.go`:
 
@@ -663,7 +663,7 @@ func TestDbPerLog2Q10_MatchesSpecDerivation(t *testing.T) {
 
 (Note: `math` import must be added to the test file's import block if not already present.)
 
-- [ ] **Step 2: Run — observe which constant(s) are off**
+- [x] **Step 2: Run — observe which constant(s) are off**
 
 Run: `go test -run TestTenLog10_40Q10_MatchesSpecDerivation -v ./internal/gain`
 Run: `go test -run TestDbPerLog2Q13_MatchesSpecDerivation -v ./internal/gain`
@@ -672,7 +672,7 @@ Run: `go test -run TestDbPerLog2Q10_MatchesSpecDerivation -v ./internal/gain`
 
 Expected: `TestTenLog10_40Q10_MatchesSpecDerivation` FAILs with message "got 16402 want 16405". The other three may or may not fail; fix each that does.
 
-- [ ] **Step 3: Correct the constant(s)**
+- [x] **Step 3: Correct the constant(s)**
 
 Edit `internal/gain/decode.go`. Replace the problem value(s). For `tenLog10_40Q10`:
 
@@ -687,13 +687,13 @@ const (
 
 Similarly correct any other constants the tests flagged.
 
-- [ ] **Step 4: Re-run — expect all PASS**
+- [x] **Step 4: Re-run — expect all PASS**
 
 Run: `go test ./internal/gain -count=1`
 
 Expected: PASS across the whole package including prior tests (a 3-LSB constant change to `tenLog10_40Q10` may shift some test expectations; fix those too or loosen tolerances where a test was locking a bit-for-bit numeric that is now correct per spec but different from before. Prefer to update the expected value to match the new-correct spec-derived output.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/gain/decode.go internal/gain/decode_test.go
