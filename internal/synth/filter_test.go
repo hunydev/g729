@@ -203,3 +203,35 @@ t.Fatalf("non-pathological input saturated output: %v", s)
 }
 }
 }
+
+// TestFilter_GuardUsesFixedOverflowFlag asserts that the §3.10 guard
+// triggers via fixed.Overflow on saturation in the LMsu/LShl/Round
+// chain and that the recovery pass actually executes.  With the
+// extreme positive feedback below (a[1] = -32768), pass 1 LShl
+// saturates at sample 1.  In the recovery pass u and pastSynth are
+// scaled by ¼; the first sample becomes Round(LShl(2·4096·4096, 3))
+// = 4096, which after the ×4 post-scale equals 16384 (matching the
+// original input magnitude).  Without the flag-driven recovery the
+// first sample would already be 16384 directly from pass 1 and the
+// rest of the subframe would flat-line at ±32767; with recovery, the
+// first sample matches pass-2's scaled-and-rescaled outcome.
+func TestFilter_GuardUsesFixedOverflowFlag(t *testing.T) {
+var syn Synthesizer
+
+var a [11]int16
+a[0] = 4096
+a[1] = -32768
+
+var u [40]int16
+for i := range u {
+u[i] = 16384
+}
+
+var s [40]int16
+syn.Filter(&a, &u, &s)
+
+if s[0] != 16384 {
+t.Fatalf("Filter s[0] = %d; want 16384 (post-recovery first sample). "+
+"§3.10 overflow guard is not running the recovery pass via fixed.Overflow.", s[0])
+}
+}

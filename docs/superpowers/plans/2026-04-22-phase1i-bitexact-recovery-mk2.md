@@ -722,7 +722,7 @@ EOF
 - Modify: `internal/synth/filter.go`
 - Modify: `internal/synth/filter_test.go` (update tests that exercised the old int64 trigger)
 
-- [ ] **Step 1: Add a failing test for ITU-semantics guard**
+- [x] **Step 1: Add a failing test for ITU-semantics guard**
 
 Append to `internal/synth/filter_test.go` (or modify an existing test):
 
@@ -792,7 +792,7 @@ func TestFilter_GuardUsesFixedOverflowFlag(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Rewrite `filterSubframe` using the overflow flag**
+- [x] **Step 2: Rewrite `filterSubframe` using the overflow flag**
 
 Replace `internal/synth/filter.go` with:
 
@@ -868,24 +868,24 @@ func (synth *Synthesizer) onePass(a *[11]int16, u *[40]int16, work *[50]int16) {
 }
 ```
 
-- [ ] **Step 3: Update prior overflow-guard tests**
+- [x] **Step 3: Update prior overflow-guard tests**
 
 Phase 1h's `TestFilter_SaturationTriggersTwoPassRecovery` and `TestFilter_NonSaturatingInputIsUnchanged` may need adjustment if they asserted the exact value of `tryFilterPass`'s `|acc| ≥ 2^28` trigger. Re-read them; if they only verify end-behavior (output is not catastrophically saturated), keep unchanged. If they test the trigger's inner threshold, rewrite to test Overflow-flag behavior.
 
-- [ ] **Step 4: Run synth package**
+- [x] **Step 4: Run synth package**
 
 Run: `go test ./internal/synth -count=1 -race`
 
 Expected: PASS including the Task 6 Step 1 test and all Phase 1e/1h synth tests.
 
-- [ ] **Step 5: Verify zero-allocation preserved**
+- [x] **Step 5: Verify zero-allocation preserved**
 
 Run: `go test -run TestBuildExcitationNoAlloc ./internal/synth -count=1`
 Run: `go test -bench=BenchmarkFilterSubframe -benchmem ./internal/synth`
 
 Expected: `0 B/op, 0 allocs/op`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/synth/filter.go internal/synth/filter_test.go
