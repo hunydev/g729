@@ -102,3 +102,51 @@ if out1 != out2 {
 t.Fatal("Phase 1g must ignore the bad flag; Phase 1h will add concealment")
 }
 }
+
+func TestDecode_SubStatesZeroedByReset(t *testing.T) {
+var d Decoder
+var packed [10]byte
+var throwaway [80]int16
+
+for i := 0; i < 10; i++ {
+packed[i%10] = byte(i)
+_ = d.Decode(packed[:], false, throwaway[:])
+}
+d.Reset()
+
+if d.prevGpQ14 != 0 {
+t.Errorf("prevGpQ14 = %d after Reset", d.prevGpQ14)
+}
+if d.hpX != ([2]int16{}) {
+t.Errorf("hpX = %v after Reset", d.hpX)
+}
+if d.hpY != ([2]int32{}) {
+t.Errorf("hpY = %v after Reset", d.hpY)
+}
+if d.pastExc != ([pastExcLen]int16{}) {
+t.Errorf("pastExc not zeroed after Reset")
+}
+var fresh Decoder
+var freshOut, resetOut [80]int16
+packed = [10]byte{}
+_ = fresh.Decode(packed[:], false, freshOut[:])
+_ = d.Decode(packed[:], false, resetOut[:])
+if freshOut != resetOut {
+t.Error("Reset did not fully clear sub-state (output mismatch vs fresh)")
+}
+}
+
+func TestDecode_FirstThreeFramesAreNontrivial(t *testing.T) {
+var d Decoder
+packed := [10]byte{0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x11, 0x22}
+var out1, out2, out3 [80]int16
+_ = d.Decode(packed[:], false, out1[:])
+_ = d.Decode(packed[:], false, out2[:])
+_ = d.Decode(packed[:], false, out3[:])
+if out1 == out2 {
+t.Error("frame 1 == frame 2 — state did not advance across frames")
+}
+if out2 == out3 {
+t.Error("frame 2 == frame 3 — state did not advance across frames")
+}
+}
