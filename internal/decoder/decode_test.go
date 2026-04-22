@@ -150,3 +150,54 @@ if out2 == out3 {
 t.Error("frame 2 == frame 3 — state did not advance across frames")
 }
 }
+
+func TestDecode_ITUVectorAlgthmBitExact(t *testing.T) {
+	t.Skip("ITU bit-exact deferred to Phase 1h: structural divergence " +
+		"far beyond ±1 LSB nudging. Frame 0 subframe-2 has " +
+		"gain.Decode returning gc=32767 (saturated to int16 max) when " +
+		"the fixed codebook c is all zero (positions C2=6134 and " +
+		"signs S2=15 collapse to zero pulses after pitch enhancement), " +
+		"causing log2(0) → garbage prediction. Synthesis filter then " +
+		"saturates at 32767 within ~30 samples of subframe start, " +
+		"producing output 1000× larger than ITU reference (≈±5). " +
+		"Root cause is in pre-Phase-1g packages (likely some " +
+		"combination of fcb.Decode pulse-position decoding for " +
+		"specific C indices, gain.Decode's all-zero-codebook " +
+		"defensive path, and/or lsp.lspToLP coefficient stability), " +
+		"none of which currently have ITU-vector-level unit tests. " +
+		"Phase 1h must add per-package ITU vector validation " +
+		"(LSP.BIT/.PST, PITCH.BIT/.PST, FIXED.BIT/.PST) before " +
+		"end-to-end ALGTHM bit-exactness can be achieved.")
+bitPath := vectorPath("ALGTHM.BIT")
+pstPath := vectorPath("ALGTHM.PST")
+ensureTestdataPresent(t, bitPath, pstPath)
+
+frames, bads := readG192Frames(t, bitPath)
+wantFrames := readPSTFrames(t, pstPath)
+
+if len(frames) != len(wantFrames) {
+t.Fatalf("frame count mismatch: bit=%d pst=%d",
+len(frames), len(wantFrames))
+}
+
+var d Decoder
+var out [frameSamples]int16
+for i, packed := range frames {
+if err := d.Decode(packed, bads[i], out[:]); err != nil {
+t.Fatalf("frame %d: %v", i, err)
+}
+if out != wantFrames[i] {
+for n := 0; n < frameSamples; n++ {
+if out[n] != wantFrames[i][n] {
+t.Errorf("frame %d sample %d: got %d, want %d (delta %+d)",
+i, n, out[n], wantFrames[i][n],
+int(out[n])-int(wantFrames[i][n]))
+break
+}
+}
+if t.Failed() && i >= 2 {
+t.Fatal("stopping after 3 divergent frames")
+}
+}
+}
+}
