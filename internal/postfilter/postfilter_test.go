@@ -163,3 +163,32 @@ func TestFilter_StatePropagatesAcrossSubframes(t *testing.T) {
 		t.Error("a2 == b2 — postfilter state did not carry across subframes")
 	}
 }
+
+// TestFilter_ImpulseResponse_FirstSampleNonZero asserts that a smooth
+// unit-magnitude synth input does NOT produce a zero-valued first
+// output sample. The §A.4.2 postfilter is a cascade of bandwidth-
+// expanded FIR / long-term / IIR / tilt / AGC; none of these stages
+// introduces algorithmic group delay, so the first output sample must
+// reflect the first input sample scaled by the AGC gain.
+func TestFilter_ImpulseResponse_FirstSampleNonZero(t *testing.T) {
+var pf Postfilter
+
+var a [11]int16
+a[0] = 4096
+
+var s [subframeLen]int16
+for i := range s {
+s[i] = 100
+}
+
+var sPf [subframeLen]int16
+pf.Filter(&a, 40, &s, &sPf)
+
+if sPf[0] == 0 {
+t.Fatalf("Filter output sample 0 is 0; expected non-zero (input was 100 flat). "+
+"Postfilter introduced a startup delay. sPf[:8]=%v", sPf[:8])
+}
+if sPf[0] < 50 || sPf[0] > 150 {
+t.Fatalf("Filter output sample 0 = %d; expected ≈100 (input was 100 flat, AGC should pass unity).", sPf[0])
+}
+}
