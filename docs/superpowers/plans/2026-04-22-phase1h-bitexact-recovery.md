@@ -69,7 +69,7 @@ No files are moved, renamed, or deleted.
 **Files:**
 - Modify: `internal/decoder/decode_test.go`
 
-- [ ] **Step 1: Write the skeleton test**
+- [x] **Step 1: Write the skeleton test**
 
 Append to `internal/decoder/decode_test.go`:
 
@@ -220,7 +220,7 @@ func sumSq(x []int16) int64 {
 
 Also ensure the test file's imports include `internal/bitstream`, `internal/lsp`, `internal/pitch`, `internal/fcb`, `internal/gain`, `internal/synth`, `internal/pcm` (already imported indirectly, but the test uses them directly). Add any missing import per `go vet`.
 
-- [ ] **Step 2: Run the test**
+- [x] **Step 2: Run the test**
 
 Run: `go test ./internal/decoder/... -run '^TestFrame0StageByStage$' -v`
 
@@ -234,7 +234,7 @@ The test will either PASS (invariants held — divergence is ±1 LSB, not struct
 - `u[] peak` should be below `|gc| × |c| / 4096 + |gp| × |v| / 16384` ≈ `|gc| × 2` (since |c| peak = 8192 = 2¹³ and divisor is 2¹²). If `u[]` is at int16 ceiling, Task 3 (gain) is a prime suspect.
 - `s[] peak` should be a couple hundred (typical LP synthesis magnitude at half-amplitude). If it's at 32767, Task 4 (synth two-pass guard) is the fix.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/decoder/decode_test.go
@@ -265,7 +265,7 @@ Do NOT continue to Task 2 until the diagnostic log lines are saved somewhere ret
 **Files:**
 - Create: `internal/fcb/pathological_test.go`
 
-- [ ] **Step 1: Write the regression tests**
+- [x] **Step 1: Write the regression tests**
 
 File: `internal/fcb/pathological_test.go`
 
@@ -378,7 +378,7 @@ func TestDecode_ExhaustiveSignsPreservePulseCount(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run — expect PASS if fcb is correct**
+- [x] **Step 2: Run — expect PASS if fcb is correct**
 
 Run: `go test ./internal/fcb/... -run '^TestDecode(Positions_C6134|_C6134|_ExhaustiveSigns)|TestPlacePulses_AllPositive_C6134$' -v`
 
@@ -392,7 +392,7 @@ Run: `go test ./internal/fcb/... -run '^TestDecode(Positions_C6134|_C6134|_Exhau
 
 Fix is one-line; commit separately before the regression-test commit.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/fcb/pathological_test.go
@@ -417,7 +417,7 @@ EOF
 **Files:**
 - Create: `internal/gain/pathological_test.go`
 
-- [ ] **Step 1: Write the regression tests**
+- [x] **Step 1: Write the regression tests**
 
 File: `internal/gain/pathological_test.go`
 
@@ -507,7 +507,7 @@ func TestDecode_SucceedsAcrossAllGainIndices(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run — observe which (if any) fail**
+- [x] **Step 2: Run — observe which (if any) fail**
 
 Run: `go test ./internal/gain/... -run '^TestDecode_(AllZeroCodebookIsBounded|LowEnergyCodebookIsSmooth|HighEnergyCodebookIsBounded|SucceedsAcrossAllGainIndices)$' -v`
 
@@ -517,7 +517,7 @@ If only `TestDecode_SucceedsAcrossAllGainIndices` fails on specific (GA, GB) com
 
 If all pass: no bug in gain; skip to Step 4.
 
-- [ ] **Step 3: Fix if needed — zero-energy guard**
+- [x] **Step 3: Fix if needed — zero-energy guard**
 
 If `TestDecode_AllZeroCodebookIsBounded` fails, modify `internal/gain/decode.go`. The canonical spec-compliant fix is to guard the `ecLog2Q10 = log2Fixed(ecEnergy)` line:
 
@@ -538,7 +538,7 @@ Alternative: if the canonical behaviour is already handled inside `log2Fixed`, t
 
 Write the fix; re-run the regression tests; commit with a `fix(gain):` prefix.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add internal/gain/pathological_test.go
@@ -564,7 +564,7 @@ EOF
 - Modify: `internal/synth/filter.go`
 - Modify: `internal/synth/filter_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `internal/synth/filter_test.go`:
 
@@ -629,14 +629,14 @@ func TestFilter_NonSaturatingInputIsUnchanged(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run — verify the saturation test fails**
+- [x] **Step 2: Run — verify the saturation test fails**
 
 Run: `go test ./internal/synth/... -run '^TestFilter_(SaturationTriggersTwoPassRecovery|NonSaturatingInputIsUnchanged)$' -v`
 Expected: `TestFilter_SaturationTriggersTwoPassRecovery` fails; `TestFilter_NonSaturatingInputIsUnchanged` passes.
 
 If the saturation test happens to pass already (e.g. because the constants chosen here don't trip saturation), strengthen it by scaling `u[i]` to `±32760` or using a pre-populated `synth.pastSynth` with large values.
 
-- [ ] **Step 3: Implement the two-pass guard**
+- [x] **Step 3: Implement the two-pass guard**
 
 Rewrite `filterSubframe` in `internal/synth/filter.go`. The key observation: ITU's Word32 `LShl` (in `internal/fixed`) saturates but also typically sets an overflow sticky bit. In Go we have no sticky flag, so we use a sentinel check:
 
@@ -716,7 +716,7 @@ func (synth *Synthesizer) tryFilterPass(a *[11]int16, u *[40]int16, work *[50]in
 
 The `fixed.Word32` type is the same as `int32` under the hood; if `internal/fixed` exposes a `Word32` type alias, use it. The comparison `lTemp >= maxPreShift` assumes `fixed.Word32` is castable to `int32`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `go test ./internal/synth/... -v`
 Expected: all existing Phase 1e tests still pass, AND both new tests pass.
@@ -725,12 +725,12 @@ If `TestFilter_SaturationTriggersTwoPassRecovery` still fails: the threshold `ma
 
 If `TestFilter_NonSaturatingInputIsUnchanged` fails: the threshold is too low, legitimate non-saturating accumulators are mis-detected. Lower `maxPreShift` only if absolutely necessary; more likely the test's reference values need relaxing.
 
-- [ ] **Step 5: Confirm zero-alloc is preserved**
+- [x] **Step 5: Confirm zero-alloc is preserved**
 
 Run: `go test -bench=BenchmarkSynthesize -benchmem -run='^$' ./internal/synth/`
 Expected: still `0 B/op, 0 allocs/op`. The recovery pass allocates two stack arrays (`work2[50]`, `uScaled[40]`), both int16 and under 100 bytes — they stay on the stack.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/synth/filter.go internal/synth/filter_test.go
@@ -755,11 +755,11 @@ EOF
 **Files:**
 - Modify: `internal/decoder/decode_test.go`
 
-- [ ] **Step 1: Remove the `t.Skip` from `TestDecode_ITUVectorAlgthmBitExact`**
+- [x] **Step 1: Remove the `t.Skip` from `TestDecode_ITUVectorAlgthmBitExact`**
 
 Open `internal/decoder/decode_test.go`, find `TestDecode_ITUVectorAlgthmBitExact`, delete the `t.Skip(...)` line(s) at the top.
 
-- [ ] **Step 2: Run the test**
+- [x] **Step 2: Run the test**
 
 Run: `go test ./internal/decoder/... -run '^TestDecode_ITUVectorAlgthmBitExact$' -v`
 
@@ -775,17 +775,17 @@ Run: `go test ./internal/decoder/... -run '^TestDecode_ITUVectorAlgthmBitExact$'
 
 Iterate: one change, one re-run. Each fix gets a separate `fix(<pkg>):` commit.
 
-- [ ] **Step 3: Verify PASS**
+- [x] **Step 3: Verify PASS**
 
 Run: `go test ./internal/decoder/... -run '^TestDecode_ITUVectorAlgthmBitExact$' -v`
 Expected: PASS, 35 frames, bit-exact.
 
-- [ ] **Step 4: Run the full repo test to confirm no regression**
+- [x] **Step 4: Run the full repo test to confirm no regression**
 
 Run: `go test -race ./...`
 Expected: all 11 packages pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/decoder/decode_test.go
@@ -808,9 +808,9 @@ EOF
 **Files:**
 - Modify: `internal/decoder/decode_test.go`
 
-- [ ] **Step 1: Remove the `t.Skip`**
+- [x] **Step 1: Remove the `t.Skip`**
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 Run: `go test ./internal/decoder/... -run '^TestDecode_ITUVectorSpeechBitExact$' -v`
 
@@ -820,11 +820,11 @@ If it fails at some frame N > 0 (not at the very beginning), the bug is accumula
 2. **Divergence at a subframe boundary every N frames:** postfilter `pastResidual` slide/index bug. Check `internal/postfilter/postfilter.go`'s `Filter` — the slide must happen exactly once per Filter call, between `computeResidual` and `refinePitch`.
 3. **Divergence that drifts linearly:** synthesizer `pastSynth` cross-subframe propagation; ensure `synth.Filter` writes `synth.pastSynth` on every call (Phase 1e handled this, but check for regressions from Task 4's rewrite).
 
-- [ ] **Step 3: Verify PASS**
+- [x] **Step 3: Verify PASS**
 
 Expected: PASS, 3750 frames, bit-exact. Runtime typically 1–4 s.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add internal/decoder/decode_test.go
@@ -845,7 +845,7 @@ EOF
 **Files:**
 - Modify: `internal/decoder/decode_test.go`
 
-- [ ] **Step 1: Add the test**
+- [x] **Step 1: Add the test**
 
 Append:
 
@@ -879,13 +879,13 @@ func TestDecode_ITUVectorFixedBitExact(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 Run: `go test ./internal/decoder/... -run '^TestDecode_ITUVectorFixedBitExact$' -v`
 
 If failing, the first-divergence frame + sample + delta will narrow the cause. Likely candidates: a specific (C, S) combination not covered by Task 2's sweep.
 
-- [ ] **Step 3: Verify PASS + commit**
+- [x] **Step 3: Verify PASS + commit**
 
 ```bash
 git add internal/decoder/decode_test.go
@@ -906,7 +906,7 @@ EOF
 **Files:**
 - Modify: `internal/decoder/decode_test.go`
 
-- [ ] **Step 1: Add the test**
+- [x] **Step 1: Add the test**
 
 Append (following the exact same structure as Task 7, substitute vector name):
 
@@ -921,13 +921,13 @@ func TestDecode_ITUVectorLSPBitExact(t *testing.T) {
 
 Same `t.Skip` for `testing.Short()` as SPEECH — LSP takes ~2 s, not prohibitive in default mode.
 
-- [ ] **Step 2: Run + iterate + pass**
+- [x] **Step 2: Run + iterate + pass**
 
 Run: `go test ./internal/decoder/... -run '^TestDecode_ITUVectorLSPBitExact$' -v`
 
 Likely failure modes (if any): LSP MA predictor stability rearrangement triggering on edge cases. Cross-reference `internal/lsp/stability.go` against §3.2.4 Table 6's `lsfRearrJ` constants.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/decoder/decode_test.go
@@ -948,7 +948,7 @@ EOF
 **Files:**
 - Modify: `internal/decoder/decode_test.go`
 
-- [ ] **Step 1: Add the test**
+- [x] **Step 1: Add the test**
 
 ```go
 func TestDecode_ITUVectorPitchBitExact(t *testing.T) {
@@ -959,11 +959,11 @@ func TestDecode_ITUVectorPitchBitExact(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run + iterate + pass**
+- [x] **Step 2: Run + iterate + pass**
 
 Likely failure modes (if any): the fractional-lag FIR's boundary at `tInt = 40` (transition from short-pitch to long-pitch path); the interpolation FIR's tail samples when `tInt + 10 > len(pastExc)`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/decoder/decode_test.go
@@ -984,7 +984,7 @@ EOF
 **Files:**
 - Modify: `internal/decoder/decode_test.go`
 
-- [ ] **Step 1: Add both tests**
+- [x] **Step 1: Add both tests**
 
 ```go
 func TestDecode_ITUVectorTameBitExact(t *testing.T) {
@@ -1002,12 +1002,12 @@ func TestDecode_ITUVectorTestBitExact(t *testing.T) {
 
 The path for TEST uses lowercase `.pst` — Annex A's `TEST.pst` is shipped that way (see the directory listing). If running on a case-sensitive filesystem (linux), this matters; use the exact filename.
 
-- [ ] **Step 2: Run + pass**
+- [x] **Step 2: Run + pass**
 
 Run: `go test ./internal/decoder/... -run '^TestDecode_ITUVector(Tame|Test)BitExact$' -v`
 Expected: PASS for both.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/decoder/decode_test.go
@@ -1028,7 +1028,7 @@ EOF
 **Files:**
 - Modify: `internal/decoder/decode_test.go`
 
-- [ ] **Step 1: Add the test**
+- [x] **Step 1: Add the test**
 
 ```go
 func TestDecode_ITUVectorOverflowBitExact(t *testing.T) {
@@ -1060,7 +1060,7 @@ func TestDecode_ITUVectorOverflowBitExact(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run — verify Task 4's guard is actually exercised**
+- [x] **Step 2: Run — verify Task 4's guard is actually exercised**
 
 Run: `go test ./internal/decoder/... -run '^TestDecode_ITUVectorOverflowBitExact$' -v`
 
@@ -1068,7 +1068,7 @@ If this test PASSES but the two-pass recovery branch is never hit (verify via a 
 
 If this test FAILS, the threshold or the scale-down-by-4 logic in Task 4's recovery pass is wrong. Re-derive from §3.10: the ITU C reference scales by 4 on recovery; confirm that the Go implementation's output is `LShl(rounded, 2)` = `rounded * 4`, *after* the rounded result. If it's scaling the *intermediate* L_temp by 4 instead, that's the bug.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/decoder/decode_test.go
@@ -1092,7 +1092,7 @@ EOF
 - Modify: `internal/synth/doc.go` (note the §3.10 two-pass guard)
 - Modify: `internal/postfilter/doc.go` (note any constant nudges from Task 5/6)
 
-- [ ] **Step 1: Polish docs**
+- [x] **Step 1: Polish docs**
 
 Add short "Implementation notes" subsections to each touched package's `doc.go` recording:
 
@@ -1102,7 +1102,7 @@ Add short "Implementation notes" subsections to each touched package's `doc.go` 
 
 Keep notes terse — one sentence per change, max 15 lines per package.
 
-- [ ] **Step 2: Run the full verification matrix**
+- [x] **Step 2: Run the full verification matrix**
 
 ```bash
 go test -race ./...
@@ -1117,7 +1117,7 @@ Expected:
 - `BenchmarkDecode` still 0 allocs/op, ideally within 10% of Phase 1g's 8.8 μs/frame — the Task 4 two-pass guard adds one branch and one `return false` per normal-case subframe, which is negligible.
 - All other benches still 0 allocs/op.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/decoder/doc.go internal/synth/doc.go internal/postfilter/doc.go
@@ -1135,11 +1135,11 @@ EOF
 
 All the following must be true before writing the Phase 1h completion report:
 
-- [ ] All 12 tasks' checkboxes are flipped.
-- [ ] `go test -race ./...` passes (all 11 packages).
-- [ ] `go vet ./...` silent.
-- [ ] `BenchmarkDecode` reports `0 B/op, 0 allocs/op`.
-- [ ] **Eight** ITU vector tests pass bit-exact, each with exact int16 equality at every sample of every frame:
+- [x] All 12 tasks' checkboxes are flipped.
+- [x] `go test -race ./...` passes (all 11 packages).
+- [x] `go vet ./...` silent.
+- [x] `BenchmarkDecode` reports `0 B/op, 0 allocs/op`.
+- [x] **Eight** ITU vector tests pass bit-exact, each with exact int16 equality at every sample of every frame:
   - `TestDecode_ITUVectorAlgthmBitExact` (35 frames)
   - `TestDecode_ITUVectorSpeechBitExact` (3750 frames)
   - `TestDecode_ITUVectorFixedBitExact` (120 frames)
@@ -1148,10 +1148,10 @@ All the following must be true before writing the Phase 1h completion report:
   - `TestDecode_ITUVectorTameBitExact` (128 frames)
   - `TestDecode_ITUVectorTestBitExact` (176 frames)
   - `TestDecode_ITUVectorOverflowBitExact` (384 frames)
-- [ ] `TestFrame0StageByStage` passes (diagnostic regression lock).
-- [ ] Tasks 2 & 3's pathological-input tests pass.
-- [ ] At least 12 commits on `main` for Phase 1h tasks, each task-scoped, plus any interleaved `fix(...)` commits from Task 5/6/7/8/9 diagnosis loops. Each commit carries the `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>` trailer.
-- [ ] Completion report saved to `docs/superpowers/plans/2026-04-22-phase1h-bitexact-recovery-completion-report.md` covering:
+- [x] `TestFrame0StageByStage` passes (diagnostic regression lock).
+- [x] Tasks 2 & 3's pathological-input tests pass.
+- [x] At least 12 commits on `main` for Phase 1h tasks, each task-scoped, plus any interleaved `fix(...)` commits from Task 5/6/7/8/9 diagnosis loops. Each commit carries the `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>` trailer.
+- [x] Completion report saved to `docs/superpowers/plans/2026-04-22-phase1h-bitexact-recovery-completion-report.md` covering:
   - Spec sections referenced
   - Actual root cause(s) — especially whether it was fcb, gain, synth, postfilter, HP, or a combination
   - Every constant nudged (package, constant name, old → new value, which vector's divergence drove the change)
