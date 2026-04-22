@@ -201,3 +201,44 @@ t.Fatal("stopping after 3 divergent frames")
 }
 }
 }
+
+func TestDecode_ITUVectorSpeechBitExact(t *testing.T) {
+t.Skip("ITU bit-exact deferred to Phase 1h: depends on the same " +
+"sub-package validation work blocking ALGTHM. End-to-end " +
+"divergence with SPEECH.BIT will exceed even the ALGTHM " +
+"divergence because the synthesizer saturation path " +
+"compounds across normal-energy frames. Re-enable after " +
+"Phase 1h adds LSP/PITCH/FCB/GAIN ITU vector unit tests.")
+bitPath := vectorPath("SPEECH.BIT")
+pstPath := vectorPath("SPEECH.PST")
+ensureTestdataPresent(t, bitPath, pstPath)
+
+frames, bads := readG192Frames(t, bitPath)
+wantFrames := readPSTFrames(t, pstPath)
+
+if len(frames) != len(wantFrames) {
+t.Fatalf("frame count mismatch: bit=%d pst=%d",
+len(frames), len(wantFrames))
+}
+
+var d Decoder
+var out [frameSamples]int16
+for i, packed := range frames {
+if err := d.Decode(packed, bads[i], out[:]); err != nil {
+t.Fatalf("frame %d: %v", i, err)
+}
+if out != wantFrames[i] {
+for n := 0; n < frameSamples; n++ {
+if out[n] != wantFrames[i][n] {
+t.Errorf("frame %d sample %d: got %d, want %d (delta %+d)",
+i, n, out[n], wantFrames[i][n],
+int(out[n])-int(wantFrames[i][n]))
+break
+}
+}
+if i >= 2 {
+t.Fatal("stopping after 3 divergent frames")
+}
+}
+}
+}
