@@ -14,11 +14,21 @@ type Decoder struct {
 	// first call to Decode.
 	pastResiduals [4][10]int16
 	// prevLSP is the previous frame's post-stability LSP vector (Q15)
-	// used by interpolateLSP. Populated lazily on the first frame so
-	// sf1 == sf2 in the no-prior-frame case.
+	// used by interpolateLSP. Per ITU-T G.729 §3.2.4 / §4.1.5, the
+	// codec-start initial values are q_i = cos(i·π/11) Q15 (the
+	// uniformly-spaced LSF init projected through cosine), populated
+	// lazily on the first Decode call.
 	prevLSP [10]int16
 
 	initialized bool
+}
+
+// initialPrevLSP is q_i = cos(i·π/11) Q15 for i = 1..10, the codec-
+// start initial value of the previous-frame LSP vector (ITU-T G.729
+// §3.2.4 / §4.1.5).
+var initialPrevLSP = [10]int16{
+	31441, 27566, 21458, 13612, 4663,
+	-4663, -13612, -21458, -27566, -31441,
 }
 
 // initialPastResidual is l̂_i = i·π/11 in Q13 for i = 1..10, per
@@ -78,10 +88,11 @@ func (d *Decoder) Decode(idx Indices) (sf1, sf2 [11]int16) {
 		lsp[i] = lsfToLSP(lsf[i])
 	}
 
-	// 6. First-frame handling: with no prior frame, use the current
-	//    LSP as the previous one so sf1 == sf2.
+	// 6. First-frame handling: with no prior frame, use the spec-
+	//    defined uniform LSP init (cos(i·π/11) Q15) so the sf1
+	//    interpolation produces a stable LP filter even at codec start.
 	if !d.initialized {
-		d.prevLSP = lsp
+		d.prevLSP = initialPrevLSP
 		d.initialized = true
 	}
 
