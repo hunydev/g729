@@ -1,6 +1,16 @@
 package decoder
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/exedev/g729/internal/bitstream"
+	"github.com/exedev/g729/internal/fcb"
+	"github.com/exedev/g729/internal/gain"
+	"github.com/exedev/g729/internal/lsp"
+	"github.com/exedev/g729/internal/pcm"
+	"github.com/exedev/g729/internal/pitch"
+	"github.com/exedev/g729/internal/synth"
+)
 
 func TestDecoderZeroValueIsUsable(t *testing.T) {
 	var d Decoder
@@ -241,4 +251,132 @@ t.Fatal("stopping after 3 divergent frames")
 }
 }
 }
+}
+
+// TestFrame0StageByStage mirrors the Decoder pipeline externally and
+// records intermediate signals for frame 0 of the ALGTHM vector.
+//
+// This test's purpose is DIAGNOSTIC: if the decoder ever diverges from
+// ITU on frame 0 again, running this test tells you exactly which
+// stage's output no longer matches the reference for frame 0 samples.
+//
+// The test does NOT consume ALGTHM.PST as ground truth — it only
+// verifies internal invariants (finite magnitude, expected ordering of
+// energy concentration, predictor-state smoothness). The end-to-end
+// bit-exact check lives in TestDecode_ITUVectorAlgthmBitExact.
+func TestFrame0StageByStage(t *testing.T) {
+bitPath := vectorPath("ALGTHM.BIT")
+ensureTestdataPresent(t, bitPath)
+
+frames, _ := readG192Frames(t, bitPath)
+if len(frames) == 0 {
+t.Fatal("ALGTHM.BIT: no frames")
+}
+
+var f bitstream.Frame
+if err := bitstream.Unpack(frames[0], &f); err != nil {
+t.Fatal(err)
+}
+t.Logf("frame 0 params: %+v", f)
+
+var ls lsp.Decoder
+sf1A, sf2A := ls.Decode(lsp.Indices{
+L0: uint8(f.L0), L1: uint8(f.L1),
+L2: uint8(f.L2), L3: uint8(f.L3),
+})
+t.Logf("frame 0 sf1A = %+v", sf1A)
+t.Logf("frame 0 sf2A = %+v", sf2A)
+
+tInt1, tFrac1 := pitch.DecodeDelaySubframe1(uint8(f.P1))
+tInt2, tFrac2 := pitch.DecodeDelaySubframe2(uint8(f.P2), tInt1)
+t.Logf("frame 0 pitch: sf1 T=%d+%d/3, sf2 T=%d+%d/3",
+tInt1, tFrac1, tInt2, tFrac2)
+
+stages := []struct {
+name   string
+tInt   int
+tFrac  int
+sfA    [lpcOrder + 1]int16
+		C      uint16
+		S      uint8
+GA, GB uint8
+}{
+{"sf1", tInt1, tFrac1, sf1A, f.C1, uint8(f.S1), uint8(f.GA1), uint8(f.GB1)},
+{"sf2", tInt2, tFrac2, sf2A, f.C2, uint8(f.S2), uint8(f.GA2), uint8(f.GB2)},
+}
+
+var d Decoder
+for _, sf := range stages {
+var v [subframeLen]int16
+pitch.AdaptiveCodebook(sf.tInt, sf.tFrac, d.pastExc[:], &v)
+
+betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
+var c [subframeLen]int16
+fcb.Decode(fcb.Indices{Positions: sf.C, Signs: sf.S}, sf.tInt, betaQ14, &c)
+
+gpQ14, gcQ12 := d.gn.Decode(gain.Indices{GA: sf.GA, GB: sf.GB}, &c)
+
+var u [subframeLen]int16
+synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+
+var s [subframeLen]int16
+sfACopy := sf.sfA
+d.syn.Filter(&sfACopy, &u, &s)
+
+var sPf [subframeLen]int16
+d.pst.Filter(&sfACopy, sf.tInt, &s, &sPf)
+
+var hp [subframeLen]int16
+d.hpFilter(&sPf, hp[:])
+var scaled [subframeLen]int16
+copy(scaled[:], hp[:])
+pcm.ScaleUpSat(scaled[:], scaled[:])
+
+t.Logf("%s v[]: peak=%d rms²=%d", sf.name, peak(v[:]), sumSq(v[:]))
+t.Logf("%s c[]: peak=%d rms²=%d", sf.name, peak(c[:]), sumSq(c[:]))
+t.Logf("%s (gp Q14, gc Q12) = (%d, %d)", sf.name, gpQ14, gcQ12)
+t.Logf("%s u[]: peak=%d rms²=%d", sf.name, peak(u[:]), sumSq(u[:]))
+t.Logf("%s s[]: peak=%d rms²=%d", sf.name, peak(s[:]), sumSq(s[:]))
+t.Logf("%s sPf[]: peak=%d rms²=%d", sf.name, peak(sPf[:]), sumSq(sPf[:]))
+t.Logf("%s hp[]: peak=%d rms²=%d", sf.name, peak(hp[:]), sumSq(hp[:]))
+t.Logf("%s scaled[]: peak=%d rms²=%d", sf.name, peak(scaled[:]), sumSq(scaled[:]))
+
+if sf.GA != 0 && sf.GB != 0 {
+if gcQ12 == 32767 || gcQ12 == -32768 {
+t.Errorf("%s: gcQ12 saturated to int16 bound — non-zero-energy input should produce bounded gain", sf.name)
+}
+}
+if peak(s[:]) == 32767 {
+t.Errorf("%s: synthesis filter saturated to +32767 — two-pass overflow guard likely missing (Task 4)", sf.name)
+}
+if peak(sPf[:]) == 32767 {
+t.Errorf("%s: postfilter saturated — investigate AGC gain / tilt-μ", sf.name)
+}
+
+copy(d.pastExc[:pastExcLen-subframeLen], d.pastExc[subframeLen:])
+copy(d.pastExc[pastExcLen-subframeLen:], u[:])
+d.prevGpQ14 = gpQ14
+}
+}
+
+func peak(x []int16) int32 {
+var p int32
+for _, v := range x {
+a := int32(v)
+if a < 0 {
+a = -a
+}
+if a > p {
+p = a
+}
+}
+return p
+}
+
+func sumSq(x []int16) int64 {
+var s int64
+for _, v := range x {
+s += int64(v) * int64(v)
+}
+return s
 }
