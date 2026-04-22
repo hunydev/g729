@@ -124,3 +124,41 @@ if !anyNonZero {
 t.Error("s2 is all zero — state did not propagate")
 }
 }
+
+func TestFilter_MatchesSynthesize(t *testing.T) {
+a := [11]int16{4096, 1000, -500, 200, 0, 0, 0, 0, 0, 0, 0}
+var v, c [40]int16
+for i := range v {
+v[i] = int16(100 + 3*i)
+c[i] = int16(50 - 2*i)
+}
+gpQ14 := int16(8192)
+gcQ12 := int16(2048)
+
+var sRef [40]int16
+var synRef Synthesizer
+synRef.Synthesize(&a, &v, &c, gpQ14, gcQ12, &sRef)
+
+var u, sSplit [40]int16
+BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+var synSplit Synthesizer
+synSplit.Filter(&a, &u, &sSplit)
+
+if sRef != sSplit {
+t.Fatalf("Filter(a, u, s) did not match Synthesize(a, v, c, gp, gc, s):\n ref=%v\n got=%v", sRef, sSplit)
+}
+if synRef != synSplit {
+t.Fatalf("state mismatch: ref=%+v got=%+v", synRef, synSplit)
+}
+}
+
+func TestFilter_ZeroExcitationIsZero(t *testing.T) {
+a := [11]int16{4096, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+var u, s [40]int16
+var syn Synthesizer
+syn.Filter(&a, &u, &s)
+var zero [40]int16
+if s != zero {
+t.Fatalf("zero excitation produced non-zero output: %v", s)
+}
+}

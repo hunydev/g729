@@ -24,3 +24,15 @@ func (synth *Synthesizer) Synthesize(a *[11]int16, v, c *[40]int16, gpQ14, gcQ12
 	BuildExcitation(gpQ14, gcQ12, v, c, &u)
 	synth.filterSubframe(a, &u, s)
 }
+
+// Filter runs the LP synthesis filter 1/A(z) on a pre-built excitation
+// vector u and writes the synthesized speech samples (Q0, pre-postfilter)
+// to out. This is the counterpart to Synthesize when the caller needs
+// u separately — e.g. the top-level decoder appends u to the adaptive-
+// codebook history FIFO.
+//
+// Spec: ITU-T G.729 §4.1.2 / §3.10. Updates synth.pastSynth to the last
+// 10 samples of out. Zero-allocation.
+func (synth *Synthesizer) Filter(a *[11]int16, u, out *[40]int16) {
+synth.filterSubframe(a, u, out)
+}
