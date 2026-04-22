@@ -73,3 +73,52 @@ func TestHPFilter_StatePropagatesAcrossCalls(t *testing.T) {
 		t.Fatalf("state propagation failure: jump at split = %d", diff)
 	}
 }
+
+// TestHpFilter_ImpulseFirstSample asserts the exact first-sample value
+// of an impulse response y[0] = b0·x[0] given zero state.
+func TestHpFilter_ImpulseFirstSample(t *testing.T) {
+var d Decoder
+var in [subframeLen]int16
+in[0] = 32767
+
+var out [subframeLen]int16
+d.hpFilter(&in, out[:])
+
+const want = int16(30795)
+if out[0] != want {
+t.Fatalf("hpFilter impulse out[0] = %d; want %d (b0·32767>>13 rounded)", out[0], want)
+}
+}
+
+func TestHpFilter_ZeroInputZeroState(t *testing.T) {
+var d Decoder
+var in [subframeLen]int16
+
+var out [subframeLen]int16
+d.hpFilter(&in, out[:])
+
+for i, v := range out {
+if v != 0 {
+t.Fatalf("hpFilter(zero) out[%d] = %d; want 0", i, v)
+}
+}
+}
+
+func TestHpFilter_DCRejection(t *testing.T) {
+var d Decoder
+var in [subframeLen]int16
+for i := range in {
+in[i] = 1000
+}
+
+var out [subframeLen]int16
+for i := 0; i < 8; i++ {
+d.hpFilter(&in, out[:])
+}
+
+for i, v := range out {
+if v < -100 || v > 100 {
+t.Fatalf("hpFilter(DC=1000) out[%d] (subframe 8) = %d; want |·| < 100", i, v)
+}
+}
+}

@@ -990,7 +990,7 @@ func TestHpFilter_DCRejection(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the HP filter tests**
+- [x] **Step 2: Run the HP filter tests**
 
 Run: `go test -run TestHpFilter -v ./internal/decoder`
 
@@ -998,7 +998,7 @@ Expected: all three PASS if the HP filter was implemented correctly in Phase 1g.
 
 For `TestHpFilter_ImpulseFirstSample`: if the `want` constant (30795) was computed incorrectly, recompute it from the actual code path and update the test expectation. If the filter produces a materially different value, the Q-format conversion is wrong.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/decoder/hpfilter_test.go
