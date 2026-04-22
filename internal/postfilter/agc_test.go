@@ -54,3 +54,27 @@ func TestApplyAGC_SmoothingDoesNotOvershoot(t *testing.T) {
 			pf.agcGainPrev, want)
 	}
 }
+
+// TestApplyAGC_FirstCallUsesSeededGain asserts that the first-ever
+// applyAGC call (Postfilter zero value) uses the current g_target as
+// the smoother's initial state, NOT zero.
+func TestApplyAGC_FirstCallUsesSeededGain(t *testing.T) {
+var pf Postfilter
+
+var sTilt [subframeLen]int16
+for i := range sTilt {
+sTilt[i] = 1000
+}
+gTargetQ14 := int16(16384) // g_target = 1.0
+
+var sPf [subframeLen]int16
+pf.applyAGC(&sTilt, gTargetQ14, &sPf)
+
+for i := range sPf {
+if sPf[i] < 900 || sPf[i] > 1100 {
+t.Fatalf("sPf[%d] = %d; expected ≈1000 (g_target=1.0, input=1000). "+
+"AGC startup transient is corrupting output. sPf[:8]=%v",
+i, sPf[i], sPf[:8])
+}
+}
+}

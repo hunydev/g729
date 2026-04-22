@@ -68,7 +68,7 @@ No files are deleted.
 **Files:**
 - Test: `internal/postfilter/postfilter_test.go` (append new test)
 
-- [ ] **Step 1: Add the failing test**
+- [x] **Step 1: Add the failing test**
 
 Append to `internal/postfilter/postfilter_test.go`:
 
@@ -117,7 +117,7 @@ func TestFilter_ImpulseResponse_FirstSampleNonZero(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the test — expect FAIL**
+- [x] **Step 2: Run the test — expect FAIL**
 
 Run: `go test -run TestFilter_ImpulseResponse_FirstSampleNonZero ./internal/postfilter -v`
 
@@ -125,7 +125,7 @@ Expected: FAIL with message "Filter output sample 0 is 0; expected non-zero (inp
 
 This confirms the AGC startup bug.
 
-- [ ] **Step 3: Commit the failing test**
+- [x] **Step 3: Commit the failing test**
 
 ```bash
 git add internal/postfilter/postfilter_test.go

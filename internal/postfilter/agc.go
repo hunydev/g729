@@ -50,6 +50,11 @@ func (pf *Postfilter) applyAGC(sTilt *[subframeLen]int16, gTargetQ14 int16, sPf 
 	const alphaQ15 int64 = 32440 // ≈ 0.99; ITU-T G.729 §A.4.2.4
 
 	gTargetQ24 := int64(gTargetQ14) << 10
+	if !pf.initialized {
+		pf.agcGainPrev = int32(gTargetQ24)
+		pf.initialized = true
+	}
+
 	g := int64(pf.agcGainPrev) // Q24
 	for n := 0; n < subframeLen; n++ {
 		g = (alphaQ15*g + (32768-alphaQ15)*gTargetQ24 + (1 << 14)) >> 15
