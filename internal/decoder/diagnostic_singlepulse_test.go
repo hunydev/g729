@@ -104,4 +104,46 @@ func TestDiagnostic_SinglePulseChain(t *testing.T) {
 		"package-private to internal/gain; Task 3's gain Q-format " +
 		"contract tests cover them. Cross-reference those test " +
 		"outputs when chasing 14 dB divergence.")
+
+	// === Spec-aligned boundary assertions (Task 7) ===
+	//
+	// Observed in Task 6: with a single +Q13 pulse at position 0,
+	// idx={GA:3,GB:7}, gpQ14=0 — all five quantitative boundaries
+	// (① fcb energy, ⑩ gcQ12 in-bound, ⑪ u[0]=round(gc), ⑫ s[0]=u[0])
+	// land on their spec-aligned values. The 14 dB ALGTHM frame 0
+	// sf2 saturation is therefore NOT reproduced by this single-pulse
+	// stimulus. These permanent assertions guard the harness against
+	// regression so future Stage F work can re-use it.
+
+	// Boundary ① — Σc² in Q26 form must equal 2^26 for single Q13 pulse.
+	if sumSqQ26 != 1<<26 {
+		t.Errorf("BOUNDARY ① fcb energy: Σc²=%d, want %d (= 2^26)",
+			sumSqQ26, int64(1)<<26)
+	}
+
+	// Boundary ⑪ — u[0] must equal round(true gc).
+	expectedU := int16(math.Round(gcTrue))
+	if u[0] != expectedU {
+		t.Errorf("BOUNDARY ⑪ excitation: u[0]=%d, want %d (= round(gcTrue=%.4f))",
+			u[0], expectedU, gcTrue)
+	}
+
+	// Boundary ⑫ — trivial LP filter (a[0]=4096, rest 0) is identity.
+	if s[0] != u[0] {
+		t.Errorf("BOUNDARY ⑫ synth.Filter: s[0]=%d, u[0]=%d (trivial filter must be identity)",
+			s[0], u[0])
+	}
+
+	// Boundary ⑩ Stage F trigger — gcQ12 true magnitude must be within
+	// [0, expectedGcPrime · γ̂_max] where γ̂_max ≈ 2.
+	maxExpectedGc := expectedGcPrime * 2.0
+	if gcTrue < 0 || gcTrue > maxExpectedGc+0.5 {
+		t.Errorf("BOUNDARY ⑩ gain: gcTrue=%.4f exceeds spec bound [0, %.4f]; "+
+			"this is the Stage F target (14 dB suspect at gain log-domain math)",
+			gcTrue, maxExpectedGc)
+	} else if gcQ12 == 32767 || gcQ12 == -32768 {
+		t.Errorf("BOUNDARY ⑩ gain: gcQ12 saturated (%d); 14 dB suspect at "+
+			"gain log-domain math — review §3.9.1 ecBar/predicted/logGain chain",
+			gcQ12)
+	}
 }

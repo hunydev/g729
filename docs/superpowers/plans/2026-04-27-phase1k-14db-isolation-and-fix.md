@@ -892,7 +892,7 @@ EOF
 **Files:**
 - Modify: `internal/decoder/diagnostic_singlepulse_test.go`
 
-- [ ] **Step 1: Task 6 출력 분석**
+- [x] **Step 1: Task 6 출력 분석**
 
 `/tmp/phase1k_diag.txt`를 다시 읽고 각 경계의 실측 vs 참값 dB 차이를 계산:
 
@@ -908,7 +908,7 @@ dB 차이 = `20·log10(|true_observed| / |true_expected|)`.
 
 첫 번째로 `|dB 차이| > 0.5` 되는 경계 번호를 K로 정의.
 
-- [ ] **Step 2: 어서션 추가 (boundary < K) + Stage F 트리거 메시지 (boundary == K)**
+- [x] **Step 2: 어서션 추가 (boundary < K) + Stage F 트리거 메시지 (boundary == K)**
 
 Edit `internal/decoder/diagnostic_singlepulse_test.go`. Task 6의 t.Logf는 그대로 두고, 함수 끝에 다음을 추가:
 
@@ -959,7 +959,7 @@ Edit `internal/decoder/diagnostic_singlepulse_test.go`. Task 6의 t.Logf는 그�
 
 만약 Task 6 관측에서 모든 경계가 스펙과 일치하면 → 14 dB 패턴이 단일-펄스 입력으로 재현되지 않음 → **탈출 해치 1 발동**, completion report에 기록 후 Stage F 진입 금지.
 
-- [ ] **Step 3: 어서션 실행**
+- [x] **Step 3: 어서션 실행**
 
 Run: `go test -run 'TestDiagnostic_SinglePulseChain' ./internal/decoder/ -v`
 
@@ -967,13 +967,13 @@ Expected: ① ⑫ PASS, ⑩ 또는 ⑪이 t.Errorf로 실패 (= 14 dB 위치 식
 
 만약 모든 어서션이 PASS → 탈출 해치 1로 분기, plan 중단하고 사용자 보고.
 
-- [ ] **Step 4: 회귀 점검**
+- [x] **Step 4: 회귀 점검**
 
 Run: `go test -race ./...`
 
 Expected: ALL PASS 또는 `TestDiagnostic_SinglePulseChain`만 실패 (의도된 진단). 다른 테스트 회귀 0건.
 
-- [ ] **Step 5: Commit (실패하는 진단 어서션 포함)**
+- [x] **Step 5: Commit (실패하는 진단 어서션 포함)**
 
 ```bash
 git add internal/decoder/diagnostic_singlepulse_test.go
