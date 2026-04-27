@@ -37,7 +37,7 @@
 - Create: `internal/decoder/frame0_regression_test.go`
 - Modify: `internal/decoder/decode_test.go` (기존 `TestDecode_Frame0Sample0_MatchesALGTHM` 제거)
 
-- [ ] **Step 1: 새 파일 생성**
+- [x] **Step 1: 새 파일 생성**
 
 `internal/decoder/frame0_regression_test.go`:
 
@@ -97,11 +97,11 @@ func TestDecode_Frame0SF1_DiagnosticLog(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 기존 파일에서 중복 테스트 제거**
+- [x] **Step 2: 기존 파일에서 중복 테스트 제거**
 
 `internal/decoder/decode_test.go`의 lines 542-565 (`TestDecode_Frame0Sample0_MatchesALGTHM` 함수 전체) 삭제.
 
-- [ ] **Step 3: 두 테스트 실행 → 통과 + 진단 로그 확인**
+- [x] **Step 3: 두 테스트 실행 → 통과 + 진단 로그 확인**
 
 Run: `go test -run 'TestDecode_Frame0(Sample0|SF1_DiagnosticLog)' ./internal/decoder/ -v`
 
@@ -111,13 +111,13 @@ Expected:
 
 이 단계에서 sf1 중 몇 개 샘플이 이미 일치하는지 **로그를 읽고 메모**해 둘 것 (Stage F 후 비교용).
 
-- [ ] **Step 4: 회귀 점검 (Phase 1i 가드 다른 경로로 깨지지 않았는지)**
+- [x] **Step 4: 회귀 점검 (Phase 1i 가드 다른 경로로 깨지지 않았는지)**
 
 Run: `go test -race ./internal/decoder/`
 
 Expected: ALL PASS, `TestDecode_ITUVectorAlgthmBitExact` 등은 여전히 `t.Skip`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/decoder/frame0_regression_test.go internal/decoder/decode_test.go
