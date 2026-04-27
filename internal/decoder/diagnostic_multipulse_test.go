@@ -102,3 +102,86 @@ func TestDiagnostic_FourPulseCanonicalChain(t *testing.T) {
 			gcQ12)
 	}
 }
+
+// TestDiagnostic_PitchActivePulseChain reproduces the IIR-accumulation
+// hypothesis from Phase 1k Stage D report §5: with gpQ14 ≠ 0 the
+// adaptive-codebook contribution v[*] activates the LP synthesis IIR
+// path. Stimulus: single +Q13 pulse + synthetic non-zero v matching a
+// canonical pitch contribution of 0.5 Q14.
+//
+// This does NOT call pitch.AdaptiveCodebook (which would require
+// pastExc state); instead we inject a deterministic v that simulates
+// the post-pitch contribution, isolating the LP synthesis IIR.
+func TestDiagnostic_PitchActivePulseChain(t *testing.T) {
+	var c [40]int16
+	c[0] = 8192 // single +Q13 pulse, identical to single-pulse harness
+
+	// Synthetic v: a smooth ramp simulating a +0.5-amplitude pitch
+	// contribution. Q0 sample magnitudes deliberately small so any
+	// observed downstream amplification is clearly LP-attributable.
+	var v [40]int16
+	for n := 0; n < 40; n++ {
+		v[n] = int16(n + 1) // 1..40 in Q0
+	}
+	const gpQ14 int16 = 8192 // 0.5 in Q14
+
+	var gd gain.Decoder
+	_, gcQ12 := gd.Decode(gain.Indices{GA: 3, GB: 7}, &c)
+	gcTrue := float64(gcQ12) / 4096.0
+
+	t.Logf("=== Pitch-active stimulus (gpQ14=%d ≈ %.4f) ===",
+		gpQ14, float64(gpQ14)/16384.0)
+	t.Logf("[⑩ gain] gcQ12=%d (true gc=%.4f)", gcQ12, gcTrue)
+
+	var u [40]int16
+	synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+	t.Logf("[⑪ u] u[0..7]=%v", u[:8])
+	t.Logf("[⑪ u] u[20..27]=%v", u[20:28])
+	t.Logf("[⑪ u] u[32..39]=%v", u[32:40])
+
+	// Trivial passthrough filter to isolate non-IIR effects.
+	var sy synth.Synthesizer
+	aTrivial := [11]int16{4096, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	var sTrivial [40]int16
+	sy.Filter(&aTrivial, &u, &sTrivial)
+	t.Logf("[⑫ s trivial] s[0..7]=%v", sTrivial[:8])
+	t.Logf("[⑫ s trivial] s[32..39]=%v", sTrivial[32:40])
+
+	// Non-trivial IIR: spec example A(z)=1−0.9·z^-1 in Q12.
+	// a[0]=4096 (1.0 Q12), a[1]=-3686 (-0.9 Q12), rest 0.
+	// Synthesizer applies 1/A(z) i.e. y[n]=u[n]+0.9·y[n-1] → strong IIR
+	// memory. If 14 dB amplification arises here, branch C is the
+	// target.
+	var syIIR synth.Synthesizer
+	aIIR := [11]int16{4096, -3686, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	var sIIR [40]int16
+	syIIR.Filter(&aIIR, &u, &sIIR)
+	t.Logf("[⑫ s IIR] s[0..7]=%v", sIIR[:8])
+	t.Logf("[⑫ s IIR] s[20..27]=%v", sIIR[20:28])
+	t.Logf("[⑫ s IIR] s[32..39]=%v", sIIR[32:40])
+
+	// Empirical amplification ratio (observe only).
+	var maxTrivial, maxIIR int32
+	for n := 0; n < 40; n++ {
+		if val := int32(sTrivial[n]); val < 0 {
+			if -val > maxTrivial {
+				maxTrivial = -val
+			}
+		} else if val > maxTrivial {
+			maxTrivial = val
+		}
+		if val := int32(sIIR[n]); val < 0 {
+			if -val > maxIIR {
+				maxIIR = -val
+			}
+		} else if val > maxIIR {
+			maxIIR = val
+		}
+	}
+	t.Logf("[⑫ amplification] max|sTrivial|=%d max|sIIR|=%d", maxTrivial, maxIIR)
+	if maxTrivial > 0 && maxIIR > 0 {
+		ratioDb := 20.0 * math.Log10(float64(maxIIR)/float64(maxTrivial))
+		t.Logf("[⑫ amplification] max|sIIR|/max|sTrivial| = %.4f dB",
+			ratioDb)
+	}
+}
