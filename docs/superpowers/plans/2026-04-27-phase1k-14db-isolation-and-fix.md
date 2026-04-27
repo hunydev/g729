@@ -588,7 +588,7 @@ EOF
 **Files:**
 - Create: `internal/postfilter/qformat_contract_test.go`
 
-- [ ] **Step 1: 계약 테스트 작성**
+- [x] **Step 1: 계약 테스트 작성**
 
 `internal/postfilter/qformat_contract_test.go`:
 
@@ -678,19 +678,19 @@ func TestQFormatContract_AGCSeedsAgcGainPrevToTargetQ24(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 테스트 실행**
+- [x] **Step 2: 테스트 실행**
 
 Run: `go test -run 'TestQFormatContract_' ./internal/postfilter/ -v`
 
 Expected: 4개 (서브테스트 포함 ~9개) PASS.
 
-- [ ] **Step 3: 회귀 점검**
+- [x] **Step 3: 회귀 점검**
 
 Run: `go test -race ./internal/postfilter/`
 
 Expected: ALL PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add internal/postfilter/qformat_contract_test.go
