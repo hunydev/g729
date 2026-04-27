@@ -265,7 +265,7 @@ EOF
 **Files:**
 - Create: `internal/gain/qformat_contract_test.go`
 
-- [ ] **Step 1: 계약 테스트 작성**
+- [x] **Step 1: 계약 테스트 작성**
 
 `internal/gain/qformat_contract_test.go`:
 
@@ -407,7 +407,7 @@ func TestQFormatContract_PastErrorsDefaultIsMinus14dBQ10(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 테스트 실행**
+- [x] **Step 2: 테스트 실행**
 
 Run: `go test -run 'TestQFormatContract_' ./internal/gain/ -v`
 
@@ -415,13 +415,13 @@ Expected: 5개(서브테스트 포함 11개) PASS.
 
 만약 `TestQFormatContract_LogDomainConstants` 가 실패하면 → 상수 자체가 스펙에서 어긋남 → Phase 1j 완료 보고서와 모순. **즉시 plan 중단**하고 사용자에게 보고.
 
-- [ ] **Step 3: 회귀 점검**
+- [x] **Step 3: 회귀 점검**
 
 Run: `go test -race ./internal/gain/`
 
 Expected: ALL PASS (Phase 1i/1j의 기존 테스트들 포함).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add internal/gain/qformat_contract_test.go
