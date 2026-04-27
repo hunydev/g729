@@ -716,7 +716,7 @@ EOF
 **Files:**
 - Create: `internal/decoder/diagnostic_singlepulse_test.go`
 
-- [ ] **Step 1: 하네스 작성**
+- [x] **Step 1: 하네스 작성**
 
 `internal/decoder/diagnostic_singlepulse_test.go`:
 
@@ -845,7 +845,7 @@ func TestDiagnostic_SinglePulseChain(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 하네스 실행 + 출력 캡처**
+- [x] **Step 2: 하네스 실행 + 출력 캡처**
 
 Run: `go test -run 'TestDiagnostic_SinglePulseChain' ./internal/decoder/ -v 2>&1 | tee /tmp/phase1k_diag.txt`
 
@@ -860,13 +860,13 @@ Expected: PASS (어서션 0개), 모든 13개 경계 로그 출력.
 
 이 메모는 Task 7과 Task 8에서 직접 사용.
 
-- [ ] **Step 3: 회귀 점검**
+- [x] **Step 3: 회귀 점검**
 
 Run: `go test -race ./internal/decoder/`
 
 Expected: ALL PASS.
 
-- [ ] **Step 4: Commit (관측만, 어서션 0개)**
+- [x] **Step 4: Commit (관측만, 어서션 0개)**
 
 ```bash
 git add internal/decoder/diagnostic_singlepulse_test.go
