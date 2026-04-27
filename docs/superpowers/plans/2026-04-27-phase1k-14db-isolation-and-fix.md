@@ -448,7 +448,7 @@ EOF
 **Files:**
 - Create: `internal/synth/qformat_contract_test.go`
 
-- [ ] **Step 1: 계약 테스트 작성**
+- [x] **Step 1: 계약 테스트 작성**
 
 `internal/synth/qformat_contract_test.go`:
 
@@ -548,7 +548,7 @@ func TestQFormatContract_FilterSubframeAcceptsAOneQ12(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 테스트 실행**
+- [x] **Step 2: 테스트 실행**
 
 Run: `go test -run 'TestQFormatContract_' ./internal/synth/ -v`
 
@@ -556,13 +556,13 @@ Expected: 4개 (서브테스트 포함 7개) PASS.
 
 만약 `TestQFormatContract_FilterSubframeAcceptsAOneQ12` 가 실패하면 → `filterSubframe`의 누산기 또는 `Round` 자리가 어긋남 → Stage F 후보 위치로 표시.
 
-- [ ] **Step 3: 회귀 점검**
+- [x] **Step 3: 회귀 점검**
 
 Run: `go test -race ./internal/synth/`
 
 Expected: ALL PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add internal/synth/qformat_contract_test.go
