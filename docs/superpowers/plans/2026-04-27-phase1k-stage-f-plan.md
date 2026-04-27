@@ -177,7 +177,7 @@ Expected: ALL PASS, vet silent.
 
 **Why:** Task 1 결과와 무관하게 `synth.Filter`의 두 측면을 컨트랙트로 고정한다 — (i) 안정 A(z)에 대한 임펄스 응답이 폐형식(closed-form)과 일치, (ii) Pass-2 saturation recovery 스케일링 인수가 ITU-T G.729 §3.10 인용("divided by 4")과 일치. (ii)가 FAIL이면 분기점이 명확히 `filterSubframe` saturation recovery 코드.
 
-- [ ] **Step 1: 폐형식 임펄스 응답 어서션 추가**
+- [x] **Step 1: 폐형식 임펄스 응답 어서션 추가**
 
 `internal/synth/filter_test.go`에 다음 테스트 추가(파일 끝):
 
@@ -267,7 +267,7 @@ func TestFilter_SaturationRecovery_ScalingFactorMatchesSpec(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 어서션 실행 (수정 전)**
+- [x] **Step 2: 어서션 실행 (수정 전)**
 
 Run: `go test -v -run "TestFilter_ImpulseResponse_OnePoleClosedForm|TestFilter_SaturationRecovery_ScalingFactorMatchesSpec" ./internal/synth/`
 
@@ -277,7 +277,7 @@ Run: `go test -v -run "TestFilter_ImpulseResponse_OnePoleClosedForm|TestFilter_S
 
 본 단계는 진단이므로 실패가 의도된 결과. 다음 Step 3은 어서션 자체를 커밋(아직 production 수정 없음).
 
-- [ ] **Step 3: 어서션-only 커밋 (production 수정 없음)**
+- [x] **Step 3: 어서션-only 커밋 (production 수정 없음)**
 
 ```bash
 git add internal/synth/filter_test.go

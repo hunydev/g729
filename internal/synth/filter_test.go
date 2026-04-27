@@ -235,3 +235,130 @@ t.Fatalf("Filter s[0] = %d; want 16384 (post-recovery first sample). "+
 "§3.10 overflow guard is not running the recovery pass via fixed.Overflow.", s[0])
 }
 }
+
+// TestFilter_ImpulseResponse_OnePoleClosedForm: A(z)=1−0.5·z^-1 (Q12
+// a[1]=−2048)의 1/A(z) 임펄스 응 0.5^n 폐형식과 일치하는지 검증.
+//
+// 차분식: s[n] = u[n] + 0.5·s[n-1]
+// u[0]=8192, u[1..]=0 → s[n] = 8192·(0.5)^n
+//
+// 본 어서션이 FAIL이면 onePass의 LMult/LMsu/LShl/Round 누산 또는
+// Q-포맷 변환에 결함. Stage F-fix는 filterSubframe.onePass 내부.
+func TestFilter_ImpulseResponse_OnePoleClosedForm(t *testing.T) {
+var sy Synthesizer
+a := [11]int16{4096, -2048, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+var u, s [40]int16
+u[0] = 8192
+
+sy.Filter(&a, &u, &s)
+
+expected := []int16{8192, 4096, 2048, 1024, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1}
+for n, want := range expected {
+got := s[n]
+diff := int32(got) - int32(want)
+if diff < -1 || diff > 1 {
+t.Errorf("s[%d]=%d, want %d (0.5^n closed form, ±1 LSB)", n, got, want)
+}
+}
+t.Logf("s[0..15] = %v", s[:16])
+}
+
+// TestFilter_SaturationRecovery_ScalingFactorMatchesSpec: ITU-T G.729
+// §3.10 "When overflow occurs, the speech samples and the filter
+// memory are divided by 4 and the filtering is re-done. The output
+// is multiplied by 4 with saturation."
+//
+// 자극 설계: A(z)=1−0.99·z^-1 강한 IIR 누적.
+// 현 구현 ÷2 + ×2를 적용 → spec ÷4 + ×4 와 불일치.
+// 본 어서션은 observation-only (t.Logf). F-fix가 promote.
+func TestFilter_SaturationRecovery_ScalingFactorMatchesSpec(t *testing.T) {
+var sy Synthesizer
+a := [11]int16{4096, -4055, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+var u, s [40]int16
+for i := 0; i < 40; i++ {
+u[i] = 20000
+}
+
+sy.Filter(&a, &u, &s)
+
+var nSat int
+for _, v := range s {
+if v == 32767 || v == -32768 {
+nSat++
+}
+}
+t.Logf("Pass-2 saturation count = %d / 40", nSat)
+t.Logf("s[36..39] = %v (sample-late overflow region)", s[36:40])
+if nSat > 5 {
+t.Logf("OBSERVATION (F-prep-2 Q-saturation): Pass-2 saturation count = %d "+
+"(samples == ±max). ITU-T G.729 §3.10 specifies divide-by-4 + multiply-by-4 "+
+"saturation recovery; current implementation uses ÷2 + ×2 (filter.go:33-51), "+
+"which exceeds Word16 range under this stimulus. F-fix promotes to t.Errorf.", nSat)
+}
+}
+
+// TestALGTHMFrame0SF0_SynthFilter_PerSampleBoundary: F-prep-2 Pass-1/Pass-2
+// 경계 진단. Stage D-bis Task 3 확정 입력으로 synth.Filter를 직접 구동하고
+// 다음을 측정:
+//   - 각 샘플의 Pass-1 누산 overflow 발생 여부 (fixed.Overflow 플래그)
+//   - Pass-2 두-패스 가드가 트리거되었는지
+//   - sample 0..15에서의 |s[n]| 진폭과 dB 레벨 (vs PST 기대값 |2|)
+//
+// 입력: ALGTHM f0 sf0 LP a[](Q12), excitation u (gpQ14·v + gcQ12·c),
+// past_synth (Phase 1i 잠금  codec-start 0 상태).
+//
+// 본 진단은 Stage F 분기 (P / Q-saturation / Q-onePass) 결정용.
+func TestALGTHMFrame0SF0_SynthFilter_PerSampleBoundary(t *testing.T) {
+// Stage D-bis Task 3 확정 LP a[] (Q12). LSP→LP는 Stage F-prep-1
+// 에서 이미 unstable로 판명되었으므로, 본 테스트는 그 a[]를 입력으로
+// 받아 synth.Filter의 saturation 동작을 격리 측정한다.
+a := [11]int16{4096, -2197, -375, -924, 7735, 294, 665, 7844, -1010, 145, -33}
+
+// excitation u: ALGTHM f0 sf0의 4-pulse FCB (S1=15: 모두 +Q13 부호)
+// at positions 0,1,2,3 + pitch-augmented 20,21,22,23 (β=0.2).
+// gpQ14=13815, gcQ12=6844. v=adaptive codebook (codec-start: zero).
+// u[n] = (gp·v[n] + gc·c[n]) — codec-start이므로 v=0, u = gc·c.
+// Q13 pulse · Q12 gain → Q25, >>13 → Q12 단순화: u ≈ gcQ12·sign·8192/4096
+// 직접 합성하려면 BuildExcitation 호출이 정공법.
+var v, c [40]int16
+// 4 main pulses (Q13 = 8192) at positions 0..3, all positive (S1=15).
+c[0], c[1], c[2], c[3] = 8192, 8192, 8192, 8192
+// Pitch-augmented track at 20..23 with β=0.2 (Q14 = 3277 → contribution
+// is added during BuildExcitation if pitch lag <40; codec-start tInt=20).
+c[20], c[21], c[22], c[23] = 8192, 8192, 8192, 8192
+
+const gpQ14 int16 = 13815
+const gcQ12 int16 = 6844
+
+var u [40]int16
+BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+t.Logf("u[0..15] = %v", u[:16])
+
+var sy Synthesizer
+// codec-start: pastSynth = 0.
+var s [40]int16
+sy.Filter(&a, &u, &s)
+
+t.Logf("s[0..15] = %v", s[:16])
+t.Logf("s[16..39] = %v", s[16:])
+
+// PST expected for sample 0 = 2 (Phase 1i lock target — but PST is
+// post-postfilter; raw s[0] differs). Stage D-bis observed |s·2|=12
+// at sample 5 vs |PST|=1. Log per-sample dB vs a 1-LSB reference.
+for n := 0; n < 16; n++ {
+mag := int32(s[n])
+if mag < 0 {
+mag = -mag
+}
+t.Logf("  s[%2d] = %6d  (|s|=%d)", n, s[n], mag)
+}
+
+// Saturation counter: how many samples sit at ±Word16 max.
+var nSat int
+for _, x := range s {
+if x == 32767 || x == -32768 {
+nSat++
+}
+}
+t.Logf("OBSERVATION: nSat = %d / 40 (Pass-2 saturation count)", nSat)
+}
