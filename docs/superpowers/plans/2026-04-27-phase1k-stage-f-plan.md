@@ -82,7 +82,7 @@ ALGTHM.PST[0][0..39] 값 vs `s·2`(현재 production):
 
 **Why:** Stage D-bis 보고서 §5 위험 노트가 LSP→LP 변환 출력의 unstable 가능성을 지적. A(z) 불안정 ⟹ `lspToLP` 또는 그 상위 LSP 디코더가 분기점. 안정 ⟹ `synth.Filter` 자체가 분기점. 본 태스크가 Stage F 분기 결정.
 
-- [ ] **Step 1: A(z) 안정성 어서션 작성 (Schur–Cohn step-down)**
+- [x] **Step 1: A(z) 안정성 어서션 작성 (Schur–Cohn step-down)**
 
 `internal/lsp/stability_test.go`에 다음 테스트 추가(파일 끝):
 
@@ -137,7 +137,7 @@ func TestALGTHMFrame0SF0_AzStability(t *testing.T) {
 
 `internal/lsp/stability_test.go` import 블록에 `"math"`가 없으면 추가.
 
-- [ ] **Step 2: 어서션 실행**
+- [x] **Step 2: 어서션 실행**
 
 Run: `go test -v -run TestALGTHMFrame0SF0_AzStability ./internal/lsp/`
 
@@ -147,7 +147,7 @@ Run: `go test -v -run TestALGTHMFrame0SF0_AzStability ./internal/lsp/`
 
 이 결과를 보고서 §3에 직접 기록할 수 있도록 t.Logf 출력을 보존.
 
-- [ ] **Step 3: 커밋**
+- [x] **Step 3: 커밋**
 
 ```bash
 git add internal/lsp/stability_test.go
@@ -163,7 +163,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 4: 회귀 게이트**
+- [x] **Step 4: 회귀 게이트**
 
 Run: `go test -race ./... && go vet ./...`
 Expected: ALL PASS, vet silent.
@@ -299,7 +299,7 @@ EOF
 
 대안: Step 1의 `t.Errorf` 호출들을 일시적으로 `t.Logf`로 다운그레이드해서 커밋 → F-fix 후 `t.Errorf`로 승격. 이 경우 Step 3 커밋 메시지에 "observation-only, F-fix promotes to assertions"를 명시.
 
-- [ ] **Step 4: 회귀 게이트**
+- [x] **Step 4: 회귀 게이트**
 
 Run: `go test -race ./... && go vet ./...`
 Expected: 위의 alternative 적용 시 ALL PASS. 직접 t.Errorf 적용 시 신규 어서션 2건 중 saturation 어서션 FAIL — 이것이 정상.
