@@ -74,7 +74,7 @@ Phase 1j 강압-적합 재발 방지를 위해 어서션은 **스펙으로부터
 
 **Why this stimulus:** Phase 1j 완료 보고서가 g_c=8.86 > Q12 max 8.0을 가설로 제시. 4-pulse가 ⑩ gcQ12 포화를 직접 자극할 후보. 단일 펄스(Σc²=1)와 ITU canonical(Σc²=4)의 4배 차이는 log2 도메인에서 정확히 +2 단위 → log gain에서 +6.02 dB 이동을 만든다.
 
-- [ ] **Step 1: 새 테스트 파일에 4-pulse 자극 관측 로그 작성**
+- [x] **Step 1: 새 테스트 파일에 4-pulse 자극 관측 로그 작성**
 
 ```go
 // File: internal/decoder/diagnostic_multipulse_test.go
@@ -165,7 +165,7 @@ func TestDiagnostic_FourPulseCanonicalChain(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 관측 로그 실행 — 14 dB 분기점 후보 식별**
+- [x] **Step 2: 관측 로그 실행 — 14 dB 분기점 후보 식별**
 
 Run: `go test -v -run TestDiagnostic_FourPulseCanonicalChain ./internal/decoder/`
 
@@ -177,7 +177,7 @@ Expected: PASS (어서션 없음). 콘솔 로그를 보고서 §3에 그대로 �
 - u[5] != round(gcTrue) → ⑪ excitation 합성 (브랜치 B)
 - 전부 정상 → 4-pulse도 14 dB 비재현 → Task 2/3로 진행
 
-- [ ] **Step 3: 커밋 (관측-only)**
+- [x] **Step 3: 커밋 (관측-only)**
 
 ```bash
 git add internal/decoder/diagnostic_multipulse_test.go
@@ -195,7 +195,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 4: 스펙-유도 가능한 경계 어서션 승격**
+- [x] **Step 4: 스펙-유도 가능한 경계 어서션 승격**
 
 Step 2의 로그 결과에 따라, 다음 두 가지 경우 중 하나를 적용:
 
@@ -226,14 +226,14 @@ Step 2의 로그 결과에 따라, 다음 두 가지 경우 중 하나를 적용
 **Case B — gcQ12 포화 또는 gcTrue 비정상:**
 어서션을 t.Errorf에서 t.Logf로 다운그레이드하고, 보고서 §4에 "Stage F 브랜치 A 확정"을 명시. Step 4 커밋은 스킵하고 Task 4(보고서) 단계에서 Stage F 분기 결정으로 직행.
 
-- [ ] **Step 5: 어서션 검증 실행**
+- [x] **Step 5: 어서션 검증 실행**
 
 Run: `go test -v -run TestDiagnostic_FourPulseCanonicalChain ./internal/decoder/`
 
 Expected (Case A): PASS, 어서션은 침묵.
 Expected (Case B): 이미 Step 4에서 t.Logf로 다운그레이드했으므로 PASS.
 
-- [ ] **Step 6: 어서션 커밋 (Case A에서만)**
+- [x] **Step 6: 어서션 커밋 (Case A에서만)**
 
 ```bash
 git add internal/decoder/diagnostic_multipulse_test.go
@@ -249,7 +249,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 7: 회귀 게이트**
+- [x] **Step 7: 회귀 게이트**
 
 Run: `go test -race ./... && go vet ./...`
 Expected: ALL PASS, vet silent.
@@ -265,7 +265,7 @@ Expected: ALL PASS, vet silent.
 
 `gpQ14 = 8192` ≈ 0.5 (Q14)는 ITU 가능 범위 안의 중간값.
 
-- [ ] **Step 1: 비제로 gpQ14 자극 관측 로그 추가**
+- [x] **Step 1: 비제로 gpQ14 자극 관측 로그 추가**
 
 Append to `internal/decoder/diagnostic_multipulse_test.go`:
 
@@ -349,7 +349,7 @@ func TestDiagnostic_PitchActivePulseChain(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 관측 로그 실행 — IIR 증폭 측정**
+- [x] **Step 2: 관측 로그 실행 — IIR 증폭 측정**
 
 Run: `go test -v -run TestDiagnostic_PitchActivePulseChain ./internal/decoder/`
 
@@ -361,7 +361,7 @@ Expected: PASS. 마지막 t.Logf의 dB 비율이 가장 중요한 지표.
 - u[0..7]에서 v 기여가 보이지 않음 → ⑪ BuildExcitation에서 gpQ14 항 누락 의심 (브랜치 B)
 - 그 외 패턴 → Task 3(실제 ALGTHM 입력)로 결정 미루기
 
-- [ ] **Step 3: 커밋**
+- [x] **Step 3: 커밋**
 
 ```bash
 git add internal/decoder/diagnostic_multipulse_test.go
@@ -378,7 +378,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 4: 회귀 게이트**
+- [x] **Step 4: 회귀 게이트**
 
 Run: `go test -race ./... && go vet ./...`
 Expected: ALL PASS, vet silent.
@@ -394,7 +394,7 @@ Expected: ALL PASS, vet silent.
 
 본 테스트는 `Decoder.decodeSubframe`을 호출하지 않는다(상태 갱신을 피하기 위해). 대신 sf0의 모든 단계를 테스트 파일에서 직접 호출하여 state 격리를 보장한다.
 
-- [ ] **Step 1: ALGTHM frame 0 sf0 재생 테스트 작성 (관측-only)**
+- [x] **Step 1: ALGTHM frame 0 sf0 재생 테스트 작성 (관측-only)**
 
 ```go
 // File: internal/decoder/diagnostic_algthm_replay_test.go
@@ -553,7 +553,7 @@ func TestDiagnostic_ALGTHMFrame0SF0Replay(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 관측 로그 실행 — 14 dB 분기점 핵심 식별**
+- [x] **Step 2: 관측 로그 실행 — 14 dB 분기점 핵심 식별**
 
 Run: `go test -v -run TestDiagnostic_ALGTHMFrame0SF0Replay ./internal/decoder/`
 
@@ -565,7 +565,7 @@ Expected: PASS (어서션 없음). 다음 핵심 지표를 보고서에 기록:
 4. `s[*]` vs `sPf[*]` 비율 — postfilter가 14 dB을 만드는가? (브랜치 D)
 5. `s[n]·2 vs PST[n]` 첫 발산 위치 — sample 0=2 일치이지만 sample 2+가 어디서 어긋나는가
 
-- [ ] **Step 3: 커밋**
+- [x] **Step 3: 커밋**
 
 ```bash
 git add internal/decoder/diagnostic_algthm_replay_test.go
@@ -582,7 +582,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 4: 스펙-유도 가능 어서션 승격 (조건부)**
+- [x] **Step 4: 스펙-유도 가능 어서션 승격 (조건부)**
 
 Step 2 결과로 gcQ12 포화가 확인되면 다음 어서션 추가. 그렇지 않으면 Step 4를 스킵하고 Task 4(보고서)로 진행.
 
@@ -600,13 +600,13 @@ Step 2 결과로 gcQ12 포화가 확인되면 다음 어서션 추가. 그렇지
 	}
 ```
 
-- [ ] **Step 5: 어서션 검증**
+- [x] **Step 5: 어서션 검증**
 
 Run: `go test -v -run TestDiagnostic_ALGTHMFrame0SF0Replay ./internal/decoder/`
 
 Expected: 의도한 동작에 따라 PASS 또는 진단용 FAIL. FAIL이 진단으로 의도된 경우 → Task 4 보고서에 사실 그대로 기록 후 어서션을 t.Logf로 다운그레이드 후 재커밋.
 
-- [ ] **Step 6: 커밋 (Step 4를 적용한 경우만)**
+- [x] **Step 6: 커밋 (Step 4를 적용한 경우만)**
 
 ```bash
 git add internal/decoder/diagnostic_algthm_replay_test.go
@@ -621,7 +621,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 7: 회귀 게이트**
+- [x] **Step 7: 회귀 게이트**
 
 Run: `go test -race ./... && go vet ./...`
 Expected: ALL PASS, vet silent.
@@ -635,7 +635,7 @@ Expected: ALL PASS, vet silent.
 
 이번 단계는 **사용자 결정을 위한 보고서**이며, 코드 변경 없음. 보고서가 Stage F 분기 5개(A=gain log-domain, B=excitation, C=synth-filter, D=postfilter, E=fcb) 중 하나를 진단 증거에 근거하여 단정하거나, 단정 불가 시 escape hatch 4(Phase 1l 우회)로 강하시킨다.
 
-- [ ] **Step 1: 보고서 작성**
+- [x] **Step 1: 보고서 작성**
 
 ```markdown
 # Phase 1k Stage D-bis 진단 보고서
@@ -715,7 +715,7 @@ Expected: ALL PASS, vet silent.
 옵션 (다): Stage D-ter 플랜 작성.
 ```
 
-- [ ] **Step 2: 보고서 커밋**
+- [x] **Step 2: 보고서 커밋**
 
 ```bash
 git add docs/superpowers/plans/2026-04-27-phase1k-stage-d-bis-report.md
@@ -731,7 +731,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 3: 사용자 결정 대기**
+- [x] **Step 3: 사용자 결정 대기**
 
 본 플랜은 보고서 커밋으로 종료. 사용자가 (가)/(나)/(다) 중 선택.
 
