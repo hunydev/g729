@@ -143,7 +143,7 @@ EOF
 **Files:**
 - Create: `internal/fcb/qformat_contract_test.go`
 
-- [ ] **Step 1: 계약 테스트 작성**
+- [x] **Step 1: 계약 테스트 작성**
 
 `internal/fcb/qformat_contract_test.go`:
 
@@ -228,19 +228,19 @@ func TestQFormatContract_PostEnhancementBoundedByMaxBeta(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 테스트 실행**
+- [x] **Step 2: 테스트 실행**
 
 Run: `go test -run 'TestQFormatContract_' ./internal/fcb/ -v`
 
 Expected: 4개 PASS. 만약 하나라도 실패하면 fcb 모듈의 자기-주장이 깨진 것 → 보고서에 기록 후 plan 중단.
 
-- [ ] **Step 3: 회귀 점검**
+- [x] **Step 3: 회귀 점검**
 
 Run: `go test -race ./internal/fcb/`
 
 Expected: ALL PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add internal/fcb/qformat_contract_test.go
