@@ -83,4 +83,22 @@ func TestDiagnostic_FourPulseCanonicalChain(t *testing.T) {
 	var sPf [40]int16
 	pf.Filter(&a, 40, &s, &sPf)
 	t.Logf("[⑬ sPf] sPf[0..7]=%v", sPf[:8])
+
+	// === Spec-aligned assertions (Case A — gcQ12 unsaturated, gcTrue
+	// well within g'_c·γ̂_max bound) ===
+	if sumSqQ26 != 4*(int64(1)<<26) {
+		t.Errorf("BOUNDARY ① fcb energy: Σc²=%d, want %d (= 4·2^26)",
+			sumSqQ26, int64(4)<<26)
+	}
+	maxExpectedGc := expectedGcPrime * 2.0
+	if gcTrue < 0 || gcTrue > maxExpectedGc+0.5 {
+		t.Errorf("BOUNDARY ⑩ gain: gcTrue=%.4f exceeds spec bound [0, %.4f]; "+
+			"this is the Stage F target (14 dB suspect at gain log-domain math)",
+			gcTrue, maxExpectedGc)
+	}
+	if gcQ12 == 32767 || gcQ12 == -32768 {
+		t.Errorf("BOUNDARY ⑩ gain: gcQ12 saturated (%d); 14 dB suspect at "+
+			"gain log-domain math — review §3.9.1 ecBar/predicted/logGain chain",
+			gcQ12)
+	}
 }
