@@ -10,8 +10,12 @@ func TestDecodeVQ_SumsMatchTableEntries(t *testing.T) {
 	for ga := uint8(0); ga < 8; ga++ {
 		for gb := uint8(0); gb < 16; gb++ {
 			gp, gammaC := decodeVQ(Indices{GA: ga, GB: gb})
-			wantGp := int32(tables.GainGBK1[ga][0]) + int32(tables.GainGBK2[gb][0])
-			wantGc := int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1])
+			// §3.9.3: decoder applies the inverse map to the
+			// transmitted GA/GB before indexing GBK1/GBK2.
+			gaEntry := tables.GainImap1[ga]
+			gbEntry := tables.GainImap2[gb]
+			wantGp := int32(tables.GainGBK1[gaEntry][0]) + int32(tables.GainGBK2[gbEntry][0])
+			wantGc := int32(tables.GainGBK1[gaEntry][1]) + int32(tables.GainGBK2[gbEntry][1])
 			if wantGp > 32767 {
 				wantGp = 32767
 			} else if wantGp < -32768 {

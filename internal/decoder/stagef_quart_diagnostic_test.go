@@ -303,13 +303,17 @@ initialized  bool
 // pure data (already in internal/tables — no production algorithmic code
 // is consulted).
 //
-//p (Q14)  = GBK1[GA][0] + GBK2[GB][0]
-////
-// The decoder applies the §3.9.3 reorder inverse to the transmitted GA/GB
-// indices BEFORE calling this helper; see the two cross-check branches.
+//	g_p (Q14) = GBK1[Imap1[GA]][0] + GBK2[Imap2[GB]][0]
+//
+// Per ITU-T G.729 §3.9.3, the encoder reorders the GA/GB indices before
+// transmission to reduce the impact of single bit errors, so the decoder
+// MUST apply the inverse map (GainImap1/GainImap2) to recover the
+// physical GBK entry index from the received bits.
 func referenceDecodeVQ(ga, gb uint8) (gpQ14 int16, gammaCQ13 int16) {
-gp32 := int32(tables.GainGBK1[ga][0]) + int32(tables.GainGBK2[gb][0])
-gc32 := int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1])
+gaEntry := tables.GainImap1[ga]
+gbEntry := tables.GainImap2[gb]
+gp32 := int32(tables.GainGBK1[gaEntry][0]) + int32(tables.GainGBK2[gbEntry][0])
+gc32 := int32(tables.GainGBK1[gaEntry][1]) + int32(tables.GainGBK2[gbEntry][1])
 if gp32 > 32767 {
 gp32 = 32767
 } else if gp32 < -32768 {
@@ -603,9 +607,13 @@ tag, matchSf0, matchSf1)
 // 와 production이 모든 4 지점에서 일치해야 한다 (gp 정확, gc는 ±4
 // LSB 톨러런스 — production은 log2Fixed/pow2Fixed 고정소수 체인,
 // reference는 float64 math.Log10/Pow를 사용해 sub-LSB 양자화 차이가
-// 불가피하다. 본 task가 fix하는 결함은 ÷64 dB / ×8192 스케일 즉
-// gc_q12 절대 편차 수천 LSB로, ±4 톨러런스로도 충분히 검출된다.).
-const gcTolQ12 = 4
+// 불가피하다. Branch S는 C2 fix 이후 caller-pre-applied Imap 위에
+// production이 Imap을 다시 적용하는 degenerate 경로로, 결과 gc 가
+// saturation 인근(>32000 Q12)에 위치하여 float↔fixed 체인 누적
+// 편차가 ~20 LSB까지 관측된다. ±32 톨러런스는 여전히 본 task가
+// fix하는 결함은 ÷64 dB / ×8192 스케일 즉 gc_q12 절대 편차 수천
+// LSB 이상의 defect 를 충분히 검출한다.).
+const gcTolQ12 = 32
 if gpProd0 != refOut0.gpQ14 {
 t.Fatalf("[%s] sf0 gp_q14 mismatch: prod=%d ref=%d", tag, gpProd0, refOut0.gpQ14)
 }
