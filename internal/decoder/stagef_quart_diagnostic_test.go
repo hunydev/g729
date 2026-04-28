@@ -75,16 +75,18 @@ func TestDiagnostic_FquartGainImap_Sf0Sample0to7(t *testing.T) {
 	t.Logf("──────── Branch A (production verbatim, GA=%d GB=%d) ────────", gaRaw, gbRaw)
 	logBranch(t, branchA, pstHalf[:])
 
-	// Sanity check (절대 제약 §4): Branch A synth.Filter sample 0..7
-	// 가 F-tris-1 baseline [2 3 4 4 3 2 1 1] 와 일치해야 한다.
+	// Sanity check (F-quint-1 이후 t.Logf로 격하): F-tris-1 baseline은
+	// gain.Decode의 gc 결함 (Q26 보정 누락 + int16 overflow) 위에서 측정된
+	// 값이었다. F-quint-1 C1 fix 이후 gc 절대값이 변동하면서 sanity 기준
+	// 자체가 무효화되었으므로 측정만 기록한다 (plan §F-quint-1 Step 6 허용).
 	wantSynthA := [8]int16{2, 3, 4, 4, 3, 2, 1, 1}
 	for n := 0; n < 8; n++ {
 		if branchA.synth[n] != wantSynthA[n] {
-			t.Fatalf("Branch A synth.Filter sample %d = %d, want %d (F-tris-1 baseline) — test infra 결함",
+			t.Logf("Branch A synth.Filter sample %d = %d, F-tris-1 pre-quint baseline %d (drift expected post-fix)",
 				n, branchA.synth[n], wantSynthA[n])
 		}
 	}
-	t.Logf("Branch A sanity check OK: synth.Filter[0..7] == F-tris-1 baseline [2 3 4 4 3 2 1 1].")
+	t.Logf("Branch A synth.Filter[0..7] = %s (F-tris-1 pre-quint baseline = [2 3 4 4 3 2 1 1])", fmtSamples8(branchA.synth[:]))
 
 	// ── Branch B: §3.9.3 spec-fix (inverse-mapped GA/GB) ───────────
 	branchB := decodeFquartSf0(t, &f, gaMap, gbMap)
@@ -595,6 +597,29 @@ matchSf0 := (gpProd0 == refOut0.gpQ14) && (gcProd0 == refOut0.gcQ12)
 matchSf1 := (gpProd1 == refOut1.gpQ14) && (gcProd1 == refOut1.gcQ12)
 t.Logf("[%s] summary: sf0 prod==ref? %t   sf1 prod==ref? %t   (FIFO 동치성은 sf1 일치로 간접 검증)",
 tag, matchSf0, matchSf1)
+
+// ── F-quint-1 assertion promotion ──────────────────────────────
+// Branch P/S × sf0/sf1 = 4 비교점. ITU §3.9 식 (66) 기준 reference
+// 와 production이 모든 4 지점에서 일치해야 한다 (gp 정확, gc는 ±4
+// LSB 톨러런스 — production은 log2Fixed/pow2Fixed 고정소수 체인,
+// reference는 float64 math.Log10/Pow를 사용해 sub-LSB 양자화 차이가
+// 불가피하다. 본 task가 fix하는 결함은 ÷64 dB / ×8192 스케일 즉
+// gc_q12 절대 편차 수천 LSB로, ±4 톨러런스로도 충분히 검출된다.).
+const gcTolQ12 = 4
+if gpProd0 != refOut0.gpQ14 {
+t.Fatalf("[%s] sf0 gp_q14 mismatch: prod=%d ref=%d", tag, gpProd0, refOut0.gpQ14)
+}
+if d := int32(gcProd0) - int32(refOut0.gcQ12); d > gcTolQ12 || d < -gcTolQ12 {
+t.Fatalf("[%s] sf0 gc_q12 mismatch: prod=%d ref=%d (Δ=%+d, tol=±%d)",
+tag, gcProd0, refOut0.gcQ12, d, gcTolQ12)
+}
+if gpProd1 != refOut1.gpQ14 {
+t.Fatalf("[%s] sf1 gp_q14 mismatch: prod=%d ref=%d", tag, gpProd1, refOut1.gpQ14)
+}
+if d := int32(gcProd1) - int32(refOut1.gcQ12); d > gcTolQ12 || d < -gcTolQ12 {
+t.Fatalf("[%s] sf1 gc_q12 mismatch: prod=%d ref=%d (Δ=%+d, tol=±%d)",
+tag, gcProd1, refOut1.gcQ12, d, gcTolQ12)
+}
 }
 
 // Compile-time silencer for unused pcm/synth/lsp imports if reference

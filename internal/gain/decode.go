@@ -67,9 +67,14 @@ func (d *Decoder) Decode(idx Indices, c *[40]int16) (gpQ14, gcQ12 int16) {
 	// 2. Predict log-gain Ê(m) from past errors (Q10 dB).
 	predicted := d.predictedLogGain()
 
-	ecLog2Q10 := log2Fixed(ecEnergy)
-	ecDbQ10 := int16((int32(ecLog2Q10)*dbPerLog2Q13 + (1 << 12)) >> 13)
-	ecBarDbQ10 := fixed.Sub(ecDbQ10, tenLog10_40Q10)
+	// Q26→Q0 correction: fixedCodebookEnergy returns Σc² at Q26 (energy.go
+	// §). log2(E_phys) = log2(E_Q26) − 26 ⇒ subtract 26·1024 in Q10. Keep
+	// int32 throughout so the +24·log10(2)·2¹³ multiply doesn't lose its
+	// high bits to a silent int16 truncation, then saturate at the
+	// boundary before fixed.Sub (which expects Word16).
+	ecLog2Q10 := int32(log2Fixed(ecEnergy)) - 26*1024
+	ecDbQ10 := (ecLog2Q10*dbPerLog2Q13 + (1 << 12)) >> 13
+	ecBarDbQ10 := fixed.Saturate(fixed.Word32(ecDbQ10 - int32(tenLog10_40Q10)))
 
 	// 3. Effective log gain in dB → log2.
 	logGainDbQ10 := fixed.Sub(predicted, ecBarDbQ10)
