@@ -10,6 +10,7 @@ import (
 	"github.com/exedev/g729/internal/gain"
 	"github.com/exedev/g729/internal/lsp"
 	"github.com/exedev/g729/internal/pitch"
+	"github.com/exedev/g729/internal/synth"
 	"github.com/exedev/g729/internal/tables"
 )
 
@@ -429,4 +430,173 @@ if f >= 0 {
 return int32(f + 0.5)
 }
 return int32(f - 0.5)
+}
+
+// TestDiagnostic_FseptSynthIIRTrace_Sf0Sample0to7: Stage F-sept-3 진단.
+//
+// ITU-T G.729 (06/2012) §3.10 합성 필터:
+//   ŝ(n) = u(n) − Σ aᵢ · ŝ(n−i),  i=1..10
+//
+// production synth.Synthesizer.Filter 의 sample 0..7 IIR 누산을
+// reference float64 IIR (양자화 / saturation / two-pass recovery 0)
+// 과 비교. sample 5 부호 결정이 IIR boundary 인지 식별.
+//
+// §4.3 Table 9 codec-start: pastSynth = [0; 10] (Synthesizer.Reset).
+//
+// 측정-only — Δ assertion 0.
+//
+// §3.10 two-pass overflow recovery 의 Pass 1 / Pass 2 path 측정 의무:
+// fixed.ClearOverflow() 직후 production Filter 호출, 호출 직후
+// fixed.Overflow() 조회 (Pass 2 발동 시 Filter 내부에서 ClearOverflow
+// 가 한 번 더 불려 마지막 onePass 의 saturation 만 반영됨).
+func TestDiagnostic_FseptSynthIIRTrace_Sf0Sample0to7(t *testing.T) {
+bitPath := vectorPath("ALGTHM.BIT")
+pstPath := vectorPath("ALGTHM.PST")
+ensureTestdataPresent(t, bitPath, pstPath)
+
+frames, _ := readG192Frames(t, bitPath)
+wantFrames := readPSTFrames(t, pstPath)
+
+var f bitstream.Frame
+if err := bitstream.Unpack(frames[0], &f); err != nil {
+t.Fatalf("Unpack frame 0: %v", err)
+}
+
+// (1) sf0 LP coefficients (Q12, a[0]=4096) — F-sept-1/2 와 동일 경로.
+var lspDec lsp.Decoder
+lspDec.Reset()
+sfA, _ := lspDec.Decode(lsp.Indices{
+L0: uint8(f.L0), L1: uint8(f.L1), L2: uint8(f.L2), L3: uint8(f.L3),
+})
+
+// (2) pitch / fcb / gain / excitation u[]
+tInt, tFrac := pitch.DecodeDelaySubframe1(uint8(f.P1))
+_ = tFrac
+var pastExc [pastExcLen]int16
+var v [subframeLen]int16
+pitch.AdaptiveCodebook(tInt, tFrac, pastExc[:], &v)
+betaQ14 := fcb.ClampPitchGainForEnhancement(0)
+var c [subframeLen]int16
+fcb.Decode(fcb.Indices{Positions: f.C1, Signs: uint8(f.S1)}, tInt, betaQ14, &c)
+var gn gain.Decoder
+gn.Reset()
+gpQ14, gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+var u [subframeLen]int16
+synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+
+t.Logf("u[] sample 0..7 = [%+d %+d %+d %+d %+d %+d %+d %+d]",
+u[0], u[1], u[2], u[3], u[4], u[5], u[6], u[7])
+
+// (3) production synth.Filter — Pass 1/2 path 측정.
+var syn synth.Synthesizer
+syn.Reset()
+var sProd [subframeLen]int16
+fixed.ClearOverflow()
+syn.Filter(&sfA, &u, &sProd)
+postOverflow := fixed.Overflow()
+t.Logf("synth.Filter (production) sample 0..7 = [%+d %+d %+d %+d %+d %+d %+d %+d]",
+sProd[0], sProd[1], sProd[2], sProd[3], sProd[4], sProd[5], sProd[6], sProd[7])
+t.Logf("fixed.Overflow() after Filter = %v  (note: Pass 2 시 Filter 내부 ClearOverflow 후 Pass 2 onePass 의 saturation 만 반영)",
+postOverflow)
+
+// (4) reference float64 IIR (양자화 / saturation / two-pass 0).
+sRef := referenceSynthFilter(t, &sfA, &u)
+t.Logf("──────── F-sept-3 cross-check (production vs §3.10 reference float64) ────────")
+t.Logf("idx   u[n]    prod_q0    ref(float64)        ref(round_q0)   Δ(prod − ref_round)")
+maxAbsDelta := int32(0)
+for n := 0; n < 8; n++ {
+rounded := roundFloat(sRef[n])
+if rounded > 32767 {
+rounded = 32767
+} else if rounded < -32768 {
+rounded = -32768
+}
+refRound := int16(rounded)
+delta := int32(sProd[n]) - int32(refRound)
+ad := delta
+if ad < 0 {
+ad = -ad
+}
+if ad > maxAbsDelta {
+maxAbsDelta = ad
+}
+t.Logf("[%2d]   %+5d   %+6d   %18.6f   %+6d           %+d",
+n, u[n], sProd[n], sRef[n], refRound, delta)
+}
+t.Logf("summary: max|Δ| (sample 0..7) = %d", maxAbsDelta)
+
+// (5) sample 5 집중 분석.
+t.Logf("──────── sample 5 IIR boundary 분석 ────────")
+t.Logf("u[5]                    = %+d (부호 %s)", u[5], signOfInt16(u[5]))
+t.Logf("prod synth.Filter[5]    = %+d (부호 %s)", sProd[5], signOfInt16(sProd[5]))
+t.Logf("ref  synth.Filter[5]    = %.6f (부호 %s)", sRef[5], signOfFloat(sRef[5]))
+t.Logf("PST want sample 5       = %+d (부호 %s)", wantFrames[0][5], signOfInt16(wantFrames[0][5]))
+t.Logf("PST/2 spec-target       = %+d", int16(int32(wantFrames[0][5])>>1))
+
+// (6) 시나리오 분류.
+prodSign := signOfInt16(sProd[5])
+refSign := signOfFloat(sRef[5])
+t.Logf("──────── F-sept-3 시나리오 분류 ────────")
+switch {
+case prodSign == refSign && maxAbsDelta <= 1:
+t.Logf("(시나리오 S1) sample 0..7 |Δ|≤1 + sample 5 부호 prod=ref")
+t.Logf("   → IIR 산술 §3.10 spec 정합. 결함 위치 = u[] (F-sept-1) 또는 LP Â(z) (F-sept-2) 영역.")
+case prodSign == refSign && maxAbsDelta > 1:
+t.Logf("(시나리오 S3) sample 5 부호 prod=ref 이나 max|Δ|=%d > 1", maxAbsDelta)
+t.Logf("   → Q12 누산 sub-LSB 차이 누적. F-oct 권고 = Q-format 정밀도 widening 검토.")
+case postOverflow:
+t.Logf("(시나리오 S2a) sample 5 부호 prod≠ref + Pass 2 (or Pass 2 onePass saturation) 발동")
+t.Logf("   → §3.10 two-pass overflow recovery 가 sample 5 부호에 영향.")
+default:
+t.Logf("(시나리오 S2b) sample 5 부호 prod≠ref + Pass 1 단독 mismatch (overflow flag=%v)", postOverflow)
+t.Logf("   → 직접형 IIR 누산의 Q-format / saturation / Round 결함 의심.")
+}
+}
+
+// referenceSynthFilter: §3.10 합성 필터의 float64 직접 구현.
+//
+// 양자화 / saturation / two-pass overflow recovery 모두 0 — spec real-valued
+// 거동 그대로. 식: shat(n) = u(n) − Σ aᵢ·shat(n−i), i=1..10.
+//
+// §4.3 Table 9 codec-start: pastSynth = [0; 10].
+//
+// a[] Q12 → real: divide by 4096 (a[0] = 1.0).
+//
+// 외부 G.729 구현 (ITU 참조 C / bcg729 / Sipro Lab / FFmpeg) 0 인용.
+// 모든 라인은 ITU-T G.729 (06/2012) §3.10 + §4.3 Table 9 verbatim 도.
+func referenceSynthFilter(t *testing.T, a *[lpcOrder + 1]int16, u *[subframeLen]int16) [subframeLen]float64 {
+t.Helper()
+const q12 = 4096.0
+var aFloat [lpcOrder + 1]float64
+for i := 0; i <= 10; i++ {
+aFloat[i] = float64(a[i]) / q12
+}
+var pastSynth [10]float64
+var out [subframeLen]float64
+for n := 0; n < subframeLen; n++ {
+acc := float64(u[n])
+for i := 1; i <= 10; i++ {
+var prev float64
+if n-i < 0 {
+prev = pastSynth[10+(n-i)]
+} else {
+prev = out[n-i]
+}
+acc -= aFloat[i] * prev
+}
+out[n] = acc
+}
+return out
+}
+
+// signOfFloat: F-sept-3 helper. signOfInt16/Int32 와 일관된 표기 ("+", "−", "0").
+func signOfFloat(f float64) string {
+switch {
+case f > 0:
+return "+"
+case f < 0:
+return "−"
+default:
+return "0"
+}
 }
