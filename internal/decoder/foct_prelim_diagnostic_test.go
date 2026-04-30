@@ -118,3 +118,98 @@ func TestDiagnostic_FoctPrelimPSTFormat(t *testing.T) {
 	t.Logf("(P4) PST/2 (>>1) sample 0..4 가 chain 과 정확히 일치 (값 동일) → PST = 2·decode 가설 강화")
 	t.Logf("(P5) 위 분류로 결정 불가 → Task 2/3 결합 분석 필요")
 }
+
+// TestDiagnostic_FoctPrelimFrameAlignment: Stage F-oct-prelim-2 진단.
+//
+// ALGTHM.BIT frame 0..3 production 디코딩 결과 sample 0..7 와
+// ALGTHM.PST frame 0..3 sample 0..7 의 cross-correlation 으로 frame
+// indexing 정합성 측정. 가설 G2 (frame indexing mismatch) 검증.
+//
+// 측정-only — assertion 0. production 변경 0 (E5).
+func TestDiagnostic_FoctPrelimFrameAlignment(t *testing.T) {
+	bitPath := vectorPath("ALGTHM.BIT")
+	pstPath := vectorPath("ALGTHM.PST")
+	ensureTestdataPresent(t, bitPath, pstPath)
+
+	bitFrames, bads := readG192Frames(t, bitPath)
+	pstFrames := readPSTFrames(t, pstPath)
+
+	t.Logf("──────── (a) frame count 비교 ────────")
+	t.Logf("BIT frame 수: %d", len(bitFrames))
+	t.Logf("PST frame 수: %d", len(pstFrames))
+	if len(bitFrames) != len(pstFrames) {
+		t.Logf("(WARN) frame 수 불일치 — preroll / trailing silence 가능성 (Δ = %d)",
+			len(pstFrames)-len(bitFrames))
+	}
+
+	const N = 4
+	var bitSamples [N][8]int16
+	var dec Decoder
+	for i := 0; i < N && i < len(bitFrames); i++ {
+		var out [80]int16
+		bad := false
+		if i < len(bads) {
+			bad = bads[i]
+		}
+		if err := dec.Decode(bitFrames[i], bad, out[:]); err != nil {
+			t.Fatalf("Decode[%d]: %v", i, err)
+		}
+		copy(bitSamples[i][:], out[:8])
+		t.Logf("BIT[%d] decoded sample 0..7: %v", i, bitSamples[i])
+	}
+
+	var pstSamples [N][8]int16
+	for j := 0; j < N && j < len(pstFrames); j++ {
+		copy(pstSamples[j][:], pstFrames[j][:8])
+		t.Logf("PST[%d] sample 0..7:        %v", j, pstSamples[j])
+	}
+
+	t.Logf("──────── (d) (BIT[i], PST[j]) sample 0..7 부호 매칭 점수 (0~8) ────────")
+	t.Logf("       PST[0]  PST[1]  PST[2]  PST[3]")
+	signMatchScore := func(a, b [8]int16) int {
+		score := 0
+		for n := 0; n < 8; n++ {
+			as := signOfInt16(a[n])
+			bs := signOfInt16(b[n])
+			if as == bs {
+				score++
+			}
+		}
+		return score
+	}
+	type pair struct{ i, j, score int }
+	var best pair
+	for i := 0; i < N; i++ {
+		row := fmt.Sprintf("BIT[%d]  ", i)
+		for j := 0; j < N; j++ {
+			s := signMatchScore(bitSamples[i], pstSamples[j])
+			row += fmt.Sprintf("%4d    ", s)
+			if s > best.score {
+				best = pair{i, j, s}
+			}
+		}
+		t.Logf("%s", row)
+	}
+
+	t.Logf("──────── (e) PST/2 부호 매칭 점수 표 (PST[j]>>1 와 BIT[i] 비교) ────────")
+	t.Logf("       PST/2[0]  PST/2[1]  PST/2[2]  PST/2[3]")
+	for i := 0; i < N; i++ {
+		row := fmt.Sprintf("BIT[%d]    ", i)
+		for j := 0; j < N; j++ {
+			var halved [8]int16
+			for n := 0; n < 8; n++ {
+				halved[n] = int16(int32(pstSamples[j][n]) >> 1)
+			}
+			s := signMatchScore(bitSamples[i], halved)
+			row += fmt.Sprintf("%4d      ", s)
+		}
+		t.Logf("%s", row)
+	}
+
+	t.Logf("──────── F-oct-prelim-2 시나리오 분류 ────────")
+	t.Logf("최대 매칭: BIT[%d] ↔ PST[%d] 점수=%d/8", best.i, best.j, best.score)
+	t.Logf("(F1) best 가 (i=j=0) 이고 score≥6 → 정상 alignment, G2 반증")
+	t.Logf("(F2) best 가 (i=0, j=1) → PST 가 1 frame skip / preroll, G2 발현")
+	t.Logf("(F3) best 가 |j−i|>1 → multi-frame skip, G2 강하게 발현")
+	t.Logf("(F4) 모든 score≤4 → 매칭 0, G2 반증 + G1/G4/G5 우세")
+}
