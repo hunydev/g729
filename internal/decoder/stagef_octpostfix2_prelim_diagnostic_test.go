@@ -1,6 +1,8 @@
 package decoder
 
 import (
+	"encoding/binary"
+	"os"
 	"testing"
 
 	"github.com/exedev/g729/internal/bitstream"
@@ -185,6 +187,148 @@ t.Logf("verdict: M5 STRONG — excitation 부호가 PST want 와 sample-uniform 
 default:
 t.Logf("verdict: M5 PARTIAL — sample 별 부호 분포 mixed (Task 5 종합으 인계)")
 }
+}
+
+// TestDiagnostic_FoctPostfix2PrelimM6PSTSignVerify measures the M6
+// hypothesis (PST want data sign defect — P-SRC-2 reinterpretation) by
+// (a) byte-level verification of ALGTHM.PST offset 10..15 (frame 0 sf0
+// sample 5..7) as int16 little-endian, and (b) multi-vector frame 0
+// sf0 sample 5..7 sign distribution across PITCH/FIXED/LSP/SPEECH/TAME/
+// PARITY/OVERFLOW/ERASURE PST files. Repeated [-,-,-] distribution =
+// M6 REFUTED (PST want is canonical); ALGTHM-only [-,-,-] = M6 PARTIAL
+// (vector anomaly); byte mismatch with [-1,-1,-1] interpretation = M6
+// STRONG (parsing defect in test infra).
+//
+// Spec ground-truth (READMETV.txt verbatim, both g729 and g729AnnexA
+// trees identical for this passage):
+//
+//	"Format: all files contain 16 bit sampled data using the Intel (PC)
+//	 format."
+//	"*.pst - output files"  (decoder file.bit file.pst)
+//
+// Intel (PC) format = 16-bit little-endian signed → sample n byte
+// offset = n*2..n*2+1. frame 0 sf0 sample 5..7 = byte offset 10..15.
+//
+// production 변경 0. assertion 0 (measurement-only).
+func TestDiagnostic_FoctPostfix2PrelimM6PSTSignVerify(t *testing.T) {
+	pstPath := vectorPath("ALGTHM.PST")
+	ensureTestdataPresent(t, pstPath)
+
+	// (a) ALGTHM.PST byte-level verification (offset 10..15).
+	raw, err := os.ReadFile(pstPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%s): %v", pstPath, err)
+	}
+	if len(raw) < 16 {
+		t.Fatalf("ALGTHM.PST too short: %d bytes", len(raw))
+	}
+	t.Logf("──────── M6 (a) ALGTHM.PST byte offset 10..15 raw ────────")
+	t.Logf("ALGTHM.PST byte[10..15] = % x", raw[10:16])
+	for n := 5; n <= 7; n++ {
+		off := n * 2
+		v := int16(binary.LittleEndian.Uint16(raw[off : off+2]))
+		t.Logf("  sample %d (byte offset %d..%d): hex=% x → int16 LE = %+d  sign=%s",
+			n, off, off+1, raw[off:off+2], v, signOfInt16(v))
+	}
+
+	// (b) Multi-vector frame 0 sf0 sample 5..7 sign distribution.
+	// Plan §Task 3 Step 3: dump distribution across multiple PST
+	// vectors. Use Annex A tree (vectorPath default — chain dump
+	// baseline 동상 source); bytes 10..15 across both g729 and
+	// g729AnnexA trees were verified BYTE-EQUAL out-of-band per
+	// Step 2 cross-check.
+	vectors := []string{
+		"ALGTHM.PST",
+		"PITCH.PST",
+		"FIXED.PST",
+		"LSP.PST",
+		"SPEECH.PST",
+		"TAME.PST",
+		"PARITY.PST",
+		"OVERFLOW.PST",
+		"ERASURE.PST",
+	}
+	t.Logf("──────── M6 (b) multi-vector frame 0 sf0 sample 5..7 sign distribution ────────")
+	type row struct {
+		name  string
+		v5    int16
+		v6    int16
+		v7    int16
+		signs [3]string
+	}
+	var rows []row
+	for _, name := range vectors {
+		path := vectorPath(name)
+		if _, err := os.Stat(path); err != nil {
+			t.Logf("  %s: SKIP (missing: %v)", name, err)
+			continue
+		}
+		buf, err := os.ReadFile(path)
+		if err != nil {
+			t.Logf("  %s: SKIP (read error: %v)", name, err)
+			continue
+		}
+		if len(buf) < 16 {
+			t.Logf("  %s: SKIP (too short: %d bytes)", name, len(buf))
+			continue
+		}
+		v5 := int16(binary.LittleEndian.Uint16(buf[10:12]))
+		v6 := int16(binary.LittleEndian.Uint16(buf[12:14]))
+		v7 := int16(binary.LittleEndian.Uint16(buf[14:16]))
+		r := row{
+			name: name, v5: v5, v6: v6, v7: v7,
+			signs: [3]string{signOfInt16(v5), signOfInt16(v6), signOfInt16(v7)},
+		}
+		rows = append(rows, r)
+		t.Logf("  %-13s byte[10..15]=% x  sample5..7=[%+6d %+6d %+6d]  signs=[%s %s %s]",
+			name, buf[10:16], v5, v6, v7, r.signs[0], r.signs[1], r.signs[2])
+	}
+
+	// (c) sign distribution tally + M6 verdict.
+	t.Logf("──────── M6 sign distribution tally ────────")
+	tally := map[[3]string]int{}
+	for _, r := range rows {
+		tally[r.signs]++
+	}
+	for sig, n := range tally {
+		t.Logf("  signs=[%s %s %s] : %d vector(s)", sig[0], sig[1], sig[2], n)
+	}
+
+	// (d) M6 hypothesis evaluation (plan §Task 3 Step 4 표 기준).
+	t.Logf("──────── M6 hypothesis evaluation ────────")
+	algSigns := [3]string{
+		signOfInt16(int16(binary.LittleEndian.Uint16(raw[10:12]))),
+		signOfInt16(int16(binary.LittleEndian.Uint16(raw[12:14]))),
+		signOfInt16(int16(binary.LittleEndian.Uint16(raw[14:16]))),
+	}
+	negNeg := [3]string{"−", "−", "−"}
+	posPos := [3]string{"+", "+", "+"}
+	algMatchesNeg := algSigns == negNeg
+	otherNegCount := 0
+	otherPosCount := 0
+	for _, r := range rows {
+		if r.name == "ALGTHM.PST" {
+			continue
+		}
+		if r.signs == negNeg {
+			otherNegCount++
+		}
+		if r.signs == posPos {
+			otherPosCount++
+		}
+	}
+	t.Logf("ALGTHM signs=[%s %s %s]; other vectors with [-,-,-]=%d, with [+,+,+]=%d",
+		algSigns[0], algSigns[1], algSigns[2], otherNegCount, otherPosCount)
+	switch {
+	case algMatchesNeg && otherNegCount >= 1:
+		t.Logf("verdict: M6 REFUTED — ALGTHM.PST byte 10..15 = int16 LE [-1,-1,-1] (정합) + 다른 vector 도 [-,-,-] 분포 다수. PST want 부호 자체는 정상; 결함은 production 출력측. P-SRC-2 분류 = PST 파일 byte 정합, mismatch 는 byte 외 origin.")
+	case !algMatchesNeg:
+		t.Logf("verdict: M6 STRONG — ALGTHM.PST byte 10..15 little-endian int16 ≠ [-1,-1,-1]. PST 읽기/format 해석 결함 가능. fix scope = test 인프라.")
+	case algMatchesNeg && otherNegCount == 0:
+		t.Logf("verdict: M6 PARTIAL — ALGTHM 단독 [-,-,-]; ALGTHM vector anomaly 가능, F-oct-prelim-5-1 P-SRC-2 재해석 필요.")
+	default:
+		t.Logf("verdict: M6 INDETERMINATE — 분포 mixed (Task 5 종합으로 인계).")
+	}
 }
 
 // flipPositions returns the sample offsets (5..7) at which a sign flip
