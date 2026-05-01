@@ -197,3 +197,137 @@ func abs(v int) int {
 	}
 	return v
 }
+
+// TestDiagnostic_FoctPrelim5HpFilterInitState: Stage F-oct-prelim-5-2 진단.
+//
+// ITU-T G.729 (06/2012) §4.2.2 식 (151)/(152) HP filter (100 Hz cutoff,
+// 2-pole 2-zero IIR) 의 초기 IIR state (x[-1], x[-2], y[-1], y[-2]) 가
+// spec 상 0 인지 별도 prescribed value 인지 검증. §4.3 "All filter and
+// quantizer states are initialized to zero" 의 zero-init 가정에 정합.
+//
+// 측정 차원:
+//
+//(a) production constants (hpB0Q13 / hpB1Q13 / hpB2Q13 / hpNegA1Q12 /
+//    hpA2Q13) vs spec real coefficient (0.93980581 / -1.8795834 /
+//    0.93980581 / -1.9330735 / 0.93589199) 의 |Δ| 정량.
+//(b) zero-input + zero-state 시 sample 0..7 출력 — startup transient
+//    가 음수 출력을 생성하는가.
+//(c) impulse-input (sample 0 = +1, 그 외 0) + zero-state 시 sample
+//    0..7 출력 — IIR step response 의 부호 추세.
+//(d) 실제 ALGTHM frame 0 sf0 chain 결과를 hpFilter 입력으로 (= F-sext-1
+//    재현) 와 동시에, "spec 상 hpFilter 입력이 0 인 silence frame" 가설
+//    검증 — silence input 가정 시 sample 5..7 negative 가 가능한가.
+//
+// 측정-only — assertion 0. production 변경 0 (E5).
+func TestDiagnostic_FoctPrelim5HpFilterInitState(t *testing.T) {
+// (a) Q-format quantization error
+t.Logf("──────── (a) production Q-format vs spec real coefficient ────────")
+type qpair struct {
+name     string
+qVal     int32
+qScale   float64
+specReal float64
+}
+pairs := []qpair{
+{"b0", int32(hpB0Q13), 8192.0, 0.93980581},
+{"b1", int32(hpB1Q13), 8192.0, -1.8795834},
+{"b2", int32(hpB2Q13), 8192.0, 0.93980581},
+{"-a1", int32(hpNegA1Q12), 4096.0, 1.9330735}, // production stores |a1| at Q12
+{"a2", int32(hpA2Q13), 8192.0, 0.93589199},
+}
+for _, p := range pairs {
+approx := float64(p.qVal) / p.qScale
+delta := approx - p.specReal
+t.Logf("  %-3s  q=%+6d  approx=%+.8f  spec=%+.8f  |Δ|=%.8f",
+p.name, p.qVal, approx, p.specReal, delta)
+}
+
+// (b) zero-input + zero-state hpFilter
+t.Logf("──────── (b) zero-input + zero-state hpFilter sample 0..7 ────────")
+{
+var d Decoder
+d.Reset()
+var in [subframeLen]int16 // 모두 0
+var out [subframeLen]int16
+d.hpFilter(&in, out[:])
+t.Logf("  hpFilter(0...) [0..7] = %v", out[:8])
+t.Logf("  hpFilter(0...) [0..%d] all-zero? %v",
+subframeLen-1, allZeroInt16(out[:]))
+}
+
+// (c) impulse-input (sample 0 = +1) + zero-state hpFilter
+t.Logf("──────── (c) impulse(+1 at n=0) + zero-state hpFilter sample 0..7 ────────")
+{
+var d Decoder
+d.Reset()
+var in [subframeLen]int16
+in[0] = 1
+var out [subframeLen]int16
+d.hpFilter(&in, out[:])
+t.Logf("  hpFilter(δ[0]=+1) [0..7] = %v", out[:8])
+t.Logf("  hpFilter(δ[0]=+1) [0..%d] = %v", subframeLen-1, out[:])
+}
+
+// (d) impulse-input (sample 0 = +2 = chain output sample 0) + zero-state
+t.Logf("──────── (d) chain-like impulse (sample 0 = +2) + zero-state ────────")
+{
+var d Decoder
+d.Reset()
+var in [subframeLen]int16
+// F-sept-4 chain output sample 0..7 = [2, 4, 3, 3, 1, 1, 1, 1]
+// 단 본 측정은 sample 0 만 +2 로 driving — IIR step 단일 응답 분리
+in[0] = 2
+var out [subframeLen]int16
+d.hpFilter(&in, out[:])
+t.Logf("  hpFilter(δ[0]=+2) [0..7] = %v", out[:8])
+}
+
+// (e) F-sext-1 chain replay (sample 0..7 = [2, 4, 3, 3, 1, 1, 1, 1])
+t.Logf("──────── (e) F-sept-4 chain output as hpFilter input + zero-state ────────")
+{
+var d Decoder
+d.Reset()
+var in [subframeLen]int16
+chain := [8]int16{2, 4, 3, 3, 1, 1, 1, 1}
+for i, v := range chain {
+in[i] = v
+}
+// sample 8..39 도 chain output 이 있어야 정확하지만, 본 측정은 sample
+// 0..7 의 IIR boundary  관찰 — sample 8.. 는 0 으로 두고 IIR 의 잔향
+// 포함.
+var out [subframeLen]int16
+d.hpFilter(&in, out[:])
+t.Logf("  hpFilter(chain[0..7], 0...) [0..7] = %v", out[:8])
+t.Logf("  hpFilter expectation = sample 5..7 부호 추적")
+for n := 5; n <= 7; n++ {
+t.Logf("    [%d]  in=%+d  out=%+d  부호 (in/out) = %s / %s",
+n, in[n], out[n],
+signOfInt16(in[n]), signOfInt16(out[n]))
+}
+}
+
+// (f) 시나리오 분류 dump
+t.Logf("──────── (f) 시나리오 분류 (hpFilter init state) ────────")
+	t.Logf("(H-INIT-1) zero-input + zero-state → hpFilter all-zero")
+	t.Logf("            spec §4.3 zero-init 정합. silence frame 0 의 negative")
+	t.Logf("            output 메커니즘은 hpFilter 단독으로 *불가능*.")
+t.Logf("(H-INIT-2) zero-input + zero-state → hpFilter nonzero")
+t.Logf("            spec §4.3 zero-init 위반 또는 production primitive 결함.")
+t.Logf("            E2 / E5 발동 검토.")
+t.Logf("(H-RESP-1) chain-input + zero-state → sample 5..7 부호 = + (chain 동상)")
+t.Logf("            hpFilter 가 sample 5..7 부호 반전 발생시키지 않음 (F-sext-1 §4 동상).")
+t.Logf("            negative output 메커니즘은 chain 외부 (= PST 자체) 또는 *상류 결함*.")
+t.Logf("(H-RESP-2) chain-input + zero-state → sample 5..7 부호 = − (반전)")
+t.Logf("            hpFilter step response 가 startup transient 로 sample 5+ 에서")
+t.Logf("            부호 반전 — F-sext-2 가설 정량 확정.")
+}
+
+// allZeroInt16: 모든 element 가 0 이면 true.
+func allZeroInt16(s []int16) bool {
+for _, v := range s {
+if v != 0 {
+return false
+}
+}
+return true
+}
