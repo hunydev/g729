@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -212,4 +213,131 @@ func TestDiagnostic_FoctPrelimFrameAlignment(t *testing.T) {
 	t.Logf("(F2) best 가 (i=0, j=1) → PST 가 1 frame skip / preroll, G2 발현")
 	t.Logf("(F3) best 가 |j−i|>1 → multi-frame skip, G2 강하게 발현")
 	t.Logf("(F4) 모든 score≤4 → 매칭 0, G2 반증 + G1/G4/G5 우세")
+}
+
+// TestDiagnostic_FoctPrelimMultiVectorScan: Stage F-oct-prelim-3 진단.
+//
+// 6 ITU vector (ALGTHM, TEST, SPEECH, LSP, PITCH, FIXED) 의 frame 0
+// sf0 sample 0..7 production 디코딩 결과와 PST want 의 sample 5..7
+// 부호 비교. ALGTHM 특이성 (G5) vs 일반 결함 (G1/G3/G4) 분리.
+//
+// 측정-only — assertion 0. production 변경 0 (E5).
+func TestDiagnostic_FoctPrelimMultiVectorScan(t *testing.T) {
+	type vec struct {
+		name             string
+		bitName, pstName string
+	}
+	vectors := []vec{
+		{"ALGTHM", "ALGTHM.BIT", "ALGTHM.PST"},
+		{"TEST", "TEST.BIT", "TEST.pst"},
+		{"SPEECH", "SPEECH.BIT", "SPEECH.PST"},
+		{"LSP", "LSP.BIT", "LSP.PST"},
+		{"PITCH", "PITCH.BIT", "PITCH.PST"},
+		{"FIXED", "FIXED.BIT", "FIXED.PST"},
+	}
+
+	type result struct {
+		name           string
+		prod           [8]int16
+		want           [8]int16
+		matchCount5to7 int
+		signs          [8]string
+	}
+	var results []result
+
+	for _, v := range vectors {
+		bitPath := vectorPath(v.bitName)
+		pstPath := vectorPath(v.pstName)
+		if _, err := os.Stat(pstPath); err != nil {
+			alt := vectorPath(strings.ToUpper(v.pstName))
+			if _, err2 := os.Stat(alt); err2 == nil {
+				pstPath = alt
+			} else {
+				altLow := vectorPath(strings.ToLower(v.pstName))
+				if _, err3 := os.Stat(altLow); err3 == nil {
+					pstPath = altLow
+				}
+			}
+		}
+		if _, err := os.Stat(bitPath); err != nil {
+			t.Logf("vector %s: BIT missing (%v) — skip", v.name, err)
+			continue
+		}
+		if _, err := os.Stat(pstPath); err != nil {
+			t.Logf("vector %s: PST missing (%v) — skip", v.name, err)
+			continue
+		}
+
+		bitFrames, bads := readG192Frames(t, bitPath)
+		pstFrames := readPSTFrames(t, pstPath)
+		if len(bitFrames) == 0 || len(pstFrames) == 0 {
+			t.Logf("vector %s: empty frames — skip", v.name)
+			continue
+		}
+
+		var dec Decoder
+		var out [80]int16
+		bad := false
+		if len(bads) > 0 {
+			bad = bads[0]
+		}
+		if err := dec.Decode(bitFrames[0], bad, out[:]); err != nil {
+			t.Logf("vector %s: Decode error %v — skip", v.name, err)
+			continue
+		}
+
+		var r result
+		r.name = v.name
+		copy(r.prod[:], out[:8])
+		copy(r.want[:], pstFrames[0][:8])
+		for n := 0; n < 8; n++ {
+			if signOfInt16(r.prod[n]) == signOfInt16(r.want[n]) {
+				r.signs[n] = "="
+			} else {
+				r.signs[n] = "≠"
+			}
+		}
+		for n := 5; n <= 7; n++ {
+			if r.signs[n] == "=" {
+				r.matchCount5to7++
+			}
+		}
+		results = append(results, r)
+	}
+
+	t.Logf("──────── (a) 6 vector × frame 0 sf0 sample 0..7 ────────")
+	for _, r := range results {
+		t.Logf("[%s]", r.name)
+		t.Logf("  prod = %v", r.prod)
+		t.Logf("  want = %v", r.want)
+		t.Logf("  sign = %v  (sample 5..7 일치 %d/3)", r.signs, r.matchCount5to7)
+	}
+
+	t.Logf("──────── (b) sample 5..7 부호 일치 분포 요약 ────────")
+	t.Logf("vector       sample5  sample6  sample7  match5..7")
+	allMatch := len(results) > 0
+	allMismatch := len(results) > 0
+	for _, r := range results {
+		t.Logf("  %-10s   %s        %s        %s        %d/3",
+			r.name, r.signs[5], r.signs[6], r.signs[7], r.matchCount5to7)
+		if r.matchCount5to7 < 3 {
+			allMatch = false
+		}
+		if r.matchCount5to7 > 0 {
+			allMismatch = false
+		}
+	}
+
+	t.Logf("──────── F-oct-prelim-3 시나리오 분류 ────────")
+	switch {
+	case allMatch:
+		t.Logf("(V1) 모든 vector 가 sample 5..7 부호 정합 → ALGTHM 도 정합 ?")
+		t.Logf("     (이 case 가 발현하면 ALGTHM 자체 측정에 모순 — F-sept-4 회귀 의심)")
+	case allMismatch:
+		t.Logf("(V2) 모든 vector 에서 sample 5..7 부호 반전 → 일반 결함 (G1/G3/G4)")
+		t.Logf("     F-oct 권고: chain 외부 결함 추적 (PST format / hpFilter startup / PST/2 가설)")
+	default:
+		t.Logf("(V3) mixed — 일부 vector 정합 / 일부 반전")
+		t.Logf("     ALGTHM-specific 거동 (G5 발현) 가능성 + vector-specific 분포 분석 의무")
+	}
 }
