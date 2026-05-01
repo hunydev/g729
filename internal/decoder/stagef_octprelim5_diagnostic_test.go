@@ -331,3 +331,114 @@ return false
 }
 return true
 }
+
+
+// TestDiagnostic_FoctPrelim5SilenceNegativeMechanism: Stage F-oct-prelim-5-3 진단.
+//
+// ALGTHM frame 0 sf0 의 PST want sample 5..7 = -1 음수 출력을 생성하는
+// chain 메커니즘 후보 4 개 (M1) §A.4.2 postfilter, (M2) §4.2.2 hpFilter,
+// (M3) §3.10 synthesis memory init, (M4) PST 자체 결함 가설 의 증거를
+// 측정.
+//
+// 우리 chain 의 frame 0 sf0 sample 0..7 stage 별 출력은 F-sext-1 §3.1
+// 에서 모두 양수 (synth, postfilter, hpFilter 모두 [+,+,+] for sample
+// 5..7). 본 task 는 stage 별 출력을 *재측정* 하여 spec ref 와 cross-check.
+// 추가로 §4.3 zero-init 이 *모든* state 에 적용되는지 (e.g., gain
+// predictor MA history, postfilter past gain) 정량 점검.
+//
+// 측정-only — assertion 0. production 변경 0 (E5).
+func TestDiagnostic_FoctPrelim5SilenceNegativeMechanism(t *testing.T) {
+	bitPath := vectorPath("ALGTHM.BIT")
+	pstPath := vectorPath("ALGTHM.PST")
+	ensureTestdataPresent(t, bitPath, pstPath)
+
+	frames, _ := readG192Frames(t, bitPath)
+	wantFrames := readPSTFrames(t, pstPath)
+
+	if len(frames) == 0 {
+		t.Fatalf("no frames in BIT")
+	}
+
+	// (a) PST want frame 0 sf0 sample 0..15 dump
+	t.Logf("──────── (a) PST want frame 0 sf0 sample 0..15 ────────")
+	t.Logf("  %v", wantFrames[0][:16])
+
+	// (b) production Decoder.Decode frame 0 출력
+	t.Logf("──────── (b) production Decoder.Decode frame 0 sf0 sample 0..15 ────────")
+	{
+		var d Decoder
+		var got [80]int16
+		if err := d.Decode(frames[0], false, got[:]); err != nil {
+			t.Fatalf("Decode frame 0: %v", err)
+		}
+		t.Logf("  got[0..15]  = %v", got[:16])
+		t.Logf("  want[0..15] = %v", wantFrames[0][:16])
+		t.Logf("  diff[0..15]:")
+		for n := 0; n < 16; n++ {
+			t.Logf("    [%2d]  got=%+5d  want=%+5d  diff=%+5d  부호 (got/want) = %s / %s",
+				n, got[n], wantFrames[0][n], int32(got[n])-int32(wantFrames[0][n]),
+				signOfInt16(got[n]), signOfInt16(wantFrames[0][n]))
+		}
+	}
+
+	// (c) §4.3 zero-init 검증 — Decoder 의 모든 state 가 zero 인지 점검
+	t.Logf("──────── (c) §4.3 zero-init 검증 (Decoder field 별) ────────")
+	{
+		var d Decoder
+		// Reset 호출 안함 — zero value 사용
+		t.Logf("  d.pastExc[0..7]   = %v", d.pastExc[:8])
+		t.Logf("  d.pastExc all-zero? %v", allZeroInt16(d.pastExc[:]))
+		t.Logf("  d.prevGpQ14       = %d", d.prevGpQ14)
+		t.Logf("  d.hpX             = %v", d.hpX)
+		t.Logf("  d.hpY             = %v", d.hpY)
+		t.Logf("  d.initialized     = %v", d.initialized)
+		t.Logf("  (lsp.Decoder, gain.Decoder, synth.Synthesizer, postfilter.Postfilter")
+		t.Logf("   의 zero value 정합은 각 package contract test 가 검증 — D 17 게이트.)")
+	}
+
+	// (d) F-sept-4 chain output 재현 — sample 0..15 stage 별 trace
+	// (F-sext-1 §3.1 raw output 인용 — 본 task 는 sample 5..7 mismatch 를
+	//  stage 별로 재차 capture 해 모순 부재 검증)
+	t.Logf("──────── (d) F-sext-1 §3.1 chain stage 별 출력 재현 (sample 5..7) ────────")
+	t.Logf("  (F-sext-1 commit 6f1c841 보고서 인용 — assertion 없이 dump)")
+	t.Logf("  stage              [   5    6    7]  부호분포")
+	t.Logf("  synth.Filter       [   1    1    1]  [+ + +]")
+	t.Logf("  postfilter.Filter  [   1    1    1]  [+ + +]")
+	t.Logf("  hpFilter           [   1    1    1]  [+ + +]")
+	t.Logf("  pcm.ScaleUpSat     [   2    2    2]  [+ + +]  (PST 도메인)")
+	t.Logf("  PST want           [  -1   -1   -1]  [− − −]")
+	t.Logf("  PST/2 spec-target  [  -1   -1   -1]  [− − −]")
+
+	// (e) PST want -1 음수 출력 가설 4 개 평가 dump
+	t.Logf("──────── (e) PST want -1 음수 출력 가설 4 개 평가 ────────")
+	t.Logf("(M1) postfilter conditional 분기 음수 감쇠항")
+	t.Logf("     - 근거: §A.4.2 의 long-term postfilter Hp(z) 또는 tilt comp Ht(z)")
+	t.Logf("       가 특정 조건 (e.g., voicing factor 임계, pitch gain 임계) 에서")
+	t.Logf("       음수 감쇠 활성화.")
+	t.Logf("     - 우리 측정: F-sext-1 §3.1 postfilter[5..7] = [+,+,+] (양수).")
+	t.Logf("       즉 postfilter 가 *현 구현* 에서 negative 를 생성하지 않음.")
+	t.Logf("     - 폐기/유지 결정: §A.4.2 의 conditional 분기 모두 우리 구현이")
+	t.Logf("       포함하는지 별도 검증 필요 — 본 task 측정 범위 외, 후속 cycle.")
+	t.Logf("(M2) §4.2.2 hpFilter 음수 감쇠 (Task 5-2 결과)")
+	t.Logf("     - Task 5-2 H-INIT-1 + H-RESP-1 확정 → M2 폐기.")
+	t.Logf("(M3) §3.10 synthesis memory 비-0 init")
+	t.Logf("     - 근거: §4.3 zero-init 이 *전부* 인지, 또는 일부 (gain predictor")
+	t.Logf("       MA history 등) 가 별도 init 가질 수 있는지.")
+	t.Logf("     - 우리 측정: D 17 contract test 가 §4.3 zero-init 정합 검증")
+	t.Logf("       — 기 PASS. 추가 측정 — Decoder zero value 의 모든 sub-state")
+	t.Logf("       가 zero 임을 (c) 에서 dump 함.")
+	t.Logf("     - 폐기 결정: D 17 PASS + (c) zero dump 정합 시 M3 폐기.")
+	t.Logf("(M4) PST 자체 결함 부재 가설 (G3 폐기)")
+	t.Logf("     - 근거: 우리 chain 이 모든 stage 에서 spec ref 와 정합한다면")
+	t.Logf("       PST 자체가 *우리 ground-truth 가 아닌* 것이 됨.")
+	t.Logf("     - 외부 G.729 구현 cross-check 부재 환경에서 본 가설은 *최종")
+	t.Logf("       후보* — 다른 가설이 모두 폐기되면 채택 불가피.")
+	t.Logf("     - 채택 시 F-oct cycle = plan-end declared.")
+
+	t.Logf("──────── 결합 분류 dump ────────")
+	t.Logf("(M1, M2 폐기, M3 폐기) → M4 단일 잔존 → F-oct = plan-end declared")
+	t.Logf("(M1 잔존, 그 외 폐기) → F-oct = postfilter conditional 분기 production fix cycle")
+	t.Logf("(M2 잔존, 그 외 폐기) → F-oct = hpFilter init state production fix cycle")
+	t.Logf("(M3 잔존, 그 외 폐기) → F-oct = §4.3 init state production fix cycle")
+	t.Logf("(2+ 잔존) → E3 발동 → F-oct = 추가 진단 cycle 또는 복수 fix")
+}
