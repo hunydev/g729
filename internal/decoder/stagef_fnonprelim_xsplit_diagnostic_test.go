@@ -5,7 +5,10 @@ import (
 
 	"github.com/exedev/g729/internal/bitstream"
 	"github.com/exedev/g729/internal/fcb"
+	"github.com/exedev/g729/internal/fixed"
+	"github.com/exedev/g729/internal/gain"
 	"github.com/exedev/g729/internal/pitch"
+	"github.com/exedev/g729/internal/tables"
 )
 
 // TestDiagnostic_FnonPrelimXSplit1FcbPulseTrace decomposes the ALGTHM
@@ -215,4 +218,232 @@ func absInt16(v int16) int32 {
 		return -int32(v)
 	}
 	return int32(v)
+}
+
+// TestDiagnostic_FnonPrelimXSplit2GainGcTrace decomposes the ALGTHM
+// frame 0 sf0 gain VQ output g_c=+4153 (Q12) into spec §3.9 + §3.9.1
+// + §3.9.2 + §A.3.9 + §4.3 Table 9 sub-stages: (a) idx.GA1=5 / GB1=6
+// raw codewords, (b) GainImap1[5] / GainImap2[6] inverse-permutation
+// to physical GBK entry indices, (c) GainGBK1[entry] (g_p, γ̂_c) Q14/Q13
+// pair lookup, (d) GainGBK2[entry] (g_p, γ̂_c) Q14/Q13 pair lookup,
+// (e) γ̂ = GBK1[*][1] + GBK2[*][1] (eq. (74) right factor, Q13), (f) MA
+// predictor Ê(m) = E̅ + Σ b_i·Û(m−i) using past_err init =
+// MIN_GAIN_PRED_DB = -14336 Q10 ×4 (§4.3 Table 9 — "All static encoder
+// and decoder variables should be initialized to zero, except the
+// variables listed in Table 9"; gain.pastErrorsDefault), (g) production
+// gain.Decoder.Decode end-to-end g_c (Q12) confirm against X-fcb verdict
+// +4153, (h) sign-determining sub-stage classification.
+//
+// Spec ground-truth (verbatim, ITU-T G.729 (06/2012) PDF):
+//   §3.9 eq. (65):  g_c = γ · g_c'
+//   §3.9.1 eq. (69): Ẽ(m) = Σ_{i=1..4} b_i · Û(m−i)
+//                    [b1 b2 b3 b4] = [0.68 0.58 0.34 0.19]
+//   §3.9.1 eq. (71): g_c' = 10^((Ẽ(m) + Ē − E)/20),  Ē = 30 dB
+//   §3.9.2 eq. (73): ĝ_p = GA1(GA) + GB1(GB)
+//   §3.9.2 eq. (74): ĝ_c = g_c' · γ̂ = g_c' (GA2(GA) + GB2(GB))
+//   §A.3.9        : "Same as described in clause 3.9."
+//   §4.3 Table 9  : non-zero initialization variables — gain MA
+//                   predictor past_err[0..3] = MIN_GAIN_PRED_DB.
+//
+// production wiring (§Spec §3.9 cross-ref):
+//   gain.decodeVQ                  : entry = GainGBK*[GainImap*[idx]]
+//   gain.predictedLogGain          : Round(LShl(LMac chain, 2)) + Ē Q10
+//   gain.Decoder.Decode            : returns (gpQ14, gcQ12)
+//   gain.pastErrorsDefault = -14336 (Q10) = MIN_GAIN_PRED_DB
+//   tables.GainMAPredictor         = [5571, 4751, 2785, 1556] (Q13)
+//   tables.GainMeanEnergyQ10       = 30720 (Ē = 30 dB Q10)
+//
+// F-non-prelim synthesis (e867f5e) §3.1: single source =
+// `g_c · c[n]` product positive (Q15 pre-Round = +33224); §4.1
+// recommends Cα + Cβ hybrid split. Task 1 (fd0b381) verdict =
+// Cα-refute (c[0..3]=+8192 spec-canonical). This test = Cβ half
+// (g_c=+4153 sub-source identification: VQ table γ̂ / MA predictor
+// state / γ̂·g_c' composition / sign processing).
+//
+// Phase 0.4 §1 / §3: no a-priori preference between sub-stages —
+// sign-origin is decided by the measured ROM-table / predictor / g_c
+// values only. "Cβ-refute (둘 다 정합)" is a valid outcome.
+//
+// production 변경 0. assertion 0 (measurement-only, t.Logf dump).
+func TestDiagnostic_FnonPrelimXSplit2GainGcTrace(t *testing.T) {
+	bitPath := vectorPath("ALGTHM.BIT")
+	ensureTestdataPresent(t, bitPath)
+
+	frames, _ := readG192Frames(t, bitPath)
+
+	var f bitstream.Frame
+	if err := bitstream.Unpack(frames[0], &f); err != nil {
+		t.Fatalf("Unpack frame 0: %v", err)
+	}
+
+	// Reproduce the production sf0 fixed-codebook vector c[40] so the
+	// gain decoder consumes an identical input to the regular decode
+	// path (the fcb output drives gain.fixedCodebookEnergy, which
+	// determines E̅ in dB and thus the predicted-gain branch).
+	tInt, _ := pitch.DecodeDelaySubframe1(uint8(f.P1))
+	betaQ14Prod := fcb.ClampPitchGainForEnhancement(0)
+	var c [subframeLen]int16
+	fcb.Decode(fcb.Indices{Positions: f.C1, Signs: uint8(f.S1)}, tInt, betaQ14Prod, &c)
+
+	// ──── (a) GA1 / GB1 raw codewords (bitstream side) ────
+	ga := uint8(f.GA1)
+	gb := uint8(f.GB1)
+
+	// ──── (b) GainImap*[GA] / [GB] → physical GBK entry index ────
+	//          (§3.9.3 inverse permutation; production gain.decodeVQ
+	//          performs the same lookup verbatim.)
+	gaEntry := tables.GainImap1[ga]
+	gbEntry := tables.GainImap2[gb]
+
+	// ──── (c) GainGBK1[entry] = (g_p_ga Q14, γ̂_ga Q13) ────
+	gpGaQ14 := tables.GainGBK1[gaEntry][0]
+	gammaGaQ13 := tables.GainGBK1[gaEntry][1]
+
+	// ──── (d) GainGBK2[entry] = (g_p_gb Q14, γ̂_gb Q13) ────
+	gpGbQ14 := tables.GainGBK2[gbEntry][0]
+	gammaGbQ13 := tables.GainGBK2[gbEntry][1]
+
+	// ──── (e) eq. (73) / (74) summation (Word16 saturating) ────
+	gpSumQ14 := int16(fixed.Add(gpGaQ14, gpGbQ14))
+	gammaSumQ13 := int16(fixed.Add(gammaGaQ13, gammaGbQ13))
+
+	// ──── (f) MA predictor (frame 0 zero-state / Table 9 init) ────
+	//          replicates gain.predictedLogGain verbatim using the
+	//          public tables; past_err[0..3] = MIN_GAIN_PRED_DB =
+	//          -14336 (Q10) per §4.3 Table 9 + gain.pastErrorsDefault.
+	const minGainPredDbQ10 int16 = -14336
+	pastErr := [4]int16{minGainPredDbQ10, minGainPredDbQ10, minGainPredDbQ10, minGainPredDbQ10}
+	var acc fixed.Word32
+	for i := 0; i < 4; i++ {
+		acc = fixed.LMac(acc, tables.GainMAPredictor[i], pastErr[i])
+	}
+	predictedRaw := fixed.Round(fixed.LShl(acc, 2))
+	predictedQ10 := int16(fixed.Add(tables.GainMeanEnergyQ10, predictedRaw))
+
+	// ──── (g) end-to-end g_c via production gain.Decoder.Decode ────
+	//          — spec eq. (65) g_c = γ̂·g_c'. zero-state Decoder; first
+	//          call seeds pastErrors with pastErrorsDefault internally.
+	var gn gain.Decoder
+	gpQ14Prod, gcQ12Prod := gn.Decode(gain.Indices{GA: ga, GB: gb}, &c)
+
+	// X-fcb verdict cross-ref (F-non-prelim Task 1 §2 raw measurement).
+	const xFcbGcQ12 int16 = +4153
+	gcMatch := gcQ12Prod == xFcbGcQ12
+	gpComposeMatch := gpQ14Prod == gpSumQ14
+
+	t.Logf("──────── F-non-prelim-X-split-2 Cβ gain g_c sub-stage trace (ALGTHM frame 0 sf0) ────────")
+	t.Logf("indices: P1=%d  C1=0x%04x  S1=0x%x  GA1=%d  GB1=%d", f.P1, f.C1, f.S1, f.GA1, f.GB1)
+
+	// ──── (a) GA1 / GB1 raw codewords ────
+	t.Logf("[Cβ idx.GA1, GB1]    GA1=%d (3 bits)  GB1=%d (4 bits)   (codewords from bitstream §4.2 Table 8)", ga, gb)
+
+	// ──── (b) Inverse-permutation to physical entry ────
+	t.Logf("[Cβ Imap]            GainImap1[%d]=%d  GainImap2[%d]=%d   (§3.9.3 inverse permutation; production gain/vq.go)", ga, gaEntry, gb, gbEntry)
+
+	// ──── (c) GA entry ────
+	t.Logf("[Cβ GA[%d] entry]    GainGBK1[%d] = (g_p_ga=%+d Q14, γ̂_ga=%+d Q13)   (PDF §3.9.2 eq.(73)/(74); tables/gain_gbk1.go)",
+		gaEntry, gaEntry, gpGaQ14, gammaGaQ13)
+
+	// ──── (d) GB entry ────
+	t.Logf("[Cβ GB[%d] entry]    GainGBK2[%d] = (g_p_gb=%+d Q14, γ̂_gb=%+d Q13)   (PDF §3.9.2 eq.(73)/(74); tables/gain_gbk2.go)",
+		gbEntry, gbEntry, gpGbQ14, gammaGbQ13)
+
+	// ──── (e) γ̂ correction (eq. (74)) + ĝ_p sum (eq. (73)) ────
+	t.Logf("[Cβ γ̂ correction]   eq.(74) γ̂ = γ̂_ga + γ̂_gb = %+d + %+d = %+d (Q13)", gammaGaQ13, gammaGbQ13, gammaSumQ13)
+	t.Logf("[Cβ ĝ_p compose]     eq.(73) ĝ_p = g_p_ga + g_p_gb = %+d + %+d = %+d (Q14)   gain.Decode return ĝ_p=%+d  match=%v",
+		gpGaQ14, gpGbQ14, gpSumQ14, gpQ14Prod, gpComposeMatch)
+
+	// ──── (f) MA predictor (frame 0 init) ────
+	t.Logf("[Cβ MA predictor]    past_err init=[%+d %+d %+d %+d] (Q10, all = MIN_GAIN_PRED_DB per §4.3 Table 9)",
+		pastErr[0], pastErr[1], pastErr[2], pastErr[3])
+	t.Logf("                     b=[%+d %+d %+d %+d] (Q13; spec §3.9.1 [0.68 0.58 0.34 0.19]; tables.GainMAPredictor)",
+		tables.GainMAPredictor[0], tables.GainMAPredictor[1], tables.GainMAPredictor[2], tables.GainMAPredictor[3])
+	t.Logf("                     LMac acc(Q24)=%+d  Round(LShl(acc,2))=%+d (Q10)  Ẽ contribution",
+		acc, predictedRaw)
+	t.Logf("                     Ê(m) = Ē + Σb·Û = %+d + %+d = %+d (Q10 dB)   (Ē=GainMeanEnergyQ10=30720 = 30 dB Q10)",
+		tables.GainMeanEnergyQ10, predictedRaw, predictedQ10)
+
+	// ──── (g) Σc² + production end-to-end g_c ────
+	var sumSqQ26 int64
+	for n := 0; n < subframeLen; n++ {
+		sumSqQ26 += int64(c[n]) * int64(c[n])
+	}
+	t.Logf("[Cβ fcb energy]      Σc² (Q26) = %d   (input to gain.fixedCodebookEnergy → log2 → Ē̄ in eq.(66))", sumSqQ26)
+	t.Logf("[Cβ g_c (Q12)]       gain.Decode → (ĝ_p=%+d Q14, ĝ_c=%+d Q12)   X-fcb verdict +4153 match=%v",
+		gpQ14Prod, gcQ12Prod, gcMatch)
+
+	// ──── (h) ROM cross-ref vs PDF Table (verbatim numeric) ────
+	//          (Tables in tables/gain_gbk*.go are bit-exact from the
+	//          ITU reference data array under the merger-doctrine
+	//          exception per the file headers; the PDF itself does
+	//          NOT print the numeric GBK table — §3.9.2 only gives
+	//          dimensions 8×2 / 16×2. This row records the dimension
+	//          + sign-of-γ̂ check rather than per-entry verbatim.)
+	t.Logf("[Cβ ROM cross-ref]   GainGBK1 dim=%d×2 (spec §3.9.2: 3-bit GA → 8 entries × 2-dim)  GainGBK2 dim=%d×2 (4-bit GB → 16 × 2-dim)  γ̂_ga sign=%s  γ̂_gb sign=%s  γ̂ sum sign=%s",
+		len(tables.GainGBK1), len(tables.GainGBK2),
+		signOfInt16(gammaGaQ13), signOfInt16(gammaGbQ13), signOfInt16(gammaSumQ13))
+
+	// ──── (i) Cβ sub-stage 부호 결정성 평가 ────
+	t.Logf("──────── Cβ sub-stage 부호 결정성 평가 ────────")
+	verdict := classifyCbetaSubStage(gammaSumQ13, predictedQ10, gcQ12Prod, gcMatch, gpComposeMatch)
+	t.Logf("[Cβ 결정] sign-determining sub-stage = %s", verdict)
+	t.Logf("[Cβ verdict] %s", classifyCbetaHypothesis(gammaGaQ13, gammaGbQ13, gammaSumQ13, predictedQ10, gcQ12Prod, gcMatch, gpComposeMatch))
+}
+
+// classifyCbetaSubStage decides which gain sub-stage determines the
+// sign of g_c=+4153 for ALGTHM frame 0 sf0 by applying plan §Task 2
+// Step 4 의 decision table verbatim against the measured VQ-table /
+// predictor / composition values. Phase 0.4 §1 — measurement-driven
+// only.
+func classifyCbetaSubStage(gammaSumQ13, predictedQ10, gcQ12Prod int16, gcMatch, gpComposeMatch bool) string {
+	gammaPositive := gammaSumQ13 > 0
+	predictedFinite := predictedQ10 > -32000 && predictedQ10 < 32000
+	gcPositive := gcQ12Prod > 0
+
+	switch {
+	case gcMatch && gpComposeMatch && gammaPositive && predictedFinite && gcPositive:
+		return "VQ-table-γ̂ (γ̂ = GBK1[ga][1] + GBK2[gb][1] = " + itoa(int32(gammaSumQ13)) + " > 0 (Q13); MA predictor zero-state finite Ê(m)=" + itoa(int32(predictedQ10)) + " (Q10); g_c = γ̂·g_c' inherits γ̂ sign — single source = positive VQ entry, no sign-mask logic involved)"
+	case gcMatch && !gammaPositive && gcPositive:
+		return "spec-violation (γ̂ sum ≤ 0 yet g_c > 0 — sign inversion in γ̂·g_c' composition)"
+	case gcMatch && gammaPositive && !gcPositive:
+		return "spec-violation (γ̂ sum > 0 yet g_c ≤ 0 — sign loss in γ̂·g_c' composition)"
+	case !gcMatch:
+		return "replication-mismatch (production gain.Decode g_c=" + itoa(int32(gcQ12Prod)) + " ≠ X-fcb verdict +4153 — X-fcb baseline drift; investigate)"
+	default:
+		return "undetermined (sub-stage values do not fit known pattern)"
+	}
+}
+
+// classifyCbetaHypothesis maps the sub-stage decomposition to one of
+// the Cβ verdict labels per plan §Task 2 Step 4: Cβ-vq / Cβ-pred /
+// Cβ-refute / Cβ-inconclusive. Phase 0.4 §3 — "둘 다 spec 정합" is a
+// valid outcome (Cβ-refute), routing to Cγ re-entry or Y magnitude
+// follow-up per Task 3 의 결정 트리.
+func classifyCbetaHypothesis(gammaGaQ13, gammaGbQ13, gammaSumQ13, predictedQ10, gcQ12Prod int16, gcMatch, gpComposeMatch bool) string {
+	gammaGaOk := gammaGaQ13 >= 0
+	gammaGbOk := gammaGbQ13 >= 0
+	gammaPositive := gammaSumQ13 > 0
+	predFinite := predictedQ10 > -32000 && predictedQ10 < 32000
+	gcPositive := gcQ12Prod > 0
+
+	switch {
+	case gcMatch && gpComposeMatch && gammaGaOk && gammaGbOk && gammaPositive && predFinite && gcPositive:
+		// All sub-stages match spec §3.9.* verbatim:
+		// - GBK entry pair = production ROM (no replication drift).
+		// - γ̂ sum = positive Q13 (eq. (74) RHS).
+		// - MA predictor frame-0 zero-state per §4.3 Table 9.
+		// - Composition g_c = γ̂·g_c' preserves γ̂ sign.
+		// - Final g_c = +4153 = X-fcb baseline.
+		// → No defect in gain.Decoder.Decode; sign of g_c is
+		//   spec-canonical positive.
+		return "Cβ-refute (g_c=+4153 양 부호 = §3.9 spec-canonical: γ̂ = +" + itoa(int32(gammaSumQ13)) + " (Q13) > 0 × frame-0 zero-state predictor (Ê(m)=" + itoa(int32(predictedQ10)) + " Q10) × eq.(65) g_c=γ̂·g_c' 부호 보존. gain.Decoder.Decode 정합 — Cβ 결함 없음. **Cα + Cβ 둘 다 정합** (hybrid 반증) → Task 3 결정 트리 §3 권고: Cγ 재진입 또는 Y magnitude follow-up.)"
+	case gcMatch && (!gammaGaOk || !gammaGbOk):
+		return "Cβ-vq (GBK ROM entry sign 결함 — fix scope = internal/tables/gain_gbk*.go)"
+	case gcMatch && !predFinite:
+		return "Cβ-pred (MA predictor 결과 saturated/invalid — fix scope = internal/gain/predictor.go 또는 pastErrorsDefault)"
+	case gcMatch && gammaPositive && gcPositive && !gpComposeMatch:
+		return "Cβ-pred (ĝ_p sum mismatch — composition layer 결함; fix scope = internal/gain/vq.go)"
+	default:
+		return "Cβ-inconclusive (sub-stage 측정 데이터로 단일 sub-source 식별 불가 — Task 3 종합 §3 결정 트리에서 hybrid 평가)"
+	}
 }
