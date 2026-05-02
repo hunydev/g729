@@ -7,14 +7,39 @@ import (
 	"github.com/exedev/g729/internal/pitch"
 )
 
-// Decode consumes one packed G.729 frame (10 bytes) and writes 80 PCM
-// samples at Q0 full amplitude to out[0:80].
+// Decode consumes one packed G.729 / Annex A frame and writes one frame of
+// linear PCM to out.
 //
-// bad: frame-erasure marker from the transport layer. Phase 1g treats
-// it as a no-op. Phase 1h will add concealment per ITU-T G.729 §A.4.1.
+// Input contract:
+//   - packed must hold at least 10 bytes (80 bits) carrying the 15
+//     index fields defined in ITU-T G.729 §4 / §A.4 (encoded MSB-first
+//     by the bitstream package).
+//   - bad is the frame-erasure marker supplied by the transport layer.
+//     The current implementation treats it as a no-op; full concealment
+//     per G.729 §4.4 / §A.4.1 is not yet wired in.
+//   - out must hold at least 80 int16 samples; only out[0:80] is written
+//     (16 kHz-equivalent Q0 samples post-HP-filter, post-×2 amplitude
+//     scaling per §4.2.3).
 //
-// Returns ErrShortInput if len(packed) < 10 or ErrShortOutput if
-// len(out) < 80. Never panics; never allocates on the heap.
+// Errors:
+//   - ErrShortInput  — len(packed) < 10.
+//   - ErrShortOutput — len(out)    < 80.
+//   - Errors propagated from bitstream.Unpack (e.g. parity / range
+//     violations on the 15 index fields).
+//
+// Decode advances the Decoder's internal state (LSP MA predictor, gain
+// MA predictor, synthesizer memory, postfilter memory, HP-filter memory,
+// and the past-excitation FIFO). Callers must invoke Decode strictly in
+// frame order on a single Decoder; concurrent calls are not supported.
+//
+// Decode never panics and performs no heap allocations on the steady-state
+// path.
+//
+// Spec-conformance caveat: a small number of frames in the published ITU-T
+// Annex A test vectors intentionally produce LSB-level differences from the
+// PST reference output. These are spec-conformant per the published
+// G.729 / Annex A PDF; the documented cases are pinned by
+// itu_vector_pstdomain_test.go.
 func (d *Decoder) Decode(packed []byte, bad bool, out []int16) error {
 	if len(packed) < bitstream.FrameBytes {
 		return ErrShortInput

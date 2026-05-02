@@ -184,9 +184,11 @@ Final test baseline (post-disposition): 394 PASS, 3 SKIP, 3 FAIL — delta from 
 
 The original gate 19 (E5) "promote / archive / keep" trichotomy was reduced to "LAND / KEEP-WITH-NOTE / DELETE" since (a) no diagnostic file had assertions ready for promotion to a stable spec invariant beyond what `frame0_regression_test.go` and `stagef_octpostfix_regression_test.go` already cover, and (b) "archive to `docs/superpowers/archives/`" was rejected as redundant — the gate-17 / 28-cycle history is already preserved in checkpoints 011..020 and the Phase 1k F-* / Phase 1l / Phase 1n / Phase 0c-reentry / Phase 1o D-3 plans. KEEP-WITH-NOTE preserves both the source-tree visibility (grep continuity) and the breadcrumb pointer to the closed-hypothesis history.
 
-### D-4 — Decoder public API godoc audit
+### D-4 — Decoder public API godoc audit — [x] DONE
 
 Pass criterion §4.6 below. For each exported symbol in `internal/decoder/decode.go` (`Decoder`, `Decode`, related errors in `errors.go`, `doc.go`), ensure godoc-quality comment exists. No production behaviour change. One commit.
+
+**Outcome (D-4 commit):** Audited 5 exported symbols (package `decoder`, `Decoder`, `Decoder.Decode`, `Decoder.Reset`, `ErrShortInput`, `ErrShortOutput`) across `decode.go`, `doc.go`, `errors.go`, `types.go`. Rewrote `Decode` doc with explicit input contract / error table / state-mutation note and removed Phase-1g/1h jargon; expanded `Decoder` and `Reset` to document zero-value lifecycle + concurrency contract; expanded both error sentinels with caller guidance; added `# Usage` and `# Spec-conformance caveat` sections to package doc pointing at `itu_vector_pstdomain_test.go` for the seven PSTdomain-demoted vectors. `gofmt -l` for the four touched files: clean. `go vet ./...`: clean. Test baseline preserved at 394 PASS / 3 SKIP / 3 FAIL. Pre-existing 1-space alignment drift in the `doc.go` block-diagram (unicode box-drawing) is out of D-4 scope (godoc-content-only).
 
 ### D-final — Phase 1o completion report
 
