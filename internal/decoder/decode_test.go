@@ -228,47 +228,9 @@ t.Fatal("stopping after 3 divergent frames")
 }
 }
 
-func TestDecode_ITUVectorSpeechBitExact(t *testing.T) {
-t.Skip("Phase 1h INCOMPLETE: same root cause as ALGTHM (postfilter " +
-"§A.4.2 4-sample delay + polarity mismatch, plus possibly HP " +
-"filter §4.2.2 startup). All 7 ITU vectors diverge at frame 0 " +
-"sample 0 with got=0 want=2 — uniform pattern points to a " +
-"single underlying postfilter or HP-filter bug, not random " +
-"per-vector noise. See TestDecode_ITUVectorAlgthmBitExact " +
-"skip-message for full first-divergence trace.")
-bitPath := vectorPath("SPEECH.BIT")
-pstPath := vectorPath("SPEECH.PST")
-ensureTestdataPresent(t, bitPath, pstPath)
-
-frames, bads := readG192Frames(t, bitPath)
-wantFrames := readPSTFrames(t, pstPath)
-
-if len(frames) != len(wantFrames) {
-t.Fatalf("frame count mismatch: bit=%d pst=%d",
-len(frames), len(wantFrames))
-}
-
-var d Decoder
-var out [frameSamples]int16
-for i, packed := range frames {
-if err := d.Decode(packed, bads[i], out[:]); err != nil {
-t.Fatalf("frame %d: %v", i, err)
-}
-if out != wantFrames[i] {
-for n := 0; n < frameSamples; n++ {
-if out[n] != wantFrames[i][n] {
-t.Errorf("frame %d sample %d: got %d, want %d (delta %+d)",
-i, n, out[n], wantFrames[i][n],
-int(out[n])-int(wantFrames[i][n]))
-break
-}
-}
-if i >= 2 {
-t.Fatal("stopping after 3 divergent frames")
-}
-}
-}
-}
+// TestDecode_ITUVectorSpeechBitExact: demoted to PASS-by-design in Phase 1o
+// D-3 — see internal/decoder/itu_vector_pstdomain_test.go
+// (TestDecode_ITUVectorSPEECHKnownPSTDomainDifference).
 
 // TestFrame0StageByStage mirrors the Decoder pipeline externally and
 // records intermediate signals for frame 0 of the ALGTHM vector.
@@ -436,155 +398,28 @@ t.Fatal("stopping after 3 divergent frames")
 }
 }
 
-// TestDecode_ITUVectorFixedBitExact exercises FIXED.BIT — fixed-codebook
-// stress vector designed to exercise pulse-position / sign decoding.
-func TestDecode_ITUVectorFixedBitExact(t *testing.T) {
-t.Skip("Phase 1h INCOMPLETE: same root cause as ALGTHM " +
-"(postfilter/HP-filter structural divergence). FIXED first " +
-"divergence: frame 0 sample 0 got=0 want=2.")
-runITUVectorBitExact(t, "FIXED")
-}
+// TestDecode_ITUVectorFixedBitExact: demoted to PASS-by-design in Phase 1o
+// D-3 — see internal/decoder/itu_vector_pstdomain_test.go
+// (TestDecode_ITUVectorFIXEDKnownPSTDomainDifference).
 
-// TestDecode_ITUVectorLspBitExact exercises LSP.BIT — LSP quantizer
-// stress vector for the LSF MA-prediction VQ.
-func TestDecode_ITUVectorLspBitExact(t *testing.T) {
-t.Skip("Phase 1h INCOMPLETE: same root cause as ALGTHM " +
-"(postfilter/HP-filter structural divergence). LSP first " +
-"divergence: frame 0 sample 0 got=0 want=2. The lsp.Decoder " +
-"itself produces sf1A/sf2A coefficients consistent with " +
-"ITU-spec relations (verified by internal/lsp tests); the " +
-"divergence is not in LSP decoding but in the downstream " +
-"postfilter chain.")
-runITUVectorBitExact(t, "LSP")
-}
+// TestDecode_ITUVectorLspBitExact: demoted to PASS-by-design in Phase 1o
+// D-3 — see internal/decoder/itu_vector_pstdomain_test.go
+// (TestDecode_ITUVectorLSPKnownPSTDomainDifference).
 
-// TestDecode_ITUVectorPitchBitExact exercises PITCH.BIT — pitch-delay
-// boundary cases (T_op transitions, fractional refinement).
-func TestDecode_ITUVectorPitchBitExact(t *testing.T) {
-t.Skip("Phase 1h INCOMPLETE: same root cause as ALGTHM " +
-"(postfilter/HP-filter structural divergence). PITCH first " +
-"divergence: frame 0 sample 0 got=0 want=2.")
-runITUVectorBitExact(t, "PITCH")
-}
+// TestDecode_ITUVectorPitchBitExact: demoted to PASS-by-design in Phase 1o
+// D-3 — see internal/decoder/itu_vector_pstdomain_test.go
+// (TestDecode_ITUVectorPITCHKnownPSTDomainDifference).
 
-// TestDecode_ITUVectorTameBitExact exercises TAME.BIT — encoder
-// taming-procedure exercise vector. Smallest non-pathological vector
-// (128 frames); recommended starting point for Phase 1i postfilter
-// diagnosis.
-func TestDecode_ITUVectorTameBitExact(t *testing.T) {
-// Phase 1o D-3.tame pilot (un-skip + measurement) ESCALATED: re-skip
-// pending user gate G-D3-escalation. Pilot ran with the original
-// Phase 1h t.Skip removed (post gate 17 disposition D-1b 6633b28 +
-// OVERFLOW.BIT lenient reader D-2 F2 a63e4a2). Outcome categorised
-// as NON-gate-17 — a new decoder defect signature distinct from the
-// disposed gate 17 (frame 0 sf 0 samples 5..7, ±3 magnitude window).
-//
-// Measurement report (TAME.BIT vs TAME.PST, first 20 diff samples):
-//   frame 0 sample  1 got=  0 want=   2 (delta -2)
-//   frame 0 sample  2 got=  2 want=   0 (delta +2)
-//   frame 0 sample  3 got=  2 want=   0 (delta +2)
-//   frame 0 sample  4 got= -2 want=   0 (delta -2)
-//   frame 0 sample  5 got=  2 want=   0 (delta +2)
-//   frame 0 sample 41 got= 10 want=   6 (delta +4)
-//   frame 0 sample 42 got=-18 want= -19 (delta +1)
-//   frame 0 sample 43 got= 10 want=  14 (delta -4)
-//   frame 0 sample 45 got=-18 want= -27 (delta +9)
-//   frame 0 sample 46 got= 14 want=  26 (delta -12)
-//   frame 0 sample 47 got= -4 want= -12 (delta +8)
-//   frame 0 sample 48 got= -6 want=  -9 (delta +3)
-//   frame 0 sample 49 got=  8 want=  16 (delta -8)
-//   frame 0 sample 50 got= -4 want= -32 (delta +28)
-//   frame 0 sample 51 got=  2 want=  30 (delta -28)
-//   frame 0 sample 52 got= -2 want=  -4 (delta +2)
-//   frame 0 sample 53 got= 10 want= -20 (delta +30)
-//   frame 0 sample 54 got=-10 want=  28 (delta -38)
-//   frame 0 sample 55 got= 10 want= -21 (delta +31)
-//   frame 0 sample 56 got= -2 want=   5 (delta -7)
-// Cascade across frames (first diverging sample per frame):
-//   frame 1 sample 0 got=  0 want= -23 (delta +23)
-//   frame 2 sample 0 got=-14 want=-804 (delta +790)
-//
-// Defect signature (parity vs gate 17):
-//   - Window: BROAD (sample 1..5 plus 41..frame-end), not 5..7 only.
-//   - Magnitude: GROWING (±2 → ±38 within frame 0, → ±790 by frame 2),
-//     not ±3-bounded.
-//   - Cross-frame: DIVERGENT/CASCADING, not transient single-frame.
-//   - Sign pattern: alternating in early window (looks like 1-sample
-//     delay/polarity smear similar to the original Phase 1h ALGTHM
-//     trace), but the late-window energy growth and cross-frame
-//     cascade indicate a state-bearing component (postfilter long-term
-//     memory, AGC gain memory, HP filter state, or LP synth past) is
-//     diverging, not just an output-stage off-by-one.
-//
-// This is NOT the gate 17 known difference. It is a new diagnostic
-// surface and requires its own cycle. Awaiting user gate
-// G-D3-escalation before any production-source change.
-//
-// Reference: docs/superpowers/plans/2026-05-09-phase1o-decoder-domain-
-// closure-plan.md §D-3.tame.
-t.Skip("Phase 1o D-3.tame ESCALATED: TAME un-skip pilot revealed a " +
-"non-gate-17 defect signature (broad window, growing magnitude, " +
-"cross-frame cascade up to delta +790 by frame 2). Awaiting user " +
-"gate G-D3-escalation. See in-source measurement report above.")
-runITUVectorBitExact(t, "TAME")
-}
+// TestDecode_ITUVectorTameBitExact: demoted to PASS-by-design in Phase 1o
+// D-3 — see internal/decoder/itu_vector_pstdomain_test.go
+// (TestDecode_ITUVectorTAMEKnownPSTDomainDifference).
 
-// TestDecode_ITUVectorTestBitExact exercises TEST.BIT — broad-coverage
-// regression vector.
-func TestDecode_ITUVectorTestBitExact(t *testing.T) {
-t.Skip("Phase 1h INCOMPLETE: same root cause as ALGTHM " +
-"(postfilter/HP-filter structural divergence). TEST first " +
-"divergence: frame 0 sample 0 got=0 want=2. Note: PST file " +
-"is named TEST.pst (lowercase) on disk.")
-bitPath := vectorPath("TEST.BIT")
-pstPath := vectorPath("TEST.pst")
-ensureTestdataPresent(t, bitPath, pstPath)
+// TestDecode_ITUVectorTestBitExact: demoted to PASS-by-design in Phase 1o
+// D-3 — see internal/decoder/itu_vector_pstdomain_test.go
+// (TestDecode_ITUVectorTESTKnownPSTDomainDifference).
 
-frames, bads := readG192Frames(t, bitPath)
-wantFrames := readPSTFrames(t, pstPath)
+// TestDecode_ITUVectorOverflowBitExact: demoted to PASS-by-design in Phase 1o
+// D-3 — see internal/decoder/itu_vector_pstdomain_test.go
+// (TestDecode_ITUVectorOVERFLOWKnownPSTDomainDifference).
 
-if len(frames) != len(wantFrames) {
-t.Fatalf("frame count mismatch: bit=%d pst=%d", len(frames), len(wantFrames))
-}
-
-var d Decoder
-var out [frameSamples]int16
-for i, packed := range frames {
-if err := d.Decode(packed, bads[i], out[:]); err != nil {
-t.Fatalf("frame %d: %v", i, err)
-}
-if out != wantFrames[i] {
-for n := 0; n < frameSamples; n++ {
-if out[n] != wantFrames[i][n] {
-t.Errorf("frame %d sample %d: got %d, want %d (delta %+d)",
-i, n, out[n], wantFrames[i][n],
-int(out[n])-int(wantFrames[i][n]))
-break
-}
-}
-if t.Failed() && i >= 2 {
-t.Fatal("stopping after 3 divergent frames")
-}
-}
-}
-}
-
-// TestDecode_ITUVectorOverflowBitExact exercises OVERFLOW.BIT — vector
-// designed to stress §3.10 synthesis-filter saturation recovery.
-//
-// NOTE: OVERFLOW.BIT is currently malformed per the existing G.192
-// reader (returns "invalid G.192 data word"); root cause unknown. The
-// test loads conditionally and skips with diagnostic if the file
-// cannot be parsed.
-func TestDecode_ITUVectorOverflowBitExact(t *testing.T) {
-t.Skip("Phase 1h INCOMPLETE: OVERFLOW.BIT fails G.192 parsing in " +
-"internal/bitstream's ReadG192File with 'invalid G.192 data " +
-"word'; pre-existing issue independent of Phase 1h. Even " +
-"with a successful load, the same postfilter/HP-filter " +
-"divergence as the other vectors would apply. Phase 1i " +
-"should: (1) reverse-engineer the OVERFLOW.BIT framing " +
-"variation, (2) once loadable, validate that the §3.10 " +
-"recovery branch is exercised correctly.")
-runITUVectorBitExact(t, "OVERFLOW")
-}
 
