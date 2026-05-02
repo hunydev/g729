@@ -89,6 +89,8 @@ Phase 1g sample (`docs/superpowers/plans/2026-04-22-phase1g-decoder-completion-r
 
 ### D-1 — Gate 17 permanent disposition (USER-GATED at task entry)
 
+- [x] D-1 (D-1b chosen, commit `1e57ffb`) — `TestDecode_AlgthmFrame0Sf0Sample5to7_NegativeOutput` rewritten as `TestDecode_AlgthmFrame0Sf0Sample5to7_KnownPSTDomainDifference` (PASS-by-design pin of production `[+2,+2,+2]` post-`ScaleUpSat ×2`; PST `[-1,-1,-1]` documented as known PST-file-domain ambiguity; 30-refutation ledger + 7-path mechanistic exhaustion + 5 hard-spec invariants + 3 R-blocking ambiguities preserved verbatim in docstring; reactivation triggers retained).
+
 **Sub-options (user must pick one before D-1 dispatch):**
 
 - **(D-1a) ARCHIVE** — delete `internal/decoder/stagef_octpostfix_regression_test.go`; archive its docstring + the 30-cycle evidence summary into `docs/superpowers/archives/gate17-evidence.md`. Cleanest end-state, irreversible without commit-history archaeology.
