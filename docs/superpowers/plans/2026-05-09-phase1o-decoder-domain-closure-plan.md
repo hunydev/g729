@@ -190,9 +190,11 @@ Pass criterion §4.6 below. For each exported symbol in `internal/decoder/decode
 
 **Outcome (D-4 commit):** Audited 5 exported symbols (package `decoder`, `Decoder`, `Decoder.Decode`, `Decoder.Reset`, `ErrShortInput`, `ErrShortOutput`) across `decode.go`, `doc.go`, `errors.go`, `types.go`. Rewrote `Decode` doc with explicit input contract / error table / state-mutation note and removed Phase-1g/1h jargon; expanded `Decoder` and `Reset` to document zero-value lifecycle + concurrency contract; expanded both error sentinels with caller guidance; added `# Usage` and `# Spec-conformance caveat` sections to package doc pointing at `itu_vector_pstdomain_test.go` for the seven PSTdomain-demoted vectors. `gofmt -l` for the four touched files: clean. `go vet ./...`: clean. Test baseline preserved at 394 PASS / 3 SKIP / 3 FAIL. Pre-existing 1-space alignment drift in the `doc.go` block-diagram (unicode box-drawing) is out of D-4 scope (godoc-content-only).
 
-### D-final — Phase 1o completion report
+### D-final — Phase 1o completion report — [x] DONE
 
-Write `docs/superpowers/plans/2026-05-XX-phase1o-decoder-domain-closure-completion-report.md` mirroring the Phase 1g layout. Sections:
+**Outcome (D-final commit):** Completion report landed at [`docs/superpowers/reports/2026-05-11-phase1o-completion-report.md`](../reports/2026-05-11-phase1o-completion-report.md). Phase 1o verdict: **READY for Phase 2**. All §4 pass criteria met; 394 PASS / 3 SKIP / 3 FAIL baseline preserved; `go vet ./...` clean. The 3 FAILs (`TestDiagnostic_SinglePulseChain`, `TestDecode_LowEnergyCodebookIsSmooth`, `TestDecode_SucceedsAcrossAllGainIndices`) and the 1 ALGTHM SKIP are explicit Phase 2 inheritance items per report §6 / §7.
+
+Original sections (mirroring Phase 1g layout) retained for traceability:
 1. Spec sections referenced (carry forward from Phase 1g–1n).
 2. Gate 17 final disposition record (D-1 outcome + commit).
 3. OVERFLOW.BIT loader fix record (D-2).
@@ -264,3 +266,7 @@ Phase 1o close MUST hand the following to Phase 2:
 3. Between every D-* task, run `go vet ./...` and a focused `go test ./internal/decoder/... -race` to catch regressions early.
 4. The 28-cycle preservation invariant on `stagef_bis_diagnostic_test.go` is **LIFTED** at Phase 1o entry; D-3.bis is its terminal disposition gate.
 5. No diagnostic-style speculative cycle may be entered in Phase 1o without an explicit user gate (see §7 G-D3-escalation).
+
+---
+
+**Phase 1o CLOSED at HEAD `d045cfa` (D-final commit lands on top). Verdict: READY for Phase 2.**
