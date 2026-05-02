@@ -274,4 +274,4 @@ Cγ (sample 5..7 잔여 mechanism 후보)
 
 - [x] Task 1 — F-non-Cgamma-revisit-1 (G-1 postfilter sub-stage trace) — commit `a4120f9`. Verdict: EQ_ALL (4 sub-stage 모두 polarity-preserve). G-1 (Cγ-postfilter) REFUTE.
 - [x] Task 2 — F-non-Cgamma-revisit-2 (G-2 synth IIR memory + Y magnitude trace) — Sub-test A verdict: EQ (4 state 모두; pre-sample-5 / post-5 / post-6 / post-7 production==reference). Sub-test B verdict: EQ (perturbed syn[5..7] sign == baseline [+,+,+]). G-2-IIR + G-2-Y-mag 모두 폐기 후보.
-- [ ] Task 3 — F-non-Cgamma-revisit-3 (synthesis + 3-시나리오 결정 트리).
+- [x] Task 3 — F-non-Cgamma-revisit-3 (synthesis + 3-시나리오 결정 트리) — synthesis report `docs/superpowers/plans/2026-05-04-phase1k-stage-f-non-cgamma-revisit-synthesis-report.md`. Verdict: (Cγ-refute) 시나리오 확정 (G-1 EQ_ALL + G-2 EQ_ALL). Phase 1k = **잠정 종결 (tentative close)**. Alternative path 3-옵션 (a/b/c) 사용자 게이트 권고. Side-finding 2건 (SF-1 tilt γ_t gating, SF-2 gate 17 RED disposition).
