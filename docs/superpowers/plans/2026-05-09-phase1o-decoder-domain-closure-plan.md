@@ -168,6 +168,8 @@ Untracked file preserved 28 cycles. **The preservation invariant is LIFTED at Ph
 - If it asserts a still-valid invariant, convert `t.Logf` → `t.Errorf` and `git add` as a regression test.
 - Otherwise, delete the file (and add a one-line entry to D-final completion report's "deleted diagnostics" list).
 
+**[x] DISPOSED (Option B, commit `a14ba36`).** End-to-end read confirmed the file held two purely diagnostic harnesses — `TestDiagnostic_FbisStageBoundaries_Sample0Trace` and `TestDiagnostic_FtrisStageBoundaries_Sf0FullTrace` — both `t.Logf`-only (escape-hatch 1, no `t.Errorf`). They measured ALGTHM frame-0 sf0 sample-0/0..39 across the four boundaries (`synth.Filter → postfilter.Filter → hpFilter → pcm.ScaleUpSat`) under the now-refuted "P fix int64-accum × ÷2 boundary entry" hypothesis (Phase 1k F-bis-2). Phase 0c-reentry (want-domain re-interpret) and Phase 1o D-3 PSTdomain closure jointly retired that investigative surface; the file produced no long-lived assertions worth promoting. Compiled & ran clean (PASS, no assertions). Deleted; helpers `dumpInt16` and `matchCount` (still consumed by `stagef_quart_diagnostic_test.go`) relocated to `internal/decoder/stagef_diagnostic_helpers_test.go`. 28-cycle preservation lineage is captured in checkpoints index 002..020 and in the commits referenced therein since the original Phase 1k F-bis-2 introduction. `go vet ./...` clean; full-suite delta = 0 (3 pre-existing FAILs unchanged: `TestDiagnostic_SinglePulseChain`, `TestDecode_LowEnergyCodebookIsSmooth`, `TestDecode_SucceedsAcrossAllGainIndices`).
+
 ### D-3.ter — Other diagnostic-test housekeeping (gate 19 promotion question)
 
 Inventory `internal/decoder/{stagef_*,phase*_,foct_*,diagnostic_*}_test.go` files (≥10 files). For each, decide:
