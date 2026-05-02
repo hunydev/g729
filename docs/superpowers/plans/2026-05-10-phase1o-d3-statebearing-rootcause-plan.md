@@ -511,3 +511,132 @@ Sub-hypotheses to enumerate before any production fix:
 - **R-2d** sf-0/sf-1 routing inversion (off-by-one between subframes).
 
 Owners: `internal/lsp/`, called by `internal/decoder/decode.go`.
+
+---
+
+### S-6: R-2 LP-coefficient interpolation routing — REFUTED (NO-FIX, CYCLE EXHAUSTED)
+
+**Sub-task ID:** S-6 (fix attempt 5 of 5 — LAST).
+**Test:** `internal/lsp/phase1o_d3_s6_r2_lp_dump_test.go::TestPhase1o_D3_S6_R2_LpDump`.
+**Test location:** `internal/lsp/` (not `internal/decoder/` as suggested in S-5; placed in
+`internal/lsp/` because the per-step intermediates required for byte-EQ verification
+(`combineResidual`, `rearrangeAdjacent`, `applyPredictor`, `enforceLSFStability`,
+`lsfToLSP`, `interpolateLSP`, `lspToLP`) are package-private to `internal/lsp`.
+
+**Production dump (TAME frame 0):**
+
+| step                                   | value                                                       |
+|----------------------------------------|-------------------------------------------------------------|
+| L0 / L1 / L2 / L3                      | 1 / 80 / 12 / 5                                             |
+| prevLSP frame-0 init (Q15)             | `[31441 27566 21458 13612 4663 -4663 -13612 -21458 -27566 -31441]` |
+| residual after combine (Q13)           | `[4171 6434 10117 12392 15718 17629 18888 19617 20131 21408]` |
+| lsf after MA + stability (Q13)         | `[3155 5661 8888 10964 13713 15841 17538 19135 20603 22442]` |
+| currLSP = cos(lsf) (Q15)               | `[30362 25244 15290 7533 -3390 -11647 -17697 -22703 -26552 -30160]` |
+| sf0_lsp = (prev+curr)>>1 (Q15)         | `[30901 26405 18374 10572 636 -8155 -15655 -22081 -27059 -30801]` |
+| sf1_lsp = curr (Q15)                   | `[30362 25244 15290 7533 -3390 -11647 -17697 -22703 -26552 -30160]` |
+| **sf0 a[0..10] (Q12)**                 | `[4096 2108 1500 -137 399 -135 156 -55 301 256 189]` |
+| **sf1 a[0..10] (Q12)**                 | `[4096 4215 3681  739 840  -88 340  128 810 653 378]` |
+
+**Mathematical anchor (closed-form):**
+For the synth filter at sample 1 with u[1]=1, a[0]=4096, s[0]=1:
+`s[1] = extract_h(98304 − 16·a[1])`. To get s[1]=1 we need `a[1] ≤ 2048` (Q12).
+Production sf0 a[1] = **2108** → s[1] = 0; required ≤ **2048** → gap = 60 LSB.
+sf1 a[1] = 4215 (would also give s[1] = 0 if mis-routed to sf0).
+
+**R-2 sub-hypothesis verdicts (all REFUTED):**
+
+| sub-H | spec citation | falsification predicate | verdict |
+|-------|---------------|------------------------|---------|
+| R-2a  | §4.3 Table 9 + §3.2.4 (line 843) "l̂_i = i·π/11" + §A.3.2 cos forward map | `initialPrevLSP` byte-EQ to `cos(i·π/11)·2^15` round | **REFUTED** — all 10 cells match `[31441 27566 21458 13612 4663 -4663 -13612 -21458 -27566 -31441]` byte-for-byte |
+| R-2b  | §3.2.5 eq. (24) lines 901..919 verbatim | `interpolateLSP` computes `sf0[i] = (prev[i] + curr[i]) >> 1` and `sf1[i] = curr[i]` | **REFUTED** — formula matches spec; `>>1` floor-vs-symmetric ambiguity already addressed at Phase 1n RC-1 (commit a47f03f) — branch-test showed it cannot lift sample-5..7 (and applies equally weakly here: a 1-LSB LSP perturbation cannot move a[1] by 60 LSB) |
+| R-2c  | §3.2.6 / §A.3.2 Chebyshev recurrence | `lspToLP` (Q28 int64 polynomial expansion → Q12 round) is byte-stable; the same code path drives both subframes; sf0 a[1]=2108 reproduces deterministically from interpolated LSP | **REFUTED** — the conversion is consistent and matches §3.2.6 eq.(15)-(18) |
+| R-2d  | §3.2.6 / §4.3 (Q12 contract: a[0] = 4096 unity) | `a[0] = 4096` byte-EQ for both subframes | **REFUTED** — sf0 a[0] = sf1 a[0] = 4096 |
+| R-2e  | §3.2.5 eq. (24) "Subframe 1" (first) gets interpolation, "Subframe 2" (second) gets curr | `lsp.Decoder.Decode` returns `(sf1, sf2)` where sf1=interpolated, sf2=curr; `decoder.Decode` consumes them in that order for `out[:40]` and `out[40:80]` | **REFUTED** — public `Decode` returns sf1=`[…2108…]` (matches manual interpolated path) and sf2=`[…4215…]` (matches manual curr-only path); routing is byte-EQ to spec |
+| R-2f  | §3.2.6 (a[0] = 1.0 in Q12 = 4096) | `sf0_a[0] == sf1_a[0] == 4096` | **REFUTED** — both subframes have a[0] = 4096 |
+
+**VERDICT:** R-2 family fully refuted. The sf0 a[1] = 2108 produced by the production
+chain (combineResidual → MA predictor → stability → lsfToLSP → interpolateLSP →
+lspToLP) is the **deterministic spec-conformant output** of every byte-EQ-checked step
+along the §3.2.4 / §3.2.5 / §3.2.6 / §A.3.2 path. No enumerated R-2 mechanism shifts
+a[1] by the required 60 LSB.
+
+**Cumulative refutation budget: 5 / 5 consumed (CYCLE EXHAUSTED).**
+S-2 H-1 (agc init), S-3 H-11 (handoff stage), S-4 R-1 (synth rounding),
+S-5 R-3 (BuildExcitation), S-6 R-2 (LP interpolation routing).
+
+**Anchor commits:** S-1=`aa27ad1`, S-2=`0428df7`, S-3=`bd37512`, S-4=`da089b5`,
+S-5=`be80eaf`, S-6=(this commit).
+
+---
+
+## §15. G-D3-EXHAUSTED — mandatory user gate
+
+**Status:** Cycle exhausted within the 5-attempt budget mandated by §1 / §5.2.
+**All enumerated state-bearing hypotheses (H-1..H-15 from §2 + R-1/R-2/R-3 from
+S-3/S-4/S-5 re-rankings) refuted byte-EQ against ITU-T G.729 (06/2012) PDF +
+G.191 STL §6.2.1 Table 10 basop semantics.**
+
+### Per-attempt summary (anti-precedent compliance)
+
+| # | Stage | Hypothesis family | Falsification anchor | Verdict | Commit |
+|---|-------|-------------------|----------------------|---------|--------|
+| 1 | S-2 | H-1 agc-init seed (Q24) | §A.4.2.4 / §4.3 catch-all + agc.go:53–56 | REFUTED — seed flip leaves sample 1 unchanged | `0428df7` |
+| 2 | S-3 | H-11 synth↔postfilter handoff (and 4 sub-hyps) | §3.10 + per-stage byte-EQ trace | REFUTED — defect localised INSIDE `synth.Filter`; sample 1 is wrong at the synth output already | `bd37512` |
+| 3 | S-4 | R-1 synth rounding boundary (6 sub-hyps a..f) | §4.1.6 eq. (77) + G.191 STL Table 10 (`L_mult`, `L_shl`, `round`, `extract_h`) | REFUTED — all G.191 basops byte-EQ; real-valued y[1] = 0.485 rounds to 0 by spec semantics | `da089b5` |
+| 4 | S-5 | R-3 BuildExcitation (5 sub-hyps a..e) | §4.1.6 eq. (75) + §3.8 + G.191 basops | REFUTED — u[0..7] = `[1 1 1 1 0 0 0 0]` byte-EQ to hand-computed | `be80eaf` |
+| 5 | S-6 | R-2 LP interpolation routing (6 sub-hyps a..f) | §3.2.4 line 843 + §3.2.5 eq. (24) + §3.2.6 + §4.3 Table 9 | REFUTED — every step (init, residual, MA, stability, lsfToLSP, interpolation, lspToLP, sf0/sf1 routing, a[0]=4096) byte-EQ to spec | (this commit) |
+
+### Defect localization residual
+
+After 5 cycles of byte-EQ falsification, the picture is:
+
+- **Stage that produces the off-by-2 at TAME f0 sample 1:** `synth.Filter` (refuted as
+  the *introducing* defect by S-4: G.191 basop semantics + closed-form arithmetic show
+  the implementation is byte-EQ to spec eq. (77)).
+- **Inputs to `synth.Filter`** — ALL byte-EQ to spec:
+    - u[0..7] = `[1 1 1 1 0 0 0 0]` byte-EQ via §4.1.6 eq. (75) (S-5).
+    - sf0 a[0..10] = `[4096 2108 1500 …]` byte-EQ via §3.2.4 / §3.2.5 / §3.2.6 (S-6).
+    - pastSynth = 0 (zero-init, §4.3 catch-all).
+- **Real-valued spec recursion:** `s(1) = u(1) − a(1)·s(0)/a(0) = 1 − 2108/4096 = 0.485`.
+  Round-to-nearest sends 0.485 → 0. The ITU PST byte-EQ target (final = 2 → s ≈ 1)
+  is **inconsistent with the closed-form spec recursion under round-to-nearest** at this
+  one boundary.
+
+The gap is irreducible given the enumerated mechanism set: every hypothesis-derived
+input to the synth recursion has been verified byte-EQ to the ITU spec, yet the spec
+recursion itself produces a result that differs from the ITU PST target by exactly the
+boundary-crossing 1-LSB rounding-direction flip. This implies **at least one of**:
+
+(a) the ITU PST target was generated by an implementation choice (Q-format,
+    intermediate accumulator width, rounding-mode convention) that is not derivable
+    from the published PDF spec alone — i.e., a known-ambiguity surface that requires
+    going beyond the PDF (forbidden by ABSOLUTE INVARIANTS);
+(b) one of the hypothesis families (H-1..H-15, R-1, R-2, R-3) hides a sub-mechanism
+    that was not surfaced by the byte-EQ predicates we constructed (anti-precedent
+    risk: under-specified falsification);
+(c) the textbooks (Kondoz, Spanias) describe an implementation convention that the
+    PDF is silent on but that maps to the ITU PST byte-EQ target.
+
+### Mandatory user-gate G-D3-EXHAUSTED — decision required
+
+Per parent plan §5.2 and §1 of this plan, no further fix attempts are permitted
+without explicit user direction. The user must select ONE of the following next-cycle
+directions:
+
+1. **Re-enumerate hypotheses** — open a Phase 1o D-4 plan with a fresh hypothesis
+   set (e.g., textbook-driven Q-format conventions on the synth accumulator;
+   `pcm.ScaleUpSat` semantics audit; postfilter cross-stage Q-format chain audit).
+2. **Accept known-difference** — formally document the TAME f0 sample-1 ±2 deviation
+   as an irreducible spec-ambiguity artefact, retire the per-vector byte-EQ gate, and
+   replace it with a perceptual / SNR / RMS tolerance gate. Phase 1o then closes on
+   tolerance compliance rather than byte-EQ.
+3. **Pause Phase 1o** — escalate to a higher-level audit (e.g., procure Kondoz §11 /
+   Spanias §10 verbatim quotes on the §4.1.6 eq. (77) Q-format, or commission an
+   independent spec re-read by another agent), with Phase 1o suspended in the interim.
+4. **Other** — user-defined direction; please specify.
+
+The 5-attempt cycle exhaustion is a hard stop. Sample-1 production output `0` is
+**spec-conformant** under the byte-EQ-verified reading of every hypothesised input
+path; the ITU PST byte-EQ target `1` (post-scale `2`) cannot be reached by any
+single-fix change to any enumerated container without violating a separately-verified
+spec invariant.
