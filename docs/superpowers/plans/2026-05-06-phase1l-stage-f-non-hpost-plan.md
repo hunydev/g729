@@ -404,6 +404,6 @@ F-non-Hpost (NEW (P0c-inter-subframe-postfilter-state) 구체화, 사용자 G-XS
 
 ## Task 진행 status
 
-- [x] Task 1 — HP-1 (subframe boundary postfilter state carryover/reset, 3 vector × 4 sub-state) — completed.
-- [x] Task 2 — HP-2 (§A.4.2.5 HP filter frame-edge state, 2 vector × 2 region) — completed.
-- [ ] Task 3 — HP-3 (synthesis, 3-시나리오 결정 트리) — pending.
+- [x] Task 1 — HP-1 (subframe boundary postfilter state carryover/reset, 3 vector × 4 sub-state) — completed (`076b6de`).
+- [x] Task 2 — HP-2 (§A.4.2.5 HP filter frame-edge state, 2 vector × 2 region) — completed (`2ee0009`).
+- [x] Task 3 — HP-3 (synthesis, 3-시나리오 결정 트리) — completed; **(Hpost-refute)** 확정 → Phase 1l 잠정 종결. 보고서: `2026-05-06-phase1l-stage-f-non-hpost-synthesis-report.md`.
