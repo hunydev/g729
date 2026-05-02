@@ -7,6 +7,7 @@ import (
 	"github.com/exedev/g729/internal/fcb"
 	"github.com/exedev/g729/internal/fixed"
 	"github.com/exedev/g729/internal/gain"
+	"github.com/exedev/g729/internal/lsp"
 	"github.com/exedev/g729/internal/pitch"
 	"github.com/exedev/g729/internal/synth"
 )
@@ -268,4 +269,273 @@ func classifyFnonXHypothesis(uPitch, uCode, uTotal []int16) string {
 	default:
 		return "X-both (두 sub-항 모두 기여 — 단일 fix scope 비결정; Task 4 위임)"
 	}
+}
+
+// TestDiagnostic_FnonPrelimYLPCrossCheck cross-checks the LP synthesis
+// filter input coefficients a[0..10] (Q12, a[0]=4096) for ALGTHM frame
+// 0 sf0 against the F-sept-2 §3.2.6 reference and (optionally) probes
+// whether forced sign-flip of a[1..10] alters the sign of syn[5..7].
+//
+// Spec ground-truth (PDF verbatim grep, see report §0):
+//   - ITU-T G.729 (06/2012) §A.4.1 (PDF p.42) "Same as described in
+//     clause 4.1" (Annex A decoder reuses §4.1 LSP decoding +
+//     interpolation verbatim).
+//   - ITU-T G.729 (06/2012) §4.1 (PDF p.21) LSP decoding +
+//     §4.1.2 LSP interpolation per subframe.
+//   - ITU-T G.729 (06/2012) §3.2.6 (PDF p.13) LSP-to-LP polynomial
+//     conversion (F1/F2 expansion + assembly).
+//   - ITU-T G.729 (06/2012) §4.3 Table 9 codec-start state
+//     (pastResidual = i·π/11, pastLSP_prev = cos(i·π/11)).
+//   - ITU-T G.729 (06/2012) §3.10 LP synthesis filter
+//     ŝ(n) = u(n) − Σ aᵢ · ŝ(n−i) (used by the forced-flip stimulus).
+//
+// E2 declaration (citation drift): plan §"Spec § 인용" cites §A.3.2
+// (encoder-side LP analysis & quantization) + §A.3.3 (perceptual
+// weighting) for the Y cross-check. PDF grep confirms those sections
+// are encoder-side and therefore not the substantive citation for the
+// decoder's a[] reconstruction. The substantive citation chain is
+// §A.4.1 → §4.1 + §4.1.2 + §3.2.6 + §4.3 Table 9. Same correction
+// pattern as F-non-prelim-1 (§A.3.5 → §4.1.5/§4.1.6 via §A.4.1).
+//
+// F-sept-2 (TestDiagnostic_FseptLPReferenceCrossCheck) PASSes at frame
+// 0 with max|Δ|=6 + sign-equal across all 11 a[] coefficients (L3
+// 분류 — magnitude gap exists but signs match). This task re-measures
+// the same a[0..10] from the same production lsp.Decoder path and
+// additionally measures whether a[]'s *sign* content has any causal
+// influence on syn[5..7] sign (forced-flip stimulus, §3.10 IIR
+// linearity probe).
+//
+// Phase 0.4 §1 강압-적합 회피: forced-flip is a *probe*, not a hypothesis
+// confirmation. The probe answers "if a[] sign were flipped, would
+// syn[5..7] sign flip?" — independent of whether the *current* a[] is
+// spec-compliant. Verdict gate = sign-equal (a[] sign vs §3.2.6 ref);
+// magnitude gap (max|Δ|) is reported as auxiliary, since the F-non
+// cycle's question is sign-source identification, not magnitude
+// precision (the latter is F-sept-2 L3 territory).
+//
+// production 변경 0. assertion 0 (measurement-only).
+func TestDiagnostic_FnonPrelimYLPCrossCheck(t *testing.T) {
+bitPath := vectorPath("ALGTHM.BIT")
+ensureTestdataPresent(t, bitPath)
+
+frames, _ := readG192Frames(t, bitPath)
+var f bitstream.Frame
+if err := bitstream.Unpack(frames[0], &f); err != nil {
+t.Fatalf("Unpack frame 0: %v", err)
+}
+
+// (a) production a[0..10] for frame 0 sf0 via lsp.Decoder
+//     (= same path as F-sept-2 §1 + F-oct-postfix2-prelim Task 4 §3).
+var lspDec lsp.Decoder
+lspDec.Reset()
+sf0Prod, _ := lspDec.Decode(lsp.Indices{
+L0: uint8(f.L0), L1: uint8(f.L1), L2: uint8(f.L2), L3: uint8(f.L3),
+})
+
+t.Logf("──────── F-non-prelim-2 Y LP a[] cross-check (ALGTHM frame 0 sf0) ────────")
+t.Logf("indices: L0=%d L1=%d L2=%d L3=%d", f.L0, f.L1, f.L2, f.L3)
+t.Logf("[Y a[0..10] (frame 0 sf0)] = [%+5d %+5d %+5d %+5d %+5d %+5d %+5d %+5d %+5d %+5d %+5d]  Q12",
+sf0Prod[0], sf0Prod[1], sf0Prod[2], sf0Prod[3], sf0Prod[4], sf0Prod[5],
+sf0Prod[6], sf0Prod[7], sf0Prod[8], sf0Prod[9], sf0Prod[10])
+
+// (b) F-sept-2 reference cross-check (re-uses the same float64
+//     §3.2.6 reference function defined in stagef_sept_diagnostic_test.go).
+sf0Ref := referenceLSPToLPSubframe0(t, uint8(f.L0), uint8(f.L1), uint8(f.L2), uint8(f.L3))
+
+byteEqual := true
+signEqual := true
+maxAbsDelta := int32(0)
+t.Logf("──────── F-sept-2 reference cross-check (Q12 byte / sign comparison) ────────")
+t.Logf("idx   prod_q12   ref(float64)        ref(round_q12)   Δ   sign(prod) sign(ref)")
+for i := 0; i <= 10; i++ {
+refQ12 := int16(roundFloat(sf0Ref[i] * 4096))
+delta := int32(sf0Prod[i]) - int32(refQ12)
+if delta != 0 {
+byteEqual = false
+}
+ad := delta
+if ad < 0 {
+ad = -ad
+}
+if ad > maxAbsDelta {
+maxAbsDelta = ad
+}
+ps := signOfInt16(sf0Prod[i])
+rs := signOfInt16(refQ12)
+if ps != rs {
+signEqual = false
+}
+t.Logf("[%2d]   %+6d     %+18.12f   %+6d           %+d     %s          %s",
+i, sf0Prod[i], sf0Ref[i], refQ12, delta, ps, rs)
+}
+t.Logf("[Y F-sept-2 reference cmp]    a-byte-equal=%v  sign-equal=%v  max|Δ|=%d",
+byteEqual, signEqual, maxAbsDelta)
+
+// (c) Forced a-sign-flip stimulus on synth.Filter — probe whether
+//     a[]'s sign content is causally bound to syn[5..7] sign under
+//     the §3.10 IIR. Build u[] via the production excitation path
+//     (= F-non-prelim-1 replicated chain) so that the only varying
+//     factor between baseline and flipped runs is a[1..10] sign.
+tInt, tFrac := pitch.DecodeDelaySubframe1(uint8(f.P1))
+var pastExc [pastExcLen]int16
+var v [subframeLen]int16
+pitch.AdaptiveCodebook(tInt, tFrac, pastExc[:], &v)
+betaQ14 := fcb.ClampPitchGainForEnhancement(0)
+var c [subframeLen]int16
+fcb.Decode(fcb.Indices{Positions: f.C1, Signs: uint8(f.S1)}, tInt, betaQ14, &c)
+var gn gain.Decoder
+gn.Reset()
+gpQ14, gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+var u [subframeLen]int16
+synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+
+// Baseline syn[] with production a[].
+var synBase [subframeLen]int16
+{
+var sy synth.Synthesizer
+sy.Reset()
+fixed.ClearOverflow()
+sy.Filter(&sf0Prod, &u, &synBase)
+}
+
+// Flipped a[]: a[0]=4096 unchanged (spec invariant), a[1..10] negated
+// with int16 saturation (-32768 → 32767 if encountered; not expected
+// for this vector, F-oct-postfix2-prelim §3 dump shows |a[i]| ≤ ~2200).
+var sf0Flip [lpcOrder + 1]int16
+sf0Flip[0] = sf0Prod[0]
+for i := 1; i <= 10; i++ {
+v := sf0Prod[i]
+if v == -32768 {
+sf0Flip[i] = 32767
+} else {
+sf0Flip[i] = -v
+}
+}
+
+var synFlip [subframeLen]int16
+{
+var sy synth.Synthesizer
+sy.Reset()
+fixed.ClearOverflow()
+sy.Filter(&sf0Flip, &u, &synFlip)
+}
+
+t.Logf("──────── Forced a-sign-flip syn[5..7] (a[1..10] → −a[1..10], a[0]=4096 fixed) ────────")
+t.Logf("[Y a[0..10] flipped] = [%+5d %+5d %+5d %+5d %+5d %+5d %+5d %+5d %+5d %+5d %+5d]  Q12",
+sf0Flip[0], sf0Flip[1], sf0Flip[2], sf0Flip[3], sf0Flip[4], sf0Flip[5],
+sf0Flip[6], sf0Flip[7], sf0Flip[8], sf0Flip[9], sf0Flip[10])
+t.Logf("[Y forced a-sign-flip syn[5..7]]  baseline=[%+d %+d %+d]  flipped=[%+d %+d %+d]",
+synBase[5], synBase[6], synBase[7], synFlip[5], synFlip[6], synFlip[7])
+t.Logf("  per-sample sign:  baseline=[%s %s %s]  flipped=[%s %s %s]",
+signOfInt16(synBase[5]), signOfInt16(synBase[6]), signOfInt16(synBase[7]),
+signOfInt16(synFlip[5]), signOfInt16(synFlip[6]), signOfInt16(synFlip[7]))
+
+signFlipped := 0
+for n := 5; n <= 7; n++ {
+bs := signOfInt16(synBase[n])
+fs := signOfInt16(synFlip[n])
+if bs != "0" && fs != "0" && bs != fs {
+signFlipped++
+}
+}
+signFlipInduced := signFlipped == 3
+t.Logf("[Y forced a-sign-flip] sign-flipped-samples=%d/3  sign-flip-induced=%v",
+signFlipped, signFlipInduced)
+
+// Magnitude change measurement (independent of sign).
+magChanged := false
+for n := 5; n <= 7; n++ {
+if synFlip[n] != synBase[n] {
+magChanged = true
+}
+}
+
+// (d) Y verdict (Phase 0.4 §1 — measurement-driven; no a-priori).
+//
+// Verdict gate = sign-equal (a[] sign content vs §3.2.6 reference) —
+// the *sign-source* predicate for the F-non-prelim cycle. byte-equal
+// / max|Δ| is the magnitude-precision predicate, reported as
+// auxiliary (F-sept-2 baseline classifies max|Δ|=6 as L3 정합 gap
+// but PASS — orthogonal to the sign-source question of this cycle).
+t.Logf("──────── Y 가설 평가 ────────")
+t.Logf("[Y 결정] LP a[] spec 정합성 = %s; 부호 결정성 = %s",
+ySpecLabel(byteEqual, signEqual, maxAbsDelta),
+ySignDeterminismLabel(signFlipInduced, magChanged))
+verdict := classifyFnonYHypothesis(signEqual, signFlipInduced, magChanged)
+t.Logf("Y 가설 후보: Y-refute (sign-equal + flip 시 syn[5..7] 변화 0) / Y-flip (sign-equal + flip 시 syn[5..7] 부호 flip — a[] sign 결정성 보유, 단 현재 a sign 정합) / Y-magnitude (sign-equal + flip 시 magnitude 만 변화, 부호 보존) / Y-suspect (sign-mismatch — a[] sign 자체 결함) / Y-inconclusive")
+t.Logf("verdict: %s", verdict)
+}
+
+// ySpecLabel maps (byteEqual, signEqual, maxAbsDelta) onto a Korean
+// verdict label for the LP a[] spec-compliance dimension. Sign and
+// magnitude are reported as separate axes because they are diagnosed
+// at different cycles (sign = F-non-prelim, magnitude = F-sept-2 L3).
+func ySpecLabel(byteEqual, signEqual bool, maxAbsDelta int32) string {
+switch {
+case byteEqual:
+return "완전 정합 (byte-equal vs §3.2.6 reference)"
+case signEqual && maxAbsDelta <= 2:
+return "정합 (sign-equal + max|Δ|≤2 — Q12 rounding 정상)"
+case signEqual:
+return "sign-정합 (sign-equal, max|Δ|=" +
+itoa(maxAbsDelta) + " — F-sept-2 L3 magnitude gap; 본 cycle 부호 source 와 직교)"
+default:
+return "sign-결함 (sign-mismatch vs §3.2.6 reference — a[] sign 자체 spec 위반)"
+}
+}
+
+// itoa: minimal int32 → string helper (avoid strconv import drift).
+func itoa(v int32) string {
+if v == 0 {
+return "0"
+}
+neg := v < 0
+if neg {
+v = -v
+}
+var buf [12]byte
+i := len(buf)
+for v > 0 {
+i--
+buf[i] = byte('0' + v%10)
+v /= 10
+}
+if neg {
+i--
+buf[i] = '-'
+}
+return string(buf[i:])
+}
+
+// ySignDeterminismLabel maps the forced-flip outcome onto a Korean label
+// for the a[] sign-determinism dimension (independent of whether the
+// *current* a[] is spec-compliant).
+func ySignDeterminismLabel(signFlipInduced, magChanged bool) string {
+switch {
+case signFlipInduced:
+return "보유 (forced flip 시 syn[5..7] 3/3 부호 flip — a[] sign 이 syn 부호 결정에 직접 기여)"
+case magChanged:
+return "부분 (forced flip 시 magnitude 변화하나 부호 보존 — u[] 자기-피드백이 syn 부호를 지배)"
+default:
+return "부재 (forced flip  syn[5..7] 변화 무 — a[] sign 영향 0)"
+}
+}
+
+// classifyFnonYHypothesis maps the (signEqual, signFlipInduced,
+// magChanged) measurement triple onto the five Y-hypothesis labels.
+// Verdict gate = signEqual (a[] sign vs §3.2.6 reference); magnitude
+// gap is reported by ySpecLabel and not used to gate the verdict (it
+// is F-sept-2 L3 territory, orthogonal to the sign source question).
+func classifyFnonYHypothesis(signEqual, signFlipInduced, magChanged bool) string {
+if !signEqual {
+return "Y-suspect (a[] sign ≠ §3.2.6 reference — fix scope = internal/lsp LSP→a[] 변환)"
+}
+switch {
+case signFlipInduced:
+return "Y-flip (sign-equal + forced flip 시 syn[5..7] 부호 flip — a[] sign 결정성 보유. 단 현재 a[] sign 이 spec 정합이므로 부호 결함은 a[] 외부; F-non-prelim-1 X-fcb verdict 잔존 우선)"
+case magChanged:
+return "Y-magnitude (sign-equal + forced flip 시 syn[5..7] magnitude 만 변화, 부호 보존 — a[] 가 syn 부호에 미치는 영향 부분적; 부호 source 는 u[] 자기-피드백 — F-non-prelim-1 X-fcb verdict 정합)"
+default:
+return "Y-refute (sign-equal + forced flip 시 syn[5..7] 변화 0 — a[] 가 syn 부호 결함 후보에서 완전 배제)"
+}
 }
