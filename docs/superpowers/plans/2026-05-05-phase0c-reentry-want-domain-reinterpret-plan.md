@@ -391,5 +391,5 @@ NE 시나리오 (특히 unit NE) → 즉시 Task 2 보류, P0c-format-fix cycle 
 
 - [x] Task 1 — P0c-1 (ALGTHM.PST format / endianness / header / 단위 재검증) — done.
 - [x] Task 2 — P0c-2 (want chain stage 식별, 4 stage × frame 0 80 sample) — done. S* = postX2 (argmin sumAbsDiff = 314), signMatch = 76/80 (< 78 escape-hatch). Verdict = NE (sample 5..7 + 1 추가 sample sign mismatch); spec assumption (PST = post-AGC+HP+×2) chain-stage 식별 측면에서는 holds (S* = postX2) but escape-hatch threshold 미충족. 사용자 게이트 권장.
-- [ ] Task 3 — P0c-3 (cross-vector Δ pattern, ALGTHM + SPEECH + FIXED + PITCH) — pending.
+- [x] Task 3 — P0c-3 (cross-vector Δ pattern, ALGTHM + SPEECH + FIXED + PITCH) — pending.
 - [ ] Task 4 — synthesis (ad-hoc, 본 plan 외 dispatch) — pending.
