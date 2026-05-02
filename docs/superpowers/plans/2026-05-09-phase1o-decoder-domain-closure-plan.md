@@ -103,6 +103,8 @@ Phase 1g sample (`docs/superpowers/plans/2026-04-22-phase1g-decoder-completion-r
 
 ### D-2 — OVERFLOW.BIT loader fix (TDD red → green)
 
+- [x] D-2 (F2 chosen, commit `afe3686`) — `ReadG192FrameLenient` added (accepts `0x0000` ≡ logical-0 softbit alongside canonical `0x007F`/`0x0081`); strict `ReadG192Frame` unchanged; `ReadG192File` rewired to lenient. Frame-19 anomaly in `OVERFLOW.BIT` (80 zero data-words behind canonical 0x6B21 sync, characterized in commit `1e83d6b`) now parses cleanly via the lenient path. Lenience documented as informed inference from G.191 STL "indeterminate softbit" convention.
+
 1. **D-2 RED** — add `internal/bitstream/g192_overflow_test.go` exercising `ReadG192File` on `OVERFLOW.BIT`; assert `len(frames) == 384` and the byte content of frame 19 is well-formed under whatever framing variant is selected. Test FAILs at HEAD with `ErrBadG192Bit`.
 2. **D-2 measurement** — manual binary inspection of `OVERFLOW.BIT` bytes 3116+ to identify the framing variation (endianness flip / per-bit encoding shift / mid-file resync). Document in commit body.
 3. **D-2 GREEN** — implement chosen fix variant (lenient loader / variant constructor / pre-normaliser). Test PASSes.

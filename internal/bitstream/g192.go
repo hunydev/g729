@@ -83,18 +83,49 @@ var g192BufPool = sync.Pool{
 // ErrBadG192Sync / ErrBadG192Length / ErrBadG192Bit if the stream
 // content does not match the G.192 conventions.
 //
-// ReadG192Frame reads one G.192 frame from r. frame must be at least
-// FrameBytes long and is overwritten with the packed bit pattern.
-// Returns bad = true if the sync word indicated a frame erasure.
-//
-// Returns io.EOF if the reader is empty at the start of a frame, or
-// io.ErrUnexpectedEOF if the reader ends mid-frame. Returns
-// ErrBadG192Sync / ErrBadG192Length / ErrBadG192Bit if the stream
-// content does not match the G.192 conventions.
+// Strict policy: only the canonical softbit markers 0x007F (logical 0)
+// and 0x0081 (logical 1) are accepted. Any other 16-bit data word —
+// including 0x0000 — yields ErrBadG192Bit. See ReadG192FrameLenient
+// for the relaxed variant used by the ITU test-vector loader.
 //
 // Zero-allocation: the implementation reads into a pooled
 // G192FrameBytes-sized buffer via a single io.ReadFull call.
 func ReadG192Frame(r io.Reader, frame []byte) (bool, error) {
+	return readG192FrameWithSoftbitPolicy(r, frame, false)
+}
+
+// ReadG192FrameLenient reads one G.192 frame from r with a relaxed
+// softbit policy: the data words 0x0000 are additionally accepted and
+// mapped to logical 0, alongside the canonical 0x007F (logical 0) and
+// 0x0081 (logical 1). All other validation (sync word, length word,
+// frame-bits count, error semantics) is identical to ReadG192Frame.
+//
+// Rationale (informed inference, not chapter-and-verse):
+// the ITU G.729A test vector OVERFLOW.BIT contains exactly one frame
+// (index 19) whose 80 data-words are all 0x0000 behind a canonical
+// 0x6B21 sync + length=80 header. Strict parsing rejects this frame
+// with ErrBadG192Bit; the rest of the file is bit-perfect G.192. See
+// internal/bitstream/phase1o_d2_overflow_diagnostic_test.go (commit
+// 1e83d6b) for the full structural survey:
+//
+//   "Across all 30 720 bit-words (384 × 80), the only values observed
+//    are 0x007F (~17 505), 0x0081 (~13 135), and 0x0000 (exactly 80,
+//    ALL concentrated in a single frame)."
+//
+// G.191 STL (per the broader ITU softbit convention referenced in
+// textbook treatments and STL2009 source documentation) defines
+// 0x0000 as the "indeterminate" / "unknown" softbit. We cannot quote
+// chapter-and-verse without the G.191 PDF in-repo, so this lenient
+// mapping is recorded as informed inference, not citation.
+func ReadG192FrameLenient(r io.Reader, frame []byte) (bool, error) {
+	return readG192FrameWithSoftbitPolicy(r, frame, true)
+}
+
+// readG192FrameWithSoftbitPolicy is the shared implementation of the
+// strict and lenient G.192 frame readers. When allowZeroSoftbit is
+// true, a data word of 0x0000 is accepted and treated as logical 0;
+// when false, only the canonical 0x007F / 0x0081 markers are valid.
+func readG192FrameWithSoftbitPolicy(r io.Reader, frame []byte, allowZeroSoftbit bool) (bool, error) {
 	if len(frame) < FrameBytes {
 		return false, ErrShortOutput
 	}
@@ -134,7 +165,12 @@ func ReadG192Frame(r io.Reader, frame []byte) (bool, error) {
 			bitIdx := 7 - (i & 7)
 			out[byteIdx] |= 1 << uint(bitIdx)
 		case G192Bit0:
-		// nothing to set
+			// nothing to set
+		case 0x0000:
+			if !allowZeroSoftbit {
+				return false, ErrBadG192Bit
+			}
+			// lenient: indeterminate softbit → logical 0
 		default:
 			return false, ErrBadG192Bit
 		}
@@ -149,12 +185,21 @@ func ReadG192Frame(r io.Reader, frame []byte) (bool, error) {
 //
 // Intended for loading ITU test-vector .bit files, not for the hot
 // path: it allocates one backing buffer for the full output.
+//
+// Softbit policy: ReadG192File uses ReadG192FrameLenient internally so
+// that the ITU G.729A OVERFLOW.BIT vector — which carries one frame
+// (index 19) of 80 indeterminate 0x0000 softbit words behind otherwise
+// canonical headers — loads cleanly. See ReadG192FrameLenient for the
+// lenience rationale and provenance (informed inference from G.191 STL
+// "indeterminate softbit" convention; not chapter-and-verse). Callers
+// that require strict 0x007F/0x0081-only validation should drive
+// ReadG192Frame directly.
 func ReadG192File(r io.Reader) ([][]byte, []bool, error) {
 	var frames [][]byte
 	var bads []bool
 	for {
 		frame := make([]byte, FrameBytes)
-		bad, err := ReadG192Frame(r, frame)
+		bad, err := ReadG192FrameLenient(r, frame)
 		if err == io.EOF {
 			return frames, bads, nil
 		}

@@ -309,36 +309,42 @@ func TestPhase1o_D2_OverflowDiagnostic(t *testing.T) {
 	})
 
 	t.Run("Subtest_LoaderFailureReproduction", func(t *testing.T) {
+		// Phase 1o D-2 (F2) update: ReadG192File now uses the lenient
+		// softbit policy (ReadG192FrameLenient internally), so OVERFLOW.BIT
+		// loads cleanly. The strict ReadG192Frame still rejects frame 19's
+		// all-zero data-words with ErrBadG192Bit — that is the regression
+		// boundary preserved by this subtest post-fix.
 		_, _, err := ReadG192File(bytes.NewReader(data))
-		if err == nil {
-			t.Fatalf("expected ReadG192File to reject OVERFLOW.BIT; got nil")
+		if err != nil {
+			t.Fatalf("ReadG192File (lenient) should accept OVERFLOW.BIT post-D-2; got %v", err)
 		}
-		if !errors.Is(err, ErrBadG192Bit) {
-			t.Logf("loader error: %v (expected ErrBadG192Bit)", err)
-		} else {
-			t.Logf("loader error confirmed: %v", err)
-		}
+		t.Logf("ReadG192File (lenient) accepted OVERFLOW.BIT cleanly (D-2 F2 contract).")
 
-		// Also confirm at exactly which frame index the strict reader trips.
+		// Strict reader contract: trips at exactly frame index 19 with
+		// ErrBadG192Bit on the 0x0000 data-word.
 		r := bytes.NewReader(data)
 		buf := make([]byte, FrameBytes)
 		successful := 0
+		var stopErr error
 		for {
 			_, ferr := ReadG192Frame(r, buf)
 			if ferr == io.EOF {
+				stopErr = io.EOF
 				break
 			}
 			if ferr != nil {
-				t.Logf("ReadG192Frame trips at frame index %d with: %v", successful, ferr)
+				stopErr = ferr
 				break
 			}
 			successful++
 		}
-		if successful != 19 {
-			t.Logf("strict loader accepted %d frames before tripping (want 19)", successful)
-		} else {
-			t.Logf("strict loader accepted exactly %d frames before tripping (matches frame-19 anomaly)", successful)
+		if !errors.Is(stopErr, ErrBadG192Bit) {
+			t.Fatalf("strict ReadG192Frame should trip with ErrBadG192Bit; got %v", stopErr)
 		}
+		if successful != 19 {
+			t.Fatalf("strict reader accepted %d frames before tripping; want 19 (frame-19 anomaly)", successful)
+		}
+		t.Logf("strict ReadG192Frame trips at frame index %d with %v (matches D-2 measurement).", successful, stopErr)
 	})
 
 	t.Run("Subtest_G192SpecCrossref", func(t *testing.T) {
