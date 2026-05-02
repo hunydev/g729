@@ -202,3 +202,54 @@ Untracked at HEAD (`?? internal/decoder/stagef_bis_diagnostic_test.go`). 28-cycl
 | S-6 | production fix on rank-5 | same | YES → on FAIL/PARTIAL, **MANDATORY USER GATE** per §5.2 |
 
 Total budget: **1 measurement + 5 fix attempts**. Beyond that, escalation only.
+
+---
+
+## 12. S-1 completion record
+
+**Status:** ✅ S-1 completed — see commit (test(decoder): Phase 1o D-3 S-1 TAME frame 0/1 state dump).
+
+**Test:** `internal/decoder/phase1o_d3_s1_state_dump_diagnostic_test.go` ⇒ `TestPhase1o_D3_S1_TameFrame01StateBoundaryDump` PASSes (measurement-only, `t.Logf` dumps + final ranking summary). Cross-package private-state access via `reflect+unsafe` from a same-package test file (no production source change in any package).
+
+**Measured first-divergence (TAME, fresh decoder):**
+- IP-E (end of frame 0): sample **1**, got=0 want=2, **|Δ|=2**.
+- IP-G (end of frame 1): sample **0**, got=0 want=−23, **|Δ|=23** (cross-frame cascade reproduced).
+
+**IP-A boundary dump (live values):**
+- All 15 containers byte-EQ to **zero** at IP-A (raw struct zero-value). Lazy seeds for `lsp.prevLSP`, `lsp.pastResiduals`, `gain.pastErrors`, `pf.agcGainPrev`, `pf.initialized`, `gain.initialized`, `lsp.initialized` are all **deferred to the first call inside their respective `Decode` bodies**. After IP-after-sf0 (frame 0):
+  - `pf.agcGainPrev` = **11 863 040** (Q24, lazy seed = `gTargetQ14 << 10`); `pf.initialized=true`.
+  - `gain.pastErrors` = `[-15009 -14336 -14336 -14336]` (slot 0 ← computed `U(0)`, FIFO advanced; slots 1..3 = `pastErrorsDefault`).
+  - `lsp.prevLSP` = decoded LSPs (no longer the `initialPrevLSP` seed, because line 108 overwrites at end of `lsp.Decode`).
+  - `lsp.pastResiduals[0]` = `[4171 6434 …]` (current residual at slot 0); `[1..3]` = `initialPastResidual`.
+  - `pastExc head[0..9]` and `tail[143..152]` = zero (sf-0's tiny excitation u didn't visibly populate the head; rotation correct).
+  - `hpY` = `[-94 -106]` (non-zero from sf-0 HP run; spec).
+  - `pf.pastResidual / pastS / pastSynthPost / pastTiltInput` and `synth.pastSynth` = zero (per their per-call write semantics at this point).
+  - `d.prevGpQ14` = **1995** (Q14 pitch-gain from sf-0).
+
+**H-1..H-15 ranking table (live, by earliest non-zero deviation from spec-init then |Δ|):**
+
+| Rank | H-ID | Container | Earliest non-zero Δ point | Magnitude | Spec-baseline citation |
+|------|------|-----------|---------------------------|-----------|------------------------|
+| 1 | H-1 | `pf.agcGainPrev` (Q24) | IP-after-sf0 (lazy-seed = `gTargetQ24` ≈ 1.19e7) | Q24-large | §4.3 catch-all "all memories ← 0"; §A.4.2.4 init clause is ambiguous re. seed |
+| 2 | H-2 | `applyAGC` iteration `g` | IP-after-sf0 (compounded from H-1 via α=32440/32768 Q15) | derived | §A.4.2.4 one-pole α |
+| 3 | H-13 | sf-0/sf-1 LP routing | sfA[0..10] for sf-0 = interpolated LP per §4.1.5 (matches; **REFUTED**) | 0 | §4.1.5 sf-1 = first half |
+| 4 | H-4 | `lsp.prevLSP` | IP-A=0, but seeded INSIDE `lsp.Decode` BEFORE `interpolateLSP` consumer (line 95 < line 101); **REFUTED** | 0 | §3.2.4 / §4.1.5 |
+| 5 | H-5 | `lsp.pastResiduals` | IP-A=0, seeded INSIDE `lsp.Decode` BEFORE `applyPredictor`; **REFUTED** | 0 | §3.2.4 |
+| 6 | H-3 | `gain.pastErrors` | IP-A=0, seeded INSIDE `gain.Decoder.Decode` to `[-14336]×4` BEFORE first read; **REFUTED** | 0 | §3.9 / §4.1.6 |
+| 7 | H-6 | `pastExc` | zero at IP-A; tail = `u` from sf-0 with correct slide direction; **REFUTED** | 0 | §4.3 catch-all |
+| 8 | H-7 | `hpX/hpY` | (0,0,0,0) at IP-A; **REFUTED** | 0 | §4.2.2 / §4.3 |
+| 9 | H-8 | `synth.pastSynth` | zero ×10 at IP-A; **REFUTED** | 0 | §4.3 |
+| 10 | H-9 | `pf.pastResidual` | zero ×183 at IP-A; **REFUTED** | 0 | §4.3 |
+| 11 | H-10 | `pf.pastS` | zero ×10 at IP-A; **REFUTED** | 0 | §4.3 |
+| 12 | H-11 | `pf.pastSynthPost` | zero ×10 at IP-A; **REFUTED** | 0 | §4.3 |
+| 13 | H-12 | `pf.pastTiltInput` | 0 at IP-A; **REFUTED** | 0 | §4.3 |
+| 14 | H-14 | `pastExc` slide direction | sf-0 `u` recomputed locally byte-EQ to `pastExc[113..152]`; **REFUTED** | 0 | adaptive-codebook indexing convention (§3.7) |
+| 15 | H-15 | `d.prevGpQ14` | 0 at IP-A; **REFUTED** | 0 | §4.3 |
+
+**Top-3 candidates (post-S-1):**
+1. **H-1** — `pf.agcGainPrev` lazy-seed = `gTargetQ24` instead of 0. The Q24 magnitude (≈ 1.19e7) directly seeds the one-pole α=0.99 feedback at sf-0 sample 0; for low-energy frames this overshoots the true ITU-spec g(0). The within-frame growth + cross-frame cascade signature on TAME maps EXACTLY to a per-sample multiplier walking from a wrong initial value through the α=0.99 lowpass.
+2. **H-2** — `applyAGC` iteration internal. Co-falsified surface with H-1; if S-2 zero-seeds `agcGainPrev` and TAME still FAILs with reduced |Δ|, the residual bug lives in the iteration update (`(α·g + (1−α)·gTarget + (1<<14)) >> 15` rounding term).
+3. **H-13** — sf-0/sf-1 LP routing kept on the rank list as an ordering-sanity anchor; first-look IP-B byte-EQ shows the correct interpolated LP is fed to sf-0 — refuted as a primary cause but worth re-checking if H-1 + H-2 both refute.
+
+**Recommended S-2 first-fix hypothesis:** **H-1** — `internal/postfilter/agc.go` lines 53–56: drop the lazy-init branch, seed `agcGainPrev = 0` via the existing zero-value (§4.3 catch-all "all filter memories shall be initialised to zero"). Predicate: `TestDecode_ITUVectorTameBitExact` flips from FAIL to PASS without regressing any currently-passing test.
+
