@@ -230,7 +230,7 @@ Total budget: **1 measurement + 5 fix attempts**. Beyond that, escalation only.
 
 | Rank | H-ID | Container | Earliest non-zero Δ point | Magnitude | Spec-baseline citation |
 |------|------|-----------|---------------------------|-----------|------------------------|
-| 1 | H-1 | `pf.agcGainPrev` (Q24) | IP-after-sf0 (lazy-seed = `gTargetQ24` ≈ 1.19e7) | Q24-large | §4.3 catch-all "all memories ← 0"; §A.4.2.4 init clause is ambiguous re. seed |
+| 1 | H-1 | `pf.agcGainPrev` (Q24) | IP-after-sf0 (lazy-seed = `gTargetQ24` ≈ 1.19e7) | Q24-large | §4.3 catch-all "all memories ← 0"; §A.4.2.4 init clause is ambiguous re. seed — **REFUTED-BY-S-2** (see §13) |
 | 2 | H-2 | `applyAGC` iteration `g` | IP-after-sf0 (compounded from H-1 via α=32440/32768 Q15) | derived | §A.4.2.4 one-pole α |
 | 3 | H-13 | sf-0/sf-1 LP routing | sfA[0..10] for sf-0 = interpolated LP per §4.1.5 (matches; **REFUTED**) | 0 | §4.1.5 sf-1 = first half |
 | 4 | H-4 | `lsp.prevLSP` | IP-A=0, but seeded INSIDE `lsp.Decode` BEFORE `interpolateLSP` consumer (line 95 < line 101); **REFUTED** | 0 | §3.2.4 / §4.1.5 |
@@ -252,4 +252,58 @@ Total budget: **1 measurement + 5 fix attempts**. Beyond that, escalation only.
 3. **H-13** — sf-0/sf-1 LP routing kept on the rank list as an ordering-sanity anchor; first-look IP-B byte-EQ shows the correct interpolated LP is fed to sf-0 — refuted as a primary cause but worth re-checking if H-1 + H-2 both refute.
 
 **Recommended S-2 first-fix hypothesis:** **H-1** — `internal/postfilter/agc.go` lines 53–56: drop the lazy-init branch, seed `agcGainPrev = 0` via the existing zero-value (§4.3 catch-all "all filter memories shall be initialised to zero"). Predicate: `TestDecode_ITUVectorTameBitExact` flips from FAIL to PASS without regressing any currently-passing test.
+
+---
+
+## 13. S-2 completion record (REFUTATION)
+
+**Status:** ❌ S-2 REFUTED (NO-FIX) — fix attempt 1 of 5 consumed against the §5.2 hard cap.
+
+**Test:** `internal/decoder/phase1o_d3_s2_h1_fix_test.go` ⇒ `TestPhase1o_D3_S2_H1_TameByteExact` preserved as `t.Skip` refutation record (full pre-/post-fix divergence table embedded in source comment).
+
+**Production change:** none committed. The seed-removal patch
+(`internal/postfilter/agc.go` lines 53–56 deleted, `gTargetQ24`
+comment updated to cite §4.3) was applied for measurement only and
+fully reverted before commit. The lazy-init branch (`if !pf.initialized
+{ pf.agcGainPrev = int32(gTargetQ24); pf.initialized = true }`)
+remains in tree, untouched.
+
+**Cross-validation outcome (all 6 ITU vectors with seed REMOVED):**
+
+| Vector | Pre-fix first divergence | Post-fix first divergence | Verdict |
+|--------|--------------------------|---------------------------|---------|
+| TAME | f0 s1 got=0 want=2 (Δ=-2) | **f0 s0 got=0 want=2 (Δ=-2)** — shifted EARLIER | FAIL |
+| SPEECH | f0 s0 got=0 want=2 family | f0 s1 Δ=-2; f1 sf0 Δ=-6 | FAIL |
+| FIXED | f0 s0 family | f0 s0 Δ=-2; f1 sf0 Δ=+235 | FAIL |
+| LSP | f0 s0 family | f0 s0 Δ=-2; f1 sf0 Δ=+2 | FAIL |
+| PITCH | f0 s0 family | f0 s0 Δ=-2; f1 sf0 Δ=-16 | FAIL |
+| TEST | f0 s0 family | (same family signature) | FAIL |
+| OVERFLOW | f0 s0 family | f0 s0 Δ=-2; f1 sf0 Δ=-5 | FAIL |
+
+**Interpretation (per §8 R-1 spec ambiguity):** Pre-fix, sample 0 of
+frame 0 had been *accidentally* matching the ITU reference because the
+Q24 seed value (`gTargetQ14 << 10` ≈ 1.19e7) produced a sample-0
+output coincidentally close to the spec output. Removing the seed
+exposes that the sample-0 match was non-causal — there is a *separate*
+divergence at sample 0 that the seed had been masking. Per R-1, the
+§A.4.2.4 init clause ("initialized to g_target") is therefore the
+*binding* clause for `agcGainPrev`, not the §4.3 catch-all; the
+current implementation honours §A.4.2.4 correctly.
+
+**Hypothesis ledger update:** H-1 marked **REFUTED-BY-S-2** in §12
+ranking table. Surviving rank-1 candidate is **H-2** (`applyAGC`
+iteration internals: α=32440/32768 Q15 rounding term, `+(1<<14)`
+bias). The empirical signature (sample-0 mismatch on every vector with
+identical Δ=-2 magnitude in the trivially-low-energy startup window)
+points away from `applyAGC` arithmetic per se and toward an upstream
+producer of `sTilt`/`s` at sf-0 sample 0 — cf. H-12 (`pastTiltInput`
+init), H-11 (`pastSynthPost` init), or pre-postfilter signal scaling
+(synth output → postfilter input handoff). S-3 will re-rank with
+"smallest |Δ| at smallest frame position" first, on the FIXED.BIT
+vector (smallest cross-frame cascade magnitude).
+
+**Cumulative refutation budget:** 1 / 5 consumed. 4 fix attempts
+remain before mandatory user gate per §5.2.
+
+**Anchor commits:** S-1 = `aa27ad1`; S-2 = (this commit, see message).
 
