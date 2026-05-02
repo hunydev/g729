@@ -38,6 +38,8 @@ import "testing"
 //     identifies a pre-frame-0 dependency (alternative path (a)).
 //   - A new spec source is admitted that resolves the Q-format
 //     or sign convention ambiguity in §4.2.5 / §A.4.2.5.
+//   - R-C empirical disposition (Phase 1m CE-3 finding):
+//     branch-test sf-1 rounding mode flip on ALGTHM sample 5..7.
 //
 // The test body is preserved verbatim below for one-line
 // reactivation (delete the t.Skip call).
