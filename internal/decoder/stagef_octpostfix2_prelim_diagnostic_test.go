@@ -1,5 +1,18 @@
 package decoder
 
+// PHASE 1o D-3.ter DISPOSITION — KEEP-WITH-NOTE.
+//
+// The hypothesis investigated by this diagnostic file has been closed by
+// the gate 17 PSTdomain demotion (Phase 1o D-1b, commit 6633b28) and/or
+// the Phase 1o D-3 state-bearing root-cause cycle (commits aa27ad1,
+// 0428df7, bd37512, da089b5, be80eaf, c81645b — closure c81645b/this-cycle).
+// Retained as evidence-trail and a verification-path demonstrator that
+// future Phase-2 encoder cross-reference work may want to re-walk; do NOT
+// extend this file — open a new dated diagnostic file instead. See
+// session-state checkpoints 011..020 for the gate 17 / 28-cycle history,
+// and docs/superpowers/plans/2026-05-09-phase1o-decoder-domain-closure-plan.md
+// §3 D-3.ter for the housekeeping decision rationale.
+
 import (
 	"encoding/binary"
 	"os"

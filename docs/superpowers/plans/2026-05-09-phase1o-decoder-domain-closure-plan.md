@@ -172,12 +172,17 @@ Untracked file preserved 28 cycles. **The preservation invariant is LIFTED at Ph
 
 ### D-3.ter — Other diagnostic-test housekeeping (gate 19 promotion question)
 
-Inventory `internal/decoder/{stagef_*,phase*_,foct_*,diagnostic_*}_test.go` files (≥10 files). For each, decide:
-- **promote** — convert to regression (assertions on a stable invariant);
-- **archive** — move salient evidence into `docs/superpowers/archives/` and delete;
-- **keep** — retain as `t.Logf`-only diagnostic with explicit "kept-for-Phase-2-encoder-cross-reference" doc tag.
+**[x] DISPOSED.** 25 candidate files inventoried under `internal/decoder/` (excluding `decode_test.go`, `itu_vector_*_test.go`, the new `itu_vector_pstdomain_test.go`, and the basic-infra files `alloc_test.go`, `bench_test.go`, `hpfilter_test.go`, `subframe_test.go`, `testdata_helpers_test.go`). 3-bucket disposition applied:
 
-This is the explicit gate 19 (E5) decision deferred from Phase 1k synthesis. **USER-GATED batch decision** required before bulk action.
+| Bucket | Count | Files |
+|---|---|---|
+| **LAND** (preserved as-is; real regression / already-documented refutation) | 9 | `frame0_regression_test.go`, `stagef_octpostfix_regression_test.go`, `stagef_diagnostic_helpers_test.go`, `phase1o_d3_batch_measurement_test.go`, `phase1o_d3_s1_state_dump_diagnostic_test.go`, `phase1o_d3_s2_h1_fix_test.go`, `phase1o_d3_s3_handoff_dump_test.go`, `phase1o_d3_s4_r1_synth_test.go`, `phase1o_d3_s5_r3_excitation_dump_test.go` |
+| **KEEP-WITH-NOTE** (closed-hypothesis evidence-trail; standardised D-3.ter header injected after `package decoder`, pointing at gate 17 PSTdomain demotion + Phase 1o D-3 commits + checkpoints 011..020) | 15 | `diagnostic_multipulse_test.go`, `diagnostic_singlepulse_test.go`, `foct_prelim_diagnostic_test.go`, `phase0c_cross_vector_diagnostic_test.go`, `phase0c_pst_format_diagnostic_test.go`, `phase0c_want_stage_diagnostic_test.go`, `phase1l_hp_edge_diagnostic_test.go`, `phase1n_rc2_pitch_preemphasis_diagnostic_test.go`, `stagef_fnonprelim_diagnostic_test.go`, `stagef_fnonprelim_xsplit_diagnostic_test.go`, `stagef_octpostfix2_prelim_diagnostic_test.go`, `stagef_octprelim5_diagnostic_test.go`, `stagef_quart_diagnostic_test.go`, `stagef_sept_diagnostic_test.go`, `stagef_sext_diagnostic_test.go` |
+| **DELETE** (pure `t.Logf` scaffolding, hypothesis closed, no surviving spec assertion, no helpers consumed elsewhere) | 1 | `diagnostic_algthm_replay_test.go` (Stage D-bis "ALGTHM frame 0 sf0 replay" — Phase 1k Stage D-bis report at `docs/superpowers/plans/2026-04-27-phase1k-stage-d-bis-report.md` line 240 explicitly recorded "어서션 0개"; Stage D-bis hypothesis closed by gate 17 PSTdomain demotion) |
+
+Final test baseline (post-disposition): 394 PASS, 3 SKIP, 3 FAIL — delta from pre-D-3.ter = −1 PASS (the deleted `TestDiagnostic_ALGTHMFrame0SF0Replay`); 3 SKIP and 3 FAIL identical to baseline (the 3 known FAILs `TestDiagnostic_SinglePulseChain`, `TestDecode_LowEnergyCodebookIsSmooth`, `TestDecode_SucceedsAcrossAllGainIndices` are pre-existing and untouched). `go vet ./...` clean.
+
+The original gate 19 (E5) "promote / archive / keep" trichotomy was reduced to "LAND / KEEP-WITH-NOTE / DELETE" since (a) no diagnostic file had assertions ready for promotion to a stable spec invariant beyond what `frame0_regression_test.go` and `stagef_octpostfix_regression_test.go` already cover, and (b) "archive to `docs/superpowers/archives/`" was rejected as redundant — the gate-17 / 28-cycle history is already preserved in checkpoints 011..020 and the Phase 1k F-* / Phase 1l / Phase 1n / Phase 0c-reentry / Phase 1o D-3 plans. KEEP-WITH-NOTE preserves both the source-tree visibility (grep continuity) and the breadcrumb pointer to the closed-hypothesis history.
 
 ### D-4 — Decoder public API godoc audit
 
