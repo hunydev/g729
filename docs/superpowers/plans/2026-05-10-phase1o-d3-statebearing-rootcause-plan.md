@@ -436,3 +436,78 @@ rounding/shift call site in `synth.BuildExcitation`).
 **Cumulative refutation budget:** 3 / 5 consumed. 2 fix attempts
 remain before mandatory user gate per §5.2.
 
+
+### S-5: R-3 BuildExcitation excitation construction — REFUTED (NO-FIX)
+
+**Sub-task ID:** S-5 (fix attempt 4 of 5).
+**Test:** `internal/decoder/phase1o_d3_s5_r3_excitation_dump_test.go::TestPhase1o_D3_S5_R3_ExcitationDump`.
+**Production inputs (TAME f0 sf0, captured by S-3):**
+gpQ14=1995, gcQ12=4153, v[0..7]=[0…0], c[0..7]=[8192 8192 8192 8192 0 0 0 0],
+tInt=20, betaQ14=3277.
+
+**Hand-computed expected u[0..7] per §4.1.6 eq. (75) + G.191 basops:**
+
+| n | L_mult(gc, c[n]) (Q26) | L_shr(_,11) (Q15) | round(L_shl(_,1)) | got | expected |
+|--:|-----------------------:|------------------:|-----------------:|----:|---------:|
+| 0 | 68_042_752 | 33_224 | 1 | 1 | 1 |
+| 1 | 68_042_752 | 33_224 | 1 | 1 | 1 |
+| 2 | 68_042_752 | 33_224 | 1 | 1 | 1 |
+| 3 | 68_042_752 | 33_224 | 1 | 1 | 1 |
+| 4 |          0 |      0 | 0 | 0 | 0 |
+| 5 |          0 |      0 | 0 | 0 | 0 |
+| 6 |          0 |      0 | 0 | 0 | 0 |
+| 7 |          0 |      0 | 0 | 0 | 0 |
+
+`u[0..7]` matches the hand-computed expected values **exactly**. Real-valued
+check: `gc·c[1] / 2^25 = 4153·8192/33_554_432 = 1.01392`, which round-to-
+nearest sends to 1.
+
+**Sub-hypothesis refutations:**
+
+- **R-3a** (Q26→Q15 LShr(11) rounding mode): the low 11 bits of
+  `L_mult(4153, 8192) = 68_042_752` are exactly **0**, so all in-spec
+  rounding modes (`L_shr` floor, `L_shr_r` round, `_+0x400` then `>>11`,
+  symmetric round) converge on the same intermediate `33_224` and the
+  same `u[1] = 1`. No rounding-mode change can lift `u[1]` from 1 to 2.
+  The final-stage `round(L_shl(lSum, 1))` is already byte-EQ to §6.2.1
+  Table 10 `round`. **REFUTED.**
+- **R-3b** (gain Q14 application order / saturation): `v[n]=0` makes
+  `lPitch=0` regardless of order; `lCode = 33_224` (Q15) is well within
+  Word32 range, no saturation triggered. **REFUTED.**
+- **R-3c** (FCB innovation construction): C=0x0000 / S=0x0F decodes to
+  pulses at positions {0,1,2,3} with sign +, each at +PulseAmplitude
+  =+8192=+1.0 in Q13 per §3.8. Pitch enhancement only modifies n ≥ tInt
+  =20, so c[0..3] are pristine. **REFUTED.**
+- **R-3d** (pastExc[] indexing at frame-0 boundary): `Decoder.pastExc`
+  is the zero-value of `[pastExcLen]int16` on construction (verified by
+  the dump test); v[0..7]=[0…0] confirms the adaptive contribution is
+  zero. §4.3 mandates this initial state. **REFUTED.**
+- **R-3e** (subframe routing): the S-3 dump shows sf0 and sf1 receive
+  distinct (gp, gc, c, v) tuples that match their bitstream indices
+  (P1→tInt=20 for sf0; P2→tInt=24 for sf1). No cross-wiring evidence.
+  **REFUTED.**
+
+**VERDICT:** R-3 family fully refuted. The off-by-2 at TAME f0 sample 1
+is **NOT** introduced by `BuildExcitation`. The defect must originate in
+the LP coefficient interpolation routing (R-2) — sf-0 LP `a[1]=2108` is
+the only remaining input that, if perturbed (e.g., to ≤1500), lifts the
+real-valued `y[1] = u[1] − a[1]·s[0]/4096` from `0.485` to a value that
+round-to-nearest sends to 1.
+
+**Cumulative refutation budget:** 4 / 5 consumed (S-2 H-1, S-3 H-11,
+S-4 R-1, S-5 R-3). **1 fix attempt remains** before mandatory user
+gate per §5.2.
+
+**S-6 dispatch (LAST attempt before G-D3-EXHAUSTED):**
+
+| rank | id | hypothesis | spec |
+|-----:|----|------------|------|
+| 1 | R-2 | LP coefficient interpolation routing — previous-LSP initial vector, interpolation factor (avg vs other), LSP→LP conversion ordering, or sf-0/sf-1 routing inversion | §4.1.2 / §4.1.5 / §4.3 |
+
+Sub-hypotheses to enumerate before any production fix:
+- **R-2a** previous-LSP initial vector (§4.3 default values).
+- **R-2b** interpolation factor (½/½ average vs other ratio).
+- **R-2c** LSP→LP conversion ordering (LSP indices vs LP indices).
+- **R-2d** sf-0/sf-1 routing inversion (off-by-one between subframes).
+
+Owners: `internal/lsp/`, called by `internal/decoder/decode.go`.
