@@ -38,8 +38,15 @@ import "testing"
 //     identifies a pre-frame-0 dependency (alternative path (a)).
 //   - A new spec source is admitted that resolves the Q-format
 //     or sign convention ambiguity in §4.2.5 / §A.4.2.5.
-//   - R-C empirical disposition (Phase 1m CE-3 finding):
-//     branch-test sf-1 rounding mode flip on ALGTHM sample 5..7.
+//   - R-C empirical (Phase 1n RC-1, commit a47f03f) — REFUTED.
+//     Symmetric rounding leaves sample 5..7 unchanged; a[8..10]
+//     taps multiply zeroed frame-0 past-state. R-C remains a
+//     verbatim documentation issue but is NOT a gate 17 mechanism.
+//   - (c) corrigendum / Appendix search yields a §3.10 synth.Filter
+//     or §A.4.* clarification.
+//
+// Cumulative refutations: 30 (was 22 at gate 17 disposition;
+// +3 Phase 1m, +2 Phase 1n).
 //
 // The test body is preserved verbatim below for one-line
 // reactivation (delete the t.Skip call).

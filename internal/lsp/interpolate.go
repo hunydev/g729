@@ -43,55 +43,31 @@ package lsp
 // the i=1 and i=5 cells fall in this odd-half-sum regime.
 //
 // ============================================================================
-// PHASE 1n R-C-EMPIRICAL — TEST-ONLY KNOB (E2' relaxation)
+// PHASE 1n RC-1 EMPIRICAL DISPOSITION (commit a47f03f)
 //
-// `lspInterpRoundMode` is a Phase 1n R-C-empirical disambiguation knob
-// installed under the cycle plan
-// `docs/superpowers/plans/2026-05-08-phase1n-stage-r-c-empirical-plan.md`
-// (Task RC-1) to empirically dispose of the R-C spec ambiguity by a
-// branch-test on ALGTHM frame 0 sample 5..7.
+// Phase 1n RC-1 installed a test-only `lspInterpRoundMode` knob (under
+// E2' relaxation per
+// `docs/superpowers/plans/2026-05-08-phase1n-stage-r-c-empirical-plan.md`)
+// to branch-test symmetric rounding against floor on ALGTHM frame 0
+// sample 5..7. The branch-test verdict was REFUTE_unchanged: symmetric
+// rounding leaves sample 5..7 byte-identical to floor. Mechanistic
+// reason — only LSP cells i=1 and i=5 differ by 1 LSB under the mode
+// flip, which (after Chebyshev expansion / §3.2.6) perturbs only the
+// LP taps a[8..10]; at frame 0 the past synth-filter state is zero
+// so a[8..10] multiply zero for n < 10 and cannot reach n=5..7.
 //
-// E2' INVARIANT: the default value (0 = floor `>> 1`) is byte-EQ to
-// the cycle-entry production behaviour. All non-Phase-1n test gates
-// (1..16 PASS, 17 SKIP, 18 PASS, 20 pending) MUST therefore remain
-// byte-EQ while this knob is in place.
-//
-// CYCLE-END REMOVAL COMMITMENT: this knob, the test-only setter
-// (`SetLSPInterpRoundModeForTest`), and the mode-1 branch are removed
-// at Phase 1n RC-3 cycle close.
-//   - Refute / Partial verdict → knob removed, expression reverted to
-//     the cycle-entry single-line floor (production behaviour
-//     unchanged).
-//   - Defect-confirmed verdict → user gate G-XS7; on approval, knob
-//     removed and expression replaced with the symmetric-round single
-//     line in a separate fix cycle.
-//
-// Values:
-//
-//	0 = floor `(int32(prev[i]) + int32(curr[i])) >> 1`     ← DEFAULT
-//	1 = round-half-away-from-zero (symmetric round)
-//
-// This variable is NOT goroutine-safe; the test setter is intended for
-// single-goroutine measurement scaffolding only.
-var lspInterpRoundMode int
-
+// Per E2' cycle-end commitment, the knob (and its test setter
+// `SetLSPInterpRoundModeForTest`) were removed at Phase 1n RC-3,
+// restoring this function to its cycle-entry single-line floor
+// expression. Production behaviour is byte-EQ to the cycle-entry
+// state. R-C remains an unresolved verbatim documentation issue but
+// is no longer a candidate gate 17 sample-5..7 mechanism. See the
+// Phase 1n RC-3 synthesis report
+// (`docs/superpowers/plans/2026-05-08-phase1n-stage-r-c-empirical-synthesis-report.md`)
+// for the full mechanistic argument and cumulative scoreboard.
 func interpolateLSP(prev, curr, sf1, sf2 *[10]int16) {
 	for i := 0; i < 10; i++ {
-		sum := int32(prev[i]) + int32(curr[i])
-		switch lspInterpRoundMode {
-		case 1:
-			// Round-half-away-from-zero (symmetric round).
-			if sum >= 0 {
-				sf1[i] = int16((sum + 1) >> 1)
-			} else {
-				sf1[i] = int16(-((-sum + 1) >> 1))
-			}
-		default:
-			// Floor toward −∞ via arithmetic right shift on signed
-			// int32 — byte-EQ to the cycle-entry production
-			// expression `int16((int32(prev[i]) + int32(curr[i])) >> 1)`.
-			sf1[i] = int16(sum >> 1)
-		}
+		sf1[i] = int16((int32(prev[i]) + int32(curr[i])) >> 1)
 		sf2[i] = curr[i]
 	}
 }
