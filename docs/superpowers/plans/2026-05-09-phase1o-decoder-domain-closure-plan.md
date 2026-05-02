@@ -119,6 +119,40 @@ After D-1 lands (gate 17 permanently disposed), re-enable each skip and observe:
 - **D-3.algthm** (line 165), **D-3.speech** (232), **D-3.fixed** (442), **D-3.lsp** (451), **D-3.pitch** (464), **D-3.test** (486) — re-enable each in sequence; each is its own TDD step. If all pass cleanly post-D-1, batch-strip the skips and wrappers in a single commit. If any expose a *new* defect (not the gate-17 sample-5..7 window), split into its own measurement task with explicit user gate before fixing — Phase 1o anti-goal forbids unrelated diagnostic cycles.
 - **D-3.overflow** — `TestDecode_ITUVectorOverflowBitExact` (line 531). Depends on D-2 GREEN. Re-enable, confirm decode behaviour against `OVERFLOW.PST`; same gate-17 mapping applies for sample-5..7 outcomes.
 
+#### D-3 batch measurement-only pilot (post-TAME continuation)
+
+After D-3.tame escalated, the remaining 6 vectors were measured under
+the same un-skip → capture → re-skip pattern (no production changes,
+no permanent t.Skip removals, decode_test.go diff empty). Per-vector
+diff-shape verdict (full matrix + first-10-diff samples preserved in
+`internal/decoder/phase1o_d3_batch_measurement_test.go`):
+
+| Vector   | first-div (frame, sample) | got | want | max \|Δ\| | cross-frame cascade | category     |
+|----------|---------------------------|-----|------|-----------|---------------------|--------------|
+| TAME*    | (0,   1)                  |   0 |    2 |       790 | yes                 | TAME (ref)   |
+| SPEECH   | (0,   0)                  |   2 |    0 |     32104 | yes                 | TAME-SHAPED  |
+| FIXED    | (0,   1)                  |   2 |    4 |      2144 | yes                 | TAME-SHAPED  |
+| LSP      | (0,  40)                  |   2 |    0 |     11774 | yes                 | TAME-SHAPED  |
+| PITCH    | (0,   1)                  |   6 |    4 |     25456 | yes                 | TAME-SHAPED  |
+| TEST     | (0,  40)                  |   2 |    0 |     10166 | yes                 | TAME-SHAPED  |
+| OVERFLOW | (0,   1)                  |   0 |    2 |     55406 | yes                 | TAME-SHAPED  |
+
+\* TAME row from commit `654ffe4` measurement.
+
+**Common-root-cause verdict:** all 6 newly-measured vectors share the
+TAME signature (early ±2 window + within-frame growth + cross-frame
+cascade where frame N sample 0 |Δ| grows monotonically). None is
+GATE-17-SHAPED (no narrow ≤±3 transient) and none is NOVEL. Every
+frame of every vector is corrupted (e.g. SPEECH 3750/3750,
+OVERFLOW 384/384), consistent with a single state-bearing root cause
+that compounds frame over frame. **Recommendation:** (α) one
+diagnostic cycle on the common state-bearing surface (postfilter
+long-term gain memory, AGC g_agc(n-1), HP biquad y[n-1]/y[n-2],
+synth `mem[]`, or `pastExc[]` at the frame-0/1 boundary) — should
+dispose all 6 simultaneously. (β) batch known-difference demote is
+NOT viable: 10³–10⁵ deltas vastly exceed any defensible threshold.
+(γ) further sub-pilots are not needed; the signatures already cluster.
+
 **Pass condition for D-3 batch:** zero `t.Skip` remaining in `internal/decoder/decode_test.go`.
 
 ### D-3.bis — `stagef_bis_diagnostic_test.go` disposition
