@@ -307,3 +307,76 @@ remain before mandatory user gate per §5.2.
 
 **Anchor commits:** S-1 = `aa27ad1`; S-2 = (this commit, see message).
 
+## §14. S-3 stage-localisation outcome (H-11 family REFUTED, NO-FIX)
+
+**Method.** A measurement-only sub-test (`internal/decoder/phase1o_d3_
+s3_handoff_dump_test.go`) replays TAME frame 0 with the H-1 lazy seed
+RESTORED (current production state) and dumps, for samples 0..7 of sf0
+and 40..47 of sf1, the per-stage values: `u` (excitation),
+`s` (synth), `sPf` (full postfilter), `hpOut` (HP filter), and `final`
+(post-`pcm.ScaleUpSat`). Output is compared against `TAME.PST`.
+
+**Per-stage table (TAME frame 0 sf0, samples 0..5):**
+
+| idx | u | s | sPf | hpOut | final | want | Δfinal |
+|----:|--:|--:|----:|------:|------:|-----:|-------:|
+| 0 | 1 | 1 | 1 | 1 | 2 | 2 | 0 |
+| 1 | 1 | **0** | 0 | 0 | 0 | 2 | **−2** ← first diff |
+| 2 | 1 | 1 | 1 | 1 | 2 | 0 | +2 |
+| 3 | 1 | 1 | 1 | 1 | 2 | 0 | +2 |
+| 4 | 0 | −1 | −1 | −1 | −2 | 0 | −2 |
+| 5 | 0 | 0 | 1 | 1 | 2 | 0 | +2 |
+
+LP coefficients for sf0 (Q12): `[4096 2108 1500 -137 399 -135 156 -55
+301 256 189]`. Inputs: `tInt=20 tFrac=0 gpQ14=1995 gcQ12=4153
+v[0..7]=0 c[0..3]=8192`.
+
+**Stage that introduces the −2.** Synth output `s[1]=0` is already
+wrong (needs to be 1 to back-compute to `final=2`). Postfilter and HP
+are pure pass-through on the {0, 1, −1} small-magnitude regime here;
+AGC scales sample-1's input of 0 to 0 regardless of `agcGainPrev`
+seed value. Hence the off-by-2 originates **inside `synth.Filter`
+(1/A(z))**, BEFORE the synth → postfilter handoff.
+
+**Hand-arithmetic at sample 1** with `a[1]=2108`, `pastSynth=0`:
+
+```
+lTemp = LMult(u[1]=1, a[0]=4096)             = 8192
+lTemp = LMsu(lTemp, a[1]=2108, s[0]=1)       = 8192 - 4216 = 3976
+lTemp = LShl(lTemp, 3)                        = 31808
+s[1]  = Round(lTemp) = (31808+32768)>>16     = 0     (truncates 0.485 → 0)
+```
+
+Real-valued reference: `y[1] = u[1] − a[1]·y[0]/a[0] = 1 − 2108/4096 =
+0.485`. The ITU reference apparently rounds (or uses a different
+intermediate Q-format) such that the value lifts to 1. This is purely
+a synth-stage rounding boundary, not a handoff issue.
+
+**H-11 sub-hypothesis verdicts (all REFUTED):**
+
+| sub-H | claim | refutation |
+|-------|-------|------------|
+| H-11a | `pastSynthPost` initial value | irrelevant — postfilter is pass-through on sample 1 |
+| H-11b | postfilter consumes `s` via stale-by-one indexing | `sPf[n]==s[n]` for n∈{0..4}, no shift |
+| H-11c | postfilter pre-emphasis Q14 floor vs symmetric rounding | tilt of magnitude<1 cannot lift 0 to non-zero |
+| H-11d | synth `mem[]` zero-init OR off-by-one mem update timing | `pastSynth` is zero per §3.10/§4.3; mem write order is canonical |
+| H-11e | HP input has off-by-one DC handling | HP[0]=1 matches; HP[1]=0 ⇐ correctly receives 0 from synth |
+
+**Re-rank for S-4** (smallest spec delta first):
+
+| rank | id | hypothesis | spec |
+|-----:|----|------------|------|
+| 1 | R-1 | Synth `onePass` rounding boundary — `Round((LShl(L,3))` may need different bias or `LShl(4)+Round` per spec semantics (§3.10 / §A.3.10 + G.191 basop ref for `round`/`L_shl`) | §3.10 |
+| 2 | R-2 | LP-coefficient interpolation routes sf-0 LP to sf-1 slot or vice versa (§4.1.5) | §4.1.5 |
+| 3 | R-3 | `BuildExcitation` rounding/scaling for `u[1]` (gc·c contribution at Q26→Q15 via LShr(11)) | §4.1.6 eq.(75) |
+
+Recommended S-4 dispatch: **R-1** (synth rounding) — the hand-arithmetic
+0.485 → 0 vs 1 directly evidences a rounding boundary; G.191 basop
+semantics for `round`/`L_shl` are unambiguous in the spec.
+
+**Cumulative refutation budget:** 2 / 5 consumed. 3 fix attempts
+remain before mandatory user gate per §5.2.
+
+**Anchor commits:** S-1 = `aa27ad1`; S-2 = `0428df7`; S-3 = (this
+commit, see message).
+
