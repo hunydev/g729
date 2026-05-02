@@ -267,3 +267,11 @@ Cγ (sample 5..7 잔여 mechanism 후보)
 ---
 
 **Plan 종료.** 본 commit = F-non-Cgamma-revisit cycle 0번째 (plan-only) commit. 다음 commit = Task 1 (`test(postfilter): add Stage F-non-Cgamma-revisit-1 G-1 postfilter sub-stage trace`).
+
+---
+
+## Task 진행 status
+
+- [x] Task 1 — F-non-Cgamma-revisit-1 (G-1 postfilter sub-stage trace) — commit `a4120f9`. Verdict: EQ_ALL (4 sub-stage 모두 polarity-preserve). G-1 (Cγ-postfilter) REFUTE.
+- [x] Task 2 — F-non-Cgamma-revisit-2 (G-2 synth IIR memory + Y magnitude trace) — Sub-test A verdict: EQ (4 state 모두; pre-sample-5 / post-5 / post-6 / post-7 production==reference). Sub-test B verdict: EQ (perturbed syn[5..7] sign == baseline [+,+,+]). G-2-IIR + G-2-Y-mag 모두 폐기 후보.
+- [ ] Task 3 — F-non-Cgamma-revisit-3 (synthesis + 3-시나리오 결정 트리).
