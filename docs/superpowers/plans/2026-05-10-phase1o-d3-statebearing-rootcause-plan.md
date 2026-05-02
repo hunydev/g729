@@ -380,3 +380,59 @@ remain before mandatory user gate per §5.2.
 **Anchor commits:** S-1 = `aa27ad1`; S-2 = `0428df7`; S-3 = (this
 commit, see message).
 
+---
+
+### S-4: R-1 synth rounding boundary — REFUTED (NO-FIX)
+
+**Procedure.** Per task brief, R-1 was decomposed into six sub-hypotheses
+(R-1a..R-1f) covering Round bias, LShl shift count, accumulator initial
+bias, equation form, a[0] interpretation, and u[n] pre-shift. Each was
+arithmetically refuted against §4.1.6 eq. (77) and the G.191 STL basop
+definitions in §6.2.1 Table 10. Diagnostic test:
+`internal/decoder/phase1o_d3_s4_r1_synth_test.go`.
+
+**R-1 sub-hypothesis verdicts (all REFUTED):**
+
+| sub-H | claim | refutation |
+|-------|-------|------------|
+| R-1a | `Round` bias should be `0x00010000` (or other) instead of `0x00008000` | G.191 STL Table 10 fixes the bias at `0x00008000`. With `0x00010000` the result lifts to 1 but VIOLATES the basop spec. |
+| R-1b | `LShl(L, 4)` instead of `LShl(L, 3)` | Breaks the trivial-passthrough contract test (`synth.TestQFormatContract_FilterSubframeAcceptsAOneQ12`): with a=[4096,0,…] and u[n]=n+1, `LShl(4)` doubles every output (sample-0 becomes 2 instead of 1). |
+| R-1c | accumulator carries an implicit positive bias | §4.1.6 eq. (77) has no constant term; any added bias would also lift sample 0 (already correct → final=2 matches want=2). |
+| R-1d | alt equation form `L_deposit_h(u[n]) + Σ −a[i]·s[n-i]` | Verified byte-EQ to current `L_mult(u[n], a[0]) + Σ −a[i]·s[n-i]` form (both produce 31808 → 0). |
+| R-1e | `a[0] ≠ 4096 Q12` | Contradicts `internal/tables/lpc.go` and existing `synth.TestQFormatContract_FilterSubframeAcceptsAOneQ12` contract. |
+| R-1f | u[n] pre-shift before accumulation | Sample-0 trace already matches want; any pre-shift on u would break sample 0. |
+
+**G.191 basop spot-check (sample-1 chain):**
+
+```
+LMult(1, 4096)              = 8192
+LMult(2108, 1)              = 4216
+LSub(8192, 4216)            = 3976
+LShl(3976, 3)               = 31808
+LAdd(31808, 0x8000)         = 64576
+ExtractH(64576)             = 0
+```
+
+All values match the G.191 STL definitions (§6.2.1 Table 10) bit-for-bit.
+
+**Sensitivity check (what input perturbation lifts s[1] to 1?):**
+
+| perturbation | s[1] | maps to |
+|--------------|-----:|---------|
+| `u[1]=2` (instead of 1, +1 LSB) | 1 | R-3 BuildExcitation rounding |
+| `a[1]=1500` (instead of 2108) | 1 | R-2 LP interp routing |
+| `s[0]=0` (instead of 1) | 1 | refuted: §3.10 mandates zero-init pastSynth, sample-0 trace s[0]=1 follows from u[0]=1 trivially |
+
+**Re-rank for S-5** (smallest spec delta first):
+
+| rank | id | hypothesis | spec |
+|-----:|----|------------|------|
+| 1 | R-3 | `BuildExcitation` rounding/scaling — `gc·c` (Q26 → Q15 via `LShr(11)`) at +1 LSB boundary (real `u[1]=4153/4096=1.014` rounds to 1 in production but a different Q-shift order may produce 2 byte-EQ to ITU) | §4.1.6 eq. (75) |
+| 2 | R-2 | LP-coefficient interpolation routing — sf-0 a[] vs sf-1 a[] swap or wrong MA-predictor branch yields wrong a[1] (a[1]=1500 would also lift s[1] to 1) | §4.1.5 |
+
+Recommended S-5 dispatch: **R-3** first (smallest spec delta — single
+rounding/shift call site in `synth.BuildExcitation`).
+
+**Cumulative refutation budget:** 3 / 5 consumed. 2 fix attempts
+remain before mandatory user gate per §5.2.
+
