@@ -835,3 +835,126 @@ Before d5:      1/5 consumed (FIX-1A FAILED-REVERT)
 After  d5:      1/5 consumed (UNCHANGED — d5 is measurement-only)
 Remaining:      4/5 attempts available for d6 / FIX-1B / FIX-1C
 ```
+
+---
+
+## §14 FIX-1B applied — Q24 widening of `aWork`/`aPrev`
+
+### §14.1 Diff summary (`internal/lpc/levinson.go`)
+
+* Header doc-comment: added "Internal aWork precision (FIX-1B)"
+  paragraph documenting Q24 int64 carrier and Q24→Q12 round-shift
+  before the numerator multiply (~17 lines added).
+* `levinsonDurbin` body rewritten:
+  - `aWork [11]int32` Q12 → `aWork [11]int64` Q24
+  - `aPrev [11]int32` Q12 → `aPrev [11]int64` Q24
+  - initial fill `q12one (4096)` → `oneQ24 (1<<24)`
+  - sum accumulation calls new `q24ToQ12Round(aWork[k])` shim before
+    multiply by `r[i-k]`, preserving the production Q12 sum width
+    and bit-identical division/`kQ15` extraction
+  - inner update `aWork[j] = aPrev[j] + (kQ15·aPrev[i-j])>>15` now
+    runs at Q24 precision (Q24 + (Q15·Q24)>>15 = Q24)
+  - `aWork[i] = kQ15 << 9` (Q24 representation of k_i, replacing the
+    prior `kQ15 >> 3` which was Q12)
+  - final write-out `a[j] = saturateInt16(q24ToQ12Round(aWork[j]))`
+* New helper `q24ToQ12Round(int64) int64` — half-away-from-zero
+  signed round-shift, mirrored verbatim from d5 mirror.
+* `saturateInt16` parameter widened `int32 → int64` (single call
+  site, the new write-out).
+* `saturateInt32` removed (no longer referenced; aWork no longer
+  stored as int32).
+
+Net diff (per `git diff --stat`): one file changed; approximately
++45 / −20 lines in `internal/lpc/levinson.go`. Public API
+(`levinsonDurbin(r *[11]int32, a *[11]int16)`) unchanged.
+
+### §14.2 Frame-29 cascade — CLEARED
+
+`TestEncode_LSPVectorBitExact` no longer fatals at frame 29.
+First lpcStep error now appears at frame **596** (a different
+LP-instability cluster, separate from the d3/d4-investigated
+frame-29 saturation cascade). Frame 29 → frame 596 ⇒ 1 fatal
+frame post-FIX-1B vs ≥1 pre-FIX-1B (frames 30..595 were
+unmeasurable previously due to early abort).
+
+### §14.3 Other Levinson unit tests — all pass
+
+```
+TestLevinsonDurbin_KroneckerR0           PASS
+TestLevinsonDurbin_AR1Pole               PASS
+TestLevinsonDurbin_StabilityKnown        PASS
+TestLevinsonDurbin_Frame0Characterisation PASS  (a[1..10] = 0 unchanged)
+TestLevinsonDurbin_ZeroAllocation        PASS  (0 allocs/run; [11]int64
+                                                stack arrays do not escape)
+```
+
+### §14.4 INT-1 byte-EQ rates (out of 2232 frames)
+
+Measured via temporary diagnostic test that records mismatches
+across the full LSP.IN corpus (treats lpcStep errors as misses).
+Diagnostic was deleted after the run.
+
+| field | BEFORE FIX-1B            | AFTER FIX-1B               |
+|-------|--------------------------|----------------------------|
+| L0    | unmeasurable (fatal F29) | 1763 / 2232 = **78.99 %**  |
+| L1    | unmeasurable             |  864 / 2232 = **38.71 %**  |
+| L2    | unmeasurable             |  391 / 2232 = **17.52 %**  |
+| L3    | unmeasurable             |  440 / 2232 = **19.71 %**  |
+| lpcStep-error frames | ≥1 (F29) | 1 (F596)         |
+
+First index divergence: **frame 0** with got=(L0=0,L1=120,L2=2,L3=11),
+want=(L0=0,L1=120,L2=10,L3=11) — i.e. L2 already misses on the very
+first frame even though L0/L1/L3 match. This indicates the residual
+divergence is *not* a transient-frame phenomenon but a steady-state
+offset in the L2/L3 second-stage VQ search, or in the LP→LSP
+quantization path that feeds it.
+
+### §14.5 Other test status
+
+* `go vet ./...` clean
+* `go build ./...` clean
+* `internal/lpc/...`              **PASS**
+* `internal/lsp/...`              **PASS** (d4 `S0_MirrorMatchesProduction`
+  retired post-FIX-1B with `t.Skip` and citation; the d4 mirror is a
+  verbatim transcription of the pre-FIX Q12 internals and is now
+  intentionally divergent. d5 mirror unchanged — its own internal
+  wide-Q24 mirror is unaffected.)
+* `internal/{acelp,bitstream,fcb,filter,fixed,pcm,pitch,postfilter,synth,tables}` PASS
+* Pre-existing unrelated failures (verified present at HEAD `533994b`
+  before FIX-1B):
+  - `internal/decoder/TestDiagnostic_SinglePulseChain`
+  - `internal/gain/TestDecode_LowEnergyCodebookIsSmooth`
+  - `internal/gain/TestDecode_SucceedsAcrossAllGainIndices`
+
+### §14.6 Disposition: **IMPROVED-BUT-OPEN**
+
+* FIX-1B clears the frame-29 LP-instability cascade as the d5
+  validation predicted, and converts the gate test from
+  unmeasurable-fatal to fully-measurable across all 2232 frames
+  (modulo a single residual instability at frame 596).
+* L0 reaches 79 % byte-EQ — strong evidence that the L0 (open/closed)
+  mode selector is essentially correct.
+* L1 at 38.7 % significantly exceeds chance (1/128 ≈ 0.78 %) and is
+  consistent with the L1-stage codebook search finding a "near"
+  but not exact bin for many frames.
+* L2/L3 at ~17–20 % are well above chance (1/32 ≈ 3.13 %) but not
+  close to byte-exact. The frame-0 L2 miss with otherwise-matching
+  (L0,L1,L3) confirms the residual is downstream of LP analysis —
+  most likely H-L4 (cold-start `freqPrev` initialization) and/or
+  the L2/L3 second-stage residual VQ weighting.
+* INT-1 gate is **NOT closed**; advance to **d6** for residual
+  investigation per §13.3, focused on:
+  1. cold-start `freqPrev` parity vs ITU reference
+  2. L2/L3 second-stage VQ weighting and residual computation
+  3. the single remaining LP-instability at frame 596
+     (likely the same Q24-headroom mechanism on a different
+      transient — may need FIX-1C Q30 widening or a Burg-style
+      reflection-coefficient bound)
+
+### §14.7 I5 budget after this dispatch
+
+```
+Before FIX-1B:  1/5 consumed (d5 measurement was free)
+After  FIX-1B:  2/5 consumed
+Remaining:      3/5 attempts for d6 + any residual fixes
+```

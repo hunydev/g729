@@ -46,6 +46,15 @@ func TestINT1D4Pinpoint(t *testing.T) {
 	if testing.Short() {
 		t.Skip("d4 Levinson+Chebyshev pinpoint battery; -short")
 	}
+	// FIX-1B (Phase 2a-INT-1) widened production levinsonDurbin's
+	// internal aWork/aPrev to Q24 int64 (see d4 plan §14). The d4
+	// mirror in this file is a verbatim transcription of the prior
+	// Q12 int32 production code — by design it now diverges from the
+	// Q24 production. The d4 trace data has served its diagnostic
+	// purpose (refined H-L1 → H-L1′; superseded by d5/FIX-1B), so
+	// the entire battery is retired from CI rather than re-aligning
+	// the mirror to the new production format.
+	t.Skip("retired post-FIX-1B: d4 mirror tracks pre-FIX Q12 internals; superseded by d5 + FIX-1B")
 
 	const (
 		samplesPerFrame  = 80
