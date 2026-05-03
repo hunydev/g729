@@ -106,6 +106,78 @@ func searchL2(l1, selector uint8, mem *[4][10]int16, omega, weights *[10]int16) 
 	return bestIdx, bestMSE
 }
 
+// Quantize is the top-level LSF split-VQ encoder entry point. For
+// each MA predictor selector L0 ∈ {0, 1} it runs the sequential-
+// greedy search L1 → L2 → L3, reconstructs the full ω̂ via the
+// predictor + J=0.0012 pair-rearrangement, and computes the total
+// weighted MSE Σ_{i=0..9} w_i · (ω_i − ω̂_i)². The selector with
+// the lower total cost wins; commitPredictorMemory is called exactly
+// once on the winning residual to advance freqPrev.
+//
+// Spec: ITU-T G.729 (06/2012) §3.2.4 lines 851 ("For each of the
+// two MA predictors the best approximation … has to be found") and
+// 896–897 ("the MA predictor L0 that produces the lowest weighted
+// MSE is selected").
+//
+// Q-format: omega and freqPrev[k] in Q13; weights computed inline in
+// Q11; total cost in int64 (10 terms · 2^15 · 2^28 ≪ 2^63).
+//
+// Allocation contract (I4): all workspace lives in fixed-size stack
+// arrays. freqPrev is owned by the caller; this routine mutates it
+// exactly once via commitPredictorMemory at the end.
+//
+// Evaluation budget (I12): 2 · (128 + 32 + 32) = 384 candidate
+// codebook-row evaluations per frame, per the sequential-greedy
+// reading of §3.2.4 lines 887–895.
+func Quantize(omega *[10]int16, freqPrev *[4][10]int16) Indices {
+	var weights [10]int16
+	weightsLSF(omega, &weights)
+
+	var (
+		bestSel              uint8
+		bestL1, bestL2, bestL3 uint8
+		bestResidual         [10]int16
+		bestCost             int64 = -1
+
+		target   [10]int16
+		residual [10]int16
+		omegaHat [10]int16
+	)
+
+	for sel := uint8(0); sel < 2; sel++ {
+		computeTargetLSF(sel, freqPrev, omega, &target)
+		l1, _ := searchL1(&target)
+		l2, _ := searchL2(uint8(l1), sel, freqPrev, omega, &weights)
+		l3, _ := searchL3(uint8(l1), uint8(l2), sel, freqPrev, omega, &weights)
+
+		for i := 0; i < 5; i++ {
+			residual[i] = fixed.Add(tables.LSPCodebookL1[l1][i], tables.LSPCodebookL2[l2][i])
+			residual[5+i] = fixed.Add(tables.LSPCodebookL1[l1][5+i], tables.LSPCodebookL3[l3][i])
+		}
+		applyPredictorWithMemory(sel, freqPrev, &residual, &omegaHat)
+		rearrangeAdjacent(&omegaHat, lsfRearrJ1)
+
+		var cost int64
+		for i := 0; i < 10; i++ {
+			d := int64(omega[i]) - int64(omegaHat[i])
+			cost += int64(weights[i]) * d * d
+		}
+
+		if bestCost < 0 || cost < bestCost {
+			bestCost = cost
+			bestSel = sel
+			bestL1 = uint8(l1)
+			bestL2 = uint8(l2)
+			bestL3 = uint8(l3)
+			bestResidual = residual
+		}
+	}
+
+	commitPredictorMemory(freqPrev, &bestResidual)
+
+	return Indices{L0: bestSel, L1: bestL1, L2: bestL2, L3: bestL3}
+}
+
 // searchL3 returns the index L3 ∈ [0, 32) of the row of
 // LSPCodebookL3 that minimizes the partial weighted MSE
 //

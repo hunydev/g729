@@ -622,9 +622,9 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 **Files:** Extend `internal/lsp/encoder_vq.go`, add `internal/lsp/encoder_vq_l0_test.go`.
 
-- [ ] **Step 1: Write failing test:** for a hand-constructed ω where predictor 0 gives a closed-form lower MSE than predictor 1, assert L0 = 0; and the symmetric case asserts L0 = 1.
+- [x] **Step 1: Write failing test:** for a hand-constructed ω where predictor 0 gives a closed-form lower MSE than predictor 1, assert L0 = 0; and the symmetric case asserts L0 = 1.
 - [x] **Step 2: Run to verify FAIL**.
-- [ ] **Step 3: Write minimal implementation:** outer loop over selector ∈ {0, 1}; for each, run VQ-2 → VQ-3 → VQ-4 to get (L1, L2, L3); reconstruct full ω̂ via predictor + J1 rearrangement; compute total weighted MSE Σ w_i·(ω_i − ω̂_i)². Pick the selector with lower MSE. Then `commitPredictorMemory` exactly once on the winning residual.
+- [x] **Step 3: Write minimal implementation:** outer loop over selector ∈ {0, 1}; for each, run VQ-2 → VQ-3 → VQ-4 to get (L1, L2, L3); reconstruct full ω̂ via predictor + J1 rearrangement; compute total weighted MSE Σ w_i·(ω_i − ω̂_i)². Pick the selector with lower MSE. Then `commitPredictorMemory` exactly once on the winning residual.
 - [x] **Step 4: Run to verify PASS**.
 - [x] **Step 5: Commit.**
 
