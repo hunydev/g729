@@ -191,11 +191,11 @@ This plan is documentation-only. The single Phase 2a commit produced by the *cur
 
 **Files:** Create `internal/lpc/window.go`, `internal/lpc/window_test.go`.
 
-- [ ] **Step 1: Write failing test** asserting the LUT length, endpoint values (w[0] = 0.08 in Q15 ≈ 2621, w[199] = peak at the Hamming centre, w[200] = cos(0) ≈ 32767, w[239] ≈ cos(39·2π/159)), and monotonic-decay shape on `[200,239]`. Cross-check the analytic formula at 4 hand-computed sample indices (0, 100, 199, 200) against eq. 3 with absolute tolerance ±2 in Q15.
-- [ ] **Step 2: Run to verify FAIL** (`undefined: lpAnalysisWindow`).
-- [ ] **Step 3: Write minimal implementation** — hard-coded `[240]int16` LUT generated **off-line** by a Go `init`-time computation living **only in the test file** as the oracle, with the production LUT being the literal table. The literal-vs-oracle pattern matches Phase 1a `CosLSP` precedent; we only commit the literal values, with a doc comment showing the computation.
-- [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 1: Write failing test** asserting the LUT length, endpoint values (w[0] = 0.08 in Q15 ≈ 2621, w[199] = peak at the Hamming centre, w[200] = cos(0) ≈ 32767, w[239] ≈ cos(39·2π/159)), and monotonic-decay shape on `[200,239]`. Cross-check the analytic formula at 4 hand-computed sample indices (0, 100, 199, 200) against eq. 3 with absolute tolerance ±2 in Q15.
+- [x] **Step 2: Run to verify FAIL** (`undefined: lpAnalysisWindow`).
+- [x] **Step 3: Write minimal implementation** — hard-coded `[240]int16` LUT generated **off-line** by a Go `init`-time computation living **only in the test file** as the oracle, with the production LUT being the literal table. The literal-vs-oracle pattern matches Phase 1a `CosLSP` precedent; we only commit the literal values, with a doc comment showing the computation.
+- [x] **Step 4: Run to verify PASS**.
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.1 eq. 3 (lines 663–669):
 - `w_lp(n) = 0.54 − 0.46·cos(2πn/399)` for `n ∈ [0,199]`,
