@@ -1751,3 +1751,325 @@ Open **d8** with two independent threads:
      the weight w_i, the MA-predictor state seed, or the codebook
      distortion arithmetic itself. This consumes 1 of the remaining
      2 I5 slots.
+
+---
+
+## §20. d8 measurement results — frame-0 ground truth, cold-start audit, frame-596
+
+**Date:** 2026-05-04 (d8 dispatch).
+**HEAD at entry:** `e198655` (post-FIX-2D, retained).
+**I6 status:** BINDING — production untouched. Two new test files added:
+
+* `phase2a_int1_d8_groundtruth_test.go` (root package) —
+  `TestINT1D8GroundTruth`: S1 raw PCM inspection, S2 cold-start
+  state inventory, S3 frames-0..50 got/want trace, S4 ±3 frame
+  alignment sweep, S5 mismatch direction histograms, S7 frame-596
+  descriptive isolation.
+`internal/lsp/phase2a_int1_d8_roundtrip_test.go` * 
+  `TestINT1D8DecoderRoundtripFrame0`: S6 decoder-roundtrip ground
+  truth on WANT (0, 120, 10, 10) using the package-private
+  `applyPredictorWithMemory` mirror of `Decoder.applyPredictor`.
+
+Both tests are read-only (`t.Logf` only).
+
+### §20.1 S1 — LSP.IN frame-0..10 raw PCM inspection
+
+| frame | nz/80 | min   | max  | rms     |
+|------:|------:|------:|-----:|--------:|
+| 0     | 0     |     0 |    0 |    0.00 |
+| 1     | 0     |     0 |    0 |    0.00 |
+| 2     | 0     |     0 |    0 |    0.00 |
+| 3     | 0     |     0 |    0 |    0.00 |
+| 4     | 0     |     0 |    0 |    0.00 |
+| 5     | 78    |   −79 |   68 |   26.92 |
+| 6     | 0     |     0 |    0 |    0.00 |
+| 7     | 0     |     0 |    0 |    0.00 |
+| 8     | 0     |     0 |    0 |    0.00 |
+| 9     | 0     |     0 |    0 |    0.00 |
+| 10    | 78    |   −79 |   68 |   26.92 |
+| 596   |    —  | −2119 | 2370 | 1336.22 |
+
+Key ground truth: **LSP.IN frame 0 is all-zero PCM**, not a hidden
+non-zero pattern. Frames 1–4 are also zero; frame 5 is the first
+non-zero (a low-amplitude pulse, repeated at frame 10). This rules
+out hypothesis (b) ("LSP.IN frame 0 is not what we assumed (zero
+silence)") from the d4 paradox.
+
+### §20.2 S2 — cold-start state inventory
+
+| state                    | initial value                     | spec cite                                       |
+|--------------------------|-----------------------------------|-------------------------------------------------|
+| `pcm.PreProcessor.{x1,x2,y1,y2}` | all zero                  | §3.1.1 (cold-start = zero memory, implicit)     |
+| `Encoder.oldSpeech [240]int16`   | all zero                  | §3.2.1 (analysis window starts at silence)      |
+| `Encoder.freqPrev [4][10]int16`  | i·π/11 Q13 = `initialPastResidual` per row | §3.2.4 (past quantized residuals init) |
+| `Encoder.lspOld [10]int16`       | all zero (UNINITIALISED)  | §3.2.6 / §4.1.5 spec value is cos(i·π/11) Q15   |
+| `Encoder.lspOldQ [10]int16`      | all zero (UNINITIALISED)  | §3.2.6 / §4.1.5 spec value is cos(i·π/11) Q15   |
+| `Encoder.synMem / wMem / errMem` | all zero                  | not exercised by `lpcStep` — Phase 2b/2c scope  |
+
+**Audit finding.** `lspOld` and `lspOldQ` are zero on `NewEncoder()`
+even though the decoder's analogous `prevLSP` is initialised to
+`initialPrevLSP = cos(i·π/11)` Q15 (decoder.go:29). For the present
+`lpcStep` chain this is benign — neither field is read by L0/L1/L2/L3
+search — but it will need a fix when Phase 2b wires the subframe
+interpolator. **Out of scope for INT-1 byte-EQ.**
+
+### §20.3 S3 — frames-0..50 per-frame got vs want (excerpt)
+
+```
+f= 0  got=(0,120, 2,11)  want=(0,120,10,10)  eq=✓✓✗✗
+f= 1  got=(0,120,14,20)  want=(0,120, 7, 9)  eq=✓✓✗✗
+f= 2  got=(0,120, 7,11)  want=(0,120,31,10)  eq=✓✓✗✗
+f= 3  got=(0,120, 8,13)  want=(0,120, 5, 0)  eq=✓✓✗✗
+f= 4  got=(0,120, 9,26)  want=(0,120, 2,27)  eq=✓✓✗✗
+f= 5  got=(1,  5,14,23)  want=(1,  5,14,20)  eq=✓✓✓✗
+f= 6  got=(0, 29, 0,23)  want=(0, 98,15,24)  eq=✓✗✗✗
+
+f=28  got=(1, 13, 2,17)  want=(1, 13, 2,17)  eq=✓✓✓✓     ← only fully-eq frame in 0..50
+
+```
+
+There is **no convergence trend**: the L0/L1 match rate is already at
+the steady-state ~70 %/~36 % at frame 0 and stays in that band
+throughout the first 50 frames. **Cold-start warm-up is not the
+issue** — the same arithmetic offset reproduces from the very first
+frame.
+
+Frame-596 fatals (`fewer than 5 sign changes in F1 or F2`) before
+the sweep can continue past it; only 596 frames of comparison are
+collected (see §20.7).
+
+### §20.4 S4 — frame-offset alignment sweep
+
+Per-frame `got[N] == want[N+offset]` rates over 596 frames:
+
+| offset | L0 %  | L1 %  | L2 %  | L3 %  | all-4 % |
+|-------:|------:|------:|------:|------:|--------:|
+|     −3 | 59.36 | 15.18 |  6.24 |  6.07 |    0.17 |
+|     −2 | 64.65 | 11.62 |  4.88 |  6.06 |    0.00 |
+|     −1 | 63.19 | 21.01 |  7.39 |  7.39 |    0.17 |
+| **+0** | **71.14** | **36.41** | **12.92** | **11.91** | **1.17** |
+|     +1 | 61.51 | 19.66 |  8.57 |  5.55 |    0.00 |
+|     +2 | 60.94 | 16.16 |  6.73 |  8.08 |    0.17 |
+|     +3 | 61.05 | 10.62 |  5.23 |  5.40 |    0.00 |
+
+`offset=0` is decisively best on all four indices (L1/L2/L3 are 1.5×
+to 3× higher than any non-zero offset). **The 1-frame
+analysis-vs-encode delay called out in `encoder.go` is therefore not
+the source of the byte-EQ residual** — the production indices are
+correctly aligned to LSP.BIT, no shift required.
+
+### §20.5 S5 — mismatch direction histograms
+
+**L0:** of 172 mismatches, 150 are `got=1, want=0` and 22 are
+`got=0, want=1`. Our encoder over-selects MA-predictor 1 by ~6.8×.
+This is consistent with the d6 §14 finding that the L0 cost
+comparison is biased and reproduces the d6/d7 rate split.
+
+**L2:** mismatches are spread across roughly 50 distinct deltas in
+[−29, +28], with the densest mass on small magnitudes (|Δ| ≤ 5
+accounts for ~50 % of mismatches). This is the signature of a
+"systematic small bias" — the encoder picks the codeword next to
+the WANT, not a random one — pointing at a low-amplitude
+arithmetic offset in either the per-coordinate weight, the search
+target, or the cost-comparison Q-format.
+
+### §20.6 S6 — decoder-roundtrip ground truth (CRITICAL)
+
+Reconstruct ω from WANT indices `(L0=0, L1=120, L2=10, L3=10)` using
+`combineResidual` → `rearrangeAdjacent(J1)` → `rearrangeAdjacent(J2)`
+ `applyPredictorWithMemory(sel=0, mem=InitFreqPrev())`. This
+mirrors `Decoder.applyPredictor` byte-for-byte (see
+`encoder_predictor_test.go::TestApplyPredictorWithMemory_MatchesDecoder`).
+
+| coord i | ω_decoder(WANT) Q13 | ω_analytical (i·π/11) Q13 | Δ Q13 LSB |
+|--------:|--------------------:|--------------------------:|----------:|
+|       0 |               2415  |                     2340  |       +75 |
+|       1 |               4765  |                     4679  |       +86 |
+|       2 |               6875  |                     7019  |      −144 |
+|       3 |               9512  |                     9359  |      +153 |
+|       4 |              11713  |                    11698  |       +15 |
+|       5 |              14089  |                    14038  |       +51 |
+|       6 |              16412  |                    16377  |       +35 |
+|       7 |              18483  |                    18717  |      −234 |
+|       8 |              20849  |                    21057  |      −208 |
+|       9 |              23487  |                    23396  |       +91 |
+
+|Δω|_max = **234 Q13 LSB**, |Δω|_sum = 1092, avg ≈ 109 LSB / coord.
+
+Encoder frame-0 ω post-FIX-2D is within **≤7 Q13 LSB** of analytical
+(d4 §19.2). The encoder therefore feeds VQ with ω ≈ analytical, but
+the WANT codeword combination encodes an ω that is ~30× further from
+analytical than our encoder's input.
+
+**Conclusion (smoking gun).** The L1 winner (= 120) is correct
+because both ω = analytical and ω = ω_decoder(WANT) are nearest L1
+codeword 120. The L2/L3 disagreement is not an ω-precision issue and
+not a search-cost-precision issue: the WANT codewords encode an ω̂
+that **the ITU encoder evidently scored as the BEST candidate even
+though it differs from analytical by hundreds of LSB**. Two
+remaining shapes for this:
+
+* **H-M (NEW, primary).** ITU's cold-start past-quantized-LSF memory
+  (`past_qua_en` = our `freqPrev`) is **not** `i·π/11` Q13. With a
+  different cold-start `M`, `computeTargetLSF` produces a different
+  search target on frame 0; the WANT codeword combination is the
+  closest match to **that** target, and `applyPredictorWithMemory`
+  with the same `M` reconstructs ω̂ ≈ analytical (i.e. WANT is
+  internally consistent on the ITU side, but only with `M` ≠
+  i·π/11). The ω we just decoded with our `M = i·π/11` is what an
+  ITU encoder would emit if asked to *reuse* WANT's residual under
+  *our* cold start — a near-180-LSB-shifted ω.
+* **H-N (NEW, secondary).** ITU's L2/L3 search uses a different
+  cost domain (e.g. *residual* `(target − l_codeword)² · w` instead
+  of *reconstructed* `(ω − ω̂)² · w`) AND a different
+  intra-search rearrangement scope. Our `searchL2` reconstructs and
+  rearranges with J1 only on the lower 5 (matching spec line 890);
+  if ITU instead applies J1+J2 or omits the rearrangement entirely,
+  the cost ranking flips for many (L1, L2) pairs.
+
+H-M is favoured because (a) it matches d6 §14's existing weight /
+predictor-state hypothesis ranking; (b) it explains the L0 bias
+direction (a different `M` shifts the selector-0 vs selector-1 cost
+asymmetry); (c) it explains why FIX-2D's precision lift did nothing
+for byte-EQ (the bug is not in ω precision, it's in the search
+target's Q13 starting point); (d) it is fixable with one struct
+literal change in `internal/lsp/encoder_init.go`.
+
+### §20.7 S7 — frame 596 anti-palindromic LP isolation
+
+Frame-596 PCM stats (S1): rms = 1336, range [−2119, +2370]. The d3
+trace has `a[]Q12 = [4096, −4706, −7743, 5000, 11938, 0, −11938,
+5000, 7743, 4706, −4706]`, exactly antisymmetric (a[k] = −a[10−k]).
+Then F1(z) = A(z) + z⁻¹¹·A(1/z) is identically zero, so it has zero
+sign changes; production fatals on the §3.2.3 stability
+precondition. Only 596 of 2231 frames are scored before the fatal.
+
+**Spec text grounding.** §3.2.3 lines 763–784 (per the d3 plan)
+specify the F1/F2 symmetric-polynomial construction and the bisection
+search but are silent on the degenerate case (no sign changes). §3.2.6
+(LSP→LP for the synthesis filter at the decoder) provides a
+"stability and reuse" precedent: when the just-reconstructed LSPs
+violate the ordering / spacing constraints, the previous frame's
+quantized LSPs are reused. Applying the same precedent to the
+**encoder side** when the F1/F2 sign-change precondition fails is the
+spec-aligned graceful path.
+
+**Proposed guard (frame-596, separate from H-M).** In
+`internal/lsp/lp_lsp.go::findLSPRoots`, when `bisectRoot` returns <
+5 roots for either polynomial:
+
+  1. Do **not** fatal.
+  2. Reuse the previous frame's quantized ω vector (Encoder
+     `lspOld` once it is properly cold-start-initialised, *or* the
+     analytical i·π/11 fallback if `lspOld` is still zero — i.e.
+     cold-start fatal would still fatal but we are in steady state
+     by frame 596 so this is moot).
+  3. Emit a single `t.Logf`-equivalent counter for diagnostic
+     visibility (a struct field on `lpc.Analyzer`, not a global).
+
+This is a **single** I5 budget slot, isolated from the byte-EQ
+hunt; it unblocks `TestEncode_LSPVectorBitExact` so the residual
+byte-EQ rates can be reported across the full 2231-frame corpus
+instead of stopping at frame 596.
+
+### §20.8 Test / build / vet status
+
+* `go build ./...` — clean.
+* `go vet ./...` — clean.
+* `go test ./...` — same 4 FAILs as d4 §19.4 / §16.5:
+  * `TestEncode_LSPVectorBitExact` (frame-596 fatal, expected; the
+    d8 sweep test deliberately catches and continues).
+  * `TestDiagnostic_SinglePulseChain` (decoder, pre-existing).
+  * `TestDecode_LowEnergyCodebookIsSmooth` (gain, pre-existing).
+  * `TestDecode_SucceedsAcrossAllGainIndices` (gain, pre-existing).
+* New d8 tests both PASS.
+
+---
+
+## §21. d8 disposition — MULTIPLE-FIXES-PROPOSED
+
+### §21.1 FIX-3-A (primary, 1 of 2 remaining I5 slots)
+
+**Module:** `internal/lsp/encoder_init.go::InitFreqPrev`,
+~6 lines net.
+
+**Spec cite:** §3.2.4. Re-read the cold-start text for past
+quantized LSF residuals against d8 §20.6. The current value
+`i·π/11` Q13 (= `initialPastResidual` shared with the decoder)
+matches the **decoder** spec for `pastResiduals`. The **encoder**
+side may carry a different convention; candidates per d8 §20.6:
+
+  1. Reverse-engineered `M_i = (analytical_i − (1−SP_i)·l_target_i)
+     / SP_i` where `l_target_i` is the WANT-decoded residual
+     (§20.6 row), and `SP_i = Σ_k MAPredictorsLSP[0][k][i]`. A d9-α
+     test computes this from frame 0 and emits the literal `[10]int16`.
+  2. Spec value `cos(i·π/11)` Q15 (the decoder's `initialPrevLSP`
+     applied to `freqPrev` instead of `prevLSP`) — interpretation
+     mismatch test.
+  3. Zero memory — the simplest alternative.
+
+**Procedure (d9-α).** Add a measurement test
+`TestINT1D9AReverseEngineerColdMem` that:
+
+  * Computes `target_l_i` from WANT (0, 120, 10, 10) via
+    `combineResidual + rearrange(J1) + rearrange(J2)`.
+  * Computes `SP_i = Σ_k preds[k][i]` for selector 0.
+  * Solves `M_i = (analytical_i − (1−SP_i)·target_i) / SP_i`.
+  * Emits the candidate `[10]int16` `M`.
+
+Then patch `InitFreqPrev` to seed `freqPrev[0..3]` with `M` and
+re-run `TestEncode_LSPVectorBitExact`. **Expected gate impact:**
+L0 30–50 pp (the over-bias toward selector 1 should normalise),
+L1 +5–10 pp, L2 +20–30 pp, L3 +20–30 pp.
+
+If H-M is wrong (the reverse-engineered `M` does not improve
+byte-EQ in the predicted direction), revert and escalate to H-N
+(L2/L3 cost-domain probe) — this consumes the slot regardless.
+
+### §21.2 FIX-3-B (orthogonal, 1 of 2 remaining I5 slots)
+
+Frame-596 anti-palindromic guard per d8 §20.7. Module:
+`internal/lsp/lp_lsp.go::findLSPRoots` (adjust `LPToLSP`'s error
+contract from "fatal on insufficient roots" to "signal-and-reuse").
+Coupled callsite update in `lpcStep` to fall back to `lspOld` (or
+analytical seed when cold start). ~20 lines net. **Expected gate
+impact on byte-EQ rates:** zero per se, but unblocks the test from
+fail-fast → cumulative report mode so FIX-3-A's effect is fully
+observable across all 2231 frames.
+
+### §21.3 Budget allocation
+
+| slot | proposal     | rationale                                                |
+|-----:|--------------|----------------------------------------------------------|
+|  4/5 | FIX-3-A      | Primary byte-EQ fix; single-symbol patch on `InitFreqPrev` after a one-test reverse-engineering measurement. |
+|  5/5 | FIX-3-B      | Orthogonal anti-palindromic guard; required to fully measure FIX-3-A's effect. |
+
+**Order of operations.** Apply FIX-3-B first (so the test reports
+end-to-end), then FIX-3-A. If FIX-3-A's measurement step (d9-α)
+shows the reverse-engineered `M` is identical to the existing
+`i·π/11` seed (i.e. H-M is refuted by the data before any
+production patch), spend slot 4 on H-N (cost-domain probe in
+`searchL2` / `searchL3`) instead.
+
+### §21.4 Recommendation summary for the operator
+
+1. Open d9 with FIX-3-B applied first (frame-596 guard) — low risk,
+   pure bug-fix, makes the integration test reportable end-to-end.
+2. Then run d9-α (one new measurement test) to compute the
+   reverse-engineered cold-start `M`. If it matches `i·π/11` to
+   within ≤16 Q13 LSB per coord, refute H-M and pivot the last
+   slot to H-N (instrument `searchL2`'s cost domain). Otherwise,
+   apply FIX-3-A by patching `InitFreqPrev` to the new `M`.
+3. After FIX-3-A, re-measure byte-EQ. The expected outcome is
+   L0/L1/L2/L3 ≥ 95 % each (true bit-exact remains the integration
+   gate; we leave the tail to Phase 2b's full-frame pipeline).
+4. If after FIX-3-A + FIX-3-B the rates do not move materially,
+   call **ACCEPT-PARTIAL** with a §-cite to G.729 06/2012 §3.2.4
+   and a note that the cold-start `past_qua_en` initial value is
+   under-specified in publicly available spec text (i.e. is an ITU
+   Annex A reference-implementation detail).
+
+### §21.5 I5 budget after d8
+
+Consumed: 3/5 (FIX-1A revert, FIX-1B revert, FIX-2D retained).
+**Remaining: 2/5** — both earmarked above.
