@@ -5,9 +5,11 @@ import (
 
 	"github.com/exedev/g729/internal/acelp"
 	"github.com/exedev/g729/internal/filter"
+	"github.com/exedev/g729/internal/fixed"
 	"github.com/exedev/g729/internal/lpc"
 	"github.com/exedev/g729/internal/lsp"
 	"github.com/exedev/g729/internal/pcm"
+	"github.com/exedev/g729/internal/pitch/closedloop"
 	"github.com/exedev/g729/internal/pitch/openloop"
 )
 
@@ -57,6 +59,56 @@ type Encoder struct {
 	lpResidualMem [10]int16
 	swMem         [10]int16
 	tOp           int16
+
+	// Phase 2c INT-0: closed-loop pitch state.
+	//
+	// lspDec mirrors the decoder-side LSP reconstruction so the
+	// encoder can derive the per-subframe quantized LP polynomials
+	// Â (Q12) used by the closed-loop filters per I-2c-2 (plan
+	// §0). It is advanced exactly once per frame inside lpcStep
+	// after Quantize selects the LSP indices.
+	//
+	// aHatSF1 / aHatSF2 cache those per-subframe Â vectors so that
+	// closedloopStep(0) and closedloopStep(1) read the right
+	// polynomial without re-running the LSP→LP chain.
+	//
+	// swMemErr is the §A.3.10 weighted-error memory ew(n) for
+	// the target filter 1/Â(z/γ); committed at the end of every
+	// subframe per eq. A.10. Phase 2c-only placeholder: the
+	// fixed-codebook contribution ĝ_c·z(n) is missing and will be
+	// added by Phase 2d (OQ-EXC-COMMIT, plan §9).
+	//
+	// lpResidualMemQ is the analysis-filter memory for residual
+	// r(n) computed via the QUANTIZED Â (separate from the
+	// open-loop lpResidualMem above which still uses the
+	// unquantized A as the Phase-2b stand-in per OQ-2).
+	//
+	// oldExc holds the trailing past excitation u(-1..-LookbackExc)
+	// in chronological order, with oldExc[len-1] = u(-1). Updated
+	// per subframe after closedloopStep selects (intLag, frac, gp):
+	// shift left by SubframeLen and append the new 40 samples
+	// u(n) = Gp·v(n). Phase 2c-only placeholder per OQ-EXC-COMMIT;
+	// Phase 2d will add Gc·c(n) to u(n).
+	//
+	// intT1 caches the subframe-1 integer winner so closedloopStep(1)
+	// can centre its 10-lag P2 search window per §4.1.3 (lines
+	// 1512–1523) via closedloop.Subframe2Window.
+	//
+	// frac1 / frac2 / intT2 + p1 / p0 / p2 store the per-frame
+	// pitch-bit outputs; future bit-packing tasks (Phase 2g) will
+	// drain them into the 80-bit frame layout.
+	lspDec         lsp.Decoder
+	aHatSF1        [lpc.LPCOrder + 1]int16
+	aHatSF2        [lpc.LPCOrder + 1]int16
+	swMemErr       [10]int16
+	lpResidualMemQ [10]int16
+	intT1          int16
+	intT2          int16
+	frac1          int8
+	frac2          int8
+	p1             uint8
+	p0             uint8
+	p2             uint8
 
 	// Per-block state owners.
 	lpc    lpc.Analyzer
@@ -180,7 +232,16 @@ func (e *Encoder) lpcStep(pcm []int16) (lsp.Indices, error) {
 	var omega [10]int16
 	lsp.LSPToLSF(&qQ15, &omega)
 
-	return lsp.Quantize(&omega, &e.freqPrev), nil
+	indices := lsp.Quantize(&omega, &e.freqPrev)
+
+	// Phase 2c INT-0: derive per-subframe quantized LP polynomials Â
+	// from the just-emitted indices. The decoder-side state in
+	// e.lspDec runs in lock-step with the encoder VQ + MA-predictor
+	// so the reconstructed Â matches what the receiver will see.
+	// Cached on the encoder for the per-subframe closed-loop driver.
+	e.aHatSF1, e.aHatSF2 = e.lspDec.Decode(indices)
+
+	return indices, nil
 }
 
 // openloopStep runs the §A.3.3 weighted-speech construction and the
@@ -204,4 +265,155 @@ func (e *Encoder) openloopStep() int16 {
 	s := (*[FrameSamples]int16)(e.oldSpeech[160:240])
 	e.tOp = openloop.Step(&e.aQ12Latest, s, &e.lpResidualMem, &e.swMem, &e.oldWspeech)
 	return e.tOp
+}
+
+// lpResidualSubframe computes the 40-sample LP residual r(n) for one
+// subframe per ITU-T G.729 §A.3.3 eq. A.3 (G729E.txt line 2080):
+//
+//r(n) = s(n) + Σ_{i=1..10} â_i · s(n − i),  n = 0,...,39
+//
+// using the supplied 10-sample input history mem (s(-10..-1)). aHat
+// is the QUANTIZED Â (Q12, leading 4096), per Phase 2c invariant
+// I-2c-2. Mirrors openloop/lowpass.go lpResidual but specialised to
+// SubframeLen = 40 and quantized-Â discipline.
+//
+// I3 / I4: pure (writes only through r), zero allocation. The caller
+// is responsible for advancing mem at subframe boundaries.
+func lpResidualSubframe(s *[40]int16, aHat *[lpc.LPCOrder + 1]int16, mem *[10]int16, r *[40]int16) {
+for n := 0; n < 40; n++ {
+sum := int32(s[n])
+for i := 1; i <= 10; i++ {
+var sni int16
+if n-i >= 0 {
+sni = s[n-i]
+} else {
+sni = mem[10+n-i]
+}
+sum += int32(fixed.Mult(aHat[i], sni))
+}
+r[n] = fixed.Saturate(sum)
+}
+}
+
+// closedloopStep runs ITU-T G.729 Annex A §A.3.5–§A.3.10 for one
+// subframe and returns the selected (intLag, frac) ∈ [20,143]×{−1,0,+1}.
+//
+// Pre-condition: lpcStep + openloopStep have been called for the
+// current frame, so e.aHatSF{1,2} carry the quantized Â (per I-2c-2)
+// and e.tOp carries the open-loop centre. Must be called twice per
+// frame in order: closedloopStep(0) then closedloopStep(1). The
+// subframe-1 winner is committed to e.intT1 so subframe-2's 10-lag
+// P2 search window (closedloop.Subframe2Window) can centre on it
+// per §4.1.3 (G729E.txt lines 1512–1523).
+//
+// Per-subframe pipeline:
+//
+//   1. r(n) = analysis filter Â(z) on s (§A.3.3 eq. A.3).
+//   2. x(n) = target signal via 1/Â(z/γ) on r (§A.3.6 eq. cited;
+//      closedloop.TargetSignal).
+//   3. h(n) = impulse response of 1/Â(z/γ) (§A.3.5;
+//      closedloop.ImpulseResponse).
+//   4. xb(n) = backward filter of x against h (§A.3.7 eq. A.7;
+//      closedloop.BackwardFilter).
+//   5. intLag = closedloop.SearchInteger(xb, exc, centre, sub)
+//      where centre = tOp for sub=0 and intT1 for sub=1.
+//   6. frac = closedloop.RefineFraction(xb, exc, intLag, intLag<85)
+//      per §A.3.7 lines 2169–2170 (fractions only when intLag<85).
+//   7. v(n) = closedloop.AdaptiveVector(exc, intLag, frac) (§3.7.1
+//      eq. 40).
+//   8. (gp, y) = closedloop.GpAndY(x, v, h) (§3.7.3 eq. 43, 44).
+//   9. P1/P0 (sub=0) or P2 (sub=1) packed via closedloop.EncodeP*
+//      per §3.7.2.
+//   10. Per-subframe state commit:
+//       - swMemErr trail: ew(n) = x(n) − ĝp·y(n) for n = 30..39 per
+//         §A.3.10 eq. A.10. Phase 2c-only placeholder: the spec
+//         eq. A.10 also subtracts ĝ_c·z(n) from the fixed codebook,
+//         which is not yet wired (Phase 2d task). See OQ-EXC-COMMIT
+//         in plan §9.
+//       - oldExc shift-by-40 + append u(n) = round(Gp·v(n)/2^14)
+//         for n = 0..39. Phase 2c-only placeholder: the full
+//         excitation per §A.3.9 is u(n) = ĝp·v(n) + ĝ_c·c(n);
+//         Phase 2d will add the fixed-codebook contribution.
+//       - lpResidualMemQ ← s(30..39) for the next subframe's r(n).
+//
+// Buffer convention (closedloop.SearchInteger): exc is sized 143
+// samples with exc[len-1] = u(-1). Phase 2c INT-0 SMOKE test pins
+// inputs that yield centres ≥ 40 so the residual-extension corner
+// (short lags k<40 reading into u(0..39)) is not exercised; INT-1
+// will revisit if PITCH.BIT byte-EQ requires it.
+//
+// I3 (relaxed for Phase 2c): swMemErr / lpResidualMemQ / oldExc are
+// updated PER SUBFRAME (not per frame) because subframe-2's adaptive
+// codebook search must observe subframe-1's freshly-committed u(n)
+// (the pitch lag may reference back into the just-completed
+// subframe). The frame-level state (oldSpeech, freqPrev, lspDec
+// internals) remains committed only at frame boundaries via lpcStep.
+//
+// I4: zero allocation. All scratch (r, x, h, xb, v, y, ew) lives on
+// the stack as fixed-size arrays.
+func (e *Encoder) closedloopStep(sub int) (intLag int16, frac int8) {
+var aHat *[lpc.LPCOrder + 1]int16
+if sub == 0 {
+aHat = &e.aHatSF1
+} else {
+aHat = &e.aHatSF2
+}
+
+sStart := 160 + 40*sub
+sFrame := (*[40]int16)(e.oldSpeech[sStart : sStart+40])
+
+var r, x, h, xb, v, y [closedloop.SubframeLen]int16
+lpResidualSubframe(sFrame, aHat, &e.lpResidualMemQ, &r)
+closedloop.TargetSignal(aHat, &r, &e.swMemErr, &x)
+closedloop.ImpulseResponse(aHat, &h)
+closedloop.BackwardFilter(&x, &h, &xb)
+
+var centre int16
+if sub == 0 {
+centre = e.tOp
+} else {
+centre = e.intT1
+}
+
+excPast := e.oldExc[len(e.oldExc)-143:]
+intLag, _ = closedloop.SearchInteger(&xb, excPast, centre, sub)
+frac = closedloop.RefineFraction(&xb, excPast, intLag, intLag < 85)
+
+closedloop.AdaptiveVector(excPast, intLag, frac, &v)
+gp := closedloop.GpAndY(&x, &v, &h, &y)
+
+if sub == 0 {
+e.intT1 = intLag
+e.frac1 = frac
+e.p1 = closedloop.EncodeP1(intLag, frac)
+e.p0 = closedloop.EncodeP0(e.p1)
+} else {
+tmin, _ := closedloop.Subframe2Window(e.intT1)
+e.intT2 = intLag
+e.frac2 = frac
+e.p2 = closedloop.EncodeP2(intLag, frac, tmin)
+}
+
+// §A.3.10 eq. A.10 weighted-error commit (Phase 2c placeholder:
+// fixed-codebook term ĝ_c·z(n) omitted — see OQ-EXC-COMMIT).
+for n := 30; n < 40; n++ {
+gpY := int32(gp) * int32(y[n]) >> 14
+e.swMemErr[n-30] = fixed.Saturate(int32(x[n]) - gpY)
+}
+
+// Excitation commit: shift past by SubframeLen and append the
+// adaptive-codebook contribution Gp·v(n). Phase 2d will replace
+// this with u(n) = ĝp·v(n) + ĝ_c·c(n) per §A.3.9.
+copy(e.oldExc[:len(e.oldExc)-closedloop.SubframeLen],
+e.oldExc[closedloop.SubframeLen:])
+base := len(e.oldExc) - closedloop.SubframeLen
+for n := 0; n < closedloop.SubframeLen; n++ {
+gpV := int32(gp) * int32(v[n]) >> 14
+e.oldExc[base+n] = fixed.Saturate(gpV)
+}
+
+// Quantized-Â analysis-filter memory advance for next subframe.
+copy(e.lpResidualMemQ[:], sFrame[30:40])
+
+return intLag, frac
 }
