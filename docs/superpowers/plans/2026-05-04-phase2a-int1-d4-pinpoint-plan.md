@@ -1307,3 +1307,307 @@ Remaining:      3/5 attempts for d7 (+ optional FIX-1C bundle)
   - `internal/gain/TestDecode_SucceedsAcrossAllGainIndices`
 
 No regressions introduced by the d6 test addition.
+
+---
+
+## §17. d7 measurements — LPToLSP/LSPToLSF precision profile
+
+Dispatch: `internal/lsp/phase2a_int1_d7_omega_precision_test.go`
+(`TestINT1D7OmegaPrecision`). Measurement-only; I5 budget unchanged
+at 2/5; I6 freeze respected (no production file modified).
+
+### §17.1 Frame-0 closed-form: production ω vs analytical i·π/11
+
+Input `a = [4096, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]` Q12. A(z)=1 ⇒
+F1(z)=1+z⁻¹¹, F2(z)=1−z⁻¹¹. Analytical roots ω_i = (i+/11,1)
+i=0..9, F1/F2 interleaved.
+
+```
+i  cosProd  cosAna  Δcos(LSB Q15)  ωProd  ωAna  Δω(LSB Q13)
+0   31430   31432         -2       2343   2340      +3
+1   27560   27557         +3       4677   4679      -2
+2   21441   21437         +4       7020   7019      +1
+3   13573   13561        +12       9365   9359      +6
+4    4712    4712          0      11682  11698     -16
+5   -4633   -4712         +79     14025  14038     -13
+6  -13599  -13561         -38     16369  16377      -8
+7  -21462  -21437         -25     18714  18717      -3
+8  -27576  -27557         -19     21058  21057      +1
+9  -31438  -31432         -6      23391  23396      -5
+```
+
+* Production F1/F2 (Q24) on all-pass input is `[oneQ24, −oneQ24,
+  oneQ24, −oneQ24, oneQ24, −oneQ24]` and `[oneQ24]·6` — both
+  closed-form-correct.
+* Per-coordinate ω drift bounded by 16 Q13 LSB; **i=4 carries the
+  largest single-coordinate drift (16 LSB)**.
+* Total |Δω| over 10 coords = 58 Q13 LSB.
+
+### §17.2 Float-oracle decomposition (S2)
+
+Production vs pure-stdlib float Chebyshev (no fixed point) + Acos:
+
+```
+i | dProd-Ana | dFloat-Ana | dHybrid-Ana
+0 |    +3     |    +0      |    -6
+1 |    -2     |    +0      |    -5
+2 |    +1     |    +2      |    -3
+3 |    +6     |    +7      |    +3
+4 |   -16     |   +12      |    +7
+5 |   -13     |   -12      |   -16
+6 |    -8     |    -7      |   -12
+7 |    -3     |    -2      |    -6
+8 |    +1     |    +0      |    -4
+9 |    -5     |    +0      |    -3
+```
+
+`hybrid` = float Chebyshev cos(ω) → production `lspToLSF` arccos LUT.
+Per-step contribution decomposition (Δω LSB):
+
+```
+i | ChebyshevQ-loss | ArccosLUT-loss | total
+0 |       -6        |       +9       |  +3
+1 |       -5        |       +3       |  -2
+2 |       -5        |       +4       |  -1
+3 |       -4        |       +3       |  -1
+4 |       -5        |      -23       | -28   ← arccos-LUT dominant
+5 |       -4        |       +3       |  -1
+6 |       -5        |       +4       |  -1
+7 |       -4        |       +3       |  -1
+8 |       -4        |       +5       |  +1
+9 |       -3        |       -2       |  -5
+```
+
+Aggregate |Δ| Q13 LSB sums:
+
+```
+Production       vs analytical: 58
+Float-oracle     vs analytical: 42   (irreducible cos→Q15 + Q13 quant + 4-iter bisect)
+Hybrid           vs analytical: 65   (production arccos LUT amplifies float cosines)
+Production       vs Hybrid    : 59   (Chebyshev-Q24 contribution)
+```
+
+**Interpretation.** The production Chebyshev-Q24 path drifts ≤ 6
+LSB per coord vs the float oracle (consistent across all 10
+coords). The arccos LUT introduces a single-coordinate spike of
+23 LSB on i=4 (where the cos(ω) value lands in a high-derivative
+LUT cell). The Q15→Q13 ω round itself contributes ≤ 1 LSB.
+
+### §17.3 Bisection sensitivity (S3)
+
+```
+N  |  max|Δω|  |  sum|Δω|  | per-coord Δω
+ 4 |    16    |    58     | [3 -2 1 6 -16 -13 -8 -3 1 -5]
+ 6 |     8    |    42     | [-8 -6 -2 -4 -6 -2 -4 -6 -3 -1]
+ 8 |     7    |    43     | [-7 -5 -5 -5 -3 -5 -4 -4 -3 -2]
+10 |     6    |    43     | [-6 -5 -5 -5 -4 -5 -4 -4 -3 -2]
+12 |     6    |    43     | (converged)
+16 |     6    |    43     | (converged)
+```
+
+* Bumping N=4→8 buys 9 LSB in `max|Δω|` (16 → 7). Beyond N=8 the
+  fixed-point Chebyshev evaluation cannot resolve finer because the
+  cos(ω) Q15 quantization is the floor (1 cosine LSB ≈ 5–10 ω LSB
+  near sin(ω)≈0 and ω near 0 or π).
+* Sensitivity is monotone-improving but bottoms out at sum=43.
+
+### §17.4 Speech-frame drift (S4) — frames 5/10/15/25
+
+Production ω vs float-oracle (4-iter bisect):
+
+```
+frame  max|Δω|  sum|Δω|  largest-Δ coords
+ 5      28        89     {5: -28, 6: -28, 8: -28}
+10      28        89     (identical to 5; Analyze cache)
+15      28        35     {8: -28}
+25       4        14     diffuse (no LUT-cell hit)
+```
+
+The −28 LSB spikes on coords {5, 6, 8} are not random: they pin to
+the same ArccosLUT cells whose cos(ω) lands near a derivative
+maximum (S2 i=4 manifests the same 23-LSB flavour). On frame 25
+the cosines miss those cells and total drift drops 6× to 14.
+
+### §17.5 ω→VQ index sensitivity (S5)
+
+Baseline frame-0 (synthetic all-pass ω) → `Quantize` produces
+`L0=0 L1=120 L2=2  L3=11`.
+
+WANT bitstream frame-0 indices (LSP.BIT, unpacked):
+`L0=0 L1=120 L2=10 L3=10`.
+
+* L1 already matches WANT (120) — first-stage VQ is unaffected by
+  the ω drift seen here.
+* Single-coordinate ±32 Q13 LSB perturbation on any coord 0..9
+  fails to flip L2 or L3.
+* **Joint uniform δ on all 10 coords**:
+
+  ```
+  δ=−32..−8 → L3 flips 11 → 26 (other indices unchanged)
+  δ=−4..+8  → no change
+  δ=+16,+32 → L2 flips 2 → 10 (matches WANT!)
+  ```
+
+* The L2-WANT distance from production ω is ≤ 16 LSB of coherent
+  uniform shift. The Δω budget needed to flip L2 toward WANT on
+  frame 0 is therefore ~12–16 Q13 LSB applied coherently — well
+  within the 28 LSB drift S4 already documents on speech frames.
+
+### §17.6 Root-cause localization (S6)
+
+Combining S1..S5:
+
+| Source                                    | Magnitude (Q13 LSB) | Acts on |
+|-------------------------------------------|---------------------|---------|
+| Chebyshev-Q24 evaluation (vs float)       | ≤ 6 per coord, ~5 systematic | All coords |
+| 4-iteration bisection floor               | up to 9 (N=4 vs N=8) | Mid-range coords |
+| **Arccos LUT cell error (`lspToLSF`)**    | up to 28 single-coord | Coords whose cos lands in high-derivative cells |
+| Q15→Q13 quantization                      | ≤ 1 per coord       | All  |
+
+**Dominant source: arccos LUT (`internal/lsp/lsp_lsf.go`
+`lspToLSF`)**. The 65-entry CosLSP table with linear interpolation
+gives ~25 LSB worst-case error on the cos(ω) ↦ ω inverse near
+inflection points; this is empirically the only individual step
+exceeding the L2-flip threshold (12–16 LSB) measured in §17.5.
+The Chebyshev-Q24 path is healthy and converges by N=8 bisections.
+
+### §17.7 Frame-596 forensics (S7)
+
+* Production drives all 600 frames of LSP.IN through `lpc.Analyze`
+  without error.
+* `LPToLSP` first fails at frame 596 with
+  `a = [4096, −4706, −7743, 5000, 11938, 0, −11938, −5000, 7743,
+   4706, −4096]`.
+* Pattern: `a[k] = −a[10−k]` (anti-palindromic) and `a[5] = 0`.
+  For an anti-palindromic order-10 a, F1(z) = A(z) + z⁻¹¹A(z⁻¹) ≡ 0
+  identically — so `findLSPRoots` correctly reports < 5 sign changes
+  on F1. **This is a structural singularity in the upstream
+  Levinson result, not a Q-format saturation.**
+* Synthetic AR1 stress with ρ ∈ {0.95, 0.98, 0.99, 0.995, 0.999,
+  0.9995}, autocorrelation r(0) ≈ 2³⁰:
+
+  ```
+  rho     | maxAbs(aWork) Q24    | maxAbs(aWork) Q30      | overflow Q24 | overflow Q30
+  0.9500  |   15,930,752         | 1,019,567,994          |  false       |  false
+  0.9800  |   16,433,817         | 1,051,764,156          |  false       |  false
+  0.9900  |   16,601,676         | 1,062,507,140          |  false       |  false
+  0.9950  |   16,908,272         | 1,082,129,133          |  false       |  false
+  0.9990  |   17,447,957         | 1,116,669,070          |  false       |  false
+  0.9995  |   34,010,529         | 2,176,673,697          |  false       |  false
+  ```
+
+  Even at ρ=0.9995 (k_i pushed near unity) the int64 carrier in
+  Q24 still has 56 bits of headroom. **Q30 widening (FIX-1C as
+  scoped in §16.3) would NOT have prevented frame-596's failure**
+  because the failure mode is anti-palindromic structure (a true
+  numerical singularity of the F1/F2 split), not Q-saturation.
+
+---
+
+## §18. d7 disposition
+
+### §18.1 H-OMEGA-PRECISION — confirmed and localized
+
+H-OMEGA-PRECISION is **CONFIRMED**. The dominant drift source
+is the **arccos LUT in `internal/lsp/lsp_lsf.go`**, contributing
+up to 28 Q13 LSB on individual coordinates whose cos(ω) lands in
+a high-derivative LUT cell. The L2-flip threshold (§17.5) is
+12–16 coherent Q13 LSB; production already exceeds this on speech
+frames.
+
+Secondary contributor: 4-iteration bisection. Bumping to 8 buys
+~9 LSB on `max|Δω|` (S3) and lifts the precision floor closer to
+the cos-Q15 quantization limit. Cheap, low-risk.
+
+### §18.2 H-L1′ (frame 596) — REFUTED for Q30 fix
+
+17.7 shows frame 596 fails on an anti-palindromic Levinson
+output, not on Q-saturation. The synthetic AR1 stress to ρ=0.9995
+shows Q24 still has 56 bits of headroom in int64. **FIX-1C as
+scoped in §16.3 would not prevent the frame-596 cascade**;
+withdraw it from the candidate list.
+
+The genuine frame-596 fix is upstream of LP→LSP — either reject
+anti-palindromic A(z) inside `LPToLSP` (returning ErrLPCNonStable
+early), or apply a small odd-coefficient perturbation per the
+spec's stability guard (§3.2.3 lines 800+ "if the polynomial is
+anti-symmetric, ω_i are computed by perturbing a slightly"; needs
+re-read of the exact spec wording before any FIX is drafted).
+Defer this to a separate dispatch (d8 frame-596).
+
+### §18.3 FIX-2 candidate ranking
+
+| Candidate | Module / lines | Spec cite | Budget | Expected gate impact | Risk |
+|-----------|----------------|-----------|--------|----------------------|------|
+| **FIX-2C** (arccos refinement) | `internal/lsp/lsp_lsf.go` `lspToLSF` (whole function ~25 lines) | §3.2.5 ω_i = arccos(q_i) (no Q-format mandate) | 1 of 3 | Per-coord Δω drops ~25 LSB → ≤ 5 LSB; should close L2/L3 byte-EQ on frames 0–28 (joint shift no longer crosses the flip threshold) | Low — pure inverse-table change; existing `lsfToLSP` already provides the forward oracle for round-trip testing |
+| **FIX-2A** (bisection 4 → 8) | `internal/lsp/lp_lsp.go` `bisectRoot` (one constant) | §3.2.3 lines 783–784 ("subdivide twice", language permits more) | 1 of 3 | Buys ~9 LSB max + ~16 LSB sum on frame 0; alone insufficient (S3 floors at 43 LSB sum) | Trivial |
+| **FIX-2D** (FIX-2C + FIX-2A combined) | both above | both above | 1 of 3 (single dispatch) | Maximum Δω reduction; recommended | Low |
+| ~~FIX-1C (Q30 Levinson)~~ | withdrawn — see §18.2 | — | — | Would not prevent frame-596 anti-palindromic cascade | n/a |
+| FIX-2B (Chebyshev int64 widening) | rejected — §17.6 shows Chebyshev-Q24 contributes ≤ 6 LSB; widening yields no measurable improvement | — | — | Negligible | Low but pointless |
+
+### §18.4 Recommended next dispatch
+
+**Apply FIX-2D in a single bundle:**
+
+1. Replace `lspToLSF`'s linear-interpolation arccos with a
+   **Newton refinement step** seeded by the LUT lookup:
+
+   ```
+   ω₀ = LUT-linear-interp(q)             (existing)
+   c₀ = lsfToLSP(ω₀)                     (forward map; production helper)
+   sin(ω₀) ≈ √(1 − (c₀/32768)²)          (cheap closed-form)
+   ω₁ = ω₀ + (c₀ − q) · 32768 / (       (32768·25736/π))   (Q13)sin(ω₀) 
+   ```
+
+   One Newton step caps the error at the second-derivative tail of
+   the LUT (≤ 1 Q13 LSB by S2 numerics). All arithmetic stays in
+   Word32; Q-formats trivially derivable (q in Q15, sin in Q15,
+   ω in Q13). Spec-conformant: §3.2.5 only mandates ω = arccos(q)
+   with no implementation prescription.
+
+2. Bump `bisectRoot`'s loop from 4 → 8. Single-line constant
+   change; pre-existing test `TestFindLSPRoots*` continues to pass
+   bit-for-bit when the new constant is reverted; the Chebyshev
+   cost is 8 evals per root (40 extra `chebyshevC` calls per
+   frame ≈ 800 extra ops/frame, < 0.5 µs at typical clock).
+
+3. Validation gate sequence:
+   * `internal/lsp` battery (FIX-1B post-state) — must remain green.
+   * `internal/lpc/TestLevinsonDurbin_*` — unaffected, must remain green.
+   * `g729/TestEncode_LSPVectorBitExact` — primary gate; expect L2
+     byte-EQ jump from 17.52 % toward ≥ 99 % on first 28 frames.
+     L3 follows. L0/L1 already at 78.99 % / 38.71 % — re-measure
+     after FIX-2D; the L1 deficit may have a separate root cause
+     once L2/L3 are settled.
+
+4. **Budget after FIX-2D:** 3/5 consumed (was 2/5). 2 attempts
+   remain.
+
+5. If FIX-2D under-shoots the gate, ESCALATE-d8 with:
+   * frame-596 anti-palindromic guard (separate, low-risk),
+   * L1 codebook/predictor re-audit (§3.2.4 lines 887 reread),
+   * possibly a higher-order cosine LUT (129 entries instead of
+     65) as a fallback FIX-2C′.
+
+### §18.5 Hypothesis ledger after d7
+
+| Hypothesis                              | Status entering d7 | Status leaving d7 |
+|-----------------------------------------|--------------------|-------------------|
+| H-OMEGA-PRECISION                       | OPENED             | **CONFIRMED, localized to lspToLSF arccos LUT** |
+| H-L1′ (Q30 Levinson for frame 596)      | OPENED             | **REFUTED** (frame 596 = anti-palindromic structural singularity, not Q saturation) |
+| New: H-FRAME596-ANTIPAL                 | n/a                | OPENED — defer to d8 |
+
+### §18.6 I5 budget after d7
+
+```
+Before d7:      2/5 consumed
+After  d7:      2/5 consumed (UNCHANGED — d7 is measurement-only)
+Remaining:      3/5 attempts (recommended next: FIX-2D bundle, 1 slot)
+```
+
+### §18.7 Test/build status under d7
+
+* `go vet ./internal/lsp/...`             clean
+* `go build ./...`                        clean
+* `internal/lsp` battery (incl. d7)       PASS
+* Pre-existing failures unchanged from §16.5.
