@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/exedev/g729/internal/acelp"
+	"github.com/exedev/g729/internal/bitstream"
 	"github.com/exedev/g729/internal/fcbsearch"
 	"github.com/exedev/g729/internal/filter"
 	"github.com/exedev/g729/internal/fixed"
@@ -178,11 +179,24 @@ func (e *Encoder) LSPReuseCount() uint64 { return e.lspReuseCount }
 // EncodeFrame consumes exactly FrameSamples samples and writes exactly
 // FrameBytes bytes to out. Internal state is retained across calls.
 //
-// Phase 2-0 stub: validates lengths and returns ErrNotImplemented. Real
-// encoding is wired in Phase 2a..2f. Phase 2a wires only the
-// LP-analysis + LSP-quantization sub-chain via the package-private
-// lpcStep helper; the public EncodeFrame remains a stub until later
-// phases land the pitch / FCB / gain / packing pipeline.
+// Phase 2f API-1 wiring (plan §6 Task API-1):
+//
+//  1. lpcStep(pcm)            — §3.2 LP analysis + LSP VQ → l0..l3,
+//                                aQ12Latest, aHatSF1/2, oldSpeech slide.
+//  2. openloopStep()          — §A.3.3/A.3.4 weighted speech + open-loop
+//                                pitch → tOp.
+//  3. closedloopStep(0)       — §A.3.5–A.3.10 subframe 1 → p1, p0; calls
+//                                fcbStep(0) internally → s1, c1, ga1, gb1.
+//  4. closedloopStep(1)       — subframe 2 → p2; calls fcbStep(1)
+//                                internally → s2, c2, ga2, gb2.
+//  5. buildBitstreamFrame     — composes the 15 per-frame indices into
+//                                a stack-allocated bitstream.Frame.
+//  6. bitstream.Pack          — emits the canonical 10-byte G.729
+//                                frame per §4.2.1 + Table 8.
+//
+// I3 / I4: per-frame state is mutated exactly once per call by the
+// step methods; no allocation on the hot path (the bitstream.Frame
+// value is stack-resident).
 func (e *Encoder) EncodeFrame(pcm []int16, out []byte) error {
 	if len(pcm) != FrameSamples {
 		return ErrShortPCM
@@ -190,7 +204,17 @@ func (e *Encoder) EncodeFrame(pcm []int16, out []byte) error {
 	if len(out) < FrameBytes {
 		return ErrShortOutput
 	}
-	return ErrNotImplemented
+
+	if _, err := e.lpcStep(pcm); err != nil {
+		return err
+	}
+	_ = e.openloopStep()
+	_, _ = e.closedloopStep(0)
+	_, _ = e.closedloopStep(1)
+
+	var bsFrame bitstream.Frame
+	e.buildBitstreamFrame(&bsFrame)
+	return bitstream.Pack(&bsFrame, out)
 }
 
 // lpcStep runs the §3.2.1–§3.2.4 chain on one 80-sample PCM frame

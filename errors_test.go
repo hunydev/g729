@@ -14,7 +14,6 @@ func TestErrors_AreSentinels(t *testing.T) {
 		{"ErrShortPCM", ErrShortPCM, "g729: input PCM length not multiple of frame size (80)"},
 		{"ErrShortOutput", ErrShortOutput, "g729: output buffer too small"},
 		{"ErrShortBitstream", ErrShortBitstream, "g729: bitstream length not multiple of 10 bytes"},
-		{"ErrNotImplemented", ErrNotImplemented, "g729: not yet implemented"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

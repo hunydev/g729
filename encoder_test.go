@@ -28,15 +28,6 @@ func TestEncoder_EncodeFrame_RejectsShortOutput(t *testing.T) {
 	}
 }
 
-func TestEncoder_EncodeFrame_StubReturnsNotImplemented(t *testing.T) {
-	e := NewEncoder()
-	pcm := make([]int16, FrameSamples)
-	var out [FrameBytes]byte
-	if err := e.EncodeFrame(pcm, out[:]); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("got %v want ErrNotImplemented", err)
-	}
-}
-
 func TestEncoder_Reset_ZeroValueIsSafe(t *testing.T) {
 	var e Encoder
 	e.Reset()

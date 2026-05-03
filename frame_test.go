@@ -1,7 +1,6 @@
 package g729
 
 import (
-	"errors"
 	"testing"
 )
 
@@ -9,8 +8,8 @@ func TestEncodeFrame_TopLevelDelegates(t *testing.T) {
 	e := NewEncoder()
 	pcm := make([]int16, FrameSamples)
 	var out [FrameBytes]byte
-	if err := EncodeFrame(e, pcm, out[:]); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("got %v want ErrNotImplemented (stub)", err)
+	if err := EncodeFrame(e, pcm, out[:]); err != nil {
+		t.Fatalf("EncodeFrame returned %v; want nil (post API-1 wiring)", err)
 	}
 }
 

@@ -20,11 +20,6 @@ var (
 	// ErrShortBitstream is returned by DecodeFrame and Decode when the
 	// input length is not a multiple of FrameBytes.
 	ErrShortBitstream = errors.New("g729: bitstream length not multiple of 10 bytes")
-
-	// ErrNotImplemented is a transitional sentinel used by the scaffold
-	// until each sub-phase's DSP block is wired in. It is removed before
-	// Phase 2 closure.
-	ErrNotImplemented = errors.New("g729: not yet implemented")
 )
 
 // Public frame-shape constants.
