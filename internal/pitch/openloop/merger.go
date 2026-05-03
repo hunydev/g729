@@ -6,31 +6,39 @@ import (
 	"github.com/exedev/g729/internal/fixed"
 )
 
-// OQ-1 binding constant — pinned for INT-1 first-attempt; refine if
-// plausibility <80%. See plan §9 OQ-1: §A.3.4 lines 2109-2111 prescribe
-// "augmenting the normalized correlations corresponding to the lower
-// delay range if their delays are submultiples of the delays in the
-// higher delay range" without giving the augmentation factor. The
-// first-attempt heuristic per plan §6 OL-4 is to require any higher-
-// range candidate to beat the lower-range candidate by at least the
-// inverse of this ratio (4/3 ≈ 1.333) on the eq. A.5 R'² score; the
-// equivalent statement is "the lower-range R' must reach at least 3/4
-// of the higher-range R' (in squared form, 3/4 of R'²) to win". A
-// 4/3 lift is a textbook bias commonly applied to bias open-loop pitch
-// estimators toward the fundamental period when sub-multiples are
-// present (first-attempt heuristic per plan §6 OL-4; not lifted from
-// any third-party G.729 implementation per I1).
+// OQ-1 binding constants — RE-PINNED at Phase 2b INT-1 closure
+// (ACCEPT-PARTIAL, 53.95% plausibility on PITCH.IN/PITCH.BIT after
+// 5/5 I5 slots; see TestEncode_OpenLoopPitchConsistency and Phase 2b
+// plan §6 INT-1 disposition).
+//
+// §A.3.4 lines 2109-2111 prescribe "augmenting the normalized
+// correlations corresponding to the lower delay range if their delays
+// are submultiples of the delays in the higher delay range" without
+// giving the augmentation factor. The INT-1 sweep tested lift =
+// 4/3 → 3/2 → 2/1 with tolerance ∈ {1, 2, 3}; plausibility plateaued
+// at ~55% beyond (lift=2/1, tol=2), confirming the residual error is
+// NOT primarily sub-multiple-classification (the Δ histogram shows
+// tightly-banded non-multiple negative deltas that no single lift
+// constant can repair). The lift = 2/1 / tol = 2 pin is the best
+// in-budget configuration and is retained as the OQ-1 binding pin
+// pending Phase 2c closed-loop refinement, which will move the
+// strict byte-EQ gate downstream of T_op (per Phase 2b plan §2 line
+// 91-93). I1 clean-room: this constant was selected by measurement
+// against PITCH.IN/PITCH.BIT alone — no third-party G.729 source
+// was consulted.
 const (
-	oq1SubMultipleLiftNumerator   = 4
-	oq1SubMultipleLiftDenominator = 3
+	oq1SubMultipleLiftNumerator   = 2
+	oq1SubMultipleLiftDenominator = 1
 	// oq1SubMultipleTolerance is the ±sample slack used by
 	// isNearSubmultiple when checking whether a higher-range lag is an
-	// integer multiple of a lower-range lag. A ±1 sample tolerance
-	// matches the §A.3.4 third-region ±1 refinement granularity (lines
-	// 2113-2114) and tolerates the open-loop estimator's natural one-
-	// sample rounding error. OQ-1 binding constant — pinned for INT-1
-	// first-attempt; refine if plausibility <80%.
-	oq1SubMultipleTolerance = 1
+	// integer multiple of a lower-range lag. Pinned at 2 by the INT-1
+	// sweep (tol=1 → 50.46%, tol=2 → 53.95%, tol=3 → 55.26%; the tol=3
+	// gain over tol=2 is ~1.3pp and falls outside the prompt-allowed
+	// {0,1,2} range, so tol=2 is retained). The ±2 sample window is
+	// looser than the §A.3.4 third-region ±1 refinement granularity
+	// (lines 2113-2114) but absorbs more of the open-loop estimator's
+	// natural rounding error around true sub-multiples.
+	oq1SubMultipleTolerance = 2
 )
 
 // mergeThreeRanges combines the §A.3.4 per-range OL-3 winners
