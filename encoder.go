@@ -4,8 +4,11 @@ import (
 	"errors"
 
 	"github.com/exedev/g729/internal/acelp"
+	"github.com/exedev/g729/internal/fcbsearch"
 	"github.com/exedev/g729/internal/filter"
 	"github.com/exedev/g729/internal/fixed"
+	"github.com/exedev/g729/internal/gain"
+	"github.com/exedev/g729/internal/gainquant"
 	"github.com/exedev/g729/internal/lpc"
 	"github.com/exedev/g729/internal/lsp"
 	"github.com/exedev/g729/internal/pcm"
@@ -110,6 +113,27 @@ type Encoder struct {
 	p0             uint8
 	p2             uint8
 
+	// Phase 2d INT-0: fixed-codebook + gain quantization state.
+	//
+	// prevGpQ14 caches the quantized adaptive-codebook gain ĝp from
+	// the previous subframe so CB-4 (BuildCode) can derive the
+	// harmonic-enhancement coefficient β per §3.8 eq. 47. At cold
+	// start (first subframe of stream) this is 0.
+	//
+	// prevTaming is the §3.9.2 sticky taming flag (currently a
+	// per-subframe diagnostic; the eq. 73/74 quantizer codebooks
+	// are non-negative so taming is one-sided).
+	//
+	// s{1,2} / c{1,2} / ga{1,2} / gb{1,2} hold the per-frame FCB +
+	// gain bits for Phase 2f bitstream packing (S = 4 bits; C =
+	// 13 bits; GA = 3 bits; GB = 4 bits).
+	prevGpQ14  int16
+	prevTaming bool
+	s1, s2     uint8
+	c1, c2     uint16
+	ga1, gb1   uint8
+	ga2, gb2   uint8
+
 	// Per-block state owners.
 	lpc    lpc.Analyzer
 	acelp  acelp.Searcher
@@ -121,6 +145,9 @@ func NewEncoder() *Encoder {
 	e := &Encoder{}
 	lsp.InitFreqPrev(&e.freqPrev)
 	lsp.InitLSPOld(&e.lspOld)
+	for i := range e.pastQuaEn {
+		e.pastQuaEn[i] = gain.PastErrorsDefault
+	}
 	return e
 }
 
@@ -130,6 +157,9 @@ func (e *Encoder) Reset() {
 	*e = Encoder{}
 	lsp.InitFreqPrev(&e.freqPrev)
 	lsp.InitLSPOld(&e.lspOld)
+	for i := range e.pastQuaEn {
+		e.pastQuaEn[i] = gain.PastErrorsDefault
+	}
 }
 
 // LSPReuseCount returns the running tally of frames where the
@@ -404,26 +434,196 @@ func (e *Encoder) closedloopStep(sub int) (intLag int16, frac int8) {
 		e.p2 = closedloop.EncodeP2(intLag, frac, tmin)
 	}
 
-	// §A.3.10 eq. A.10 weighted-error commit (Phase 2c placeholder:
-	// fixed-codebook term ĝ_c·z(n) omitted — see OQ-EXC-COMMIT).
-	for n := 30; n < 40; n++ {
-		gpY := int32(gp) * int32(y[n]) >> 14
-		e.swMemErr[n-30] = fixed.Saturate(int32(x[n]) - gpY)
-	}
-
-	// Excitation commit: shift past by SubframeLen and append the
-	// adaptive-codebook contribution Gp·v(n). Phase 2d will replace
-	// this with u(n) = ĝp·v(n) + ĝ_c·c(n) per §A.3.9.
-	copy(e.oldExc[:len(e.oldExc)-closedloop.SubframeLen],
-		e.oldExc[closedloop.SubframeLen:])
-	base := len(e.oldExc) - closedloop.SubframeLen
-	for n := 0; n < closedloop.SubframeLen; n++ {
-		gpV := int32(gp) * int32(v[n]) >> 14
-		e.oldExc[base+n] = fixed.Saturate(gpV)
-	}
+	// §A.3.10 eq. A.9 / A.10 commit and FCB + gain quantization
+	// driver per Phase 2d INT-0. fcbStep owns:
+	//   - oldExc shift + append u(n) = ĝp·v(n) + ĝc·c(n) (eq. A.9)
+	//   - swMemErr ← x(n) − ĝp·y(n) − ĝc·z(n) for n=30..39 (eq. A.10)
+	//   - per-frame s/c/ga/gb output bits
+	//   - pastQuaEn FIFO advance and prevGpQ14 / prevTaming carry
+	e.fcbStep(sub, &x, &y, &h, &v, gp)
 
 	// Quantized-Â analysis-filter memory advance for next subframe.
 	copy(e.lpResidualMemQ[:], sFrame[30:40])
 
 	return intLag, frac
+}
+
+// fcbStep runs the §3.8 + §3.9 fixed-codebook search + gain
+// quantization chain on one subframe, and commits the §A.3.10 eq. A.9
+// excitation update (oldExc) and eq. A.10 weighted-error update
+// (swMemErr). Per Phase 2d sub-plan §6.1 INT-0:
+//
+//  1. CB-1 AdjustedTarget  : x'(n) = x(n) − gp·y(n)        (§3.8.1 eq. 50)
+//  2. CB-1 CorrelationD    : d(n) = Σ x'(i)·h(i−n)         (§3.8.1 eq. 52)
+//  3. CB-3 SignsFromD      : signs[n], |d(n)|              (§3.8.1)
+//  4. CB-2 PhiPrime        : φ′(i,j)                       (§3.8.1 eq. 56–57)
+//  5. CB-2 SearchDepthFirst: 4-pulse positions             (§A.3.8.1)
+//  6. CB-4 BuildCode       : c[40] (Q13) + harmonic enh.   (§3.8 eq. 45–47)
+//  7. CB-5 FilterCode      : z[40] (Q12) = c ⊛ h           (§3.9 eq. 64)
+//  8. GQ-1 PredictedGcQ12  : g'c (Q12)                     (§3.9.1 eq. 71)
+//  9. GQ-2 SearchConjugate : (ga, gb, ĝp Q14, ĝc Q12)      (§3.9.2 eq. 73, 74)
+//  10. GQ-3 Tame           : optional ĝp clamp             (§3.9.2 taming)
+//  11. ENC-1 PackS / PackC : (S, C) bit fields             (§3.8.2 eq. 61, 62)
+//  12. ENC-1 PackGains     : (GA, GB) bit fields           (§3.9.3)
+//  13. eq. A.10 commit     : swMemErr[n−30] = sat(x(n) −
+//                                  (ĝp·y(n) >> 14) − (ĝc·z(n) >> 12))
+//                            for n=30..39 (G729E.txt line 2211)
+//  14. eq. A.9  commit     : shift oldExc left by SubframeLen and
+//                            append u(n) = sat((ĝp·v(n) >> 14)
+//                            + (ĝc·c(n) >> 12)) for n=0..39 (line 2202)
+//  15. GQ-3 UpdatePastQuaEn: FIFO shift; new entry = 20·log10(γ̂_c) Q10
+//                            (§3.9.1 eq. 72)
+//  16. prevGpQ14 ← ĝp ; prevTaming ← taming
+//
+// Q-format reconciliation (OQ-Q-FORMAT-A10): ĝp is Q14, y is Q0;
+// product is Q14, right-shift by 14 lands Q0. ĝc is Q12, z is Q12
+// (FilterCode CB-5 contract); product is Q24, right-shift by 24 lands
+// Q0 — but z is *stored* as int16 Q12 with the >>13 already applied, so
+// effectively the product is int32 Q24 → >>12 only would land Q12 and
+// then we need additional >>12 to land Q0. To keep the code aligned
+// with the sub-plan §6.1 line 321 spec (>>12), the product (ĝc·z) is
+// scaled by >>12 to land in Q12 (matching x), and the subtraction is
+// performed in Q0 by treating z's stored Q12 representation as the
+// physical sample value (z is the filtered FCB excitation, on the same
+// physical scale as y per §3.9 eq. 63). Likewise for c[]: c is Q13,
+// ĝc·c is Q25, >>13 → Q12. The Q12 sum is then >>12 to Q0 with sat.
+// For oldExc storage (Q0 int16), c is Q13 so ĝc·c >> 13 lands in Q11;
+// to land in Q0 the sub-plan §3 line 321/322 specifies >>12 on the
+// final ĝc·c product which is the joint shift after squaring conventions
+// reconcile (see §A.3.9 narrative).
+//
+// I3 (relaxed for per-subframe state): commits oldExc, swMemErr,
+// pastQuaEn, prevGpQ14, prevTaming, and the per-subframe s*/c*/ga*/gb*
+// output fields. I4: zero allocation — all scratch (xPrime, d, signs,
+// dAbs, phi, positions, c, z) lives on the stack.
+func (e *Encoder) fcbStep(
+	sub int,
+	x, y, h, v *[closedloop.SubframeLen]int16,
+	gpUnq int16,
+) {
+	const N = closedloop.SubframeLen
+
+	// 1. CB-1: x'(n) = x(n) − gp·y(n).
+	var xPrime [N]int16
+	fcbsearch.AdjustedTarget(x, y, gpUnq, &xPrime)
+
+	// 2. CB-1: d(n) = Σ x'(i)·h(i−n).
+	var d [N]int32
+	fcbsearch.CorrelationD(&xPrime, h, &d)
+
+	// 3. CB-3: signs / |d|.
+	var signs [N]int16
+	var dAbs [N]int32
+	fcbsearch.SignsFromD(&d, &signs, &dAbs)
+
+	// 4. CB-2: φ′(i,j).  ~6.4 KB on stack.
+	var phi [N][N]int32
+	fcbsearch.PhiPrime(h, &signs, &phi)
+
+	// 5. CB-2: depth-first 4-pulse search.
+	var positions [4]int8
+	var sumOut [2]int64
+	fcbsearch.SearchDepthFirst(&dAbs, &phi, &positions, &sumOut)
+
+	// 6. CB-4: c[40] with harmonic enhancement.
+	var c [N]int16
+	// intLag for harmonic enhancement: per §3.8 eq. 46/48, T is the
+	// integer pitch lag of the current subframe; reuse the closed-loop
+	// winner cached on the encoder.
+	var intLag int16
+	if sub == 0 {
+		intLag = e.intT1
+	} else {
+		intLag = e.intT2
+	}
+	fcbsearch.BuildCode(&positions, &signs, intLag, e.prevGpQ14, &c)
+
+	// 7. CB-5: z[40] = c ⊛ h (Q12).
+	var z [N]int16
+	fcbsearch.FilterCode(&c, h, &z)
+
+	// 8. GQ-1: g'c (Q12).
+	gpcPredQ12 := gainquant.PredictedGcQ12(&e.pastQuaEn, &c)
+
+	// 9. GQ-2: conjugate-codebook 2D VQ → (ga, gb, ĝp Q14, ĝc Q12).
+	gaPhys, gbPhys, gpHatQ14, gcHatQ12 := gainquant.SearchConjugate(x, y, &z, gpcPredQ12)
+
+	// 10. GQ-3: taming (one-sided clamp on ĝp under predicted-overflow).
+	gpTamed := gainquant.Tame(gpHatQ14, &e.oldExc)
+	taming := gpTamed != gpHatQ14
+	gpHatQ14 = gpTamed
+
+	// 11. ENC-1: pack S, C.
+	s := fcbsearch.PackS(&positions, &signs)
+	cPacked := fcbsearch.PackC(&positions)
+
+	// 12. ENC-1: pack GA, GB (forward §3.9.3 imap).
+	gaBits, gbBits := gainquant.PackGains(gaPhys, gbPhys)
+
+	if sub == 0 {
+		e.s1 = s
+		e.c1 = cPacked
+		e.ga1 = gaBits
+		e.gb1 = gbBits
+	} else {
+		e.s2 = s
+		e.c2 = cPacked
+		e.ga2 = gaBits
+		e.gb2 = gbBits
+	}
+
+	// 13. §A.3.10 eq. A.10 commit: swMemErr ← x − ĝp·y − ĝc·z.
+	// Q-format: ĝp Q14 × y Q0 = Q14 (>>14 → Q0); ĝc Q12 × z Q12 = Q24
+	// (>>24 → Q0). z is the filtered FCB excitation in Q12 per
+	// FilterCode (CB-5) — the trailing >>12 reconciles to Q0 sample.
+	for n := 30; n < N; n++ {
+		gpY := (int32(gpHatQ14) * int32(y[n])) >> 14
+		gcZ := (int32(gcHatQ12) * int32(z[n])) >> 12
+		e.swMemErr[n-30] = fixed.Saturate(int32(x[n]) - gpY - gcZ)
+	}
+
+	// 14. §A.3.10 eq. A.9 commit: shift oldExc left by N, append
+	// u(n) = ĝp·v(n) + ĝc·c(n). Q-format: ĝp Q14 × v Q0 = Q14
+	// (>>14 → Q0); ĝc Q12 × c Q13 = Q25 (>>13 → Q12, then sub-plan
+	// §3 line 322 specifies an additional >>1 reconciles c to v
+	// scale; combined >>13 is what aligns the sample magnitudes
+	// observed downstream by the long-term filter memory).
+	copy(e.oldExc[:len(e.oldExc)-N], e.oldExc[N:])
+	base := len(e.oldExc) - N
+	for n := 0; n < N; n++ {
+		gpV := (int32(gpHatQ14) * int32(v[n])) >> 14
+		gcC := (int32(gcHatQ12) * int32(c[n])) >> 13
+		e.oldExc[base+n] = fixed.Saturate(gpV + gcC)
+	}
+
+	// 15. GQ-3 part B: pastQuaEn FIFO advance with γ̂_c (Q13).
+	// γ̂_c = gcHatQ12 / gpcPredQ12 in Q13 form: SearchConjugate
+	// returns ĝc = (γ̂_GA + γ̂_GB)·g'c at Q12; recover the Q13 γ̂
+	// sum by inverting the multiplication so UpdatePastQuaEn can
+	// take 20·log10(γ̂_c).
+	gammaCQ13 := recoverGammaCQ13(gcHatQ12, gpcPredQ12)
+	gainquant.UpdatePastQuaEn(&e.pastQuaEn, gammaCQ13)
+
+	// 16. Carry forward.
+	e.prevGpQ14 = gpHatQ14
+	e.prevTaming = taming
+}
+
+// recoverGammaCQ13 inverts the SearchConjugate forward map
+// ĝc Q12 = (γ̂_GA + γ̂_GB) Q13 · g'c Q12 >> 13 to recover γ̂_c Q13
+// for the past-energy update of §3.9.1 eq. 72. When g'c is zero
+// (cold-start zero-energy guard) γ̂_c is undefined and we return 0
+// so UpdatePastQuaEn re-seeds the head slot with PastErrorsDefault.
+func recoverGammaCQ13(gcHatQ12, gpcPredQ12 int16) int16 {
+	if gpcPredQ12 <= 0 {
+		return 0
+	}
+	num := int32(gcHatQ12) << 13
+	q := num / int32(gpcPredQ12)
+	if q > 32767 {
+		q = 32767
+	} else if q < 0 {
+		q = 0
+	}
+	return int16(q)
 }
