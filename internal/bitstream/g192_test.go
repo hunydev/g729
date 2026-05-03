@@ -221,6 +221,27 @@ t.Errorf("err = %v, want io.EOF", err)
 }
 }
 
+// TestReadG192Frame_TruncatedMidFrame verifies that a reader exhausted
+// mid-frame (after the sync word but before all 80 softbit words have
+// been consumed) returns io.ErrUnexpectedEOF, distinguishing a clean
+// frame-boundary EOF from a truncated transport.
+func TestReadG192Frame_TruncatedMidFrame(t *testing.T) {
+words := make([]uint16, G192FrameWords)
+words[0] = G192SyncGood
+words[1] = FrameBits
+for i := 0; i < FrameBits; i++ {
+words[2+i] = G192Bit0
+}
+var full bytes.Buffer
+_ = binary.Write(&full, binary.LittleEndian, words)
+trunc := full.Bytes()[:G192FrameBytes-2]
+
+var frame [FrameBytes]byte
+if _, err := ReadG192Frame(bytes.NewReader(trunc), frame[:]); !errors.Is(err, io.ErrUnexpectedEOF) {
+t.Errorf("err = %v, want io.ErrUnexpectedEOF", err)
+}
+}
+
 func TestG192RoundTrip(t *testing.T) {
 original := []byte{0xAA, 0x55, 0x01, 0x80, 0xFF, 0x00, 0x12, 0x34, 0x56, 0x78}
 var buf bytes.Buffer
