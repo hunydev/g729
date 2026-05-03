@@ -497,10 +497,10 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 **Files:** Extend `internal/lsp/encoder_predictor.go`, add `internal/lsp/encoder_target_test.go`.
 
-- [ ] **Step 1: Write failing test** with synthetic ω(m) = i·π/11 (codec-start), zeroed memory: assert l_i = ω(m) (since predictor contribution is 0 at start). Second case: ω(m) = 0; with memory loaded with one non-zero past frame, assert the closed-form value of eq. 23.
-- [ ] **Step 2: Run to verify FAIL**.
-- [ ] **Step 3: Write minimal implementation:** for each i, sum `Σ_{k=1..4} P_{i,k} · mem[k-1][i]`, subtract from ω(m), divide by `(1 − Σ_{k=1..4} P_{i,k})` using `fixed.Div32`. Q-format: ω, l_i in Q13; predictor Q15; intermediate Word32.
-- [ ] **Step 4: Run to verify PASS**.
+- [x] **Step 1: Write failing test** with synthetic ω(m) = i·π/11 (codec-start), zeroed memory: assert l_i = ω(m) (since predictor contribution is 0 at start). Second case: ω(m) = 0; with memory loaded with one non-zero past frame, assert the closed-form value of eq. 23.
+- [x] **Step 2: Run to verify FAIL**.
+- [x] **Step 3: Write minimal implementation:** for each i, sum `Σ_{k=1..4} P_{i,k} · mem[k-1][i]`, subtract from ω(m), divide by `(1 − Σ_{k=1..4} P_{i,k})` using `fixed.Div32`. Q-format: ω, l_i in Q13; predictor Q15; intermediate Word32.
+- [x] **Step 4: Run to verify PASS**.
 - [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.4 eq. 23 (lines 884–886).
