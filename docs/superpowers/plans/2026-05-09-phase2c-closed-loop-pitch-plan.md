@@ -270,6 +270,12 @@ Plausibility = weighted avg over (P1 byte-EQ, P0 parity match, P2 byte-EQ); ACCE
 
 | Run | AllocsPerRun | BytesPerRun | Verdict |
 |---|---|---|---|
+| `closedloopStep(0)` (sub-1, in isolation) | 0 | 0 | PASS |
+| `closedloopStep(1)` (sub-2, in isolation) | 0 | 0 | PASS |
+| `lpcStep + openloopStep + 2× closedloopStep` (full hot path / frame) | 0 | 0 | PASS |
+| `BenchmarkClosedloopStep` (2 subframes / op, AMD EPYC 9554P) | 0 | 0 | 14964 ns/op |
+
+`go test -race ./...`: closedloop package + Phase 2c integration tests race-clean (only the 4 pre-existing baseline FAILs and the documented INT-1 RED gate fail; no race detector hits).
 
 ---
 
@@ -277,7 +283,8 @@ Plausibility = weighted avg over (P1 byte-EQ, P0 parity match, P2 byte-EQ); ACCE
 
 | Escalation | Hypothesis | Spent | Remaining | Result |
 |---|---|---|---|---|
-| 0 | (initial pass) | 0/5 | 5/5 | TBD |
+| 0 | (baseline; minSafeCentre=45 workaround for OQ-K<40) | 0/5 | 5/5 | P1 2.07% / P0 51.28% / P2 3.71% — FAIL/BELOW/FAIL |
+| 1 | OQ-K<40 LP-residual extension refactor (anchor u(0) at exc[len-SubframeLen]; fill trailing 40 with current-subframe r) | 1/5 | 4/5 | P1 9.05% / P0 56.46% / P2 9.75% — FAIL/BELOW/FAIL. Δ=0 buckets now dominant (≈9-10%) but heavy negative-bias tail Δ=-7..-10 each 2-4%. Consistent with H-CENTER (Phase 2b open-loop tOp matches reference T1 only ~54%) and OQ-EXC-COMMIT (swMemErr lacks ĝ_c·z(n), Phase 2d) structural blockers. Further closed-loop-only escalations will not break 50% — STOPPED per FAIL contract. |
 
 ---
 
