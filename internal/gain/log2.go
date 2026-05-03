@@ -53,3 +53,10 @@ func log2Fixed(x fixed.Word32) fixed.Word32 {
 
 	return (intPart << 10) + (fracLog2Q15 >> 5)
 }
+
+// Log2Fixed is the exported form of log2Fixed used by the encoder-side
+// gain predictor (internal/gainquant). See the unexported form's
+// contract: input treated as Q0; output is log2(x) at Q10.
+func Log2Fixed(x fixed.Word32) fixed.Word32 {
+	return log2Fixed(x)
+}

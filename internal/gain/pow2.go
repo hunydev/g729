@@ -55,3 +55,11 @@ func pow2Fixed(x fixed.Word32) fixed.Word32 {
 		return fixed.Word32(fracQ14 >> s)
 	}
 }
+
+// Pow2Fixed is the exported form of pow2Fixed used by the encoder-side
+// gain predictor (internal/gainquant). See the unexported form's
+// contract: input is Q10 representing the exponent; output is 2^x as
+// Q0 Word32.
+func Pow2Fixed(x fixed.Word32) fixed.Word32 {
+	return pow2Fixed(x)
+}

@@ -8,6 +8,11 @@ import (
 // MA-predictor tap line (§3.9 / §4.1.6): −14 dB Q10 = −14336.
 const pastErrorsDefault int16 = -14336
 
+// PastErrorsDefault is the exported alias of pastErrorsDefault, used by
+// encoder-side predictor state initialization (internal/gainquant) so
+// the cold-start MA tap line matches the decoder convention.
+const PastErrorsDefault int16 = pastErrorsDefault
+
 // Numerical constants derived from physical identities (NOT from any
 // existing G.729 implementation):
 //

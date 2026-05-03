@@ -26,3 +26,11 @@ func fixedCodebookEnergy(c *[40]int16) fixed.Word32 {
 	}
 	return acc
 }
+
+// FixedCodebookEnergy is the exported form of fixedCodebookEnergy used by
+// the encoder-side gain predictor (internal/gainquant). Returns Σ c[n]²
+// at Q26 for c at Q13. See the unexported form's contract for the full
+// Q-format walk and downstream correction requirements.
+func FixedCodebookEnergy(c *[40]int16) fixed.Word32 {
+	return fixedCodebookEnergy(c)
+}
