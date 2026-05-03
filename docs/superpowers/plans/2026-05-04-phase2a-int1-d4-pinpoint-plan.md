@@ -418,3 +418,138 @@ spec-conformant and the q[5] gap is not bisection-driven.
     bisections) — S7 spec-conformance check.
   * §3.2.3 eq. 9–17 (F1/F2 polynomials + Chebyshev evaluation) —
     S8 float oracle.
+
+---
+
+## §11. FIX-1A applied — Norm_l renormalization of `e` (FAILED-REVERT)
+
+**Date:** 2026-05-04 (post-d4 fix dispatch).
+**HEAD at entry:** `e7f5c0c`. **HEAD at exit:** `e7f5c0c` (revert).
+**I5 budget:** 0/5 → **1/5** consumed.
+**Disposition:** **FAILED-REVERT**. The fix is mathematically a no-op
+on frame 29 — 11.3 — and the integration gatesee 
+`TestEncode_LSPVectorBitExact` continues to fatal at frame 29 with
+`g729/lsp: fewer than 5 sign changes in F1 or F2 — LP filter not
+stable`. Code reverted; only this §11 record persists.
+
+### §11.1 What was applied
+
+`internal/lpc/levinson.go` body (the `levinsonDurbin` function):
+
+* Added `import "math/bits"`.
+* Added two helpers in the same package: `normShiftToBit30(int64) uint`
+  (Norm_l-style: shifts a strictly-positive int64 left so its MSB
+  sits at bit 30 of the int32 mantissa) and
+  `satShiftLeft64(int64, uint) int64` (saturating left shift).
+* In `levinsonDurbin`, after the initial `e := int64(r[0])` and
+  after every `e = (e * oneMinusKSq) >> 30`, normalized `e` and
+  accumulated the shift count into a new local `eShift uint`.
+* Before the reflection-coefficient division, applied
+  `num := satShiftLeft64(-(sum << 3), eShift)` so that the divide
+  preserves the algebraic ratio `num_orig / e_true` independently of
+  how aggressively `e` was renormalized.
+* Mirror in `internal/lsp/phase2a_int1_d4_pinpoint_test.go`
+  (`mirrorLevinsonTraced`) updated identically; test imports gained
+  `math/bits`. S0 (mirror-vs-production bit-exactness) passed.
+
+### §11.2 Test results under the fix (before revert)
+
+| Test | Result | Notes |
+|------|--------|-------|
+| `internal/lpc -run Levinson` (4 tests + alloc gate) | **PASS** | Kronecker, AR(1), Stability, Frame0Char, ZeroAllocation all pass. |
+| `internal/lsp -run TestINT1D4Pinpoint` (S0..S8) | **PASS** | S0 mirror bit-exact; S5 cascade still fires at i=7. |
+| `. -run TestEncode_LSPVectorBitExact` | **FAIL** | Frame 29 LP-instability fatal — *unchanged from baseline*. |
+
+INT-1 byte-EQ rates L0/L1/L2/L3: **unmeasurable** — the integration
+gate `t.Fatalf`s at frame 29 before reaching the count loop, both
+before and after the fix. The fix produces identical frame-29 a[]
+to baseline (`[4096 355 -7407 -6045 6045 7407 -355 -4096 0 0 0]`),
+identical mirror-vs-production parity, and identical downstream LSP
+rejection.
+
+### §11.3 Why the fix is a mathematical no-op on this case
+
+Computed at i=7 with full precision (Python int):
+
+```
+sum_at_i7 = 37008146   # int64, Q12·r-scale
+num_orig  = -(sum << 3) = -296_065_168
+e_baseline_after_i6  =          5_559   # original code, e shrinks
+e_renorm_after_i6    = 1_458_072_846   # FIX-1A, eShift=18 by i=7
+q_baseline = num_orig / e_baseline_after_i6        # = -53_261
+q_FIX_1A   = (num_orig << 18) / e_renorm_after_i6  # = -53_229
+```
+
+Both compute the same algebraic ratio
+`num_orig / e_true ≈ -53_245` and both **saturate identically** to
+`MinInt16 = -32768`, driving identical aWork mirror-symmetric
+sat clones at i=7 and identical `< 5 sign changes` rejection in
+the LP→LSP step. Norm_l renormalization preserves the ratio, but
+the **ratio itself is the saturating quantity**.
+
+The d4 root-cause hypothesis ("e shrinks to 5559 vs float 18534, so
+num/e overflows") was numerically correct in describing the
+**symptom** but causally wrong: the magnitude of `e` is irrelevant
+to the saturation because `num` and `e` co-vary under any
+energy-conserving renormalization. The true root cause must lie
+**upstream of the divide** — specifically in the SUM
+a true |k_7| ≈ 0.50–1.6, while the float oracle says |k_7| = 0.155.
+Cross-checking aWork at i=6 against the float oracle:
+
+| j | aWork[j] (Q12) | aWork[j]/4096 | float a^{(6)}_j | Δ |
+|---|---|---|---|---|
+| 1 | -2575 | -0.629 | -0.620 |  -0.009 |
+| 2 | -7065 | -1.725 | -1.157 |  -0.568 |
+| 3 |  1052 |  0.257 |  0.150 |  +0.107 |
+| 4 |  7097 |  1.733 |  1.156 |  +0.577 |
+| 5 |   342 |  0.084 |  0.052 |  +0.032 |
+| 6 | -2930 | -0.715 | -0.620 |  -0.095 |
+
+aWork has drifted ~0.5 Q12 from the float oracle by i=6 — large
+enough to make the i=7 sum 3–5× its true magnitude.
+
+### §11.4 Refined hypothesis for ESCALATE-d5
+
+**H-L1′ (refined H-L1):** the Levinson cascade at frame 29 is driven
+by the inner-update loop precision
+
+```
+aWork[j] = aPrev[j] + (kQ15 · aPrev[i-j]) >> 15
+```
+
+ specifically by the Q12 quantization of `aWork[j]` plus the Q15
+quantization of `kQ15`. With |k_1| = 0.984 (kQ15 = -32228), each
+inner-update term carries a ~1/2 LSB Q12 error per j; over 6
+iterations the per-element error grows roughly as
+high-|k_1| frames. The Q-format implementation must therefore
+**carry aWork in higher precision** (Q24 or Q30 in int32 or int64)
+through the recursion, quantizing to Q12 only at the final
+`a[j] = saturateInt16(aWork[j])` step.
+
+This is consistent with §3.2.2's spec text (recursion in real
+arithmetic) and with §3.2.1 line 691's "to avoid arithmetic
+problems" license to renormalize internal state.
+
+### §11.5 d5 dispatch recommendation
+
+* Open `2026-05-05-phase2a-int1-d5-aWork-precision-plan.md`.
+* Hypothesis under test: H-L1′ (aWork Q-format precision).
+* Measurement before any fix: extend
+  `mirrorLevinsonTraced` to log per-element aWork-vs-float-oracle
+  deltas at every i, confirming the error-growth rate model above.
+* Candidate FIX-1B: widen `aWork` to Q24 (int32 retained) — verify
+  no overflow under |k_i|=0.99 worst case (Q24 · k_Q15 >> 15 = Q24
+  fits in int32 if pre-recursion Q12·1 = Q24 with |a_j|<8.0; safe
+  for spec-stable LP).
+* Candidate FIX-1C: widen `aWork` to int64 Q30 — strictly safer,
+  trivially zero-overflow, marginally slower.
+* Both candidates leave the public `levinsonDurbin` signature
+  (`*[11]int32, *[11]int16`) unchanged.
+
+### §11.6 I5 budget after this dispatch
+
+```
+Before FIX-1A:  0/5 consumed
+After FIX-1A:   1/5 consumed (FAILED-REVERT)
+Remaining:      4/5 attempts available for d5 / FIX-1B / FIX-1C
+```
