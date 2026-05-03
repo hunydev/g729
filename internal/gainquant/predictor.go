@@ -18,6 +18,7 @@ const (
 	dbPerLog2Q13   = 24660
 	tenLog10_40Q10 = 16405
 	invDbScaleQ15  = 5443
+	dbPerLog2Q10   = 6165
 )
 
 // PredictedGcQ12 returns the predicted fixed-codebook gain g'c (Q12)
@@ -72,4 +73,46 @@ func PredictedGcQ12(pastQuaEn *[4]int16, c *[40]int16) int16 {
 		return -32768
 	}
 	return int16(gcQ12)
+}
+
+// UpdatePastQuaEn applies the §3.9.1 eq. (72) past-energy FIFO update:
+//
+//pastQuaEn[3] ← pastQuaEn[2]
+//pastQuaEn[2] ← pastQuaEn[1]
+//pastQuaEn[1] ← pastQuaEn[0]
+//pastQuaEn[0] ← U(m) = 20·log10(γ̂_c)   (Q10 dB)
+//
+// The new entry U(m) is the current quantized prediction error in dB
+// (eq. 72 line 1379), feeding the next subframe's MA prediction (eq. 69).
+//
+// Q-format walk:
+//
+//   - gammaCQ13 is the quantized fixed-codebook correction factor γ̂_c
+//     (Q13; from §3.9.2 eq. 74 sum GBK1[ga][1] + GBK2[gb][1]).
+//   - gain.Log2Fixed treats the input as Q0 → log2(γ̂·2^13) = log2(γ̂)+13;
+//     subtract 13·1024 in Q10 to recover log2(γ̂) Q10.
+//   - Multiply by 20·log10(2) (Q10 constant, dbPerLog2Q10 = 6165) and
+//     >>10 → 20·log10(γ̂) at Q10 dB.
+//
+// Protective branch: γ̂ ≤ 0 is mathematically out-of-domain for log10;
+// re-seed pastQuaEn[0] with PastErrorsDefault (-14 dB Q10), matching
+// the decoder's gain.Decode zero-energy guard.
+func UpdatePastQuaEn(pastQuaEn *[4]int16, gammaCQ13 int16) {
+var uCurrent int16
+if gammaCQ13 > 0 {
+gammaLog2Q10 := int32(gain.Log2Fixed(fixed.Word32(gammaCQ13))) - 13*1024
+val := (gammaLog2Q10*dbPerLog2Q10 + (1 << 9)) >> 10
+if val > 32767 {
+val = 32767
+} else if val < -32768 {
+val = -32768
+}
+uCurrent = int16(val)
+} else {
+uCurrent = gain.PastErrorsDefault
+}
+pastQuaEn[3] = pastQuaEn[2]
+pastQuaEn[2] = pastQuaEn[1]
+pastQuaEn[1] = pastQuaEn[0]
+pastQuaEn[0] = uCurrent
 }
