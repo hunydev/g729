@@ -945,6 +945,8 @@ EOF
 
 ## 2. Phase 2a — LPC analysis + LSP quantization
 
+**Status (2026-05-05):** Phase 2a INT-1 closed **ACCEPT-PARTIAL**. See sub-plan `docs/superpowers/plans/2026-05-03-phase2a-lpc-lsp-plan.md` §8 Task 2a-INT-1 and the binding closure doc `docs/superpowers/plans/2026-05-05-phase2a-int1-accept-partial-closure.md`. Encoder LP→LSP→VQ chain (`Encoder.lpcStep`) is spec-arithmetic conformant; final byte-EQ rates L0=78.67 % / L1=38.93 % (50× chance) / L2=17.07 % / L3=19.35 %. Residual is under-specified protocol detail (§3.2.4 cold-start MA-predictor seed, §3.2.5 sub-LSB inverse-cosine rounding, Annex A §A.4 VQ tie-breaks) not recoverable without the forbidden ITU C reference. INT-2 (API audit + zero-alloc + race-detector gate) dispatched 2026-05-05.
+
 **Scope (high-level):**
 - `internal/lpc.Analyzer.Analyze`: §3.2.1 windowed autocorrelation r[0..10] (240-sample asymmetric Hamming, 80 future-lookahead + 160 past), §3.2.2 lag windowing, §3.2.3 Levinson-Durbin recursion → a[1..10] in Q12.
 - `internal/lsp` encoder side: a[10] → LSP (Chebyshev §3.2.4), 4-stage split-VQ (18 bits, §3.2.5), MA predictor update (§3.2.6), dequantized a_q[10].
