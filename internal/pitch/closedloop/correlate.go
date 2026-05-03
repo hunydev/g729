@@ -1,0 +1,116 @@
+package closedloop
+
+import "github.com/exedev/g729/internal/fixed"
+
+// PitchMinInt and PitchMaxInt are the integer-only adaptive-codebook
+// delay bounds per ITU-T G.729 Annex A §A.3.7 (G729E.txt
+// lines 2129–2131): "a fractional pitch delay T1 ... in the range
+// [19⅔, 84⅔] and integers only in the range [85, 143]". The
+// integer-lag closed-loop search itself rounds the lower fractional
+// bound up to the nearest integer (20). The upper bound 143 is the
+// maximum lag the past-excitation buffer must support.
+const (
+	PitchMinInt = 20
+	PitchMaxInt = 143
+
+	// closedLoopHalfWindow pins the ±3 integer search window around
+	// the preselected centre value (open-loop pitch Top for the
+	// first subframe; T1 for the second). §A.3.7 line 2167:
+	// "the search range is limited around a preselected value".
+	// The exact half-width is left implementation-defined by the
+	// spec; ±3 mirrors the Phase 2c sub-plan §6 CL-1 contract.
+	closedLoopHalfWindow = 3
+)
+
+// BackwardFilter computes the 40-sample backward-filtered target
+// signal xb(n) per ITU-T G.729 Annex A §A.3.7 eq. A.7
+// (G729E.txt lines 2153–2156):
+//
+//	"xb(n) is the backward filtered target signal (correlation
+//	 between x(n) and the impulse response h(n))."
+//
+// Concretely, applying the standard derivation
+// Σ_n x(n)·yk(n) = Σ_n xb(n)·u(n−k) where yk(n) = (u*h)(n) yields
+//
+//	xb(n) = Σ_{m=n..L−1} x(m)·h(m − n),   n = 0,...,L−1   (L = 40)
+//
+// i.e. the time-reversed correlation of x with h truncated to the
+// subframe.
+//
+// Q-format. x is Q0 (TG-1 convention) and h is Q12 (HI-1
+// convention). The pointwise product accumulates in Q12; we
+// arithmetically right-shift by 12 to land xb back in Q0 so the
+// downstream SearchInteger correlation Σ xb·u keeps both factors in
+// the same scale. Saturation to Word16 protects pathological
+// inputs; for ITU-magnitude signals the result fits comfortably.
+//
+// I3 / I4: pure (writes only through xb), zero allocation.
+func BackwardFilter(x, h *[SubframeLen]int16, xb *[SubframeLen]int16) {
+	for n := 0; n < SubframeLen; n++ {
+		var acc int32
+		for m := n; m < SubframeLen; m++ {
+			acc += int32(x[m]) * int32(h[m-n])
+		}
+		xb[n] = fixed.Saturate(acc >> 12)
+	}
+}
+
+// SearchInteger maximises the numerator-only closed-loop pitch
+// criterion of ITU-T G.729 Annex A §A.3.7 eq. A.7
+// (G729E.txt lines 2151–2156):
+//
+//	RN(k) = Σ_{n=0..39} x(n)·yk(n) = Σ_{n=0..39} xb(n)·u(n − k)
+//
+// over the integer range k ∈ [centre − 3, centre + 3]
+// ∩ [PitchMinInt, PitchMaxInt]. Per §A.3.7 line 2167 the search
+// range is limited around a preselected value: the open-loop pitch
+// Top for the first subframe (sub = 0) and the integer part of T1
+// for the second (sub = 1). The sub argument is reserved for the
+// CL-2 / FR-2 widening of the second-subframe window per
+// G729E.txt §4.1.3 lines 1512–1523; CL-1 uses the same ±3 window
+// for both subframes as a stub, deferring the §4.1.3 rule to CL-2.
+//
+// exc is the past-excitation ring buffer ordered chronologically:
+// exc[len-1] = u(-1), so u(n − k) = exc[len(exc) − k + n] for
+// n ∈ [0, 39] and k ∈ [PitchMinInt, PitchMaxInt]. The caller must
+// supply at least PitchMaxInt + SubframeLen samples of past
+// excitation. (For lags k < 40 the spec — line 2161 — copies the
+// LP residual into u(n) for n = 0..39; that population is the
+// caller's responsibility and lies in INT-0.)
+//
+// Q-format. xb and exc are Word16 (Q0). The accumulator uses
+// fixed.LMac so the returned RNbest carries the standard ITU
+// implicit ×2 product scaling (cf. openloop.correlate). Tie-break
+// on equal RN(k) favours the lower k via strict ">" comparison,
+// matching the openloop §A.3.4 line 2110 "favouring the delays
+// with the values in the lower range" convention.
+//
+// I3 / I4: pure (reads xb / exc), zero allocation.
+func SearchInteger(xb *[SubframeLen]int16, exc []int16, centre int16, sub int) (intLag int16, RNbest int32) {
+	_ = sub // reserved for CL-2 second-subframe window per §4.1.3.
+
+	kMin := int(centre) - closedLoopHalfWindow
+	if kMin < PitchMinInt {
+		kMin = PitchMinInt
+	}
+	kMax := int(centre) + closedLoopHalfWindow
+	if kMax > PitchMaxInt {
+		kMax = PitchMaxInt
+	}
+
+	intLag = int16(kMin)
+	RNbest = 0
+	base := len(exc)
+	for k := kMin; k <= kMax; k++ {
+		var acc fixed.Word32
+		excBase := base - k
+		for n := 0; n < SubframeLen; n++ {
+			acc = fixed.LMac(acc, xb[n], exc[excBase+n])
+		}
+		if acc > RNbest {
+			RNbest = acc
+			intLag = int16(k)
+		}
+	}
+	return intLag, RNbest
+}
