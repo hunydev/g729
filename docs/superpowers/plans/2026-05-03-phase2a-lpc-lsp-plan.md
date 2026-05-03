@@ -525,13 +525,13 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 **Files:** Create `internal/lsp/encoder_weights.go`, `internal/lsp/encoder_weights_test.go`.
 
-- [ ] **Step 1: Write failing test** with three ω vectors:
+- [x] **Step 1: Write failing test** with three ω vectors:
   1. Uniform spacing ω_i = i·π/11 → all branches of eq. 22 hit "if … > 0" and w = 1.0 except w_5/w_6 boosted by 1.2.
   2. Cluster ω_5 ≈ ω_6 → otherwise branch on w_5 → w_5 > 1.0.
   3. ω_2 < 0.04π → w_1 in otherwise branch, recompute by hand.
-- [ ] **Step 2: Run to verify FAIL**.
-- [ ] **Step 3: Write minimal implementation:** exactly the three-branch piecewise of eq. 22 lines 864–880. ×1.2 boost on w_5/w_6 line 882. Q-format: ω in Q13, w in Q11 (so 1.0 = 2048; 1.2 = 2458). Constants 0.04π ≈ 0.1257 → 1029 (Q13), 0.92π ≈ 2.890 → 23676 (Q13), gap threshold 1.0 → 8192 (Q13). Compute (gap − 1.0) in Q13 then square to Q26, multiply by 10 → Q26, add 1.0 in Q26 (67108864), reciprocal via `fixed.Div32` to Q11 weight. Document each constant cite line-for-line.
-- [ ] **Step 4: Run to verify PASS**.
+- [x] **Step 2: Run to verify FAIL**.
+- [x] **Step 3: Write minimal implementation:** exactly the three-branch piecewise of eq. 22 lines 864–880. ×1.2 boost on w_5/w_6 line 882. Q-format: ω in Q13, w in Q11 (so 1.0 = 2048; 1.2 = 2458). Constants 0.04π ≈ 0.1257 → 1029 (Q13), 0.92π ≈ 2.890 → 23676 (Q13), gap threshold 1.0 → 8192 (Q13). Compute (gap − 1.0) in Q13 then square to Q26, multiply by 10 → Q26, add 1.0 in Q26 (67108864), reciprocal via `fixed.Div32` to Q11 weight. Document each constant cite line-for-line.
+- [x] **Step 4: Run to verify PASS**.
 - [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.4 eq. 22 (lines 863–882).
