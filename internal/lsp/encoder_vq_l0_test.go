@@ -43,9 +43,15 @@ func TestQuantize_L0SelectsLowerMSEPredictor(t *testing.T) {
 			for i := 0; i < 5; i++ {
 				residual[5+i] = tables.LSPCodebookL1[tc.l1][5+i] + tables.LSPCodebookL3[tc.l3][i]
 			}
+			// Per spec §3.2.4 lines 819–833 the residual is
+			// rearranged (J1 then J2) before the MA predictor. The
+			// decoder applies this exact pipeline; the encoder must
+			// commit the same rearranged residual to keep the
+			// predictor FIFOs in lock-step.
+			rearrangeAdjacent(&residual, lsfRearrJ1)
+			rearrangeAdjacent(&residual, lsfRearrJ2)
 			var omega [10]int16
 			applyPredictorWithMemory(tc.sel, &mem, &residual, &omega)
-			rearrangeAdjacent(&omega, lsfRearrJ1)
 
 			memCopy := mem
 			got := Quantize(&omega, &memCopy)

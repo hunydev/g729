@@ -154,8 +154,24 @@ func Quantize(omega *[10]int16, freqPrev *[4][10]int16) Indices {
 			residual[i] = fixed.Add(tables.LSPCodebookL1[l1][i], tables.LSPCodebookL2[l2][i])
 			residual[5+i] = fixed.Add(tables.LSPCodebookL1[l1][5+i], tables.LSPCodebookL3[l3][i])
 		}
+		// §3.2.4 lines 819–833: the final reconstruction (which the
+		// decoder will reproduce verbatim) rearranges the residual
+		// l̂_i twice — first with J=0.0012, then with J=0.0006 —
+		// BEFORE applying the MA predictor. The encoder's final
+		// L0-selection cost must reflect this exact pipeline so the
+		// chosen ω̂ matches the decoder's. (The intra-search L2/L3
+		// cost approximations rearrange ω̂ with J1 only per spec
+		// lines 890/894 — that's a search heuristic, not the final
+		// reconstruction.)
+		rearrangeAdjacent(&residual, lsfRearrJ1)
+		rearrangeAdjacent(&residual, lsfRearrJ2)
 		applyPredictorWithMemory(sel, freqPrev, &residual, &omegaHat)
-		rearrangeAdjacent(&omegaHat, lsfRearrJ1)
+		// §3.2.4 lines 897–898 + decoder.go step 4: post-predictor
+		// stability enforcement is part of the final ω̂ pipeline; the
+		// L0 cost must measure ω̂ AFTER stability so the encoder's
+		// pick aligns with the decoder's reproduction of the same
+		// indices.
+		enforceLSFStability(&omegaHat)
 
 		var cost int64
 		for i := 0; i < 10; i++ {
