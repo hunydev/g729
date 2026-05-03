@@ -101,8 +101,8 @@ func (d *Decoder) Decode(idx Indices) (sf1, sf2 [11]int16) {
 	interpolateLSP(&d.prevLSP, &lsp, &lspSF1, &lspSF2)
 
 	// 8. LSP → LP per subframe.
-	lspToLP(&lspSF1, &sf1)
-	lspToLP(&lspSF2, &sf2)
+	LSPToLP(&lspSF1, &sf1)
+	LSPToLP(&lspSF2, &sf2)
 
 	// 9. Save for next frame's interpolation.
 	d.prevLSP = lsp

@@ -367,7 +367,7 @@ func TestINT1D3UpstreamLP(t *testing.T) {
 		}
 
 		var aDecRaw [11]int16
-		lspToLP(&rawLSP, &aDecRaw)
+		LSPToLP(&rawLSP, &aDecRaw)
 
 		t.Logf("=== Frame 5 encoder vs decoder a[0..10] cross-check ===")
 		t.Logf("WANT indices (frame 5)            : L0=%d L1=%d L2=%d L3=%d",

@@ -187,8 +187,8 @@ func TestPhase1o_D3_S6_R2_LpDump(t *testing.T) {
 
 	// ---- R-2c..f: LSP → LP conversion ----
 	var sf0A, sf1A [11]int16
-	lspToLP(&sf0LSP, &sf0A)
-	lspToLP(&sf1LSP, &sf1A)
+	LSPToLP(&sf0LSP, &sf0A)
+	LSPToLP(&sf1LSP, &sf1A)
 	t.Logf("")
 	t.Logf("--- R-2c/d/f: LSP → LP conversion outputs ---")
 	t.Logf("  sf0 a[0..10] (interpolated LSP) (Q12): %v", sf0A)
@@ -197,13 +197,13 @@ func TestPhase1o_D3_S6_R2_LpDump(t *testing.T) {
 	// Bonus probes: a[] under alternative LSP inputs to estimate the
 	// magnitude of the routing-vs-formula leverage on a[1].
 	var aFromCurrOnly, aFromPrevOnly, aFromMid, aFromCurrFloor [11]int16
-	lspToLP(&currLSP, &aFromCurrOnly)
-	lspToLP(&initialPrevLSP, &aFromPrevOnly)
+	LSPToLP(&currLSP, &aFromCurrOnly)
+	LSPToLP(&initialPrevLSP, &aFromPrevOnly)
 	var midFloat [10]int16
 	for i := 0; i < 10; i++ {
 		midFloat[i] = int16((int32(initialPrevLSP[i]) + int32(currLSP[i])) >> 1)
 	}
-	lspToLP(&midFloat, &aFromMid)
+	LSPToLP(&midFloat, &aFromMid)
 	t.Logf("")
 	t.Logf("--- R-2 routing probes ---")
 	t.Logf("  a[] from PREV LSP only          (Q12): %v", aFromPrevOnly)

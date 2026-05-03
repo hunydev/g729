@@ -46,7 +46,7 @@ import (
 //     codec implementation.
 //   - production = 0 line change (E2): test is measurement-only.
 //     `Decoder.Decode`, `applyPredictor`, `combineResidual`,
-//     `interpolateLSP`, `lsfToLSP`, `lspToLP` are invoked unmodified.
+//     `interpolateLSP`, `lsfToLSP`, `LSPToLP` are invoked unmodified.
 //   - measurement-only (E5): hard-asserts only spec-derivable existence
 //     invariants (init constants byte-EQ vs. inline `round(i·π/11 · 8192)`
 //     and `round(cos(i·π/11) · 32768)` recomputation; selector dispatch
@@ -189,7 +189,7 @@ import (
 //
 // (4) §3.2.6 "LSP to LP conversion" (PDF p. 14, lines 921..933 +
 //     onward) — defines the F1/F2 polynomial expansion and A(z)
-//     symmetric/antisymmetric assembly. PRODUCTION: `lspToLP` in
+//     symmetric/antisymmetric assembly. PRODUCTION: `LSPToLP` in
 //     `lsp_lp.go`. Spec verbatim is silent on intermediate-precision
 //     overflow handling for the F polynomials; production resolves
 //     this with int64 accumulation + final Word16 saturation. This
@@ -246,7 +246,7 @@ import (
 //	    AND vs (prev+curr) >> 1; report both, flag R-C-blocking on
 //	    cells where they differ.
 //
-//	S9: lspToLP sf1A[0] = sf2A[0] = 4096 (§3.2.6 a[0] = 1.0 verbatim)
+//	S9: LSPToLP sf1A[0] = sf2A[0] = 4096 (§3.2.6 a[0] = 1.0 verbatim)
 //	    → expect EQ.
 //
 // ============================================================================
@@ -263,7 +263,7 @@ import (
 //     rounded-vs-shifted +1-LSB delta.
 //
 // If S8 reports R-C-blocking on any sf-1 LSP entry, the +1 vs -1
-// LSB ripple propagates through `lspToLP` (§3.2.6 polynomial
+// LSB ripple propagates through `LSPToLP` (§3.2.6 polynomial
 // expansion) into sf1A, and the +1 vs -1 LSB on a[] propagates
 // through `synth.Filter` into the early-sample synthesis output
 // (samples 0..k roughly, where k is the filter order = 10). Sample
@@ -577,11 +577,11 @@ func TestDiagnostic_Phase1mCe3InitInterpVerbatim(t *testing.T) {
 		})
 	}
 
-	// ---- S9: lspToLP sf1A / sf2A — a[0] = 4096 (§3.2.6 verbatim 1.0) ----
+	// ---- S9: LSPToLP sf1A / sf2A — a[0] = 4096 (§3.2.6 verbatim 1.0) ----
 	var sf1A, sf2A [11]int16
-	lspToLP(&sf1LSP, &sf1A)
-	lspToLP(&sf2LSP, &sf2A)
-	t.Logf("=== S9: lspToLP sf1A / sf2A (Q12) ===")
+	LSPToLP(&sf1LSP, &sf1A)
+	LSPToLP(&sf2LSP, &sf2A)
+	t.Logf("=== S9: LSPToLP sf1A / sf2A (Q12) ===")
 	t.Logf("  sf1A = %v", sf1A)
 	t.Logf("  sf2A = %v", sf2A)
 	for _, pair := range []struct {

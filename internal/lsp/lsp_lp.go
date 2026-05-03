@@ -1,6 +1,6 @@
 package lsp
 
-// lspToLP converts a 10-element Q15 LSP vector into the 11
+// LSPToLP converts a 10-element Q15 LSP vector into the 11
 // coefficients of the synthesis filter A(z) in Q12 Word16, with
 // a[0] = 4096 (i.e. 1.0 in Q12). Per ITU-T G.729 §3.2.6 / §4.1.6:
 //
@@ -18,7 +18,7 @@ package lsp
 // symmetric/antisymmetric A polynomial remains in Q12 Word16 range.
 // We therefore keep f1, f2 in int64 and only apply Word16 saturation
 // on the final a[k] output (which is the §3.2.6 output domain).
-func lspToLP(lsp *[10]int16, a *[11]int16) {
+func LSPToLP(lsp *[10]int16, a *[11]int16) {
 	var f1, f2 [11]int64
 	const oneQ28 int64 = 1 << 28
 	f1[0] = oneQ28

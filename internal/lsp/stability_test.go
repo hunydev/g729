@@ -64,7 +64,7 @@ func TestRearrangeAdjacentNoChangeWhenSpaced(t *testing.T) {
 //   a^(m-1)[i] = (a^(m)[i] - k_m·a^(m)[m-i]) / (1 - k_m^2)
 // 모든 |k_m| < 1 ⟺ A(z) minimum-phase.
 //
-// 본  FAIL → Stage F 분기점은 lsp.* (lspToLP 또는 디코더)
+// 본  FAIL → Stage F 분기점은 lsp.* (LSPToLP 또는 디코더)
 // 본 어서션이 PASS → Stage F 분기점은 synth.Filter
 func TestALGTHMFrame0SF0_AzStability(t *testing.T) {
 var dec Decoder

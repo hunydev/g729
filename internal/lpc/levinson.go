@@ -19,7 +19,7 @@ import "math"
 // Q-format pinning. r' is Word32 in the AC-1 shared scale (the same
 // uniform exponent across r'(0..10) returned by autocorrelate +
 // applyLagWindow). The output a[] is Q12 with a[0] = 4096 — chosen
-// so the consumer side (internal/lsp/lsp_lp.go's lspToLP) sees the
+// so the consumer side (internal/lsp/lsp_lp.go's LSPToLP) sees the
 // same numeric format. Reflection coefficients k_i are kept in Q15
 // during the recursion; the prediction error E[i] inherits the r'
 // scale (no Q-promotion), since (1 - k²) is dimensionless.

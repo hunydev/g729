@@ -7,7 +7,7 @@ import (
 )
 
 // TestFindLSPRoots_RecoversChosenLSPs picks 10 LSPs uniformly spaced
-// in ω ∈ (0, π), runs them through lspToLP → computeF1F2 →
+// in ω ∈ (0, π), runs them through LSPToLP → computeF1F2 →
 // findLSPRoots, and asserts the recovered cosines are within the
 // algorithm's intrinsic tolerance.
 //
@@ -16,7 +16,7 @@ import (
 // subdivisions (§3.2.3 line 784) shrink that to π/(59·16) ≈ 0.00333
 // rad. The induced error in q = cos(ω) is bounded by sin(ω)·Δω,
 // which in Q15 peaks at sin(π/2)·0.00333·32768 ≈ 109 LSBs. We allow
-// 256 LSBs to also absorb chebyshevC Q24 truncation and the lspToLP
+// 256 LSBs to also absorb chebyshevC Q24 truncation and the LSPToLP
 // → computeF1F2 forward error. The plan's "±1 LSB Q15" target is
 // not algorithmically reachable with a 60-point grid + 4 bisections;
 // the binding constraint per I11 is the (60, 4) pair, not the
@@ -36,7 +36,7 @@ func TestFindLSPRoots_RecoversChosenLSPs(t *testing.T) {
 	}
 
 	var a [11]int16
-	lspToLP(&lsp, &a)
+	LSPToLP(&lsp, &a)
 
 	var f1, f2 [6]int32
 	computeF1F2(&a, &f1, &f2)

@@ -10,7 +10,7 @@ import (
 // tables.LSPCodebookL1 (each row is a sorted Q13 LSF prototype per
 // ITU-T G.729 §3.2.4) and verifies the chain
 //
-//	LSF → LSP (lsfToLSP) → LP (lspToLP) → LSP (LPToLSP)
+//	LSF → LSP (lsfToLSP) → LP (LSPToLP) → LSP (LPToLSP)
 //
 // recovers the input LSP within the algorithm's intrinsic tolerance.
 //
@@ -21,7 +21,7 @@ import (
 // sin(ω)·Δω derivation in TestFindLSPRoots_RecoversChosenLSPs
 // (lp_lsp_roots_test.go). The (60, 4) constraint dominates the
 // numerical floor at ≈109 Q15 LSBs; we use 256 to additionally
-// absorb chebyshevC Q24 truncation and the lspToLP forward error.
+// absorb chebyshevC Q24 truncation and the LSPToLP forward error.
 func TestLPToLSP_RoundTripCodebookL1(t *testing.T) {
 	const tol int32 = 256
 
@@ -32,7 +32,7 @@ func TestLPToLSP_RoundTripCodebookL1(t *testing.T) {
 		}
 
 		var a [11]int16
-		lspToLP(&lsp, &a)
+		LSPToLP(&lsp, &a)
 
 		var q [10]int16
 		if err := LPToLSP(&a, &q); err != nil {
@@ -69,7 +69,7 @@ func TestLPToLSP_ZeroAlloc(t *testing.T) {
 		lsp[i] = lsfToLSP(tables.LSPCodebookL1[0][i])
 	}
 	var a [11]int16
-	lspToLP(&lsp, &a)
+	LSPToLP(&lsp, &a)
 
 	var q [10]int16
 	avg := testing.AllocsPerRun(64, func() {
