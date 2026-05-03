@@ -1041,7 +1041,9 @@ EOF
 
 ---
 
-## 7. Phase 2f — Full-frame encode + streaming wrappers
+## 7. Phase 2f — Full-frame encode + streaming wrappers  — **CLOSED-DEFERRED 2026-05-14** — sub-plan: [`docs/superpowers/plans/2026-05-13-phase2f-full-encode-plan.md`](2026-05-13-phase2f-full-encode-plan.md) — closure report: [`docs/superpowers/plans/2026-05-14-phase2f-closure-report.md`](2026-05-14-phase2f-closure-report.md) (`Encoder.EncodeFrame` end-to-end wired + `bitstream.Pack` + `ReadG192Frame` + streaming `Write`/`Flush`; `ErrNotImplemented` removed; per-vector full-frame byte-EQ FAIL-DEFERRED across all 7 corpora — PITCH/ALGTHM/SPEECH/FIXED/LSP/TEST/TAME all 0.00 % full-frame, structural ceiling C1/C2 ≤ 2.86 % cascading from Phase 2b H-CENTER → Phase 2c P1/P2 → Phase 2d C1/C2; Phase 2f INT-1 0/5 spent per I-2f-5; **TAME-1 OQ-TAMING-THR slot 5/5 sweep NO-WINNER** (9 variants byte-identical — taming clamp not the determining factor on TAME corpus, residual routes upstream); INT-2 zero-alloc + race-clean, `BenchmarkEncodeFrame` 135.6 µs/op (+0.4 % vs Phase 2d full-frame pipeline, ≪ Risk R-3 2 ms/op); **Phase 2g (perf) NOT NEEDED**; Phase 2-final entry preconditions met; **next dispatch: Phase 2-final completion report**)
+
+**Per-vector disposition summary** (full-frame byte-EQ): PITCH 0/1835 (Phase 2d/2c inheritance); TAME 0/128 (slot 5/5 NO-WINNER); ALGTHM 0/35; SPEECH 0/3750; FIXED 0/120 (corpus-statistical GA1 65.83 / GB1 55.83 outliers, see closure §4.8); LSP 0/2232 (Phase 2a INT-1 ACCEPT-PARTIAL inheritance confirmed at L0 79.03 / L1 38.93 / L2 18.06 / L3 20.12 %); TEST 0/176. All routed upstream to Phase 2b H-CENTER + Phase 2c INT-1b + Phase 2d INT-1a + Phase 2a INT-1 LSP per **I-2f-5**.
 
 **Scope (high-level):**
 - Final wiring of `Encoder.EncodeFrame` end-to-end: pre-process → LPC → LSP → open-loop pitch → per-subframe (closed-loop pitch → target → ACELP → gain → memory updates) → bitstream pack.
