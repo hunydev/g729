@@ -61,14 +61,30 @@ func BackwardFilter(x, h *[SubframeLen]int16, xb *[SubframeLen]int16) {
 //
 //	RN(k) = Σ_{n=0..39} x(n)·yk(n) = Σ_{n=0..39} xb(n)·u(n − k)
 //
-// over the integer range k ∈ [centre − 3, centre + 3]
-// ∩ [PitchMinInt, PitchMaxInt]. Per §A.3.7 line 2167 the search
-// range is limited around a preselected value: the open-loop pitch
-// Top for the first subframe (sub = 0) and the integer part of T1
-// for the second (sub = 1). The sub argument is reserved for the
-// CL-2 / FR-2 widening of the second-subframe window per
-// G729E.txt §4.1.3 lines 1512–1523; CL-1 uses the same ±3 window
-// for both subframes as a stub, deferring the §4.1.3 rule to CL-2.
+// over an integer search range that depends on the subframe index:
+//
+//   - sub = 0 (first subframe): k ∈ [centre − 3, centre + 3]
+//     ∩ [PitchMinInt, PitchMaxInt], where centre is the open-loop
+//     pitch Top (§A.3.7 line 2167: "the search range is limited
+//     around a preselected value"). The ±3 half-width is the CL-1
+//     contract.
+//
+//   - sub = 1 (second subframe): k ∈ Subframe2Window(centre), where
+//     centre is the integer part of the first-subframe lag T1, per
+//     §4.1.3 (G729E.txt lines 1512–1523). This 10-lag sliding
+//     window is what the 5-bit P2 field encodes; closing the loop
+//     over a wider range would emit P2 values the decoder cannot
+//     recover. CL-2 wires this branch.
+//
+// API note (CL-2 decision): the existing single-entry SearchInteger
+// signature was preserved by activating the previously-reserved sub
+// parameter rather than introducing a parallel SearchIntegerInRange.
+// Justification: keeps the subframe-dispatch concern co-located with
+// the search itself (one symbol per algorithmic stage), and the
+// encoder's per-subframe driver (INT-0) calls SearchInteger
+// uniformly with sub = subframeIndex. A free SearchIntegerInRange
+// helper can still be extracted later if FR-2 needs to evaluate the
+// integer search at an arbitrary window.
 //
 // exc is the past-excitation ring buffer ordered chronologically:
 // exc[len-1] = u(-1), so u(n − k) = exc[len(exc) − k + n] for
@@ -87,15 +103,20 @@ func BackwardFilter(x, h *[SubframeLen]int16, xb *[SubframeLen]int16) {
 //
 // I3 / I4: pure (reads xb / exc), zero allocation.
 func SearchInteger(xb *[SubframeLen]int16, exc []int16, centre int16, sub int) (intLag int16, RNbest int32) {
-	_ = sub // reserved for CL-2 second-subframe window per §4.1.3.
-
-	kMin := int(centre) - closedLoopHalfWindow
-	if kMin < PitchMinInt {
-		kMin = PitchMinInt
-	}
-	kMax := int(centre) + closedLoopHalfWindow
-	if kMax > PitchMaxInt {
-		kMax = PitchMaxInt
+	var kMin, kMax int
+	if sub == 0 {
+		kMin = int(centre) - closedLoopHalfWindow
+		if kMin < PitchMinInt {
+			kMin = PitchMinInt
+		}
+		kMax = int(centre) + closedLoopHalfWindow
+		if kMax > PitchMaxInt {
+			kMax = PitchMaxInt
+		}
+	} else {
+		tmin, tmax := Subframe2Window(centre)
+		kMin = int(tmin)
+		kMax = int(tmax)
 	}
 
 	intLag = int16(kMin)
