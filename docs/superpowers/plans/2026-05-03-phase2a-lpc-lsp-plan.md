@@ -552,10 +552,10 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 **Files:** Create `internal/lsp/encoder_vq.go`, `internal/lsp/encoder_vq_l1_test.go`.
 
-- [ ] **Step 1: Write failing test:** for a target vector equal to row 17 of `LSPCodebookL1`, assert `searchL1` returns 17 with zero MSE.
-- [ ] **Step 2: Run to verify FAIL**.
-- [ ] **Step 3: Write minimal implementation:** brute-force scan of all 128 rows; for each, compute Σ (target − row[i])² in Word32 (target Q13, row Q13, diff Q13, square Q26). Pick argmin. **No weighting at this stage** per §3.2.4 line 887 verbatim ("the entry L1 that minimizes the (unweighted) mean-squared error").
-- [ ] **Step 4: Run to verify PASS**.
+- [x] **Step 1: Write failing test:** for a target vector equal to row 17 of `LSPCodebookL1`, assert `searchL1` returns 17 with zero MSE.
+- [x] **Step 2: Run to verify FAIL**.
+- [x] **Step 3: Write minimal implementation:** brute-force scan of all 128 rows; for each, compute Σ (target − row[i])² in Word32 (target Q13, row Q13, diff Q13, square Q26). Pick argmin. **No weighting at this stage** per §3.2.4 line 887 verbatim ("the entry L1 that minimizes the (unweighted) mean-squared error").
+- [x] **Step 4: Run to verify PASS**.
 - [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.4 lines 887–888.
