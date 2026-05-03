@@ -22,11 +22,16 @@ const linter = 10
 //	frac = +1 → k = intLag,     t = 1.
 //	frac = −1 → k = intLag − 1, t = 2.
 //
-// Buffer convention: u[len(u) − 1] is u(−1), the most recent past
-// excitation sample; u(−d) maps to u[len(u) − d] for any positive
-// integer delay d. Out-of-range reads (when the FIR window extends
-// past either end of u) are treated as zero, matching the §3.7.1
-// "samples u(0+) ... are treated as 0" boundary handling.
+// Buffer convention: u(0) is anchored at u[len(u) − SubframeLen],
+// so u(−1) = u[len(u) − SubframeLen − 1] and u(−d) maps to
+// u[len(u) − SubframeLen − d] for any d ≥ 1. The trailing
+// SubframeLen samples u[len(u) − SubframeLen : len(u)] hold the
+// LP-residual extension u(0..39) per §A.3.7 line 2161, supporting
+// the short-pitch case where intLag − n < 0 (i.e. the fractional
+// FIR reaches into u(0)+). Out-of-range reads (when the FIR window
+// extends past either end of u) are treated as zero, matching the
+// §3.7.1 "samples u(0+) ... are treated as 0" boundary handling
+// for the still-shorter cases.
 //
 // The FIR coefficient table b30 is shared with the decoder side via
 // internal/tables.PitchInterpFIR; only one transcription of the
@@ -47,10 +52,11 @@ const linter = 10
 // reference (G729E.txt line 2176, "see clause 3.7.1").
 func Interpolate3(u []int16, intLag int16, frac int8) int16 {
 	N := len(u)
+	anchor := N - SubframeLen
 	if frac == 0 {
 		// Center tap b30(0) = 1.0 ⇒ direct copy. The b30 table omits
 		// this implicit unity tap.
-		return u[N-int(intLag)]
+		return u[anchor-int(intLag)]
 	}
 
 	var k, posPhase, negPhase int
@@ -62,7 +68,7 @@ func Interpolate3(u []int16, intLag int16, frac int8) int16 {
 		posPhase, negPhase = 2, 1
 	}
 
-	base := N - k
+	base := anchor - k
 	fir := tables.PitchInterpFIR
 	var acc fixed.Word32
 	for i := 0; i < linter; i++ {

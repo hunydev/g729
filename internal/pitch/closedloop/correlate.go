@@ -87,12 +87,15 @@ func BackwardFilter(x, h *[SubframeLen]int16, xb *[SubframeLen]int16) {
 // integer search at an arbitrary window.
 //
 // exc is the past-excitation ring buffer ordered chronologically:
-// exc[len-1] = u(-1), so u(n − k) = exc[len(exc) − k + n] for
-// n ∈ [0, 39] and k ∈ [PitchMinInt, PitchMaxInt]. The caller must
-// supply at least PitchMaxInt + SubframeLen samples of past
-// excitation. (For lags k < 40 the spec — line 2161 — copies the
-// LP residual into u(n) for n = 0..39; that population is the
-// caller's responsibility and lies in INT-0.)
+// the buffer is anchored so u(0) = exc[len(exc) − SubframeLen], hence
+// u(−1) = exc[len(exc) − SubframeLen − 1] and the past spans
+// exc[len(exc) − SubframeLen − PitchMaxInt : len(exc) − SubframeLen].
+// The trailing SubframeLen samples (exc[len(exc) − SubframeLen :
+// len(exc)]) hold the LP-residual extension u(0..39) per §A.3.7
+// line 2161, enabling the short-pitch case k < SubframeLen. The
+// formula u(n − k) = exc[len(exc) − SubframeLen − k + n] is valid
+// uniformly for all (k, n) ∈ [PitchMinInt, PitchMaxInt] × [0, 39]
+// when len(exc) ≥ PitchMaxInt + SubframeLen = 183.
 //
 // Q-format. xb and exc are Word16 (Q0). The accumulator uses
 // fixed.LMac so the returned RNbest carries the standard ITU
@@ -121,7 +124,7 @@ func SearchInteger(xb *[SubframeLen]int16, exc []int16, centre int16, sub int) (
 
 	intLag = int16(kMin)
 	RNbest = 0
-	base := len(exc)
+	base := len(exc) - SubframeLen
 	for k := kMin; k <= kMax; k++ {
 		var acc fixed.Word32
 		excBase := base - k

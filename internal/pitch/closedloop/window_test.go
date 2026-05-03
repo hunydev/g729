@@ -97,7 +97,7 @@ func TestSearchInteger_Sub0UsesCenterPlusMinus3(t *testing.T) {
 		xb[n] = int16(400 - 10*n)
 	}
 	exc := make([]int16, testExcLen)
-	exc[testExcLen-k0] = 1
+	exc[testExcLen-SubframeLen-k0] = 1
 
 	intLag, _ := SearchInteger(&xb, exc, centre, 0)
 	if intLag != k0 {
@@ -116,7 +116,7 @@ func TestSearchInteger_Sub0WindowExcludesFar(t *testing.T) {
 		xb[n] = int16(400 - 10*n)
 	}
 	exc := make([]int16, testExcLen)
-	exc[testExcLen-k0] = 1
+	exc[testExcLen-SubframeLen-k0] = 1
 
 	intLag, RNbest := SearchInteger(&xb, exc, centre, 0)
 	if RNbest != 0 {
@@ -140,7 +140,7 @@ func TestSearchInteger_Sub1UsesSubframe2Window(t *testing.T) {
 		xb[n] = int16(400 - 10*n)
 	}
 	exc := make([]int16, testExcLen)
-	exc[testExcLen-k0] = 1
+	exc[testExcLen-SubframeLen-k0] = 1
 
 	intLag, RNbest := SearchInteger(&xb, exc, centre, 1)
 	if intLag != k0 {
@@ -161,7 +161,7 @@ func TestSearchInteger_Sub1LowerEdgeIncluded(t *testing.T) {
 	var xb [SubframeLen]int16
 	xb[0] = 1 // unique non-zero target sample at n=0.
 	exc := make([]int16, testExcLen)
-	exc[testExcLen-k0] = 1
+	exc[testExcLen-SubframeLen-k0] = 1
 
 	intLag, _ := SearchInteger(&xb, exc, centre, 1)
 	if intLag != k0 {
@@ -179,7 +179,7 @@ func TestSearchInteger_Sub1UpperClamp(t *testing.T) {
 	var xb [SubframeLen]int16
 	xb[0] = 1
 	exc := make([]int16, testExcLen)
-	exc[testExcLen-k0] = 1
+	exc[testExcLen-SubframeLen-k0] = 1
 
 	intLag, _ := SearchInteger(&xb, exc, centre, 1)
 	if intLag != k0 {

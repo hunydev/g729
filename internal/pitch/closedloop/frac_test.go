@@ -25,7 +25,7 @@ func TestInterpolate3_FracZeroIsIntegerCopy(t *testing.T) {
 	}
 	for _, intLag := range []int16{20, 40, 80, 143} {
 		got := Interpolate3(u[:], intLag, 0)
-		want := u[fracTestExcLen-int(intLag)]
+		want := u[fracTestExcLen-SubframeLen-int(intLag)]
 		if got != want {
 			t.Errorf("Interpolate3(intLag=%d, frac=0) = %d, want %d",
 				intLag, got, want)
@@ -51,7 +51,7 @@ func TestInterpolate3_FracZeroIsIntegerCopy(t *testing.T) {
 func TestInterpolate3_FracPositiveImpulse(t *testing.T) {
 	const intLag = int16(40)
 	var u [fracTestExcLen]int16
-	u[fracTestExcLen-int(intLag)] = 1 << 14
+	u[fracTestExcLen-SubframeLen-int(intLag)] = 1 << 14
 
 	got := Interpolate3(u[:], intLag, +1)
 	want := fixed.Round(fixed.LMult(tables.PitchInterpFIR[1], 1<<14))
@@ -77,7 +77,7 @@ func TestInterpolate3_FracPositiveImpulse(t *testing.T) {
 func TestInterpolate3_FracNegativeImpulse(t *testing.T) {
 	const intLag = int16(40)
 	var u [fracTestExcLen]int16
-	u[fracTestExcLen-int(intLag)] = 1 << 14
+	u[fracTestExcLen-SubframeLen-int(intLag)] = 1 << 14
 
 	got := Interpolate3(u[:], intLag, -1)
 	want := fixed.Round(fixed.LMult(tables.PitchInterpFIR[5], 1<<14))
@@ -117,12 +117,27 @@ func TestInterpolate3_PalindromeSymmetry(t *testing.T) {
 	}
 
 	for _, K := range []int{40, 60, 100} {
-		mirrorK := int16(N - K + 3)
+		// New buffer convention: base = (N − SubframeLen) − K.
+		// The symmetry K ↔ K' satisfies (N − SubframeLen) − K' =
+		// ((N − SubframeLen) − K) + 3 ⇒ K' = K − 3 by canceling
+		// the anchor shift. But that places K' < K which would be
+		// degenerate; the well-defined symmetry that actually holds
+		// is the original derivation written in absolute buffer
+		// indices: with base+ = anchor − K and base− = anchor − K',
+		// we need base− = (N − 1) − (base+ + something)... — more
+		// simply, re-derive: the +1/−1 sample sums swap under index
+		// reflection i → (N − 1) − i, which sends position p →
+		// (N − 1) − p. So base+ and base− are mirror images iff
+		// base− = (N − 1) − base+ − 3, hence
+		// K' = anchor − ((N − 1) − (anchor − K) − 3) =
+		//      2·anchor − N + 1 + 3 − K = 2·(N−SubframeLen) − N + 4 − K =
+		//      N − 2·SubframeLen + 4 − K.
+		mirrorK := int16(N - 2*SubframeLen + 3 - K)
 		gotPlus := Interpolate3(u[:], int16(K), +1)
 		gotMinus := Interpolate3(u[:], mirrorK, -1)
 		if gotPlus != gotMinus {
 			t.Errorf("symmetry break: Interpolate3(palindrome, K=%d, +1) = %d, "+
-				"Interpolate3(palindrome, N-K+3=%d, -1) = %d",
+				"Interpolate3(palindrome, mirrorK=%d, -1) = %d",
 				K, gotPlus, mirrorK, gotMinus)
 		}
 	}

@@ -51,8 +51,8 @@ func TestSearchInteger_ImpulseExcitationLocksLag(t *testing.T) {
 		xb[n] = int16(400 - 10*n) // strictly decreasing, all positive.
 	}
 	exc := make([]int16, testExcLen)
-	// u(n − k₀) = δ(n) ⇔ exc[len − k₀ + 0] = 1; everything else 0.
-	exc[testExcLen-k0] = 1
+	// u(n − k₀) = δ(n) ⇔ u(−k₀) = 1 ⇔ exc[len − SubframeLen − k₀] = 1.
+	exc[testExcLen-SubframeLen-k0] = 1
 
 	intLag, RNbest := SearchInteger(&xb, exc, k0, 0)
 	if intLag != k0 {
@@ -94,7 +94,7 @@ func TestSearchInteger_BackwardFilteredAlignment(t *testing.T) {
 	}
 
 	exc := make([]int16, testExcLen)
-	exc[testExcLen-k0] = 1
+	exc[testExcLen-SubframeLen-k0] = 1
 	intLag, RNbest := SearchInteger(&xb, exc, k0, 0)
 	if intLag != k0 {
 		t.Fatalf("intLag = %d, want %d", intLag, k0)

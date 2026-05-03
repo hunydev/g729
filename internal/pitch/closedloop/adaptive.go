@@ -7,9 +7,12 @@ package closedloop
 //
 //	v(n) = u(n − intLag + frac/3),  n = 0..39
 //
-// where u is the past-excitation buffer rooted at exc[len(exc) − 1]
-// = u(−1). For frac = 0 the equation degenerates to a direct
-// integer copy v(n) = exc[len(exc) − intLag + n] (b30(0) = 1.0 is
+// where u is the past-excitation buffer with anchor u(0) =
+// exc[len(exc) − SubframeLen] and u(−1) = exc[len(exc) − SubframeLen
+// − 1]; the trailing SubframeLen samples hold the LP-residual
+// extension u(0..39) for the short-pitch case (§A.3.7 line 2161).
+// For frac = 0 the equation degenerates to a direct integer copy
+// v(n) = exc[len(exc) − SubframeLen − intLag + n] (b30(0) = 1.0 is
 // the implicit centre tap of the FIR, see frac.go). For frac = ±1
 // the 1/3-sample b30 FIR is applied via the shared Interpolate3
 // primitive using the same algebraic mapping documented in
@@ -38,7 +41,7 @@ package closedloop
 // internal/pitch/adaptive.go (AdaptiveCodebook).
 func AdaptiveVector(exc []int16, intLag int16, frac int8, v *[SubframeLen]int16) {
 	if frac == 0 {
-		base := len(exc) - int(intLag)
+		base := len(exc) - SubframeLen - int(intLag)
 		for n := 0; n < SubframeLen; n++ {
 			v[n] = exc[base+n]
 		}

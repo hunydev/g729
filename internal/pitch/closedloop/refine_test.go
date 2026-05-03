@@ -42,7 +42,7 @@ func TestRefineFraction_FracZeroForExactImpulse(t *testing.T) {
 	xb[0] = 1 << 14 // arbitrary positive concentrated target
 
 	var exc [refineExcLen]int16
-	exc[refineExcLen-int(intLag)] = 1 << 14 // u(−intLag)
+	exc[refineExcLen-SubframeLen-int(intLag)] = 1 << 14 // u(−intLag)
 
 	got := RefineFraction(&xb, exc[:], intLag, true)
 	if got != 0 {

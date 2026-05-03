@@ -23,22 +23,23 @@ const adaptiveExcLen = 256
 // document the same fast path.
 //
 // Buffer convention (shared with SearchInteger / Interpolate3):
-// exc[len(exc) − 1] = u(−1), so for integer delay intLag we have
-// v[n] = exc[len(exc) − intLag + n] for n ∈ [0, 40).
+// u(0) is anchored at exc[len(exc) − SubframeLen]; for integer
+// delay intLag, v[n] = exc[len(exc) − SubframeLen − intLag + n] for
+// n ∈ [0, 40). The trailing SubframeLen samples hold the LP-residual
+// extension u(0..39) per §A.3.7 line 2161 for the short-pitch case.
 func TestAdaptiveVector_FracZeroIsIntegerCopy(t *testing.T) {
 	var exc [adaptiveExcLen]int16
 	for i := range exc {
 		exc[i] = int16(i - 128) // arbitrary signed pattern
 	}
 	// intLag ≥ SubframeLen so that the integer read window
-	// exc[len−intLag : len−intLag+40] stays within the slice
-	// without requiring caller-side LP-residual extension; the
-	// short-pitch boundary case is exercised separately below
-	// with a tail-aligned pre-fill.
+	// stays inside the past portion (no caller-side LP-residual
+	// extension required); the short-pitch boundary case is
+	// exercised separately below with a tail-aligned pre-fill.
 	for _, intLag := range []int16{40, 80, 143} {
 		var v [SubframeLen]int16
 		AdaptiveVector(exc[:], intLag, 0, &v)
-		base := adaptiveExcLen - int(intLag)
+		base := adaptiveExcLen - SubframeLen - int(intLag)
 		for n := 0; n < SubframeLen; n++ {
 			if v[n] != exc[base+n] {
 				t.Fatalf("intLag=%d n=%d: v=%d want exc[%d]=%d",
@@ -94,18 +95,15 @@ func TestAdaptiveVector_FracNegativeMatchesInterpolate3(t *testing.T) {
 
 // TestAdaptiveVector_LPResidualBoundary: exercises the boundary
 // case where the chosen lag puts the read window flush against the
-// most recent samples of exc — the region a future encoder driver
-// (INT-0) pre-fills with the current-subframe LP residual r(0..39)
-// to support short-pitch search. With intLag = SubframeLen and
-// frac = 0, v(n) = u(n − 40) for n ∈ [0, 40), which maps exactly
-// to exc[len−40 : len]. The function MUST NOT special-case the
-// boundary: it relies on the caller's tail-aligned pre-fill and
-// the same len − intLag + n indexing used by SearchInteger and
-// Interpolate3. Spec: §A.3.7 line 2161 (LP-residual extension for
-// k < 40); SearchInteger godoc (correlate.go) on caller buffer
-// responsibility.
+// anchor — for intLag = 0, v(n) = u(n) for n ∈ [0, 40), which under
+// the new buffer convention maps exactly to
+// exc[len − SubframeLen : len], the LP-residual extension region
+// the encoder driver pre-fills with the current-subframe LP residual
+// r(0..39) to support short-pitch search. Spec: §A.3.7 line 2161
+// (LP-residual extension for k < SubframeLen); SearchInteger godoc
+// (correlate.go) on caller buffer responsibility.
 func TestAdaptiveVector_LPResidualBoundary(t *testing.T) {
-	const intLag int16 = SubframeLen // 40 — flush boundary
+	const intLag int16 = 0 // flush-zero boundary: read u(0..39) = residual extension
 	var exc [adaptiveExcLen]int16
 	// Past excitation history: arbitrary non-zero pattern.
 	for i := 0; i < adaptiveExcLen-SubframeLen; i++ {
@@ -134,7 +132,7 @@ func TestAdaptiveVector_LPResidualBoundary(t *testing.T) {
 func TestAdaptiveVector_FracPositiveImpulse(t *testing.T) {
 	const intLag int16 = 40
 	var exc [adaptiveExcLen]int16
-	exc[adaptiveExcLen-int(intLag)] = 1 << 14
+	exc[adaptiveExcLen-SubframeLen-int(intLag)] = 1 << 14
 
 	var v [SubframeLen]int16
 	AdaptiveVector(exc[:], intLag, +1, &v)

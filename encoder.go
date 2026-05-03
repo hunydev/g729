@@ -270,7 +270,7 @@ func (e *Encoder) openloopStep() int16 {
 // lpResidualSubframe computes the 40-sample LP residual r(n) for one
 // subframe per ITU-T G.729 §A.3.3 eq. A.3 (G729E.txt line 2080):
 //
-//r(n) = s(n) + Σ_{i=1..10} â_i · s(n − i),  n = 0,...,39
+// r(n) = s(n) + Σ_{i=1..10} â_i · s(n − i),  n = 0,...,39
 //
 // using the supplied 10-sample input history mem (s(-10..-1)). aHat
 // is the QUANTIZED Â (Q12, leading 4096), per Phase 2c invariant
@@ -280,19 +280,19 @@ func (e *Encoder) openloopStep() int16 {
 // I3 / I4: pure (writes only through r), zero allocation. The caller
 // is responsible for advancing mem at subframe boundaries.
 func lpResidualSubframe(s *[40]int16, aHat *[lpc.LPCOrder + 1]int16, mem *[10]int16, r *[40]int16) {
-for n := 0; n < 40; n++ {
-sum := int32(s[n])
-for i := 1; i <= 10; i++ {
-var sni int16
-if n-i >= 0 {
-sni = s[n-i]
-} else {
-sni = mem[10+n-i]
-}
-sum += int32(fixed.Mult(aHat[i], sni))
-}
-r[n] = fixed.Saturate(sum)
-}
+	for n := 0; n < 40; n++ {
+		sum := int32(s[n])
+		for i := 1; i <= 10; i++ {
+			var sni int16
+			if n-i >= 0 {
+				sni = s[n-i]
+			} else {
+				sni = mem[10+n-i]
+			}
+			sum += int32(fixed.Mult(aHat[i], sni))
+		}
+		r[n] = fixed.Saturate(sum)
+	}
 }
 
 // closedloopStep runs ITU-T G.729 Annex A §A.3.5–§A.3.10 for one
@@ -308,39 +308,41 @@ r[n] = fixed.Saturate(sum)
 //
 // Per-subframe pipeline:
 //
-//   1. r(n) = analysis filter Â(z) on s (§A.3.3 eq. A.3).
-//   2. x(n) = target signal via 1/Â(z/γ) on r (§A.3.6 eq. cited;
-//      closedloop.TargetSignal).
-//   3. h(n) = impulse response of 1/Â(z/γ) (§A.3.5;
-//      closedloop.ImpulseResponse).
-//   4. xb(n) = backward filter of x against h (§A.3.7 eq. A.7;
-//      closedloop.BackwardFilter).
-//   5. intLag = closedloop.SearchInteger(xb, exc, centre, sub)
-//      where centre = tOp for sub=0 and intT1 for sub=1.
-//   6. frac = closedloop.RefineFraction(xb, exc, intLag, intLag<85)
-//      per §A.3.7 lines 2169–2170 (fractions only when intLag<85).
-//   7. v(n) = closedloop.AdaptiveVector(exc, intLag, frac) (§3.7.1
-//      eq. 40).
-//   8. (gp, y) = closedloop.GpAndY(x, v, h) (§3.7.3 eq. 43, 44).
-//   9. P1/P0 (sub=0) or P2 (sub=1) packed via closedloop.EncodeP*
-//      per §3.7.2.
-//   10. Per-subframe state commit:
-//       - swMemErr trail: ew(n) = x(n) − ĝp·y(n) for n = 30..39 per
-//         §A.3.10 eq. A.10. Phase 2c-only placeholder: the spec
-//         eq. A.10 also subtracts ĝ_c·z(n) from the fixed codebook,
-//         which is not yet wired (Phase 2d task). See OQ-EXC-COMMIT
-//         in plan §9.
-//       - oldExc shift-by-40 + append u(n) = round(Gp·v(n)/2^14)
-//         for n = 0..39. Phase 2c-only placeholder: the full
-//         excitation per §A.3.9 is u(n) = ĝp·v(n) + ĝ_c·c(n);
-//         Phase 2d will add the fixed-codebook contribution.
-//       - lpResidualMemQ ← s(30..39) for the next subframe's r(n).
+//  1. r(n) = analysis filter Â(z) on s (§A.3.3 eq. A.3).
+//  2. x(n) = target signal via 1/Â(z/γ) on r (§A.3.6 eq. cited;
+//     closedloop.TargetSignal).
+//  3. h(n) = impulse response of 1/Â(z/γ) (§A.3.5;
+//     closedloop.ImpulseResponse).
+//  4. xb(n) = backward filter of x against h (§A.3.7 eq. A.7;
+//     closedloop.BackwardFilter).
+//  5. intLag = closedloop.SearchInteger(xb, exc, centre, sub)
+//     where centre = tOp for sub=0 and intT1 for sub=1.
+//  6. frac = closedloop.RefineFraction(xb, exc, intLag, intLag<85)
+//     per §A.3.7 lines 2169–2170 (fractions only when intLag<85).
+//  7. v(n) = closedloop.AdaptiveVector(exc, intLag, frac) (§3.7.1
+//     eq. 40).
+//  8. (gp, y) = closedloop.GpAndY(x, v, h) (§3.7.3 eq. 43, 44).
+//  9. P1/P0 (sub=0) or P2 (sub=1) packed via closedloop.EncodeP*
+//     per §3.7.2.
+//  10. Per-subframe state commit:
+//     - swMemErr trail: ew(n) = x(n) − ĝp·y(n) for n = 30..39 per
+//     §A.3.10 eq. A.10. Phase 2c-only placeholder: the spec
+//     eq. A.10 also subtracts ĝ_c·z(n) from the fixed codebook,
+//     which is not yet wired (Phase 2d task). See OQ-EXC-COMMIT
+//     in plan §9.
+//     - oldExc shift-by-40 + append u(n) = round(Gp·v(n)/2^14)
+//     for n = 0..39. Phase 2c-only placeholder: the full
+//     excitation per §A.3.9 is u(n) = ĝp·v(n) + ĝ_c·c(n);
+//     Phase 2d will add the fixed-codebook contribution.
+//     - lpResidualMemQ ← s(30..39) for the next subframe's r(n).
 //
-// Buffer convention (closedloop.SearchInteger): exc is sized 143
-// samples with exc[len-1] = u(-1). Phase 2c INT-0 SMOKE test pins
-// inputs that yield centres ≥ 40 so the residual-extension corner
-// (short lags k<40 reading into u(0..39)) is not exercised; INT-1
-// will revisit if PITCH.BIT byte-EQ requires it.
+// Buffer convention (closedloop.SearchInteger / RefineFraction /
+// AdaptiveVector): exc is sized PitchMaxInt + SubframeLen = 183
+// samples; u(0) is anchored at exc[len − SubframeLen]; the past
+// excitation u(−143..−1) occupies the leading 143 samples, and the
+// trailing SubframeLen samples carry the LP-residual extension
+// r(0..39) per §A.3.7 line 2161, supporting the short-pitch case
+// k < SubframeLen.
 //
 // I3 (relaxed for Phase 2c): swMemErr / lpResidualMemQ / oldExc are
 // updated PER SUBFRAME (not per frame) because subframe-2's adaptive
@@ -352,82 +354,76 @@ r[n] = fixed.Saturate(sum)
 // I4: zero allocation. All scratch (r, x, h, xb, v, y, ew) lives on
 // the stack as fixed-size arrays.
 func (e *Encoder) closedloopStep(sub int) (intLag int16, frac int8) {
-var aHat *[lpc.LPCOrder + 1]int16
-if sub == 0 {
-aHat = &e.aHatSF1
-} else {
-aHat = &e.aHatSF2
-}
+	var aHat *[lpc.LPCOrder + 1]int16
+	if sub == 0 {
+		aHat = &e.aHatSF1
+	} else {
+		aHat = &e.aHatSF2
+	}
 
-sStart := 160 + 40*sub
-sFrame := (*[40]int16)(e.oldSpeech[sStart : sStart+40])
+	sStart := 160 + 40*sub
+	sFrame := (*[40]int16)(e.oldSpeech[sStart : sStart+40])
 
-var r, x, h, xb, v, y [closedloop.SubframeLen]int16
-lpResidualSubframe(sFrame, aHat, &e.lpResidualMemQ, &r)
-closedloop.TargetSignal(aHat, &r, &e.swMemErr, &x)
-closedloop.ImpulseResponse(aHat, &h)
-closedloop.BackwardFilter(&x, &h, &xb)
+	var r, x, h, xb, v, y [closedloop.SubframeLen]int16
+	lpResidualSubframe(sFrame, aHat, &e.lpResidualMemQ, &r)
+	closedloop.TargetSignal(aHat, &r, &e.swMemErr, &x)
+	closedloop.ImpulseResponse(aHat, &h)
+	closedloop.BackwardFilter(&x, &h, &xb)
 
-var centre int16
-if sub == 0 {
-centre = e.tOp
-} else {
-centre = e.intT1
-}
+	var centre int16
+	if sub == 0 {
+		centre = e.tOp
+	} else {
+		centre = e.intT1
+	}
 
-// OQ-K<40 baseline workaround (Phase 2c INT-1 escalation 0):
-// SearchInteger / RefineFraction / AdaptiveVector OOB-read when
-// the search range includes lags k < SubframeLen because the
-// LP-residual extension for u(0..39) is not yet wired. Clamp the
-// search centre so that the resulting kMin ≥ 40 in both branches:
-//   - sub = 0: kMin = centre − closedLoopHalfWindow(=3) ≥ 40
-//   - sub = 1: kMin = max(intT1 − 5, 20) ≥ 40 ⇒ centre ≥ 45.
-// 45 covers both. This biases the search away from short lags but
-// lets INT-1 measure a baseline match rate; the proper OQ-K<40
-// LP-residual extension is reserved for a later escalation.
-const minSafeCentre = 45
-if centre < minSafeCentre {
-centre = minSafeCentre
-}
-excPast := e.oldExc[len(e.oldExc)-143:]
-intLag, _ = closedloop.SearchInteger(&xb, excPast, centre, sub)
-frac = closedloop.RefineFraction(&xb, excPast, intLag, intLag < 85)
+	// Build the closed-loop scratch buffer: 143 past-excitation
+	// samples u(−143..−1) followed by the LP-residual extension
+	// r(0..39) for the current subframe per §A.3.7 line 2161.
+	// Stack-allocated; total 183 samples = PitchMaxInt + SubframeLen.
+	var excSearch [closedloop.PitchMaxInt + closedloop.SubframeLen]int16
+	copy(excSearch[:closedloop.PitchMaxInt],
+		e.oldExc[len(e.oldExc)-closedloop.PitchMaxInt:])
+	copy(excSearch[closedloop.PitchMaxInt:], r[:])
+	excSlice := excSearch[:]
+	intLag, _ = closedloop.SearchInteger(&xb, excSlice, centre, sub)
+	frac = closedloop.RefineFraction(&xb, excSlice, intLag, intLag < 85)
 
-closedloop.AdaptiveVector(excPast, intLag, frac, &v)
-gp := closedloop.GpAndY(&x, &v, &h, &y)
+	closedloop.AdaptiveVector(excSlice, intLag, frac, &v)
+	gp := closedloop.GpAndY(&x, &v, &h, &y)
 
-if sub == 0 {
-e.intT1 = intLag
-e.frac1 = frac
-e.p1 = closedloop.EncodeP1(intLag, frac)
-e.p0 = closedloop.EncodeP0(e.p1)
-} else {
-tmin, _ := closedloop.Subframe2Window(e.intT1)
-e.intT2 = intLag
-e.frac2 = frac
-e.p2 = closedloop.EncodeP2(intLag, frac, tmin)
-}
+	if sub == 0 {
+		e.intT1 = intLag
+		e.frac1 = frac
+		e.p1 = closedloop.EncodeP1(intLag, frac)
+		e.p0 = closedloop.EncodeP0(e.p1)
+	} else {
+		tmin, _ := closedloop.Subframe2Window(e.intT1)
+		e.intT2 = intLag
+		e.frac2 = frac
+		e.p2 = closedloop.EncodeP2(intLag, frac, tmin)
+	}
 
-// §A.3.10 eq. A.10 weighted-error commit (Phase 2c placeholder:
-// fixed-codebook term ĝ_c·z(n) omitted — see OQ-EXC-COMMIT).
-for n := 30; n < 40; n++ {
-gpY := int32(gp) * int32(y[n]) >> 14
-e.swMemErr[n-30] = fixed.Saturate(int32(x[n]) - gpY)
-}
+	// §A.3.10 eq. A.10 weighted-error commit (Phase 2c placeholder:
+	// fixed-codebook term ĝ_c·z(n) omitted — see OQ-EXC-COMMIT).
+	for n := 30; n < 40; n++ {
+		gpY := int32(gp) * int32(y[n]) >> 14
+		e.swMemErr[n-30] = fixed.Saturate(int32(x[n]) - gpY)
+	}
 
-// Excitation commit: shift past by SubframeLen and append the
-// adaptive-codebook contribution Gp·v(n). Phase 2d will replace
-// this with u(n) = ĝp·v(n) + ĝ_c·c(n) per §A.3.9.
-copy(e.oldExc[:len(e.oldExc)-closedloop.SubframeLen],
-e.oldExc[closedloop.SubframeLen:])
-base := len(e.oldExc) - closedloop.SubframeLen
-for n := 0; n < closedloop.SubframeLen; n++ {
-gpV := int32(gp) * int32(v[n]) >> 14
-e.oldExc[base+n] = fixed.Saturate(gpV)
-}
+	// Excitation commit: shift past by SubframeLen and append the
+	// adaptive-codebook contribution Gp·v(n). Phase 2d will replace
+	// this with u(n) = ĝp·v(n) + ĝ_c·c(n) per §A.3.9.
+	copy(e.oldExc[:len(e.oldExc)-closedloop.SubframeLen],
+		e.oldExc[closedloop.SubframeLen:])
+	base := len(e.oldExc) - closedloop.SubframeLen
+	for n := 0; n < closedloop.SubframeLen; n++ {
+		gpV := int32(gp) * int32(v[n]) >> 14
+		e.oldExc[base+n] = fixed.Saturate(gpV)
+	}
 
-// Quantized-Â analysis-filter memory advance for next subframe.
-copy(e.lpResidualMemQ[:], sFrame[30:40])
+	// Quantized-Â analysis-filter memory advance for next subframe.
+	copy(e.lpResidualMemQ[:], sFrame[30:40])
 
-return intLag, frac
+	return intLag, frac
 }

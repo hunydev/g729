@@ -43,8 +43,10 @@ import "github.com/exedev/g729/internal/fixed"
 //
 // Buffer convention. exc shares the SearchInteger layout: it is the
 // past-excitation buffer with the LP-residual extension covering
-// u(0..39) appended, sized so that u(n − k) = exc[len(exc) − k + n]
-// for any (k, n) in the search domain (cf. SearchInteger godoc).
+// u(0..39) appended at the tail, anchored so u(0) =
+// exc[len(exc) − SubframeLen] and u(n − k) =
+// exc[len(exc) − SubframeLen − k + n] for any (k, n) in the search
+// domain (cf. SearchInteger godoc).
 //
 // Q-format. xb and exc are Word16 (Q0). The accumulator uses
 // fixed.LMac so RN(t) carries the standard ITU implicit ×2 product
