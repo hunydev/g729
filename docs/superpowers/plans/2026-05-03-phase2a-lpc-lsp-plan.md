@@ -471,10 +471,10 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 **Files:** Create `internal/lsp/encoder_predictor.go`, `internal/lsp/encoder_predictor_test.go`.
 
-- [ ] **Step 1: Write failing test** asserting that `applyPredictorWithMemory` produces the same output as the existing decoder-side `applyPredictor` for the same `(memory, selector, residual)` triple, but **does not mutate `memory`**. Then `commitPredictorMemory(memory, residual)` advances the FIFO and now the next non-destructive evaluation matches the decoder's post-mutation state.
-- [ ] **Step 2: Run to verify FAIL**.
-- [ ] **Step 3: Write minimal implementation:** copy of `(d *Decoder).applyPredictor`'s arithmetic body but reading from `mem *[4][10]int16` instead of `d.pastResiduals` and **omitting** the FIFO shift. `commitPredictorMemory` is the FIFO shift alone.
-- [ ] **Step 4: Run to verify PASS**.
+- [x] **Step 1: Write failing test** asserting that `applyPredictorWithMemory` produces the same output as the existing decoder-side `applyPredictor` for the same `(memory, selector, residual)` triple, but **does not mutate `memory`**. Then `commitPredictorMemory(memory, residual)` advances the FIFO and now the next non-destructive evaluation matches the decoder's post-mutation state.
+- [x] **Step 2: Run to verify FAIL**.
+- [x] **Step 3: Write minimal implementation:** copy of `(d *Decoder).applyPredictor`'s arithmetic body but reading from `mem *[4][10]int16` instead of `d.pastResiduals` and **omitting** the FIFO shift. `commitPredictorMemory` is the FIFO shift alone.
+- [x] **Step 4: Run to verify PASS**.
 - [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.4 eq. 20 (lines 836–840). I10 binding: encoder-owned memory.
