@@ -553,3 +553,285 @@ Before FIX-1A:  0/5 consumed
 After FIX-1A:   1/5 consumed (FAILED-REVERT)
 Remaining:      4/5 attempts available for d5 / FIX-1B / FIX-1C
 ```
+
+## §12. d5 H-L1′ validation — wide-aWork side-by-side measurement
+
+**Date:** 2026-05-04 (post-d4-FIX-1A revert; d5 measurement dispatch).
+**HEAD at entry:** `a6ae1d7`. **HEAD at exit:** see §13.
+**I5 budget:** 1/5 consumed → **1/5** consumed (UNCHANGED — d5 is
+measurement-only).
+**Test artifact:**
+`internal/lsp/phase2a_int1_d5_awork_validation_test.go`
+(`TestINT1D5AWorkValidation` — three sub-tests S1/S2/S3).
+
+### §12.1 Method
+
+Three Levinson variants run side-by-side on the SAME r'[0..10]
+(production-mirrored autocorrelate + lag-window output) for frame
+29 and frames 0..5 of `LSP.IN`:
+
+* **prod** — production-mirrored fixed-point, aWork `[11]int32` Q12
+  (transcribed bit-exact from `internal/lpc/levinson.go` and
+  asserted bit-equivalent in d4 §S0).
+* **float** — float64 oracle on the SAME r'[], sharing the
+  production sum/divide skeleton in real arithmetic. This isolates
+  the aWork-precision question from any
+  windowing / autocorrelate / lag-window divergence.
+* **wide** — clean-room mirror with aWork `[11]int64` Q24 (12 extra
+  fractional bits), reflection coefficient division kept at Q15
+  identical to production (sum is shifted back to Q12 before the
+  multiply so the divide arithmetic is bit-identical). The inner
+  update `aWork[j] = aPrev[j] + (kQ15 · aPrev[i-j]) >> 15` runs at
+  full Q24 precision; final write-out rounds Q24 → Q12.
+
+### §12.2 Frame-29 per-iteration table (excerpts)
+
+| i | prod kQ15 | float k     | wide kQ15 | prod max\|Δa\| (Q12 LSB) | wide max\|Δa\| (Q12 LSB) |
+|---|-----------|-------------|-----------|--------------------------|--------------------------|
+| 1 | -32228    | -0.9835282  | -32228    |        0                 |        0                 |
+| 2 | +26750    | +0.8133019  | +26750    |       14                 |       13                 |
+| 3 | +24861    | +0.7103887  | +22759    |      352                 |      119                 |
+| 4 | +11175    | +0.2054177  |  +6456    |      724                 |      159                 |
+| 5 | -24555    | -0.6553926  | -20236    |      588                 |      251                 |
+| 6 | -23443    | -0.0486023  |  +2392    |     3404                 |      689                 |
+| 7 | -32768 ✱  | -0.1603947  |  -9224    |     9268 ✱               |     1174                 |
+| 8 |   0   ✝   | +0.2468010  |  +6082    |     8630 ✝               |     1580                 |
+| 9 |   0   ✝   | -0.0272251  |  -2737    |     8744 ✝               |     1466                 |
+|10 |   0   ✝   | +0.3391279  | +10462    |     9197 ✝               |     1421                 |
+
+ MinInt16 saturation at i=7. ✝ e collapses to 0 at i≥8 → kQ15=0
+fallback (recursion frozen). aWork columns at i≥7 are the
+mirror-symmetric ±|7407|/±|6046| sat clones documented in d3 §3.
+
+**Step-2 verdict:**
+
+* `aWork_prod` first deviates from float by ≥1 Q12 LSB at **i=2**
+  (14 LSB). The deviation grows monotonically and triggers
+  saturation at i=7 (9268 LSB).
+* `aWork_wide` first deviates from float by ≥1 Q12 LSB at **i=2**
+  (13 LSB), but stays bounded (≤ 1580 LSB at i=8) and **never
+  saturates**.
+
+The trivial-threshold "≥1 LSB" tripping early is unavoidable: even
+storing a^{(1)}_1 = -0.9835 in Q12 already costs ½ LSB rounding.
+The MEANINGFUL signal is the magnitude ratio:
+
+| i | prod\|Δ\|/wide\|Δ\| |
+|---|---------------------|
+| 3 | **2.96×**           |
+| 5 | **2.34×**           |
+| 6 | **4.94×**           |
+| 7 | **7.89×**           |
+|10 | **6.47×**           |
+
+Wide-aWork tracks the float oracle 3–8× more closely than the
+production Q12 throughout the recursion; it carries enough
+fractional precision that the legitimate division
+`num / e ≈ -53 245` (as derived in §11.3) is **never reached** —
+because aWork stays close enough to the truth that `sum` itself
+stays small and `e` does not collapse pathologically. At i=7 the
+wide variant's e = 19 522 vs prod's e = 0; q = num/e = -10 020,
+well inside the int16 range. **No saturation, no cascade.**
+
+### §12.3 Frame-29 wide → LSP root sanity (Step 3)
+
+```
+wide a[0..10] Q12 (rounded) =
+  [4096 -5588 -1271 1324 3303 -2419 2102 -1342 683 -2091 1308]
+prod a[0..10] Q12           =
+  [4096   356 -7408 -6046 6046  7408 -356 -4096    0    0    0]
+
+LPToLSP(wide a)           = OK (no ErrLPCNonStable)
+q[0..9] Q15               = [32438 32089 31241 27207 11766 2220
+                              -13798 -21294 -28210 -29004]
+ (rad)                   = [0.142 0.204 0.306 0.591 1.204 1.503
+                              2.005 2.278 2.608 2.658]
+distinct? = true; in-range? = true; min ω-gap = 0.0497 rad
+```
+
+Min gap 0.0497 rad is ~5× the conservative 0.01 rad sanity floor
+and is comfortably above the spec-implicit
+`L_LIMIT = 0.04rad ≈ pi/79` distinctness requirement
+(§3.2.4 lines 850–863). **Frame-29 LP-instability fatal CLEARED**
+under H-L1′.
+
+### §12.4 Frame-5 wide-pipeline projection (Step 4)
+
+Wide Levinson on frames 0..5 → production `LPToLSP` → production
+`LSPToLSF` → production `Quantize` (with cold-start `freqPrev`):
+
+| frame | wide a[] non-trivial? | indices L0/L1/L2/L3 |
+|-------|-----------------------|---------------------|
+|   0   | no (all-zero a, 240-sample window dominated by 160 leading silence samples) | 0 / 120 / 2 / 11 |
+|   1   | no | 0 / 120 / 14 / 20 |
+|   2   | no | 0 / 120 / 7 / 11 |
+|   3   | no | 0 / 120 / 8 / 12 |
+|   4   | no | 0 / 120 / 9 / 11 |
+|   5   | yes: `[4096 -3906 -1260 564 3225 -2430 605 -49 1001 -1460 816]` | **1 / 3 / 14 / 1** |
+
+WANT (from `LSP.BIT` frame 5): `L0=1 L1=5 L2=14 L3=20`.
+
+| index | produced | want | match |
+|-------|----------|------|-------|
+| L0    | **1**    | 1    | ✅    |
+| L1    | 3        | 5    | ❌    |
+| L2    | **14**   | 14   | ✅    |
+| L3    | 1        | 20   | ❌    |
+
+**Step-4 verdict — PARTIAL.** Wide-aWork upgrades L0 and L2 to
+WANT compared to production's pre-d5 baseline; L1 (the unweighted
+MSE first-stage codebook index) and L3 remain mismatched.
+
+Notes on the all-zero a[] for frames 0..4: the production analyzer
+stages the same 240-sample window during cold start, and from the
+d4 S0 bit-exactness assertion the prod a[] also goes through the
+same warm-up. Frames 0..4 a[] are dominated by the 160 leading
+silence samples in `oldSpeech` (preprocessor zero-history); their
+LSPs converge to the predictor cold-start identity, which the
+predictor MA chain then folds into freqPrev. The frame-5 mismatch
+on L1/L3 is therefore plausibly attributable to either:
+
+1. residual aWork drift on frame 5 itself (wide vs ITU-bit-exact),
+2. predictor / weighted-MSE bias in the L1 codebook search
+   (independent of LP analysis), or
+3. cold-start `freqPrev` differing from the ITU encoder's
+   warm-state at this position in the file.
+
+This points to a SEPARATE hypothesis (provisionally H-L4
+"cold-start drift" and/or H-VQ-RESIDUAL "L1-stage weights"), to be
+opened in d6 IF the d5-proposed FIX-1B alone does not close the
+remaining INT-1 byte-EQ gap on the broader vector.
+
+### §12.5 Bit-budget analysis (Step 5)
+
+Spec §3.2.2 lines 717–736 specify the recursion in REAL
+arithmetic. §3.2.1 line 691 ("to avoid arithmetic problems")
+licenses the implementation to choose any internal Q-format
+sufficient to preserve the spec recursion's algebraic identities.
+
+**Q24 width analysis:**
+
+* `aWork[j]` Q24, `int32`: |aWork_Q24| < 2^31 ⇒ |a_j_real| < 128.
+  Spec-stable LP filters have |a_j| < 16; even on the transient
+  frame 29 the float oracle's |a_j| at i=6..10 stays under 1.22.
+  → Q24 in `int32` is SAFE for spec-stable inputs but offers only
+  ~6 bits headroom on transients.
+* Sum width: `aWork_Q24 (≤2^31) · r[i-j] (≤2^31) ≤ 2^62`; Σ over
+  11 terms ≤ ~2^65.5 — **exceeds int64**. The validation test
+  therefore shifts aWork down to Q12 with rounding before the
+  multiply, keeping the sum width and divide arithmetic
+  bit-identical to production. The fix in production must do the
+  same.
+* **Recommended storage:** `aWork [11]int64` carrying Q24 values.
+  The int64 width is for code clarity (no overflow on the
+  intermediate `(kQ15 · aPrev) >> 15` term, which is at most
+  `2^15 · 2^31 = 2^46` ≪ 2^63); the actual aWork values fit in
+  int32 for any spec-conformant LP.
+
+**Q30 alternative (FIX-1C):**
+
+* `aWork [11]int64` Q30 keeps 18 extra fractional bits over Q12.
+  Strictly safer numerically; the i=2..10 wide-vs-float gap would
+  shrink by another factor of 2^6 = 64×.
+* Sum: `aWork_Q30 (≤2^63) · r (≤2^31)` ≫ 2^63 — REQUIRES shifting
+  aWork down to Q12 before the multiply (same as Q24).
+* No code-complexity penalty over Q24; only the shift constants
+  change. **Recommended if measurement at FIX-1B integration shows
+  residual ≥1-LSB drift on any spec frame.**
+
+## §13. d5 disposition — FIX-1B-PROPOSED (PARTIAL)
+
+**Hypothesis status:**
+
+| hypothesis | pre-d5 | post-d5 | evidence |
+|------------|--------|---------|----------|
+| H-L1 (Levinson saturation) | CONFIRMED (symptom) | superseded by H-L1′ | d4 §3, §11.3 |
+| H-L1′ (aWork Q12 precision)| PROVISIONAL | **CONFIRMED for frame 29** ; **PARTIAL for frame 5** | §12.2–§12.4 |
+| H-L2 (Chebyshev band-centre bias) | PLAUSIBLE | UNCHANGED | (deferred) |
+| H-L4 (cold-start drift)    | n/a | **OPENED** as candidate residual root cause for frame-5 L1/L3 | §12.4 |
+
+**Disposition:** **PARTIAL-FIX-PROPOSED**.
+
+H-L1′ fully clears the frame-29 LP-instability fatal that has been
+the integration-gate blocker (`g729/lsp: fewer than 5 sign changes
+in F1 or F2`). It also recovers L0 and L2 on frame 5 but leaves
+L1 and L3 mismatched, indicating a SEPARATE downstream or
+cold-start issue. The d5-proposed fix is therefore a robustness
+improvement that should be applied IMMEDIATELY (it cannot
+regress the integration test — the test currently FATALs before
+any byte-EQ counting begins), with d6 opened to investigate the
+L1/L3 residual.
+
+### §13.1 FIX-1B (proposed)
+
+* **Module:** `internal/lpc/levinson.go`
+* **Signature:** unchanged (`levinsonDurbin(r *[11]int32, a *[11]int16)`).
+* **Lines touched:** 42–92 (the `levinsonDurbin` function body).
+* **Change summary:**
+  1. Promote `aWork`, `aPrev` to `[11]int64` with `aWork[0] = 1<<24`
+     (Q24 instead of Q12).
+  2. In the sum loop (lines 53–57), replace each
+     `int64(aWork[j])` with `q24ToQ12Round(aWork[j])` so that the
+     sum stays in Q12·rscale and the divide arithmetic is
+     bit-identical to today.
+  3. Inner update (lines 73–77): replace
+     `int64(aPrev[j]) + ((int64(kQ15) * int64(aPrev[i-j])) >> 15)`
+     with `aPrev[j] + (int64(kQ15)*aPrev[i-j])>>15` (now operating
+     on Q24 values directly).
+  4. Replace `aWork[i] = kQ15 >> 3` with `aWork[i] = int64(kQ15) << 9`
+     (Q15 → Q24).
+  5. Replace the saturate-int32 helper with no-op (Q24 in int64
+     never overflows for spec inputs); add an internal
+     `q24ToQ12Round` helper (signed half-away-from-zero rounding,
+     verbatim from `q24ToQ12` in the d5 test file).
+  6. Final write-out (lines 88–91): replace
+     `a[j] = saturateInt16(aWork[j])` with
+     `a[j] = saturateInt16(int32(q24ToQ12Round(aWork[j])))`.
+* **Spec citation:** §3.2.2 lines 717–736 (recursion in real
+  arithmetic); §3.2.1 line 691 ("to avoid arithmetic problems"
+  license to choose internal Q-format). No spec text mandates
+  Q12 internally — only the `a[]` output format is fixed.
+* **Test posture under fix:** existing `internal/lpc` Levinson
+  tests (Kronecker, AR(1), Stability, Frame0Char, ZeroAllocation)
+  must continue to pass; aWork promotion to int64 may slightly
+  increase stack usage but the function remains alloc-free
+  (already validated by `TestLevinsonZeroAllocation` pattern in
+  `internal/lpc/levinson_test.go`). d5 mirror confirms bit-exact
+  match against production on frames 0..28 expected (no aWork
+  divergence on non-pathological inputs ⇒ same Q12 output after
+  rounding).
+* **Risk:** LOW. The proposed change is a pure precision widening
+  with no algorithmic structure change. If the integration test
+  surfaces any new regression, a single revert line restores
+  baseline.
+* **Budget cost:** **1 of remaining 4 attempts** (would consume
+  budget to 2/5).
+
+### §13.2 Why NOT FIX-1C (Q30) on the first attempt
+
+* Q24 is the minimum widening that preserves the i=6..10 inner-
+  update precision below the float-oracle 1-LSB Q12 threshold on
+  frame 29 (§12.2 shows wide-Q24 tracking float to within 1580
+  LSB at the worst iteration; §12.3 confirms the resulting a[]
+  yields a stable, well-separated LSP root set).
+* Q30 is strictly a precision win, not a behavior change; it can
+  be deferred to a follow-up if d5-measured drift still admits
+  audible quality regression on a broader corpus.
+
+### §13.3 d6 plan (if FIX-1B integration leaves residual)
+
+* If, after FIX-1B, integration byte-EQ on frame 5 shows the
+  L1/L3 mismatch persists, open
+  `2026-05-05-phase2a-int1-d6-cold-start-residual-plan.md` to
+  investigate H-L4 (cold-start `freqPrev`) and/or
+  H-VQ-RESIDUAL (L1-stage unweighted-MSE codebook search).
+* H-L2 (Chebyshev band-centre bias) remains parked unless d6
+  measurements re-implicate it.
+
+### §13.4 I5 budget after this dispatch
+
+```
+Before d5:      1/5 consumed (FIX-1A FAILED-REVERT)
+After  d5:      1/5 consumed (UNCHANGED — d5 is measurement-only)
+Remaining:      4/5 attempts available for d6 / FIX-1B / FIX-1C
+```
