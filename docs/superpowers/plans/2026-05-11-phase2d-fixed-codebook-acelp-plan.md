@@ -341,14 +341,11 @@ ga2, gb2    uint8
 
 ### INT-1b — Phase 2c INT-1 re-run (closes Phase 2c FAIL-DEFERRED via OQ-EXC-COMMIT)
 
-- [ ] Step 1 — RED: re-execute `TestPhase2cINT1_ClosedLoopPitchByteEQ` (no test changes — just re-run after INT-0 lands). Capture new P1 / P0 / P2 byte-EQ rates.
-- [ ] Step 2 — Compare to Phase 2c baseline (P1 9.05 % / P0 56.46 % / P2 9.75 %):
-    - **If P1 ≥ 80 %:** Phase 2c INT-1 flips ACCEPT-PARTIAL or PASS. Update `docs/superpowers/plans/2026-05-10-phase2c-closure-report.md` §5 disposition row to ACCEPT-PARTIAL or PASS; note the post-Phase-2d delta. No I5 spent (zero-cost regression).
-    - **If P1 ∈ [50 %, 80 %):** ACCEPT-PARTIAL achievable; spend Phase 2c reserved I5 slot 2/5 (H-CENTER probe per Phase 2c closure §6.1) before committing.
-    - **If P1 < 50 %:** structural blocker still dominant; escalate H-CENTER → H-PHASE → OQ-WINDOW → OQ-XB-NORM through Phase 2c reserved I5 slots 2/5 → 5/5 in order. If all 4 remaining slots exhausted with P1 still < 50 %, lock Phase 2c INT-1 as permanent FAIL-DEFERRED with full hypothesis-elimination audit.
-- [ ] Step 3 — Side-effect: regenerate `phase2c_int1_pitch_byteeq_test.go` expected-rates table (the test itself is byte-comparison; the *plausibility tally* is documented in Phase 2c closure §5, not in test code).
-- [ ] Step 4 — vet (no production-code change in INT-1b absent a confirmed escalation).
-- [ ] Step 5 — Commit `phase2d(int1b): re-run Phase 2c INT-1 with full eq. A.9 commit (INT-1b)` reporting the new P1/P0/P2 rates and Phase 2c disposition flip (if any).
+- [x] Step 1 — RED: re-execute `TestPhase2cINT1_ClosedLoopPitchByteEQ` (no test changes — just re-run after INT-0 lands). Capture new P1 / P0 / P2 byte-EQ rates. **Result @ HEAD `b85a6d6`: P1 10.79 % (198/1835) / P0 57.49 % (1055/1835) / P2 11.66 % (214/1835).**
+- [x] Step 2 — Compare to Phase 2c baseline (P1 9.05 % / P0 56.46 % / P2 9.75 %): Δ P1 = +1.74 pp, Δ P0 = +1.03 pp, Δ P2 = +1.91 pp. P1 < 50 % branch hit; per decision tree the structural blocker remains dominant (H-CENTER upstream in Phase 2b open-loop). Cascading Phase 2c reserved slots 2/5–5/5 is not justified — expected uplift from closed-loop-side probes is bounded well below the 39 pp gap to 50 % because `tOp` divergence is the root cause and lives in Phase 2b. **No I5 spent (0 / 4 reserved Phase 2c slots consumed).**
+- [x] Step 3 — Side-effect: Phase 2c closure report §5 disposition table updated with the post-Phase-2d INT-1b re-baseline (commit `phase2d(int1b): re-baseline …`). Test code unchanged.
+- [x] Step 4 — `go vet ./...` ✅ / `go build ./...` ✅ (no production-code change).
+- [x] Step 5 — Commit `phase2d(int1b): re-baseline Phase 2c P1/P0/P2 byte-EQ post eq. A.9/A.10 (INT-1b)`.
 
 ### INT-2 — Zero-alloc + race + bench
 

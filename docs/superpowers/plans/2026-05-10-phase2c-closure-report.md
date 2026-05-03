@@ -150,7 +150,22 @@ These patterns are inconsistent with any single OQ tuning constant (which would 
 | 0/5 | Baseline (`minSafeCentre = 45` workaround for OQ-K<40) | P1 2.07 % / P0 51.28 % / P2 3.71 % — FAIL/BELOW/FAIL. |
 | 1/5 | OQ-K<40 LP-residual extension refactor (anchor u(0) at `exc[len−SubframeLen]`; fill trailing 40 with current-subframe `r(n)`) | **P1 9.05 % / P0 56.46 % / P2 9.75 %** — FAIL/BELOW/FAIL. **STOPPED** per FAIL contract (no closed-loop-only escalation can break 50 % while H-CENTER and OQ-EXC-COMMIT remain open). |
 
-**4 / 5 I5 slots are reserved** for the post-Phase-2d Phase 2c INT-1 re-run. If the re-run is still <80 % across all three fields after Phase 2d closes ENC-INT, escalate the remaining 4 I5 against H-PHASE / H-CENTER / OQ-XB-NORM probes per §7.
+**Phase 2d INT-1b re-baseline (post eq. A.9/A.10 commit, HEAD `b85a6d6`):** re-running `TestPhase2cINT1_ClosedLoopPitchByteEQ` after Phase 2d INT-0 wired the full eq. A.9 excitation commit (`u(n) = ĝp·v(n) + ĝc·c(n)`) and eq. A.10 weighted-error update yields:
+
+| Field | Phase 2c baseline | Phase 2d INT-1b | Δ | Disposition |
+|---|---:|---:|---:|---|
+| P1 (8 b) | 9.05 % (166/1835) | **10.79 % (198/1835)** | **+1.74 pp** | **FAIL-DEFERRED** (still < 50 %) |
+| P0 (parity) | 56.46 % (1036/1835) | **57.49 % (1055/1835)** | +1.03 pp | BELOW ACCEPT-PARTIAL |
+| P2 (5 b) | 9.75 % (179/1835) | **11.66 % (214/1835)** | **+1.91 pp** | **FAIL-DEFERRED** (still < 50 %) |
+
+The OQ-EXC-COMMIT closure produces a measurable but **structurally minor** uplift (~+1.7–1.9 pp on P1/P2). The Δ=0 buckets remain dominant at the same magnitudes (P1 10.8 %, P2 11.7 %), and the broad symmetric P1 tail / heavy negative-bias P2 tail are unchanged in shape — confirming the residual blocker is **H-CENTER** (Phase 2b open-loop `tOp` miscentring caps P1 byte-EQ at the 53.95 % open-loop plausibility surface), not OQ-EXC-COMMIT corruption of `oldExc`. P1 wrap-around outlier signatures (Δ=+170/+196/+199 buckets at 0.5–0.9 %) persist — same byte-boundary aliasing previously logged as the H-CENTER smoking gun.
+
+**Phase 2d INT-1b verdict: FAIL-DEFERRED — re-baselined.** Per Phase 2d sub-plan §5 INT-1b decision tree (P1 < 50 %): structural blocker still dominant. The expected uplift from cascading Phase 2c reserved I5 slots 2/5–5/5 (H-CENTER → H-PHASE → OQ-WINDOW → OQ-XB-NORM) is **not justified at the closed-loop layer** because:
+
+- H-CENTER's root cause is upstream in Phase 2b open-loop (`tOp` divergence on ~46 % of frames); a closed-loop-side probe cannot move `tOp`.
+- H-PHASE / OQ-WINDOW / OQ-XB-NORM are second-order tunings whose combined upper-bound recovery is ≪ 39 pp (the gap to 50 %).
+
+**Phase 2c reserved I5 budget unchanged: 4 / 5 still reserved** (zero consumed by INT-1b). Slots remain available for any future Phase 2-final escalation that re-opens the surface with stronger expected uplift (e.g., post-Phase-2b H-CENTER fix at the open-loop layer).
 
 **Recommendation.** Re-run Phase 2c INT-1 (`TestPhase2cINT1_ClosedLoopPitchByteEQ`) after Phase 2d closes its ENC-INT (full encoder excitation commit). If P1 ≥ 80 % at that point, the INT-1 surface flips ACCEPT-PARTIAL or PASS and Phase 2c can be re-CLOSED non-DEFERRED. If still <80 %, spend the remaining 4 I5 slots against the structural blocker chain in §6.
 
