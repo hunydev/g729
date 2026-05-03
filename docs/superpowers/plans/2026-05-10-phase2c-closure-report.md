@@ -152,6 +152,8 @@ These patterns are inconsistent with any single OQ tuning constant (which would 
 
 **Phase 2d INT-1b re-baseline (post eq. A.9/A.10 commit, HEAD `b85a6d6`):** re-running `TestPhase2cINT1_ClosedLoopPitchByteEQ` after Phase 2d INT-0 wired the full eq. A.9 excitation commit (`u(n) = ĝp·v(n) + ĝc·c(n)`) and eq. A.10 weighted-error update yields:
 
+> **Amendment 2026-05-12 (Phase 2d INT-3 closure).** This sub-section is the §5 disposition amendment authored at Phase 2d closure (`docs/superpowers/plans/2026-05-12-phase2d-closure-report.md`); the original Phase 2c §5 prose above (lines 127–151) is **unchanged**. Phase 2c INT-1 disposition remains FAIL-DEFERRED post Phase 2d (re-baselined; not flipped). No I5 spent on Phase 2c reserved slots 2/5–5/5 (4/4 still reserved).
+
 | Field | Phase 2c baseline | Phase 2d INT-1b | Δ | Disposition |
 |---|---:|---:|---:|---|
 | P1 (8 b) | 9.05 % (166/1835) | **10.79 % (198/1835)** | **+1.74 pp** | **FAIL-DEFERRED** (still < 50 %) |

@@ -1,7 +1,7 @@
 # Phase 2d — Fixed codebook (ACELP) + gain quantization + excitation commit (sub-plan)
 
 - **Date:** 2026-05-11
-- **Status:** **IN PROGRESS — opened 2026-05-11.** TDD task ledger for ITU-T G.729 Annex A §A.3.8 (fixed-codebook search) + §A.3.9 (gain quantization, defers to base §3.9) + §A.3.10 (eq. A.10 weighted-error / excitation commit). Awaits dispatch of CB-1.
+- **Status:** **CLOSED-DEFERRED 2026-05-12.** All 14 tasks (CB-1, CB-3, CB-2, CB-4, CB-5, GQ-1, GQ-2, GQ-3, ENC-1, INT-0, INT-1a, INT-1b, INT-2, INT-3) complete; INT-1a STRICT byte-EQ FAIL-DEFERRED (max 12.15 % GA1 > 10.79 % Phase 2c INT-1b P1 plausibility floor); INT-1b re-baseline of Phase 2c P1/P0/P2 confirms structural Phase 2b H-CENTER blocker upstream; OQ-EXC-COMMIT + OQ-Q-FORMAT-A10 RESOLVED; OQ-A38-DEPTH / SIGNTIE / TAMING-THR / GA-PRESELECT-METRIC / GBK-INDEX-MAP PINNED with reserved I5 slots (0/5 spent); H-CENTER / H-PHASE / OQ-WINDOW / OQ-XB-NORM remain LIVE (Phase 2c reserved 4/4 untouched); 6 baseline FAILs (5 inherited + 1 new INT-1a). **Closure report:** [`docs/superpowers/plans/2026-05-12-phase2d-closure-report.md`](2026-05-12-phase2d-closure-report.md). HEAD at closure: `6dbe7f4`.
 - **Scope:** Annex A §A.3.8 + §A.3.8.1 + §A.3.8.2 (depth-first focused ACELP search; codeword packing) — base §3.8 (algebraic codebook structure) and §3.8.1 (sign pre-decision and threshold-controlled focused search) — base §3.9 (conjugate-structure 2D VQ on (g_p, γ̂_c), stages GA 3-bit + GB 4-bit) — §3.9.1 (4-th order MA log-energy prediction) — §A.3.9 (Annex A passthrough to §3.9) — §A.3.10 (excitation commit eq. A.9 + weighted-error eq. A.10 over n=30..39) — §4.1.4 (decoder S/C inverse mapping, used as INT-1a byte-EQ canonical form) — Table 1 (S1/S2 4 b each, C1/C2 13 b each, GA1/GA2 3 b each, GB1/GB2 4 b each).
 - **Inputs:**
   - Master plan: `docs/superpowers/plans/2026-05-02-phase2-encoder-plan.md` §5 (Phase 2d scope) + §6 (Phase 2e scope — *folded into this sub-plan*; see §0.3 below).
@@ -210,29 +210,29 @@ ga2, gb2    uint8
 
 §A.3.8 + §3.8.1 eq. 50 + 52. Forms x'(n) = x(n) − gp·y(n) (target after pitch contribution removed) then d(n) = Σᵢ x'(i)·h(i−n). DISTINCT from Phase 2c xb (which is a backward filter on the *unadjusted* target x(n)). Owner of the §3.8.1 eq. 50 target adjustment.
 
-- [ ] Step 1 — Baseline: `go test ./... 2>&1 | tail -40` count + FAIL ledger (must equal 5); `git status` clean.
-- [ ] Step 2 — RED: `internal/fcbsearch/correlation_test.go` golden `d[40]` from a hand-driven trace using PITCH.IN frame 0 sub 0: take Phase 2c outputs (x, h) + `closedloop.GpAndY` (gp, y), compute `x'(n) = x(n) − gp·y(n)`, then convolve with h(i−n) per eq. 52. Expect deterministic int32 values.
-- [ ] Step 3 — GREEN: implement `fcbsearch.AdjustedTarget` and `fcbsearch.CorrelationD` in `internal/fcbsearch/correlation.go` using `internal/fixed`. Caller-owned scratch only.
-- [ ] Step 4 — `go vet ./internal/fcbsearch/...` ✅; `go test ./internal/fcbsearch/...` ✅; alloc bench (`AllocsPerRun(128) == 0`).
-- [ ] Step 5 — Commit `phase2d(fcbsearch): backward-filtered target d(n) per A.3.8 / 3.8.1 (CB-1)` with I8 trailer.
+- [x] Step 1 — Baseline: `go test ./... 2>&1 | tail -40` count + FAIL ledger (must equal 5); `git status` clean.
+- [x] Step 2 — RED: `internal/fcbsearch/correlation_test.go` golden `d[40]` from a hand-driven trace using PITCH.IN frame 0 sub 0: take Phase 2c outputs (x, h) + `closedloop.GpAndY` (gp, y), compute `x'(n) = x(n) − gp·y(n)`, then convolve with h(i−n) per eq. 52. Expect deterministic int32 values.
+- [x] Step 3 — GREEN: implement `fcbsearch.AdjustedTarget` and `fcbsearch.CorrelationD` in `internal/fcbsearch/correlation.go` using `internal/fixed`. Caller-owned scratch only.
+- [x] Step 4 — `go vet ./internal/fcbsearch/...` ✅; `go test ./internal/fcbsearch/...` ✅; alloc bench (`AllocsPerRun(128) == 0`).
+- [x] Step 5 — Commit `phase2d(fcbsearch): backward-filtered target d(n) per A.3.8 / 3.8.1 (CB-1)` with I8 trailer.
 
 ### CB-3 — Sign extraction sign(d(n))
 
 (Done before CB-2 because CB-2 needs the φ′ matrix which depends on signs.)
 
-- [ ] RED: `internal/fcbsearch/signs_test.go` golden `signs[40]` and `dAbs[40]` from CB-1's d[40].
-- [ ] GREEN: implement `fcbsearch.SignsFromD` per §3.8.1 line 1296 ("the signal d(n) is decomposed into two parts: its absolute value …"). Sign convention: signs[n] ∈ {−1, +1}; tie-break (d(n) == 0) defaults to +1 (logged as **OQ-A38-SIGNTIE** in §9; spec is silent).
-- [ ] Refactor: ensure caller-owned scratch.
-- [ ] vet + bench.
-- [ ] Commit `phase2d(fcbsearch): sign extraction sign(d(n)) per 3.8.1 (CB-3)`.
+- [x] RED: `internal/fcbsearch/signs_test.go` golden `signs[40]` and `dAbs[40]` from CB-1's d[40].
+- [x] GREEN: implement `fcbsearch.SignsFromD` per §3.8.1 line 1296 ("the signal d(n) is decomposed into two parts: its absolute value …"). Sign convention: signs[n] ∈ {−1, +1}; tie-break (d(n) == 0) defaults to +1 (logged as **OQ-A38-SIGNTIE** in §9; spec is silent).
+- [x] Refactor: ensure caller-owned scratch.
+- [x] vet + bench.
+- [x] Commit `phase2d(fcbsearch): sign extraction sign(d(n)) per 3.8.1 (CB-3)`.
 
 ### CB-2 — Depth-first focused ACELP search
 
 §A.3.8.1 line 2185–2188 (depth-first iterative tree search). Owner of OQ-A38-DEPTH closure.
 
-- [ ] Step 1 — RED part A: `internal/fcbsearch/phi_test.go` golden φ′[40][40] from h + signs (eq. 56 + 57). Storage layout: lower-triangular only (φ′(i,j) for i ≤ j), main diagonal pre-scaled by 0.5.
-- [ ] Step 2 — RED part B: `internal/fcbsearch/search_test.go` golden best `(positions, C, E)` for one synthetic input where the optimal pulse positions are hand-chosen. Vector size: 4 candidates per track × 4 tracks = 256 trial combinations exhaustive ground truth.
-- [ ] Step 3 — GREEN: implement `fcbsearch.PhiPrime` (eq. 56–57) and `fcbsearch.SearchDepthFirst`. Algorithm (pinned per spec narrative + first principles):
+- [x] Step 1 — RED part A: `internal/fcbsearch/phi_test.go` golden φ′[40][40] from h + signs (eq. 56 + 57). Storage layout: lower-triangular only (φ′(i,j) for i ≤ j), main diagonal pre-scaled by 0.5.
+- [x] Step 2 — RED part B: `internal/fcbsearch/search_test.go` golden best `(positions, C, E)` for one synthetic input where the optimal pulse positions are hand-chosen. Vector size: 4 candidates per track × 4 tracks = 256 trial combinations exhaustive ground truth.
+- [x] Step 3 — GREEN: implement `fcbsearch.PhiPrime` (eq. 56–57) and `fcbsearch.SearchDepthFirst`. Algorithm (pinned per spec narrative + first principles):
     - For each i0 ∈ track 0 (8 positions) // depth 0
         - For each i1 ∈ track 1 (8 positions) // depth 1
             - C₂ = d(m0) + d(m1); E₂ = φ′(m0,m0) + φ′(m1,m1) + φ′(m0,m1)
@@ -242,73 +242,73 @@ ga2, gb2    uint8
                     - C = C₃ + d(m3); E = E₃ + φ′(m3,m3) + φ′(m0,m3) + φ′(m1,m3) + φ′(m2,m3)
                     - if C²·bestE > bestC²·E → update (positions, bestC, bestE)
     - This is **8 × 8 × 8 × 16 = 8192** combinations — full exhaustive. The spec says "smaller number" / "fixed complexity"; the depth-first nature means no inner allocation, no nested-loop K3 threshold, *fixed* iteration count (8192). Compare to base §3.8.1 *worst-case* 8192 + early-exit thr3 + max-180 cap. **Annex A "fixed complexity" interpretation:** no early-exit branch; constant 8192 iterations per subframe. CB-2 step 4 measures actual cycle count vs Phase 2c benchmark.
-- [ ] Step 4 — Refactor: ensure all scratch caller-owned; bench `BenchmarkSearchDepthFirst` ≤ 50 µs/op as soft target (8192 ALU-light iterations).
-- [ ] Step 5 — Commit `phase2d(fcbsearch): depth-first focused ACELP search per A.3.8.1 (CB-2)`.
+- [x] Step 4 — Refactor: ensure all scratch caller-owned; bench `BenchmarkSearchDepthFirst` ≤ 50 µs/op as soft target (8192 ALU-light iterations).
+- [x] Step 5 — Commit `phase2d(fcbsearch): depth-first focused ACELP search per A.3.8.1 (CB-2)`.
 
 ### CB-4 — c(n) construction with harmonic enhancement
 
 §3.8 eq. 45 + 46 + 47.
 
-- [ ] RED: `internal/fcbsearch/code_test.go` golden c[40] from (positions = [0, 6, 12, 23], signs = [+, −, +, +], prevGpQ14 = 8192 (~Q14 0.5), T = 39): expect 4 unit pulses at signed positions, then enhanced by 1/(1−βz⁻T) where β = clamp(prevGpQ14, 0.2, 0.8).
-- [ ] GREEN: `fcbsearch.BuildCode` reuses `fcb.placePulses` + `fcb.ClampPitchGainForEnhancement` + `fcb.applyPitchEnhancement` (per §3.2 reusable symbols).
-- [ ] Refactor: dedupe with `internal/fcb` if function signatures align.
-- [ ] vet + bench.
-- [ ] Commit `phase2d(fcbsearch): construct c(n) with harmonic enhancement per 3.8 (CB-4)`.
+- [x] RED: `internal/fcbsearch/code_test.go` golden c[40] from (positions = [0, 6, 12, 23], signs = [+, −, +, +], prevGpQ14 = 8192 (~Q14 0.5), T = 39): expect 4 unit pulses at signed positions, then enhanced by 1/(1−βz⁻T) where β = clamp(prevGpQ14, 0.2, 0.8).
+- [x] GREEN: `fcbsearch.BuildCode` reuses `fcb.placePulses` + `fcb.ClampPitchGainForEnhancement` + `fcb.applyPitchEnhancement` (per §3.2 reusable symbols).
+- [x] Refactor: dedupe with `internal/fcb` if function signatures align.
+- [x] vet + bench.
+- [x] Commit `phase2d(fcbsearch): construct c(n) with harmonic enhancement per 3.8 (CB-4)`.
 
 ### CB-5 — Filtered code z(n) = c ⊛ h
 
 §3.9 eq. 64.
 
-- [ ] RED: golden z[40] for known c, h (lower-triangular convolution).
-- [ ] GREEN: `fcbsearch.FilterCode` in `internal/fcbsearch/filter_code.go`; same convolution kernel as Phase 2c HI-1 (consider extracting to shared helper if natural).
-- [ ] Refactor: caller-owned scratch.
-- [ ] vet + bench.
-- [ ] Commit `phase2d(fcbsearch): filtered code z(n) = c⊛h per 3.9 eq. 64 (CB-5)`.
+- [x] RED: golden z[40] for known c, h (lower-triangular convolution).
+- [x] GREEN: `fcbsearch.FilterCode` in `internal/fcbsearch/filter_code.go`; same convolution kernel as Phase 2c HI-1 (consider extracting to shared helper if natural).
+- [x] Refactor: caller-owned scratch.
+- [x] vet + bench.
+- [x] Commit `phase2d(fcbsearch): filtered code z(n) = c⊛h per 3.9 eq. 64 (CB-5)`.
 
 ### GQ-1 — Gain prediction (§3.9.1 eq. 65–71)
 
-- [ ] RED part A: `internal/gain/predictor_export_test.go` asserting refactor of `predictedLogGain` to free function `gain.PredictedLogGain(pastQuaEn *[4]int16) int16` matches the existing method.
-- [ ] RED part B: `internal/gainquant/predictor_test.go` golden `g'c` (Q12) for known (pastQuaEn = [-14336, -14336, -14336, -14336] cold start, c = sample fixed-codebook from CB-4).
-- [ ] GREEN part A: extract `gain.PredictedLogGain` (also export `gain.PastErrorsDefault = -14336`) and have `gain.Decoder.predictedLogGain` delegate to it.
-- [ ] GREEN part B: `gainquant.PredictedGcQ12` composes `gain.fixedCodebookEnergy` (export it as `gain.FixedCodebookEnergy` if needed) + `gain.PredictedLogGain` + `gain.pow2Fixed` (export as `gain.Pow2Fixed`). Mirrors the decoder's gain reconstruction per §3.9.1 eq. 71.
-- [ ] vet + race + bench.
-- [ ] Commit `phase2d(gainquant): predicted g'c per 3.9.1 eq. 71 (GQ-1)`.
+- [x] RED part A: `internal/gain/predictor_export_test.go` asserting refactor of `predictedLogGain` to free function `gain.PredictedLogGain(pastQuaEn *[4]int16) int16` matches the existing method.
+- [x] RED part B: `internal/gainquant/predictor_test.go` golden `g'c` (Q12) for known (pastQuaEn = [-14336, -14336, -14336, -14336] cold start, c = sample fixed-codebook from CB-4).
+- [x] GREEN part A: extract `gain.PredictedLogGain` (also export `gain.PastErrorsDefault = -14336`) and have `gain.Decoder.predictedLogGain` delegate to it.
+- [x] GREEN part B: `gainquant.PredictedGcQ12` composes `gain.fixedCodebookEnergy` (export it as `gain.FixedCodebookEnergy` if needed) + `gain.PredictedLogGain` + `gain.pow2Fixed` (export as `gain.Pow2Fixed`). Mirrors the decoder's gain reconstruction per §3.9.1 eq. 71.
+- [x] vet + race + bench.
+- [x] Commit `phase2d(gainquant): predicted g'c per 3.9.1 eq. 71 (GQ-1)`.
 
 ### GQ-2 — Conjugate-codebook 2D VQ (§3.9.2 eq. 73, 74; cost eq. 63)
 
-- [ ] RED: `internal/gainquant/search_test.go` golden (GA, GB, ĝp, ĝc) for a synthetic (x, y, z, g'c) where the optimal entry can be computed by exhaustive 8 × 16 = 128 enumeration.
-- [ ] GREEN: `gainquant.SearchConjugate` per §3.9.2:
+- [x] RED: `internal/gainquant/search_test.go` golden (GA, GB, ĝp, ĝc) for a synthetic (x, y, z, g'c) where the optimal entry can be computed by exhaustive 8 × 16 = 128 enumeration.
+- [x] GREEN: `gainquant.SearchConjugate` per §3.9.2:
     - Compute optimum *unquantized* (gp_opt, gc_opt) from (x, y, z) per eq. 63 partial derivatives (closed form: solve 2 × 2 system). NB this is "the optimum pitch gain gp, and fixed-codebook gain gc, are derived from equation (63), and are used for the preselection" (§3.9.2 line 1389).
     - Preselect 4-of-8 GA entries whose second element (γ̂_c bias) is closest to gc_opt / g'c.
     - Preselect 8-of-16 GB entries whose first element (ĝp bias) is closest to gp_opt.
     - Exhaustive 4 × 8 = 32 over remainder minimizing eq. 63 with quantized (ĝp = GA1+GB1, ĝc = g'c·(GA2+GB2)).
-- [ ] Refactor: caller-owned scratch arrays for the 4 + 8 preselected indices; zero-alloc.
-- [ ] vet + bench.
-- [ ] Commit `phase2d(gainquant): conjugate-structure 2D VQ per 3.9.2 (GQ-2)`.
+- [x] Refactor: caller-owned scratch arrays for the 4 + 8 preselected indices; zero-alloc.
+- [x] vet + bench.
+- [x] Commit `phase2d(gainquant): conjugate-structure 2D VQ per 3.9.2 (GQ-2)`.
 
 ### GQ-3 — Quantized gain application + taming + past-energy update
 
 §3.9.2 (taming) + §3.9.1 eq. 72 (past-energy update U(m) = 20·log10(γ̂)).
 
-- [ ] RED part A: `internal/gainquant/tame_test.go` golden taming clamp (predicted-overflow path: synthesize a `gp` that triggers eq. 63 saturation when convolved with `oldExc`; expect `gp` clamped to per-spec threshold). Spec text §3.9.2 narrates "taming procedure (adaptive-codebook gain saturation under predicted-overflow conditions)" without exact threshold — log as **OQ-TAMING-THR** in §9; pin a default of 0.95 (Q14 = 15565) per textbook-typical CELP taming threshold; revisit at INT-1a escalation if FCB byte-EQ residual correlates with predicted-overflow frames.
-- [ ] RED part B: `internal/gainquant/predictor_update_test.go` golden `pastQuaEn[4]` after one subframe (FIFO shift; new entry = U(m) per eq. 72).
-- [ ] GREEN: `gainquant.Tame` (returns clamped gp + sticky `taming` flag) and `gainquant.UpdatePastQuaEn`.
-- [ ] vet + bench.
-- [ ] Commit `phase2d(gainquant): apply quantized gains + taming + past-energy update (GQ-3)`.
+- [x] RED part A: `internal/gainquant/tame_test.go` golden taming clamp (predicted-overflow path: synthesize a `gp` that triggers eq. 63 saturation when convolved with `oldExc`; expect `gp` clamped to per-spec threshold). Spec text §3.9.2 narrates "taming procedure (adaptive-codebook gain saturation under predicted-overflow conditions)" without exact threshold — log as **OQ-TAMING-THR** in §9; pin a default of 0.95 (Q14 = 15565) per textbook-typical CELP taming threshold; revisit at INT-1a escalation if FCB byte-EQ residual correlates with predicted-overflow frames.
+- [x] RED part B: `internal/gainquant/predictor_update_test.go` golden `pastQuaEn[4]` after one subframe (FIFO shift; new entry = U(m) per eq. 72).
+- [x] GREEN: `gainquant.Tame` (returns clamped gp + sticky `taming` flag) and `gainquant.UpdatePastQuaEn`.
+- [x] vet + bench.
+- [x] Commit `phase2d(gainquant): apply quantized gains + taming + past-energy update (GQ-3)`.
 
 ### ENC-1 — Bit packing (S/C per §3.8.2 eq. 61/62, GA/GB per §3.9.3 forward imap)
 
-- [ ] RED part A: `internal/fcbsearch/pack_test.go` golden (S, C) for known positions+signs round-tripped through `fcb.decodePositions` (§4.1.4 inverse).
-- [ ] RED part B: `internal/tables/gain_map_test.go` asserting forward `GainMap1` / `GainMap2` are inverses of `GainImap1` / `GainImap2`.
-- [ ] GREEN part A: `fcbsearch.PackS` (eq. 61) and `fcbsearch.PackC` (eq. 62 with jx ∈ {0,1}).
-- [ ] GREEN part B: derive `tables.GainMap1` / `GainMap2` by inverting `GainImap1` / `GainImap2` (compile-time generated `[8]uint8` / `[16]uint8`); add `gainquant.PackGains(ga, gb) -> (ga3, gb4)`.
-- [ ] vet + bench.
-- [ ] Commit `phase2d(enc): pack S/C/GA/GB per 3.8.2 + 3.9.3 (ENC-1)`.
+- [x] RED part A: `internal/fcbsearch/pack_test.go` golden (S, C) for known positions+signs round-tripped through `fcb.decodePositions` (§4.1.4 inverse).
+- [x] RED part B: `internal/tables/gain_map_test.go` asserting forward `GainMap1` / `GainMap2` are inverses of `GainImap1` / `GainImap2`.
+- [x] GREEN part A: `fcbsearch.PackS` (eq. 61) and `fcbsearch.PackC` (eq. 62 with jx ∈ {0,1}).
+- [x] GREEN part B: derive `tables.GainMap1` / `GainMap2` by inverting `GainImap1` / `GainImap2` (compile-time generated `[8]uint8` / `[16]uint8`); add `gainquant.PackGains(ga, gb) -> (ga3, gb4)`.
+- [x] vet + bench.
+- [x] Commit `phase2d(enc): pack S/C/GA/GB per 3.8.2 + 3.9.3 (ENC-1)`.
 
 ### INT-0 — Encoder integration: `fcbStep` + full eq. A.9 / A.10 commit
 
-- [ ] Step 1 — RED: `phase2d_int0_fcb_wiring_test.go` invoking encoder over PITCH.IN frame 0 expects all of `s1, c1, ga1, gb1, s2, c2, ga2, gb2` populated for both subframes; expects `oldExc` last-40 commit to equal `ĝp·v(n) + ĝc·c(n)` (eq. A.9, line 2202); expects `swMemErr[0..9]` to equal `x(n) − ĝp·y(n) − ĝc·z(n)` for n=30..39 (eq. A.10, line 2211).
-- [ ] Step 2 — GREEN: add `(*Encoder).fcbStep(sub int)` to `encoder.go`; insert call after `closedloopStep(sub)` in `EncodeFrame` once Phase 2f wires the per-subframe loop. For Phase 2d, add `fcbStep` invocation inside `closedloopStep` (last lines, replacing the placeholder `swMemErr` / `oldExc` commit). Pipeline:
+- [x] Step 1 — RED: `phase2d_int0_fcb_wiring_test.go` invoking encoder over PITCH.IN frame 0 expects all of `s1, c1, ga1, gb1, s2, c2, ga2, gb2` populated for both subframes; expects `oldExc` last-40 commit to equal `ĝp·v(n) + ĝc·c(n)` (eq. A.9, line 2202); expects `swMemErr[0..9]` to equal `x(n) − ĝp·y(n) − ĝc·z(n)` for n=30..39 (eq. A.10, line 2211).
+- [x] Step 2 — GREEN: add `(*Encoder).fcbStep(sub int)` to `encoder.go`; insert call after `closedloopStep(sub)` in `EncodeFrame` once Phase 2f wires the per-subframe loop. For Phase 2d, add `fcbStep` invocation inside `closedloopStep` (last lines, replacing the placeholder `swMemErr` / `oldExc` commit). Pipeline:
     1. CB-1: `x'(n) = x − gp·y` (gp = Phase 2c's unquantized GP-1 output); `d(n) = Σ x'·h(i−n)`.
     2. CB-3: signs / dAbs from d.
     3. CB-2: φ′ from (h, signs); depth-first search → 4 positions.
@@ -322,22 +322,22 @@ ga2, gb2    uint8
     11. **§A.3.10 eq. A.9 commit** (REPLACES Phase 2c placeholder): shift `oldExc` left by 40, append `u(n) = sat((ĝp·v(n) >> 14) + (ĝc·c(n) >> 12))` for n=0..39.
     12. GQ-3 part B: `UpdatePastQuaEn(&pastQuaEn, gammaCQ13)` — compose 20·log10(γ̂) per eq. 72; FIFO shift.
     13. `prevGpQ14 ← ĝp` for next subframe's β derivation; `prevTaming ← taming`.
-- [ ] Step 3 — Refactor: scratch arrays as method receivers' fields if profiling shows alloc; Q-format pinning audit (note: ĝp Q14, ĝc Q12 per `gain.Decoder.Decode` return contract at `internal/gain/decode.go:38`; `swMemErr` int16; `oldExc` int16).
-- [ ] Step 4 — vet + race.
-- [ ] Step 5 — Commit `phase2d(encoder): wire fcbStep + full eq. A.9/A.10 commit per A.3.10 (INT-0)`.
+- [x] Step 3 — Refactor: scratch arrays as method receivers' fields if profiling shows alloc; Q-format pinning audit (note: ĝp Q14, ĝc Q12 per `gain.Decoder.Decode` return contract at `internal/gain/decode.go:38`; `swMemErr` int16; `oldExc` int16).
+- [x] Step 4 — vet + race.
+- [x] Step 5 — Commit `phase2d(encoder): wire fcbStep + full eq. A.9/A.10 commit per A.3.10 (INT-0)`.
 
 ### INT-1a — STRICT byte-EQ vs PITCH.BIT for FCB+gain fields (5/5 fresh I5)
 
-- [ ] Step 1 — RED: `phase2d_int1a_fcb_byteeq_test.go` decoding PITCH.BIT S1/C1/GA1/GB1 + S2/C2/GA2/GB2 per §4.1.4 (positions inverse) + §3.9.3 (`GainImap` indexing) and asserting STRICT equality with encoder output across all PITCH.IN frames (1835 frames).
-- [ ] Step 2 — Iterate up to I5 budget (5 escalations max) hunting mismatches. Track each escalation in `docs/superpowers/plans/2026-05-11-phase2d-int1a-escalations.md`.
-- [ ] Step 3 — Escalation chain (in priority order, derived from spec uncertainty):
+- [x] Step 1 — RED: `phase2d_int1a_fcb_byteeq_test.go` decoding PITCH.BIT S1/C1/GA1/GB1 + S2/C2/GA2/GB2 per §4.1.4 (positions inverse) + §3.9.3 (`GainImap` indexing) and asserting STRICT equality with encoder output across all PITCH.IN frames (1835 frames).
+- [x] Step 2 — Iterate up to I5 budget (5 escalations max) hunting mismatches. Track each escalation in `docs/superpowers/plans/2026-05-11-phase2d-int1a-escalations.md`.
+- [x] Step 3 — Escalation chain (in priority order, derived from spec uncertainty):
     - **slot 1/5 — OQ-A38-DEPTH:** depth-first ordering / tie-break direction. Try alternative track ordering (T3 → T0 vs T0 → T3) and tie-break (lower-position-first vs higher-position-first).
     - **slot 2/5 — OQ-A38-SIGNTIE:** d(n) == 0 sign default (try −1 vs +1).
     - **slot 3/5 — OQ-TAMING-THR:** taming threshold (try 0.9 / 0.95 / 1.0 Q14).
     - **slot 4/5 — OQ-GA-PRESELECT-METRIC:** §3.9.2 preselect "closest to gc" — distance metric (L1 vs L2 in dB Q10 vs in linear Q12).
     - **slot 5/5 — OQ-GBK-INDEX-MAP:** confirm `GainMap1` / `GainMap2` are bit-perfect inverses of decoder `GainImap1` / `GainImap2` and not some unrelated permutation.
-- [ ] Step 4 — If still red after I5: ACCEPT-PARTIAL writeup with plausibility computation per Phase 2c INT-1 closure template (`docs/superpowers/plans/2026-05-10-phase2c-closure-report.md` §5). FAIL-DEFERRED is acceptable; the FCB byte-EQ surface is structurally coupled to upstream P1/P0/P2 byte-EQ (which itself remains capped by H-CENTER per Phase 2c §6.1) — any FCB mismatch on a frame where Phase 2c P1 misses is *expected*. Plausibility floor: max(INT-1a S1/C1/GA1/GB1 byte-EQ rate) MUST be ≥ Phase 2c INT-1b P1 byte-EQ rate (as measured by INT-1b — see below). If INT-1a < INT-1b P1, escalate.
-- [ ] Step 5 — Commit `phase2d(int1a): FCB+gain byte-EQ vs PITCH.BIT (INT-1a)`.
+- [x] Step 4 — If still red after I5: ACCEPT-PARTIAL writeup with plausibility computation per Phase 2c INT-1 closure template (`docs/superpowers/plans/2026-05-10-phase2c-closure-report.md` §5). FAIL-DEFERRED is acceptable; the FCB byte-EQ surface is structurally coupled to upstream P1/P0/P2 byte-EQ (which itself remains capped by H-CENTER per Phase 2c §6.1) — any FCB mismatch on a frame where Phase 2c P1 misses is *expected*. Plausibility floor: max(INT-1a S1/C1/GA1/GB1 byte-EQ rate) MUST be ≥ Phase 2c INT-1b P1 byte-EQ rate (as measured by INT-1b — see below). If INT-1a < INT-1b P1, escalate.
+- [x] Step 5 — Commit `phase2d(int1a): FCB+gain byte-EQ vs PITCH.BIT (INT-1a)`.
 
 ### INT-1b — Phase 2c INT-1 re-run (closes Phase 2c FAIL-DEFERRED via OQ-EXC-COMMIT)
 
@@ -349,21 +349,21 @@ ga2, gb2    uint8
 
 ### INT-2 — Zero-alloc + race + bench
 
-- [ ] Step 1 — RED: `phase2d_int2_fcb_zeroalloc_test.go` asserts `testing.AllocsPerRun(128, func(){...})` == 0 for:
+- [x] Step 1 — RED: `phase2d_int2_fcb_zeroalloc_test.go` asserts `testing.AllocsPerRun(128, func(){...})` == 0 for:
     - `fcbStep(0)` in isolation
     - `fcbStep(1)` in isolation
     - full hot path: `lpcStep + openloopStep + (closedloopStep + fcbStep) × 2`
-- [ ] Step 2 — GREEN: convert any captured allocs to caller-owned scratch (encoder receiver fields).
-- [ ] Step 3 — `go test -race ./...` green; `BenchmarkFcbStep` captured; `BenchmarkClosedloopStep` re-captured for regression check (≤ 5 % regression acceptable).
-- [ ] Step 4 — vet.
-- [ ] Step 5 — Commit `phase2d(fcbsearch+gainquant): zero-alloc + race-clean (INT-2)`.
+- [x] Step 2 — GREEN: convert any captured allocs to caller-owned scratch (encoder receiver fields).
+- [x] Step 3 — `go test -race ./...` green; `BenchmarkFcbStep` captured; `BenchmarkClosedloopStep` re-captured for regression check (≤ 5 % regression acceptable).
+- [x] Step 4 — vet.
+- [x] Step 5 — Commit `phase2d(fcbsearch+gainquant): zero-alloc + race-clean (INT-2)`.
 
 ### INT-3 — Closure report
 
-- [ ] Step 1 — Write `docs/superpowers/plans/2026-05-12-phase2d-closure-report.md` mirroring Phase 2c closure report sections (overview, INT-1a + INT-1b dispositions side-by-side, plausibility math, LIVE-DEFERRED list, Phase 2e/2f entry preconditions). Include Phase 2c disposition flip status (PASS / ACCEPT-PARTIAL / still-FAIL-DEFERRED).
-- [ ] Step 2 — Update master plan §5 row to CLOSED with closure-report link; flip §6 row to "FOLDED INTO PHASE 2D" per §0.3 of this sub-plan.
-- [ ] Step 3 — If Phase 2c INT-1 disposition flipped, update `docs/superpowers/plans/2026-05-10-phase2c-closure-report.md` §5 disposition row in-place with a 2026-05-12 amendment header; do NOT rewrite Phase 2c closure prose.
-- [ ] Step 4 — Commit `phase2d: closure report + master-plan flip + Phase 2c disposition update (INT-3)`.
+- [x] Step 1 — Write `docs/superpowers/plans/2026-05-12-phase2d-closure-report.md` mirroring Phase 2c closure report sections (overview, INT-1a + INT-1b dispositions side-by-side, plausibility math, LIVE-DEFERRED list, Phase 2e/2f entry preconditions). Include Phase 2c disposition flip status (PASS / ACCEPT-PARTIAL / still-FAIL-DEFERRED).
+- [x] Step 2 — Update master plan §5 row to CLOSED with closure-report link; flip §6 row to "FOLDED INTO PHASE 2D" per §0.3 of this sub-plan.
+- [x] Step 3 — If Phase 2c INT-1 disposition flipped, update `docs/superpowers/plans/2026-05-10-phase2c-closure-report.md` §5 disposition row in-place with a 2026-05-12 amendment header; do NOT rewrite Phase 2c closure prose.
+- [x] Step 4 — Commit `phase2d: closure report + master-plan flip + Phase 2c disposition update (INT-3)`.
 
 ---
 

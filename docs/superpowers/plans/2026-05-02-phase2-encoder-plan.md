@@ -1002,7 +1002,7 @@ EOF
 
 ---
 
-## 5. Phase 2d — ACELP search
+## 5. Phase 2d — ACELP search + gain quantization (Phase 2e folded)  — **CLOSED-DEFERRED 2026-05-12** — sub-plan: [`docs/superpowers/plans/2026-05-11-phase2d-fixed-codebook-acelp-plan.md`](2026-05-11-phase2d-fixed-codebook-acelp-plan.md) — closure report: [`docs/superpowers/plans/2026-05-12-phase2d-closure-report.md`](2026-05-12-phase2d-closure-report.md) (INT-1a STRICT byte-EQ FAIL-DEFERRED at S1 5.50 / C1 0.00 / GA1 12.15 / GB1 5.29 / S2 4.20 / C2 0.00 / GA2 11.77 / GB2 4.52 %, plausibility floor met via GA1 > Phase 2c INT-1b P1 10.79 %; INT-1b re-baseline P1 9.05→10.79 / P0 56.46→57.49 / P2 9.75→11.66 % (FAIL-DEFERRED, structural Phase 2b H-CENTER blocker upstream); OQ-EXC-COMMIT + OQ-Q-FORMAT-A10 resolved; 5 OQs PINNED with reserved I5 slots (0/5 spent); Phase 2c reserved I5 4/4 untouched; Phase 2e folded per sub-plan §0.3; **next dispatch: Phase 2f sub-plan**)
 
 **Scope (high-level):**
 - `internal/acelp.Searcher.Search`: §A.3 G.729A fast ACELP — depth-first focused search, 4 pulses on interleaved tracks T0..T3, 17-bit codeword (13 positions + 4 signs), correlation φ[] precomputation, sign-decision pre-selection per track.
@@ -1022,7 +1022,7 @@ EOF
 
 ---
 
-## 6. Phase 2e — Gain quantization + taming
+## 6. Phase 2e — Gain quantization + taming  — **FOLDED INTO PHASE 2D 2026-05-12** — covered under [`docs/superpowers/plans/2026-05-11-phase2d-fixed-codebook-acelp-plan.md`](2026-05-11-phase2d-fixed-codebook-acelp-plan.md) (sub-plan §0.3) and [`docs/superpowers/plans/2026-05-12-phase2d-closure-report.md`](2026-05-12-phase2d-closure-report.md) (closure report §1, §3 `internal/gainquant/` package + §3.9 / §3.9.1 / §3.9.2 / §3.9.3 implementation under tasks GQ-1/GQ-2/GQ-3/ENC-1). The TAME.IN → TAME.BIT byte-EQ harness is deferred to Phase 2f.
 
 **Scope (high-level):**
 - `internal/gain` encoder-side: §3.9 conjugate-structured 2D VQ on (g_p, γ_c) → 7 bits per subframe (3 bits GA + 4 bits GB), §3.9.1 MA gain prediction state update, §3.9.2 taming procedure (adaptive-codebook gain saturation under predicted-overflow conditions).
