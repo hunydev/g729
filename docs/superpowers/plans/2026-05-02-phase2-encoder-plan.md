@@ -18,7 +18,7 @@
 
 ### 0.1 Working tree gate
 
-- [ ] **Step 0.1.1: Confirm clean tree at HEAD `a372de7`**
+- [x] **Step 0.1.1: Confirm clean tree at HEAD `a372de7`**
 
 ```bash
 git rev-parse --short HEAD          # expect: a372de7
@@ -27,7 +27,7 @@ git status --short                  # expect: empty
 
 If either check fails, do not enter Phase 2. Resolve drift first.
 
-- [ ] **Step 0.1.2: Confirm baseline test counts**
+- [x] **Step 0.1.2: Confirm baseline test counts**
 
 ```bash
 go test ./... 2>&1 | tee /tmp/phase2-baseline.log
@@ -91,7 +91,7 @@ When a measurement diverges from spec, the diagnostic-first discipline applies (
 
 **Files:** `errors.go`, `errors_test.go`
 
-- [ ] **Step 1: Write failing test** `errors_test.go`
+- [x] **Step 1: Write failing test** `errors_test.go`
 
 ```go
 package g729
@@ -129,7 +129,7 @@ func TestErrors_AreSentinels(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 go test ./ -run TestErrors_AreSentinels -v
@@ -137,7 +137,7 @@ go test ./ -run TestErrors_AreSentinels -v
 
 Expected: FAIL with "undefined: ErrShortPCM" (or similar).
 
-- [ ] **Step 3: Write minimal implementation** `errors.go`
+- [x] **Step 3: Write minimal implementation** `errors.go`
 
 ```go
 // Package g729 sentinel errors.
@@ -177,7 +177,7 @@ const (
 )
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 go test ./ -run TestErrors_AreSentinels -v
@@ -185,7 +185,7 @@ go test ./ -run TestErrors_AreSentinels -v
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add errors.go errors_test.go
@@ -205,7 +205,7 @@ EOF
 
 **Files:** `internal/lpc/doc.go`, `internal/lpc/types.go`, `internal/lpc/types_test.go`
 
-- [ ] **Step 1: Write failing test** `internal/lpc/types_test.go`
+- [x] **Step 1: Write failing test** `internal/lpc/types_test.go`
 
 ```go
 package lpc
@@ -229,7 +229,7 @@ func TestAnalyzer_Analyze_StubReturnsNotImplemented(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 go test ./internal/lpc/... -v
@@ -237,7 +237,7 @@ go test ./internal/lpc/... -v
 
 Expected: FAIL with "undefined: Analyzer" / "undefined: LPCWindowSamples".
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 `internal/lpc/doc.go`:
 
@@ -287,7 +287,7 @@ func (a *Analyzer) Analyze(speech []int16, out []int16) error {
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 go test ./internal/lpc/... -v
@@ -295,7 +295,7 @@ go test ./internal/lpc/... -v
 
 Expected: PASS (both tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/lpc/
@@ -315,7 +315,7 @@ EOF
 
 **Files:** `internal/acelp/doc.go`, `internal/acelp/types.go`, `internal/acelp/types_test.go`
 
-- [ ] **Step 1: Write failing test** `internal/acelp/types_test.go`
+- [x] **Step 1: Write failing test** `internal/acelp/types_test.go`
 
 ```go
 package acelp
@@ -340,7 +340,7 @@ func TestSearcher_Search_StubReturnsNotImplemented(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 go test ./internal/acelp/... -v
@@ -348,7 +348,7 @@ go test ./internal/acelp/... -v
 
 Expected: FAIL.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 `internal/acelp/doc.go`:
 
@@ -401,7 +401,7 @@ func (s *Searcher) Search(target, impulseResp []int16, out *Result) error {
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 go test ./internal/acelp/... -v
@@ -409,7 +409,7 @@ go test ./internal/acelp/... -v
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/acelp/
@@ -430,7 +430,7 @@ EOF
 
 **Files:** `internal/filter/doc.go`, `internal/filter/types.go`, `internal/filter/types_test.go`
 
-- [ ] **Step 1: Write failing test** `internal/filter/types_test.go`
+- [x] **Step 1: Write failing test** `internal/filter/types_test.go`
 
 ```go
 package filter
@@ -455,7 +455,7 @@ func TestWeighting_Apply_StubReturnsNotImplemented(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 go test ./internal/filter/... -v
@@ -463,7 +463,7 @@ go test ./internal/filter/... -v
 
 Expected: FAIL.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 `internal/filter/doc.go`:
 
@@ -509,7 +509,7 @@ func (w *Weighting) Apply(a, in, out []int16) error {
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 go test ./internal/filter/... -v
@@ -517,7 +517,7 @@ go test ./internal/filter/... -v
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/filter/
@@ -538,7 +538,7 @@ EOF
 
 **Files:** `encoder.go`, `encoder_test.go`
 
-- [ ] **Step 1: Write failing test** `encoder_test.go`
+- [x] **Step 1: Write failing test** `encoder_test.go`
 
 ```go
 package g729
@@ -586,7 +586,7 @@ func TestEncoder_Reset_ZeroValueIsSafe(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 go test ./ -v
@@ -594,7 +594,7 @@ go test ./ -v
 
 Expected: FAIL with "undefined: NewEncoder" / "undefined: Encoder".
 
-- [ ] **Step 3: Write minimal implementation** `encoder.go`
+- [x] **Step 3: Write minimal implementation** `encoder.go`
 
 ```go
 package g729
@@ -659,7 +659,7 @@ func (e *Encoder) EncodeFrame(pcm []int16, out []byte) error {
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 go test ./ -v -run TestEncoder
@@ -667,7 +667,7 @@ go test ./ -v -run TestEncoder
 
 Expected: PASS (5 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add encoder.go encoder_test.go
@@ -692,7 +692,7 @@ EOF
 
 **Files:** `decoder_root.go`, `decoder_root_test.go`
 
-- [ ] **Step 1: Write failing test** `decoder_root_test.go`
+- [x] **Step 1: Write failing test** `decoder_root_test.go`
 
 ```go
 package g729
@@ -737,7 +737,7 @@ func TestDecoder_DecodeFrame_AcceptsValidShape(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 go test ./ -v -run TestDecoder
@@ -745,7 +745,7 @@ go test ./ -v -run TestDecoder
 
 Expected: FAIL with "undefined: NewDecoder".
 
-- [ ] **Step 3: Write minimal implementation** `decoder_root.go`
+- [x] **Step 3: Write minimal implementation** `decoder_root.go`
 
 ```go
 package g729
@@ -784,7 +784,7 @@ func (d *Decoder) DecodeFrame(bits []byte, out []int16) error {
 
 > **Implementation note:** If `internal/decoder.Decoder` does not yet expose `DecodeFrame(bits []byte, out []int16) error` with this exact signature, the wrapper code must be adapted to whatever the existing `internal/decoder` API is — the test asserts only that `NewDecoder` exists, len-checks work, and a zero-frame returns nil. Adapt the wrapper, not the inner decoder.
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 go test ./ -v -run TestDecoder
@@ -792,7 +792,7 @@ go test ./ -v -run TestDecoder
 
 Expected: PASS (4 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add decoder_root.go decoder_root_test.go
@@ -812,7 +812,7 @@ EOF
 
 **Files:** `frame.go`, `frame_test.go`
 
-- [ ] **Step 1: Write failing test** `frame_test.go`
+- [x] **Step 1: Write failing test** `frame_test.go`
 
 ```go
 package g729
@@ -843,11 +843,11 @@ func TestDecodeFrame_TopLevelDelegates(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Write minimal implementation** `frame.go`
+- [x] **Step 3: Write minimal implementation** `frame.go`
 
 ```go
 package g729
@@ -865,7 +865,7 @@ func DecodeFrame(d *Decoder, bits []byte, out []int16) error {
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 go test ./ -v
@@ -873,7 +873,7 @@ go test ./ -v
 
 Expected: PASS for `TestEncodeFrame_TopLevelDelegates` and `TestDecodeFrame_TopLevelDelegates`. All other tests still pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frame.go frame_test.go
@@ -890,13 +890,13 @@ EOF
 
 ### Task 2-0-8: Scaffold gate verification
 
-- [ ] **Step 1: Run full test suite**
+- [x] **Step 1: Run full test suite**
 
 ```bash
 go test ./... 2>&1 | tee /tmp/phase2-0-final.log
 ```
 
-- [ ] **Step 2: Verify counts unchanged**
+- [x] **Step 2: Verify counts unchanged**
 
 ```bash
 grep -c "^--- FAIL" /tmp/phase2-0-final.log     # expect: 3 (inherited)
@@ -905,7 +905,7 @@ grep -c "^--- SKIP" /tmp/phase2-0-final.log     # expect: 3 (inherited)
 
 The 3 inherited FAILs MUST remain `TestDiagnostic_SinglePulseChain`, `TestDecode_LowEnergyCodebookIsSmooth`, `TestDecode_SucceedsAcrossAllGainIndices`. New scaffold tests all PASS.
 
-- [ ] **Step 3: Run `go vet` and `go build`**
+- [x] **Step 3: Run `go vet` and `go build`**
 
 ```bash
 go vet ./...
@@ -914,7 +914,7 @@ go build ./...
 
 Expected: no output, exit 0.
 
-- [ ] **Step 4: Write Phase 2-0 closure note** `docs/superpowers/plans/2026-05-02-phase2-0-scaffold-report.md`
+- [x] **Step 4: Write Phase 2-0 closure note** `docs/superpowers/plans/2026-05-02-phase2-0-scaffold-report.md`
 
 Document:
 - Working tree pre/post diff
@@ -923,7 +923,7 @@ Document:
 - Confirmation that I1-I8 hold
 - Hand-off note to Phase 2a author
 
-- [ ] **Step 5: Commit closure note**
+- [x] **Step 5: Commit closure note**
 
 ```bash
 git add docs/superpowers/plans/2026-05-02-phase2-0-scaffold-report.md
