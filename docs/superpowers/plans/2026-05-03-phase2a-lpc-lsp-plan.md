@@ -387,16 +387,16 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 **Files:** Extend `internal/lsp/lp_lsp.go`, add `internal/lsp/chebyshev_test.go`.
 
-- [ ] **Step 1: Write failing test** with f = [1,0,0,0,0,0] (so C(x) = T_5(x) + 0.5 = cos(5·acos(x)) + 0.5) sampled at x = cos(0), cos(π/8), cos(π/4), cos(π/2), cos(π).
-- [ ] **Step 2: Run to verify FAIL**.
-- [ ] **Step 3: Write minimal implementation** of the back-recursion §3.2.3 lines 794–799:
+- [x] **Step 1: Write failing test** with f = [1,0,0,0,0,0] (so C(x) = T_5(x) + 0.5 = cos(5·acos(x)) + 0.5) sampled at x = cos(0), cos(π/8), cos(π/4), cos(π/2), cos(π).
+- [x] **Step 2: Run to verify FAIL**.
+- [x] **Step 3: Write minimal implementation** of the back-recursion §3.2.3 lines 794–799:
   ```
   b[5] = 1; b[6] = 0
   for k = 4 down to 1: b[k] = 2x·b[k+1] − b[k+2] + f(5−k)
   C(x) = x·b[1] − b[2] + f(5)/2
   ```
   Q-format: x in Q15; f in Q24 (from LP-1); b in Q24; product 2x·b is Q15·Q24 → Word32 Q24 with explicit shifts to keep sums aligned. Output C(x) in Q24 Word32.
-- [ ] **Step 4: Run to verify PASS** within ±2^14 absolute tolerance (Q24).
+- [x] **Step 4: Run to verify PASS** within ±2^14 absolute tolerance (Q24).
 - [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.3 eq. 16–17 (lines 786–799).
