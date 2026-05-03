@@ -731,24 +731,38 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 #### Sub-task 2a-INT-2-a: API audit
 
-- [ ] Confirm `(e *Encoder).lpcStep(pcm []int16) (lsp.Indices, error)` is the correct package-internal entry point for Phase 2b/c/d/e/f to call.
-- [ ] Document what the public `EncodeFrame` will need to call once Phase 2b lands (signature, state-advance ordering, look-ahead invariant).
-- [ ] Confirm `lpc.Analyzer.Analyze` signature (`*[240]int16` in, `*[11]int16` out) is the right intra-package contract — pointer-to-array enforces size, returns error for stability violations.
-- [ ] Confirm `lsp.LPToLSP`, `lsp.LSPToLSF`, `lsp.Quantize`, `lsp.InitLSPOld`, `lsp.ErrLPCNonStable` form a complete encoder-side surface.
+- [x] Confirm `(e *Encoder).lpcStep(pcm []int16) (lsp.Indices, error)` is the correct package-internal entry point for Phase 2b/c/d/e/f to call.
+- [x] Document what the public `EncodeFrame` will need to call once Phase 2b lands (signature, state-advance ordering, look-ahead invariant).
+- [x] Confirm `lpc.Analyzer.Analyze` signature (`*[240]int16` in, `*[11]int16` out) is the right intra-package contract — pointer-to-array enforces size, returns error for stability violations.
+- [x] Confirm `lsp.LPToLSP`, `lsp.LSPToLSF`, `lsp.Quantize`, `lsp.InitLSPOld`, `lsp.ErrLPCNonStable` form a complete encoder-side surface.
+
+**Findings (2026-05-05):**
+- `Encoder.lpcStep` (encoder.go:109) wires the §3.2.1–§3.2.4 chain in the order: `pre.Process` → slide-by-80 of `oldSpeech[240]` → `lpc.Analyzer.Analyze(&oldSpeech, &aQ12)` → `lsp.LPToLSP(&aQ12, &qQ15)` (with FIX-3-B `ErrLPCNonStable` reuse-from-`lspOld` fallback) → `lsp.LSPToLSF(&qQ15, &omega)` → `lsp.Quantize(&omega, &freqPrev)`. State advanced per call: `oldSpeech` (slide), `lspOld` (cache or unchanged on guard fire), `freqPrev` (Quantize → commitPredictorMemory once L0 winner is selected), `lspReuseCount` (diagnostic).
+- All hot-path scratch lives in stack-resident fixed-size arrays: `processed[80]`, `aQ12[11]`, `qQ15[10]`, `omega[10]` in `lpcStep`; `windowed[240]`, `r[11]` in `Analyzer.Analyze`; `aWork/aPrev[11]int64` in `levinsonDurbin`; per-search `target/residual/omegaHat[10]` in `Quantize`. No `make`, no slice growth, no interface conversions.
+- Encoder owns: pcm.PreProcessor, oldSpeech[240], lspOld[10], freqPrev[4][10], lpc.Analyzer (zero-size), plus phase 2b+ state. INT-2-a confirms the lpcStep contract is the right Phase 2b/c/d/e/f entry point — no signature changes recommended.
 
 #### Sub-task 2a-INT-2-b: zero-allocation benchmarks
 
-- [ ] **Step 1:** Run baseline `go test ./internal/lpc/... ./internal/lsp/... -bench=. -benchmem -run=^$ -benchtime=1x` and record allocs/op for every benchmark.
-- [ ] **Step 2:** Identify any benchmark reporting `> 0 allocs/op`. Add benchmarks for any hot-path symbol that lacks one (`lpc.Analyzer.Analyze`, `lsp.LPToLSP`, `lsp.LSPToLSF`, `lsp.Quantize`).
-- [ ] **Step 3:** Add a top-level `TestNoAllocationInLPCStep` (file: `lsp_alloc_test.go` at root) that asserts `testing.AllocsPerRun(128, func(){ enc.lpcStep(pcm) }) == 0`.
-- [ ] **Step 4:** Verify PASS. Hoist any leaked allocation onto `Encoder` as a scratch field (per I4). Verify with `go build -gcflags='-m=2'` that VQ workspace arrays do not escape.
-- [ ] **Step 5:** Commit (test-only, unless a leak forces a scratch-field hoist).
+- [x] **Step 1:** Run baseline `go test ./internal/lpc/... ./internal/lsp/... -bench=. -benchmem -run=^$ -benchtime=1x` and record allocs/op for every benchmark.
+- [x] **Step 2:** Identify any benchmark reporting `> 0 allocs/op`. Add benchmarks for any hot-path symbol that lacks one (`lpc.Analyzer.Analyze`, `lsp.LPToLSP`, `lsp.LSPToLSF`, `lsp.Quantize`).
+- [x] **Step 3:** Add a top-level `TestNoAllocationInLPCStep` (file: `phase2a_int2b_lpcstep_zeroalloc_test.go` at root) that asserts `testing.AllocsPerRun(128, func(){ enc.lpcStep(pcm) }) == 0`.
+- [x] **Step 4:** Verify PASS. Hoist any leaked allocation onto `Encoder` as a scratch field (per I4). Verify with `go build -gcflags='-m=2'` that VQ workspace arrays do not escape.
+- [x] **Step 5:** Commit (test-only, unless a leak forces a scratch-field hoist).
+
+**Result (2026-05-05):** PASS first-try, no leaks found.
+- `TestNoAllocationInLPCStep`: PASS, 0 allocs/op (128 runs).
+- `internal/lpc/window_bench_test.go` `BenchmarkApplyWindow`: ~170 ns/op, **0 B/op, 0 allocs/op** ✅
+- `internal/lpc/autocorr_bench_test.go` `BenchmarkAutocorr`: ~4407 ns/op (scale>0 path), **0 B/op, 0 allocs/op** ✅
+- `internal/lpc/levinson_bench_test.go` `BenchmarkLevinsonDurbin`: ~761 ns/op, **0 B/op, 0 allocs/op** ✅
+- FIX-1B Q24 widening to int64 in `levinsonDurbin` (`aWork/aPrev [11]int64`) does **not** cause stack-array escape — confirmed by zero-alloc bench.
 
 #### Sub-task 2a-INT-2-c: race-detector clean
 
-- [ ] Run `go test ./internal/lpc/... ./internal/lsp/... -race` and confirm 0 data-race reports.
-- [ ] Run `go test ./... -race` and confirm 0 data-race reports beyond the documented baseline FAILs.
-- [ ] If a race is reported, document and fix (no shared mutable state across goroutines is expected — encoder is single-threaded per call).
+- [x] Run `go test ./internal/lpc/... ./internal/lsp/... -race` and confirm 0 data-race reports.
+- [x] Run `go test ./... -race` and confirm 0 data-race reports beyond the documented baseline FAILs.
+- [x] If a race is reported, document and fix (no shared mutable state across goroutines is expected — encoder is single-threaded per call).
+
+**Result (2026-05-05):** Clean. `go test ./... -race` reports zero `DATA RACE`/`race detected` events. The four FAILs (`TestEncode_LSPVectorBitExact`, `TestDiagnostic_SinglePulseChain`, `TestDecode_LowEnergyCodebookIsSmooth`, `TestDecode_SucceedsAcrossAllGainIndices`) are functional baseline FAILs unrelated to the race detector and tracked under §C1/§C4.
 
 #### Sub-task 2a-INT-2-d: closure report
 
