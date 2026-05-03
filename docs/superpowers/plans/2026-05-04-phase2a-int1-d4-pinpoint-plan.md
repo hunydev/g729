@@ -2073,3 +2073,140 @@ production patch), spend slot 4 on H-N (cost-domain probe in
 
 Consumed: 3/5 (FIX-1A revert, FIX-1B revert, FIX-2D retained).
 **Remaining: 2/5** — both earmarked above.
+
+## §22 d9 reverse-engineering of cold-start `freqPrev` (H-M test)
+
+### §22.1 Measurement (no production change, I5 cost: 0)
+
+New diagnostic test: `internal/lsp/phase2a_int1_d9_reverse_engineer_m_test.go`
+(`TestINT1D9ReverseEngineerM`). Methodology per d4 §21.1 plan:
+
+1. Reproduce d8 §S6 decoder roundtrip for WANT indices
+   `(L0=0, L1=120, L2=10, L3=10)` → residual r̂ post-rearrange Q13:
+
+       [2654, 5014, 6443, 9964, 11759, 14237, 16513, 17837, 20304, 23746]
+
+2. Under the simplifying assumption that all 4 MA-predictor lags
+   share the same scalar `M_i` (the typical cold-start convention),
+   solve for the implied per-coordinate predictor sum
+   `S_i^ITU = ω_target_i − comp_i · r̂_i` and divide by
+   `sumP_i = Σ_k p_{0,k,i}` to recover `M_i^ITU` in Q13.
+
+3. Take ω_target = analytical `i·π/11` Q13 (justified: encoder ω
+   post-FIX-2D is within ≤7 LSB of analytical for all-zero PCM —
+   d8 §19.2 — and analytical is the mathematically-forced output of
+   LP-analysis on a zero buffer).
+
+### §22.2 Numerical results
+
+| coord i | analytical | implied M_i^ITU | Δ (Q13 LSB) | Δ (% of analytical) |
+|--------:|-----------:|----------------:|------------:|--------------------:|
+| 0       | 2340       | 2242            | -98         | -4.19%              |
+| 1       | 4679       | 4562            | -117        | -2.50%              |
+| 2       | 7019       | 7211            | +192        | +2.74%              |
+| 3       | 9359       | 9154            | -205        | -2.19%              |
+| 4       | 11698      | 11678           | -20         | -0.17%              |
+| 5       | 14038      | 13968           | -70         | -0.50%              |
+| 6       | 16377      | 16330           | -47         | -0.29%              |
+| 7       | 18717      | 19036           | +319        | +1.70%              |
+| 8       | 21057      | 21343           | +286        | +1.36%              |
+| 9       | 23396      | 23272           | -124        | -0.53%              |
+
+Aggregate fits:
+
+- Best-fit scalar β (M ≈ β·analytical): **β = 0.9954**, residual
+  RMS = **201 Q13 LSB** (deviations are NOT smooth in i — the
+  signed pattern `[-, -, +, -, -, -, -, +, +, -]` has no clean
+  monotone structure).
+- vs zero memory: max |M_i^ITU| = 23272 (refutes zero seed).
+- vs L1[120] centroid `[2731, 4670, 7063, 9201, 11346, 13735,
+  16875, 18797, 20787, 22360]`: Δ = `[-489, -108, +148, -47, +332,
+  +233, -545, +239, +556, +912]` (worse fit than analytical).
+- vs `cos(i·π/11)` Q15 misinterpreted as Q13: not consistent (sign
+  pattern wrong).
+
+### §22.3 H-M disposition: **AMBIGUOUS / effectively REFUTED**
+
+The implied `M_i^ITU` is statistically very close to the current
+production seed `i·π/11` (β = 0.9954, mean |Δ| ≈ 148 LSB) but with
+mixed-sign noise that does NOT match any cold-start convention
+(zero, scaled analytical, codebook centroid, cos-Q15). The d8 234-
+ vs analytical gap survives the per-coord transform withLSB 
+essentially the same magnitude (max |S_i^ITU − S_i^analytical| =
+234 LSB at i=7), so the gap is **not** explained by a uniform
+cold-start memory change.
+
+Two interpretations (both incompatible with FIX-3-A):
+
+1. **M is lag-dependent at cold start.** With 4 unknowns per coord
+   and 1 equation per coord, the uniform-M reverse-engineering is
+   under-determined; per-lag values cannot be uniquely recovered
+   from a single frame. We cannot fabricate a 4-lag pattern from
+   noise without external evidence (which I1/I6 forbid us to seek).
+
+2. **ω_target ≠ analytical at frame 0.** If ITU's LP-analyzer at
+   frame 0 sees a non-zero windowed buffer (200-sample past +
+   40-sample lookahead per §3.2.1) — e.g. because the LSP.IN PCM
+   stream has lookahead samples we are not honouring — then ω_target
+   could differ from analytical by ~200+ LSB even with all-zero
+   "current" frame PCM, fully accounting for the 234-LSB
+   ω̂(WANT)−analytical gap **without any change to `M`**.
+
+Per d4 §21.4 step 2 decision gate ("If [implied M] matches `i·π/11`
+to within ≤16 Q13 LSB per coord, refute H-M"): the per-coord Δ is
+within ±319 LSB (not ≤16), so technically the gate is NOT cleanly
+hit — but the absence of a coherent non-analytical pattern, combined
+with the lag-degeneracy, makes any production change here a
+guess. **DO NOT apply FIX-3-A.**
+
+22.4 FIX-3-A: NOT APPLIED### 
+
+`internal/lsp/encoder_init.go` left untouched. I6 freeze remains
+fully in effect. I5 budget unchanged.
+
+### §22.5 Pivot recommendation: **H-N (LP-analysis window centring at frame 0)**
+
+The d9 evidence redirects suspicion away from VQ-side memory
+initialization toward the **encoder's frame-0 ω input itself**:
+
+- d8 §19.2 confirmed encoder ω post-FIX-2D is ≈ analytical for the
+  CURRENT frame's PCM = zero. But our Encoder pipeline carries a
+  documented "1-frame analysis-vs-encode delay" (encoder.go top
+  doc). ITU's reference encoder does LP-analysis on a centred
+  window of (200 past + 80 current + 40 lookahead) samples per
+  §3.2.1 — the past-200 portion at frame 0 is implementation-defined
+  init.
+
+- If our LP-analysis window at frame 0 pre-rolls differently from
+  ITU's, our ω will differ from ITU's ω_target by exactly the kind
+  of structured-but-noisy pattern we see in §22.2 (no clean
+  algebraic form, since it's the output of a non-linear
+  Levinson→roots→arccos chain on a slightly different windowed
+  autocorrelation).
+
+**Proposed d10 (final slot, FIX-3-B + H-N probe):**
+
+1. Apply FIX-3-B (frame-596 anti-palindromic guard) — pure
+   defensive bug-fix per d4 §21.2, costs 1/5.
+2. New diagnostic d10-α: dump encoder's actual frame-0 ω from
+   `Encoder.encodeFrame` after LP-analysis (not the analytical
+   estimate) and compare to `ω_target_implied = analytical −
+   (M_uniform − analytical) · sumP/(sumP+comp)` ≈ `[2342, 4639,
+   7164, 9314, 11691, 13988, 16341, 18904, 21240, 23306]`-ish.
+   If the encoder's actual ω matches this, the LP-analysis window
+   centring is the root cause and a separate phase needs to address
+   §3.2.1 windowing (out of I6 scope).
+3. If the encoder's actual ω matches analytical (no centring
+   issue), then we are out of clean hypotheses; **ACCEPT-PARTIAL**
+   per d4 §21.4 step 4 with §-cite to G.729 06/2012 §3.2.1 noting
+   that the cold-start LP-analysis window pre-roll is an
+   under-specified ITU Annex A reference-implementation detail.
+
+### §22.6 Disposition: **NO-CHANGE** (measurement-only)
+
+- Production code: untouched.
+- Public API: untouched.
+- `TestEncode_LSPVectorBitExact` byte-EQ rates: unchanged from d8
+  baseline (78.71 / 38.91 / 17.08 / 19.32 %).
+- ZeroAllocation: unaffected.
+- I5 budget: 3/5 consumed (unchanged); **2/5 remain**.
