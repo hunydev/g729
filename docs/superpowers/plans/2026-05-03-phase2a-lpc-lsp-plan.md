@@ -656,10 +656,10 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 > Per I6 this lives in `_test.go`; it is a test helper, not a production decoder.
 
-- [ ] **Step 1: Write failing test** asserting that for `LSP.BIT` frame 0, the extracted (L0, L1, L2, L3) tuple equals the values manually decoded from the first 18 G.192 bit-words at the LSP positions (bit indices 0–17 of the 80-bit payload).
-- [ ] **Step 2: Run to verify FAIL** (`undefined: extractLSPFields`).
-- [ ] **Step 3: Write minimal implementation** of `extractLSPFields(g192Frame []byte) (l0, l1, l2, l3 uint8)` — read 18 bit-words at offset 4 (skipping G.192 sync header), MSB-first per §A.4 Table A.4, pack into the four indices. Pure test helper.
-- [ ] **Step 4: Run to verify PASS** on a hand-traced first-frame oracle.
+- [x] **Step 1: Write failing test** asserting that for `LSP.BIT` frame 0, the extracted (L0, L1, L2, L3) tuple equals the values manually decoded from the first 18 G.192 bit-words at the LSP positions (bit indices 0–17 of the 80-bit payload).
+- [x] **Step 2: Run to verify FAIL** (`undefined: extractLSPFields`).
+- [x] **Step 3: Write minimal implementation** of `extractLSPFields(g192Frame []byte) (l0, l1, l2, l3 uint8)` — read 18 bit-words at offset 4 (skipping G.192 sync header), MSB-first per §A.4 Table A.4, pack into the four indices. Pure test helper.
+- [x] **Step 4: Run to verify PASS** on a hand-traced first-frame oracle.
 - [x] **Step 5: Commit.**
 
 **Spec cite:** §A.4 Table A.4 (transmission order); G.192 transport format.
