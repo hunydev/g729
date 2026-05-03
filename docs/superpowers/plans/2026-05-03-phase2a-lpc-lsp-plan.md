@@ -361,13 +361,13 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 **Files:** Create `internal/lsp/lp_lsp.go`, `internal/lsp/lp_lsp_test.go`.
 
-- [ ] **Step 1: Write failing test** asserting eq. 15 recursion:
+- [x] **Step 1: Write failing test** asserting eq. 15 recursion:
   - `f1(i+1) = a_{i+1} + a_{10-i} − f1(i)`, `f1(0)=1.0`,
   - `f2(i+1) = a_{i+1} − a_{10-i} + f2(i)`, `f2(0)=1.0`,
   with three hand-traced inputs (a=[1,0,…,0]; a=[1,−1,0,…,0]; the Levinson output of constant r').
-- [ ] **Step 2: Run to verify FAIL**.
-- [ ] **Step 3: Write minimal implementation:** in-place over `[6]int32` arrays for f1 and f2; promote a from Q12 to Q24 for the recursion to retain headroom (additions only — no products yet at this step).
-- [ ] **Step 4: Run to verify PASS**.
+- [x] **Step 2: Run to verify FAIL**.
+- [x] **Step 3: Write minimal implementation:** in-place over `[6]int32` arrays for f1 and f2; promote a from Q12 to Q24 for the recursion to retain headroom (additions only — no products yet at this step).
+- [x] **Step 4: Run to verify PASS**.
 - [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.3 eq. 15 (lines 779–782), F1/F2 definitions eq. 9–14 (lines 744–771).
