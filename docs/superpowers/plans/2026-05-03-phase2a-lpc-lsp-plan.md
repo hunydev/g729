@@ -599,9 +599,9 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 **Files:** Extend `internal/lsp/encoder_vq.go`, add `internal/lsp/encoder_vq_l3_test.go`.
 
-- [ ] **Step 1: Write failing test:** mirror VQ-3 over indices i=5..9, with L3 candidates over the upper 5 dimensions; rearrangement-J1 spans the full [0..9] vector now (per spec line 893: "Again the rearrangement procedure is used to guarantee a minimum distance of 0.0012").
+- [x] **Step 1: Write failing test:** mirror VQ-3 over indices i=5..9, with L3 candidates over the upper 5 dimensions; rearrangement-J1 spans the full [0..9] vector now (per spec line 893: "Again the rearrangement procedure is used to guarantee a minimum distance of 0.0012").
 - [x] **Step 2: Run to verify FAIL**.
-- [ ] **Step 3: Write minimal implementation:** brute-force over 32 L3 rows; partial sum on i=5..9 weighted MSE.
+- [x] **Step 3: Write minimal implementation:** brute-force over 32 L3 rows; partial sum on i=5..9 weighted MSE.
 - [x] **Step 4: Run to verify PASS**.
 - [x] **Step 5: Commit.**
 

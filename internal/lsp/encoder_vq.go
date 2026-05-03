@@ -37,7 +37,7 @@ func searchL1(target *[10]int16) (int, int32) {
 // searchL2 returns the index L2 ∈ [0, 32) of the row of
 // LSPCodebookL2 that minimizes the partial weighted MSE
 //
-////
+// //
 // where ω̂[0..4] is the lower half of the LSF reconstructed from the
 // candidate residual r[0..4] = L1[l1][0..4] + L2[row][0..4] via the
 // MA predictor (selector ∈ {0,1}, predictor memory mem) followed by
@@ -60,48 +60,114 @@ func searchL1(target *[10]int16) (int, int32) {
 // FIFO; commitPredictorMemory advances it once the L0 winner is
 // chosen).
 func searchL2(l1, selector uint8, mem *[4][10]int16, omega, weights *[10]int16) (int, int64) {
-var (
-bestIdx  int
-bestMSE  int64 = -1
-residual [10]int16
-omegaHat [10]int16
-)
+	var (
+		bestIdx  int
+		bestMSE  int64 = -1
+		residual [10]int16
+		omegaHat [10]int16
+	)
 
-for row := 0; row < len(tables.LSPCodebookL2); row++ {
-// Partial residual on i=0..4; upper half is irrelevant
-// because the partial sum below ranges only over i=0..4 and
-// applyPredictorWithMemory's per-coefficient output depends
-// solely on residual[i] and mem[k][i] at the same i.
-for i := 0; i < 5; i++ {
-residual[i] = fixed.Add(tables.LSPCodebookL1[l1][i], tables.LSPCodebookL2[row][i])
+	for row := 0; row < len(tables.LSPCodebookL2); row++ {
+		// Partial residual on i=0..4; upper half is irrelevant
+		// because the partial sum below ranges only over i=0..4 and
+		// applyPredictorWithMemory's per-coefficient output depends
+		// solely on residual[i] and mem[k][i] at the same i.
+		for i := 0; i < 5; i++ {
+			residual[i] = fixed.Add(tables.LSPCodebookL1[l1][i], tables.LSPCodebookL2[row][i])
+		}
+
+		applyPredictorWithMemory(selector, mem, &residual, &omegaHat)
+
+		// J=0.0012 pair-rearrangement restricted to the partial
+		// 5-vector (indices 1..4): per spec line 890, applied before
+		// the partial weighted MSE is evaluated. We inline the
+		// rearrangeAdjacent body to avoid touching omegaHat[5..9],
+		// which would otherwise contaminate omegaHat[4] when the
+		// uninitialised upper half collapses below the J threshold.
+		for i := 1; i < 5; i++ {
+			if omegaHat[i]-omegaHat[i-1] < lsfRearrJ1 {
+				sum := int32(omegaHat[i]) + int32(omegaHat[i-1])
+				omegaHat[i-1] = int16((sum - int32(lsfRearrJ1)) / 2)
+				omegaHat[i] = int16((sum + int32(lsfRearrJ1)) / 2)
+			}
+		}
+
+		var mse int64
+		for i := 0; i < 5; i++ {
+			d := int64(omega[i]) - int64(omegaHat[i])
+			mse += int64(weights[i]) * d * d
+		}
+
+		if bestMSE < 0 || mse < bestMSE {
+			bestMSE = mse
+			bestIdx = row
+		}
+	}
+	return bestIdx, bestMSE
 }
 
-applyPredictorWithMemory(selector, mem, &residual, &omegaHat)
+// searchL3 returns the index L3 ∈ [0, 32) of the row of
+// LSPCodebookL3 that minimizes the partial weighted MSE
+//
+//	Σ_{i=5..9} w_i · (ω_i − ω̂_i)²
+//
+// where ω̂[0..9] is reconstructed from the candidate residual
+// r[0..4] = L1[l1][0..4] + L2[l2][0..4],
+// r[5..9] = L1[l1][5..9] + L3[row][0..4]
+// via the MA predictor (selector ∈ {0,1}, predictor memory mem)
+// followed by the J=0.0012 pair-rearrangement (lsfRearrJ1) applied
+// across the full reconstructed [0..9] vector.
+//
+// Spec: ITU-T G.729 (06/2012) §3.2.4 lines 893–895 — "Then, using
+// the selected first stage vector L1 and the selected lower part of
+// the second stage L2, the upper part of the second stage L3 is
+// searched. Again the rearrangement procedure is used to guarantee a
+// minimum distance of 0.0012" (line 893).
+//
+// Q-format: identical to searchL2; per-term squared error in Q26 is
+// promoted to int64 before scaling by the Q11 weight; the cumulative
+// 5-term cost stays well within int64.
+//
+// Allocation contract (I4): all workspace lives in stack-allocated
+// fixed-size arrays. mem is read-only.
+func searchL3(l1, l2, selector uint8, mem *[4][10]int16, omega, weights *[10]int16) (int, int64) {
+	var (
+		bestIdx  int
+		bestMSE  int64 = -1
+		residual [10]int16
+		omegaHat [10]int16
+	)
 
-// J=0.0012 pair-rearrangement restricted to the partial
-// 5-vector (indices 1..4): per spec line 890, applied before
-// the partial weighted MSE is evaluated. We inline the
-// rearrangeAdjacent body to avoid touching omegaHat[5..9],
-// which would otherwise contaminate omegaHat[4] when the
-// uninitialised upper half collapses below the J threshold.
-for i := 1; i < 5; i++ {
-if omegaHat[i]-omegaHat[i-1] < lsfRearrJ1 {
-sum := int32(omegaHat[i]) + int32(omegaHat[i-1])
-omegaHat[i-1] = int16((sum - int32(lsfRearrJ1)) / 2)
-omegaHat[i] = int16((sum + int32(lsfRearrJ1)) / 2)
-}
-}
+	// Lower half of the residual is fixed across all 32 candidates:
+	// it depends only on the L1 and L2 winners, which are bound
+	// arguments. Hoist the combine out of the inner loop.
+	for i := 0; i < 5; i++ {
+		residual[i] = fixed.Add(tables.LSPCodebookL1[l1][i], tables.LSPCodebookL2[l2][i])
+	}
 
-var mse int64
-for i := 0; i < 5; i++ {
-d := int64(omega[i]) - int64(omegaHat[i])
-mse += int64(weights[i]) * d * d
-}
+	for row := 0; row < len(tables.LSPCodebookL3); row++ {
+		for i := 0; i < 5; i++ {
+			residual[5+i] = fixed.Add(tables.LSPCodebookL1[l1][5+i], tables.LSPCodebookL3[row][i])
+		}
 
-if bestMSE < 0 || mse < bestMSE {
-bestMSE = mse
-bestIdx = row
-}
-}
-return bestIdx, bestMSE
+		applyPredictorWithMemory(selector, mem, &residual, &omegaHat)
+
+		// J=0.0012 pair-rearrangement spans the full [0..9] vector
+		// per spec line 893 ("Again the rearrangement procedure is
+		// used"). This may shift omegaHat[5] via its dependence on
+		// omegaHat[4]; the partial MSE on i=5..9 is computed after.
+		rearrangeAdjacent(&omegaHat, lsfRearrJ1)
+
+		var mse int64
+		for i := 5; i < 10; i++ {
+			d := int64(omega[i]) - int64(omegaHat[i])
+			mse += int64(weights[i]) * d * d
+		}
+
+		if bestMSE < 0 || mse < bestMSE {
+			bestMSE = mse
+			bestIdx = row
+		}
+	}
+	return bestIdx, bestMSE
 }
