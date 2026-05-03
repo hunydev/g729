@@ -416,10 +416,10 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 **Files:** Extend `internal/lsp/lp_lsp.go`, add `internal/lsp/lp_lsp_roots_test.go`.
 
-- [ ] **Step 1: Write failing test** on f1/f2 derived from a known LP filter where the roots ω_i can be computed analytically (e.g., Levinson on a 2-tap filter with one resonance), assert all 5 roots of C_1 and 5 roots of C_2 are recovered to ±1 LSB Q15, and assert ordering 0 < ω_1 < ω_2 < ... < ω_10 < π.
-- [ ] **Step 2: Run to verify FAIL**.
-- [ ] **Step 3: Write minimal implementation** with **exactly** 60 grid points uniformly spaced on x ∈ [−1, +1] (the cosine domain of ω ∈ [0, π]) using `tables.CosLSP` (65 endpoints, sampled at 60 equally-spaced indices to match §3.2.3 line 783 verbatim "60 points equally spaced between 0 and π"). On each sign change between grid[k] and grid[k+1], divide the interval **4 times** (binary subdivision per line 784) before snapping to the midpoint. Track that 5 roots come from F1 and 5 from F2; interleave them in ω order. (I11.)
-- [ ] **Step 4: Run to verify PASS**.
+- [x] **Step 1: Write failing test** on f1/f2 derived from a known LP filter where the roots ω_i can be computed analytically (e.g., Levinson on a 2-tap filter with one resonance), assert all 5 roots of C_1 and 5 roots of C_2 are recovered to ±1 LSB Q15, and assert ordering 0 < ω_1 < ω_2 < ... < ω_10 < π.
+- [x] **Step 2: Run to verify FAIL**.
+- [x] **Step 3: Write minimal implementation** with **exactly** 60 grid points uniformly spaced on x ∈ [−1, +1] (the cosine domain of ω ∈ [0, π]) using `tables.CosLSP` (65 endpoints, sampled at 60 equally-spaced indices to match §3.2.3 line 783 verbatim "60 points equally spaced between 0 and π"). On each sign change between grid[k] and grid[k+1], divide the interval **4 times** (binary subdivision per line 784) before snapping to the midpoint. Track that 5 roots come from F1 and 5 from F2; interleave them in ω order. (I11.)
+- [x] **Step 4: Run to verify PASS**.
 - [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.3 lines 782–799. I11 binding: 60 grid + 4 subdivisions.

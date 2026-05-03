@@ -63,3 +63,118 @@ func chebyshevC(x int16, f *[6]int32) int32 {
 	xB1 := int32((x32 * int64(bk1)) >> 15)
 	return xB1 - bk2 + (f[5] >> 1)
 }
+
+// grid60 holds the 60 cosine grid abscissae x_k = cos(ω_k) with
+// ω_k = k·π/59 for k = 0..59 — i.e. 60 points equally spaced in ω
+// across [0, π] per ITU-T G.729 §3.2.3 line 783. Endpoints are
+// pinned to the exact Q15 ±full-scale values so the scan begins at
+// x = +1 (ω = 0) and ends at x = −1 (ω = π); intermediate samples
+// are produced once at package init by reusing the lsfToLSP cosine
+// interpolation over tables.CosLSP. Init-time population keeps
+// findLSPRoots allocation-free in steady state (I4).
+var grid60 [60]int16
+
+func init() {
+	// ω_k in Q13 = k · π_Q13 / 59. π_Q13 = 25736, matching the
+	// existing lspMaxOmega convention used by lsfToLSP.
+	const piQ13 int32 = 25736
+	for k := 0; k < 60; k++ {
+		omega := (int32(k) * piQ13) / 59
+		if omega > piQ13 {
+			omega = piQ13
+		}
+		grid60[k] = lsfToLSP(int16(omega))
+	}
+	// Pin endpoints to exact ±full-scale Q15. lsfToLSP interpolates
+	// over a 64-cell table whose Q13 anchor (25728) is one LSB short
+	// of π_Q13 (25736), so the k=59 sample drifts off −32768 by a
+	// few LSBs; pinning eliminates that bookkeeping noise without
+	// affecting any interior abscissa.
+	grid60[0] = 32767
+	grid60[59] = -32768
+}
+
+// findLSPRoots locates the 5 roots of C_F1 and the 5 roots of C_F2
+// on x = cos(ω) ∈ [−1, +1] via the §3.2.3 sign-change scan (lines
+// 782–784): C is evaluated on a 60-point grid uniformly spaced in
+// ω; each detected sign change is refined by 4 successive binary
+// subdivisions; the final root estimate is the midpoint of the last
+// surviving sub-interval. Roots are interleaved into q[0..9] in
+// strictly increasing-ω (decreasing-x) order — F1 supplies q[0],
+// q[2], q[4], q[6], q[8] and F2 supplies q[1], q[3], q[5], q[7],
+// q[9], matching the §3.2.3 / §3.2.6 even/odd convention.
+//
+// Returns ErrLPCNonStable when fewer than 5 sign changes are
+// detected for either polynomial (Levinson defect upstream → E8).
+//
+// I4: zero allocation. I11: 60-point grid + 4 bisections, both
+// hard-coded.
+func findLSPRoots(f1, f2 *[6]int32, q *[10]int16) error {
+	var rootsF1, rootsF2 [5]int16
+	var nF1, nF2 int
+
+	xPrev := grid60[0]
+	cPrev1 := chebyshevC(xPrev, f1)
+	cPrev2 := chebyshevC(xPrev, f2)
+
+	for k := 1; k < 60; k++ {
+		x := grid60[k]
+		c1 := chebyshevC(x, f1)
+		c2 := chebyshevC(x, f2)
+
+		if nF1 < 5 && signsDiffer(cPrev1, c1) {
+			rootsF1[nF1] = bisectRoot(xPrev, x, cPrev1, c1, f1)
+			nF1++
+		}
+		if nF2 < 5 && signsDiffer(cPrev2, c2) {
+			rootsF2[nF2] = bisectRoot(xPrev, x, cPrev2, c2, f2)
+			nF2++
+		}
+
+		xPrev = x
+		cPrev1 = c1
+		cPrev2 = c2
+	}
+
+	if nF1 < 5 || nF2 < 5 {
+		return ErrLPCNonStable
+	}
+
+	// Per §3.2.3: roots of F1 and F2 interlace and the first root in
+	// ω order belongs to F1. We scanned k increasing (ω increasing,
+	// x decreasing), so rootsF1 / rootsF2 are each already in
+	// decreasing-x = increasing-ω order. Interleave directly.
+	for i := 0; i < 5; i++ {
+		q[2*i] = rootsF1[i]
+		q[2*i+1] = rootsF2[i]
+	}
+	return nil
+}
+
+// signsDiffer treats 0 as non-negative; a sign change is reported
+// when one value is strictly negative and the other is ≥ 0. This
+// matches the §3.2.3 "sign change" criterion and never double-counts
+// an exact-zero grid hit.
+func signsDiffer(a, b int32) bool { return (a < 0) != (b < 0) }
+
+// bisectRoot performs 4 successive binary subdivisions of the
+// interval [xLo, xHi] (with xLo > xHi in cosine domain since ω is
+// increasing) on which C changes sign, then returns the midpoint of
+// the final sub-interval as the Q15 root estimate. cLo / cHi are
+// the cached C values at the interval endpoints; chebyshevC is
+// invoked exactly 4 times per call.
+func bisectRoot(xLo, xHi int16, cLo, cHi int32, f *[6]int32) int16 {
+	for i := 0; i < 4; i++ {
+		mid := int16((int32(xLo) + int32(xHi)) >> 1)
+		cMid := chebyshevC(mid, f)
+		if signsDiffer(cLo, cMid) {
+			xHi = mid
+			cHi = cMid
+		} else {
+			xLo = mid
+			cLo = cMid
+		}
+	}
+	_ = cHi
+	return int16((int32(xLo) + int32(xHi)) >> 1)
+}
