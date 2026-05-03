@@ -2,6 +2,7 @@ package g729
 
 import (
 	"errors"
+	"io"
 
 	"github.com/exedev/g729/internal/acelp"
 	"github.com/exedev/g729/internal/bitstream"
@@ -140,6 +141,27 @@ type Encoder struct {
 	// 80-bit packed frame. Mirrors the p1/p0/p2 + s/c/ga/gb pattern
 	// above. Widths per Table 8: L0=1, L1=7, L2=5, L3=5.
 	l0, l1, l2, l3 uint16
+
+	// Phase 2f API-2: streaming Write/Flush state.
+	//
+	// streamBuf is the PCM tail buffer holding 0..FrameSamples-1
+	// samples not yet emitted as a frame. streamBufLen counts the
+	// valid samples. streamSink is the destination io.Writer (nil
+	// for non-streaming Encoder instances; (*Encoder).Write returns
+	// ErrNoStreamSink in that case).
+	//
+	// OQ-FLUSH-PAD pin: Flush zero-pads any partial trailing frame
+	// to FrameSamples with 0x0000 (linear-PCM silence) and emits
+	// one final 10-byte frame. Plan §1 I-2f-3 + §10 OQ-FLUSH-PAD.
+	//
+	// streamPacked is the per-frame packed-byte scratch reused
+	// across Write/Flush; promoting it to a receiver field keeps
+	// the streamSink.Write(streamPacked[:]) interface call from
+	// escaping the slice header onto the heap. INT-2 zero-alloc.
+	streamBuf    [FrameSamples]int16
+	streamPacked [FrameBytes]byte
+	streamBufLen int
+	streamSink   io.Writer
 
 	// Per-block state owners.
 	lpc    lpc.Analyzer
