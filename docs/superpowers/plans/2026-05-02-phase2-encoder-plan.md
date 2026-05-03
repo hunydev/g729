@@ -968,7 +968,7 @@ EOF
 
 ---
 
-## 3. Phase 2b — Open-loop pitch estimation
+## 3. Phase 2b — Open-loop pitch estimation  — [ ] **IN PROGRESS 2026-05-07** — sub-plan: `docs/superpowers/plans/2026-05-07-phase2b-open-loop-pitch-plan.md`
 
 **Scope (high-level):**
 - `internal/pitch` encoder-side additions: §3.4 weighted-speech computation (perceptual weighting on past + current frame), §3.5 three-range autocorrelation maximum search → integer T_op in [20..143].
