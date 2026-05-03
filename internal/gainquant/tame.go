@@ -7,8 +7,11 @@ package gainquant
 // Spec §3.9.2 narrates the branch but does not pin a numeric ceiling;
 // OQ-TAMING-THR resolves to 0.95 (Q14 = 15565) as the clean-room
 // textbook-typical CELP taming threshold (Kondoz §10.5; Spanias
-// §11.6). Revisitable at Phase 2f TAME.BIT byte-EQ.
-const GpClipQ14 int16 = 15565
+// §11.6). Demoted from const → var at Phase 2f TAME-1 slot 5/5 so
+// the OQ-TAMING-THR sweep harness can swap the value at test time;
+// production callers still read it as if a constant. Revisitable
+// permanently if the sweep finds a winning variant.
+var GpClipQ14 int16 = 15565
 
 // TameEnergyThresholdQ0 is the trip energy for the §3.9.2 taming
 // branch: when Σ oldExc[i]² (over the full 154-sample lookback) exceeds
@@ -20,8 +23,10 @@ const GpClipQ14 int16 = 15565
 // enough that sustained voiced speech energy trips it but high enough
 // that quiescent / unvoiced segments do not. Boundary semantics are
 // strict-greater (Σx² > threshold) so the threshold itself is
-// non-tripping. Revisitable at Phase 2f TAME.BIT byte-EQ.
-const TameEnergyThresholdQ0 int64 = 1 << 33
+// non-tripping. Demoted from const → var at Phase 2f TAME-1 slot 5/5
+// for sweep-harness swappability; production callers still read it
+// as if a constant.
+var TameEnergyThresholdQ0 int64 = 1 << 33
 
 // Tame implements the §3.9.2 adaptive-codebook gain taming branch:
 //
