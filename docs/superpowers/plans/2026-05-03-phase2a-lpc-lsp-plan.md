@@ -281,18 +281,18 @@ common Word32 representation without saturating the long accumulator.
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 ```
 
-### Task 2a-AC-2: Noise floor (r(0)·1.0001) and lag window (60 Hz expansion)
+### Task 2a-AC-2: Noise floor (r(0)·1.0001) and lag window (60 Hz expansion) [x]
 
 **Files:** Create `internal/lpc/lagwindow.go`, `internal/lpc/lagwindow_test.go`.
 
-- [ ] **Step 1: Write failing test** asserting:
+- [x] **Step 1: Write failing test** asserting:
   1. `lagWindow[k]` LUT, k=0..9 (representing k=1..10 in eq. 6), matches `exp(−0.5·(2π·60·k/8000)²)` in Q15 within ±2.
   2. Applied to a flat r[k] = 1<<24, the result divides by exactly the LUT factor.
   3. r'(0) = r(0) + (r(0) >> 13) approximation of ×1.0001 (0.0001 in Q13 ≈ 1; equivalent to multiplying by 32771 / 32768 — pick the spec-faithful Q15 representation 32771 and document the round).
-- [ ] **Step 2: Run to verify FAIL**.
-- [ ] **Step 3: Write minimal implementation:** compute LUT off-line (oracle in test, literal values committed); apply via `fixed.Mult` on each r[k] (k=1..10) and the noise-floor scalar on r[0].
-- [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 2: Run to verify FAIL**.
+- [x] **Step 3: Write minimal implementation:** compute LUT off-line (oracle in test, literal values committed); apply via `fixed.Mult` on each r[k] (k=1..10) and the noise-floor scalar on r[0].
+- [x] **Step 4: Run to verify PASS**.
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.1 eq. 6 (lines 692–699), eq. 7 (lines 700–704).
 
