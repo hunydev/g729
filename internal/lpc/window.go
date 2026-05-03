@@ -1,5 +1,18 @@
 package lpc
 
+import "github.com/exedev/g729/internal/fixed"
+
+// windowSpeech applies the §3.2.1 eq. 4 product
+// s'(n) = w_lp(n)·s(n) for n ∈ [0, 239] using the Q15 LUT in
+// lpAnalysisWindow. Speech is Q0 int16 (post-pre-processor); the
+// fixed.Mult fractional multiply (Q0·Q15→Q0) yields Q0 windowed
+// output. Zero allocation: caller owns both buffers.
+func windowSpeech(speech *[240]int16, windowed *[240]int16) {
+	for n := 0; n < 240; n++ {
+		windowed[n] = fixed.Mult(speech[n], lpAnalysisWindow[n])
+	}
+}
+
 // lpAnalysisWindow is the 30 ms asymmetric LP analysis window
 // w_lp(n) of ITU-T G.729 (06/2012) §3.2.1 eq. 3, in Q15:
 //

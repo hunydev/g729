@@ -220,9 +220,9 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 **Files:** Extend `internal/lpc/window.go`, add `internal/lpc/window_apply_test.go`.
 
-- [ ] **Step 1: Write failing test** with a synthetic input (DC = 1024) and assert the windowed output equals `1024 · w_lp(n) >> 15` for each n.
-- [ ] **Step 2: Run to verify FAIL** (`undefined: windowSpeech`).
-- [ ] **Step 3: Write minimal implementation:**
+- [x] **Step 1: Write failing test** with a synthetic input (DC = 1024) and assert the windowed output equals `1024 · w_lp(n) >> 15` for each n.
+- [x] **Step 2: Run to verify FAIL** (`undefined: windowSpeech`).
+- [x] **Step 3: Write minimal implementation:**
   ```go
   func windowSpeech(speech *[240]int16, windowed *[240]int16) {
       for n := 0; n < 240; n++ {
@@ -230,8 +230,8 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
       }
   }
   ```
-- [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 4: Run to verify PASS**.
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.1 eq. 4 (line 684).
 **Q-format:** speech is Q0 int16 (post-pre-processor); `fixed.Mult` (Q0·Q15→Q0 with the implicit ×2 of fractional multiply already absorbed by `fixed.Mult` semantics defined in `internal/fixed`). Windowed output is Q0 int16.
