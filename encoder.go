@@ -8,6 +8,7 @@ import (
 	"github.com/exedev/g729/internal/lpc"
 	"github.com/exedev/g729/internal/lsp"
 	"github.com/exedev/g729/internal/pcm"
+	"github.com/exedev/g729/internal/pitch/openloop"
 )
 
 // Encoder holds G.729 Annex A encoder state for one logical stream.
@@ -35,6 +36,27 @@ type Encoder struct {
 	// ErrLPCNonStable → previous-frame LSP reuse). Diagnostic-only;
 	// not gating. Per spec §3.2.6 stability-and-reuse precedent.
 	lspReuseCount uint64
+
+	// Phase 2b INT-0: open-loop pitch state.
+	//
+	// aQ12Latest caches the order-10 LP polynomial (Q12) produced by
+	// the most recent lpcStep call so openloopStep can build A(z/γ)
+	// and A'(z) per §A.3.3 without re-running LP analysis. Phase 2b
+	// stand-in for Â — the quantized-LP reconstruction is OQ-2 work
+	// (Phase 2b plan §1 line 42).
+	//
+	// lpResidualMem and swMem are the §A.3.3 filter memories owned
+	// by the encoder per the I10 / Phase-2a state-isolation
+	// doctrine: the openloop package's helpers are pure on these
+	// pointers and the root encoder coordinates lifetime.
+	//
+	// tOp records the most recently computed open-loop pitch
+	// T_op ∈ [20,143] so Phase 2c (closed-loop refinement) can
+	// recover the search centre without re-running §A.3.4.
+	aQ12Latest    [lpc.LPCOrder + 1]int16
+	lpResidualMem [10]int16
+	swMem         [10]int16
+	tOp           int16
 
 	// Per-block state owners.
 	lpc    lpc.Analyzer
@@ -121,6 +143,7 @@ func (e *Encoder) lpcStep(pcm []int16) (lsp.Indices, error) {
 	if err := e.lpc.Analyze(&e.oldSpeech, &aQ12); err != nil {
 		return lsp.Indices{}, err
 	}
+	e.aQ12Latest = aQ12
 
 	var qQ15 [10]int16
 	if err := lsp.LPToLSP(&aQ12, &qQ15); err != nil {
@@ -158,4 +181,27 @@ func (e *Encoder) lpcStep(pcm []int16) (lsp.Indices, error) {
 	lsp.LSPToLSF(&qQ15, &omega)
 
 	return lsp.Quantize(&omega, &e.freqPrev), nil
+}
+
+// openloopStep runs the §A.3.3 weighted-speech construction and the
+// §A.3.4 open-loop pitch search on the most recently analyzed frame.
+// It must be called after lpcStep on the same frame: lpcStep populates
+// e.aQ12Latest and writes the pre-processed PCM into e.oldSpeech[160:240],
+// both of which openloopStep consumes.
+//
+// State advanced per call:
+//
+//	e.lpResidualMem : 10-sample s-history for eq. A.3
+//	e.swMem         : 10-sample sw-history for eq. A.2
+//	e.oldWspeech    : 143-sample sw history (slid in-place per
+//	                  slideOldWspeech / I-2b-2)
+//	e.tOp           : the per-frame open-loop pitch ∈ [20,143]
+//
+// I3 / I4: pure (apart from advancing the four state buffers above);
+// zero allocation. The 80-sample current-frame view is taken via a
+// pointer-to-array reslice over e.oldSpeech, avoiding a stack copy.
+func (e *Encoder) openloopStep() int16 {
+	s := (*[FrameSamples]int16)(e.oldSpeech[160:240])
+	e.tOp = openloop.Step(&e.aQ12Latest, s, &e.lpResidualMem, &e.swMem, &e.oldWspeech)
+	return e.tOp
 }
