@@ -107,8 +107,8 @@ func init() {
 // Returns ErrLPCNonStable when fewer than 5 sign changes are
 // detected for either polynomial (Levinson defect upstream → E8).
 //
-// I4: zero allocation. I11: 60-point grid + 4 bisections, both
-// hard-coded.
+// I4: zero allocation. I11: 60-point grid + 8 bisections, both
+// hard-coded (bisection count raised from 4 → 8 by FIX-2D).
 func findLSPRoots(f1, f2 *[6]int32, q *[10]int16) error {
 	var rootsF1, rootsF2 [5]int16
 	var nF1, nF2 int
@@ -157,14 +157,21 @@ func findLSPRoots(f1, f2 *[6]int32, q *[10]int16) error {
 // an exact-zero grid hit.
 func signsDiffer(a, b int32) bool { return (a < 0) != (b < 0) }
 
-// bisectRoot performs 4 successive binary subdivisions of the
+// bisectRoot performs 8 successive binary subdivisions of the
 // interval [xLo, xHi] (with xLo > xHi in cosine domain since ω is
 // increasing) on which C changes sign, then returns the midpoint of
 // the final sub-interval as the Q15 root estimate. cLo / cHi are
 // the cached C values at the interval endpoints; chebyshevC is
-// invoked exactly 4 times per call.
+// invoked exactly 8 times per call.
+//
+// FIX-2D (Phase 2a INT-1 d4 §19): the original LP-3 design fixed the
+// iteration count at 4 with a tolerance-floor justification that is
+// now superseded by d3/d7 measurements showing the Q15 root accuracy
+// floor for INT-1 byte-EQ requires 8 iterations. The bisection
+// remains zero-allocation (stack-only) and chebyshevC continues to
+// be invoked a deterministic, hard-coded number of times per root.
 func bisectRoot(xLo, xHi int16, cLo, cHi int32, f *[6]int32) int16 {
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 8; i++ {
 		mid := int16((int32(xLo) + int32(xHi)) >> 1)
 		cMid := chebyshevC(mid, f)
 		if signsDiffer(cLo, cMid) {
@@ -189,8 +196,11 @@ func bisectRoot(xLo, xHi int16, cLo, cHi int32, f *[6]int32) int16 {
 //LP-2: chebyshevC evaluates each polynomial in the cosine domain
 //      via Chebyshev back-recursion (eq. 17, lines 794–799).
 //LP-3: findLSPRoots scans a 60-point ω-grid for sign changes and
-//      refines each detected root with 4 binary subdivisions
-//      (lines 784); the I11-binding (60, 4) configuration.782
+//      refines each detected root with 8 binary subdivisions
+//      (lines 784); the I11-binding (60, 8) configuration. The
+//      bisection count was raised from 4 → 8 by Phase 2a INT-1
+//      FIX-2D (see d4 plan §19) so that the Q15 root precision
+//      reaches the floor required for L2/L3 byte-equality.
 //
 // Output q is filled in strictly decreasing-x = strictly increasing-ω
 // order, with F1 supplying the even-indexed roots q[0,2,4,6,8] and

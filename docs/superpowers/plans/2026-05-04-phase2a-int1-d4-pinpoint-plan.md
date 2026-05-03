@@ -1611,3 +1611,143 @@ Remaining:      3/5 attempts (recommended next: FIX-2D bundle, 1 slot)
 * `go build ./...`                        clean
 * `internal/lsp` battery (incl. d7)       PASS
 * Pre-existing failures unchanged from §16.5.
+
+---
+
+## §19 FIX-2D applied — Newton refinement on arccos + Chebyshev bisection 4→8
+
+### §19.1 Diff summary
+
+* `internal/lsp/lsp_lsf.go` — +60 / −5 lines net.
+  - New helper `sinViaCos(omegaQ13)` derives sin(ω) from the existing
+    `tables.CosLSP` LUT via the identity sin(ω) = cos(π/2 − ω) with even
+    symmetry for ω > π/2. Avoids introducing a separate sine table.
+  - `lspToLSF` keeps its binary-search + chord-interpolation seed
+    (computing ω₀); appends a single Newton step
+    `Δω_Q13 = ((cos(ω₀) − q)_Q15 << 13) / sin(ω₀)_Q15` clamped to one
+    LUT-cell width and re-clamped against `[0, lspMaxOmega]`.
+  - Doc comment updated with the FIX-2D rationale and Q-arithmetic
+    derivation; cites G.729 §3.2.5 and Phase 2a INT-1 d4 §19.
+
+* `internal/lsp/lp_lsp.go` — +14 / −5 lines net.
+  - `bisectRoot`: loop bound 4 → 8; doc updated to "8 binary
+    subdivisions" and "chebyshevC invoked exactly 8 times per call".
+  - `LPToLSP` doc and `findLSPRoots` I11 comment updated to reflect
+    the new (60, 8) configuration; the d3/d7 measurements supersede
+    the original LP-3 tolerance-floor justification for 4 iterations.
+
+* Public API unchanged; zero allocation preserved (added work is loop
+  bound + scalar arithmetic; no new heap paths).
+
+### §19.2 Frame-0 ω drift (production vs analytical)
+
+| coord | Δω before (Q13 LSB) | Δω after (Q13 LSB) |
+|------:|--------------------:|-------------------:|
+| 0 | (per d7 §S1) up to ~28 in worst cell | −7 |
+| 1 |  | −5 |
+| 2 |  | −5 |
+| 3 |  | −5 |
+| 4 |  | −3 |
+| 5 |  | −5 |
+| 6 |  | −3 |
+| 7 |  | −4 |
+| 8 |  | −3 |
+| 9 |  | −2 |
+
+Aggregate: max\|Δω\| dropped from **28 → 7** Q13 LSB; sum dropped from
+**58 → 42** (matching the float-oracle precision floor of 42 reported
+in d7 §S6 — i.e. FIX-2D brings the production fixed-point pipeline to
+within 0–1 LSB of the math.Acos-based oracle).
+
+19.3 INT-1 byte-EQ rates (LSP.IN/LSP.BIT, 2231 frames; frame 596 skipped — lpcStep instability is the d8 scope)### 
+
+| index | before FIX-2D | after FIX-2D | Δ |
+|-------|--------------:|-------------:|---:|
+| L0 | 79.02 % | 78.71 % | −0.31 |
+| L1 | 38.73 % | 38.91 % | +0.18 |
+| L2 | 17.53 % | 17.08 % | −0.45 |
+| L3 | 19.72 % | 19.32 % | −0.40 |
+
+(Baseline rates re-measured under HEAD `49e849f` via the same
+fail-skip harness; they reproduce the d6 §14.4 quoted figures
+78.99/38.71/17.52/19.71 to within rounding.)
+
+Frame-0 indices specifically: PROD `(L0=0, L1=120, L2=2, L3=11)` →
+**unchanged** by FIX-2D; reference `(L0=0, L1=120, L2=10, L3=10)`. The
+S5 perturbation grid in d7 had already shown that ±32 Q13 LSB ω shifts
+do not flip L2 toward 10 around the production operating point —
+i.e. the L2/L3 residual is not an ω-precision deficit on this frame.
+
+### §19.4 Test status
+
+* `go build ./...` — clean
+* `go vet ./...` — clean
+* `internal/lsp/...` full test battery — PASS (incl.
+  `TestINT1D7OmegaPrecision`, `TestLPToLSP_RoundTripCodebookL1` at
+  unchanged tol=256, `TestNoAllocationInDecode`)
+* `TestEncode_LSPVectorBitExact` — still fatals at frame 596 with
+  `fewer than 5 sign changes in F1 or F2` (anti-palindromic LP edge
+  case; scope of d8, not FIX-2D)
+* Pre-existing 3 unrelated failures unchanged from §16.5
+  (`TestDiagnostic_SinglePulseChain`,
+  `TestDecode_LowEnergyCodebookIsSmooth`,
+  `TestDecode_SucceedsAcrossAllGainIndices`).
+
+### §19.5 Disposition: **IMPROVED-BUT-OPEN**
+
+FIX-2D delivers exactly the precision improvement predicted by d7
+(per-coord ω drift down from a 28-LSB worst case to ≤7 LSB; aggregate
+sum reaches the float-oracle floor). The Chebyshev bisection
+4→8 change is a structurally-clean precision lift retained on its own
+merits.
+
+However, the byte-equality rates do **not** rise — they shift slightly
+in noise (±0.5 %) with no aggregate close. This is itself an
+informative null result:
+
+  * The L2/L3 byte gap is **not bottlenecked on LSP→LSF arccos
+    precision** — both before and after FIX-2D the per-coord ω drift
+    is well below the ≈12-LSB coherent threshold needed to flip L2.
+  * The production-vs-reference residual must therefore live
+    **upstream or downstream** of LSP→LSF — most plausibly inside the
+    L2/L3 VQ search Q-arithmetic, the MA-prediction state vs ITU's
+    initial `past_qlsf`, or the per-coordinate weight w_i computation
+    (d6 §14 already flagged this latter as a candidate).
+  * d7 §S5 had already foreshadowed this: ±32 LSB ω perturbations did
+    not move L2 toward the reference value of 10, only joint +16/+32
+    perturbations did — meaning a *uniform* bias would help, not a
+    precision tightening that removes a non-uniform bias.
+
+INT-1 byte-EQ gate **remains open**. FIX-2D is retained because (a)
+it is a spec-aligned numerical improvement, (b) it brings the LSP→LSF
+stage to its float-oracle floor and removes that variable from
+downstream debugging, and (c) the Chebyshev bisection lift is
+required by the I11 update for any byte-EQ work that follows.
+
+### §19.6 I5 budget
+
+Consumed: 3/5 (FIX-1A revert, FIX-1B revert, FIX-2D retained).
+Remaining: 2/5.
+
+### §19.7 Recommendation for next dispatch
+
+Open **d8** with two independent threads:
+
+  1. **Frame-596 anti-palindromic LP guard** — frame 596's
+     `a[]=[4096 -4706 -7743 5000 11938 0 -11938 -5000 7743 4706 -4096]`
+     is exactly antisymmetric, forcing F1 / F2 sign-change deficit.
+     Add a graceful guard (either a tiny perturbation of `a[1]` per
+     §3.2.3 stability conventions, or fall back to previous frame's
+     LSPs per the spec's stability/repair text). This unblocks the
+     `TestEncode_LSPVectorBitExact` fatal so it can report cumulative
+     mismatches end-to-end rather than fail-fast at frame 596.
+
+  2. **L2/L3 VQ residual hunt** — with LSP→LSF precision now at the
+     float-oracle floor, instrument the L2 search loop to log
+     (residual ω vector after L1, w_i weight vector, top-k candidate
+     distortions) for frame 0 and a small bank of post-FIX-2D
+     mismatching frames. Compare against analytical/textbook MA-VQ
+     (Kondoz §6.4 / Salami §3.4) to localise whether the gap is in
+     the weight w_i, the MA-predictor state seed, or the codebook
+     distortion arithmetic itself. This consumes 1 of the remaining
+     2 I5 slots.
