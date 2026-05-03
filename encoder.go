@@ -375,6 +375,20 @@ centre = e.tOp
 centre = e.intT1
 }
 
+// OQ-K<40 baseline workaround (Phase 2c INT-1 escalation 0):
+// SearchInteger / RefineFraction / AdaptiveVector OOB-read when
+// the search range includes lags k < SubframeLen because the
+// LP-residual extension for u(0..39) is not yet wired. Clamp the
+// search centre so that the resulting kMin ≥ 40 in both branches:
+//   - sub = 0: kMin = centre − closedLoopHalfWindow(=3) ≥ 40
+//   - sub = 1: kMin = max(intT1 − 5, 20) ≥ 40 ⇒ centre ≥ 45.
+// 45 covers both. This biases the search away from short lags but
+// lets INT-1 measure a baseline match rate; the proper OQ-K<40
+// LP-residual extension is reserved for a later escalation.
+const minSafeCentre = 45
+if centre < minSafeCentre {
+centre = minSafeCentre
+}
 excPast := e.oldExc[len(e.oldExc)-143:]
 intLag, _ = closedloop.SearchInteger(&xb, excPast, centre, sub)
 frac = closedloop.RefineFraction(&xb, excPast, intLag, intLag < 85)
