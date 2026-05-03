@@ -251,18 +251,18 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 ## 3. Task family AC — autocorrelation + bandwidth expansion (§3.2.1 eq. 5–7)
 
-### Task 2a-AC-1: Autocorrelation r[0..10] with overflow scaling
+### Task 2a-AC-1: Autocorrelation r[0..10] with overflow scaling [x]
 
 **Files:** Create `internal/lpc/autocorr.go`, `internal/lpc/autocorr_test.go`.
 
-- [ ] **Step 1: Write failing test** with three inputs:
+- [x] **Step 1: Write failing test** with three inputs:
   1. All-zero windowed speech → r[0..10] = 0.
   2. Constant input s'(n) = 1024 → r[k] = (240−k)·1024² for k=0..10.
   3. Sine wave at 1 kHz, sample-perfect period — assert r[0] > 0 and r[8] (period boundary) ≥ 0.99·r[0] within Q-format slack.
-- [ ] **Step 2: Run to verify FAIL** (`undefined: autocorrelate`).
-- [ ] **Step 3: Write minimal implementation** using `fixed.LMac` accumulators (Word32 = sum of Q0·Q0 products). Apply overflow-recovery scaling: if any `|s'(n)|` would overflow the Word32 accumulator across 240 taps (worst-case 240 · 32767² ≈ 2.58·10¹¹, exceeds 2³¹−1), pre-shift the windowed buffer right by 1 bit (track scale factor for downstream r[k] interpretation). §3.2.1 says "to avoid arithmetic problems" — the spec leaves the exact normalization scheme to the implementation; document the choice in a comment and keep all r[] in **Word32 with the same shared scale**.
-- [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 2: Run to verify FAIL** (`undefined: autocorrelate`).
+- [x] **Step 3: Write minimal implementation** using `fixed.LMac` accumulators (Word32 = sum of Q0·Q0 products). Apply overflow-recovery scaling: if any `|s'(n)|` would overflow the Word32 accumulator across 240 taps (worst-case 240 · 32767² ≈ 2.58·10¹¹, exceeds 2³¹−1), pre-shift the windowed buffer right by 1 bit (track scale factor for downstream r[k] interpretation). §3.2.1 says "to avoid arithmetic problems" — the spec leaves the exact normalization scheme to the implementation; document the choice in a comment and keep all r[] in **Word32 with the same shared scale**.
+- [x] **Step 4: Run to verify PASS**.
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.1 eq. 5 (lines 686–689). Overflow-recovery shift policy: cite "to avoid arithmetic problems" remark on line 691 + design-spec §5.4 on saturating-arithmetic discipline.
 
