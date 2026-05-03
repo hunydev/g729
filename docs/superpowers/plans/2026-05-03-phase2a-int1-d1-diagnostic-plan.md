@@ -466,3 +466,197 @@ yields a §-citable fix path.
 * [ ] If H-D wins and no §-cited fix path emerges, declare
   ACCEPT-as-conformant on the silent-frame subset and tighten the
   integration gate to frames ≥ 5.
+
+---
+
+## §9. d2 closed-form findings (frames 5 / 10 / 15 / 25 + table sanity + permutations)
+
+**Date:** 2026-05-04 (d2 dispatch)
+**HEAD at d2 entry:** `236203c` (post-d1 measurement commit).
+**Test:** `internal/lsp/phase2a_int1_d2_closed_form_test.go::TestINT1D2Frame5ClosedForm`.
+**I5 budget consumed by d2:** 0 of 5 (measurement only). Five attempts remain.
+**I6:** unbroken; only one new `*_test.go` and this plan amendment touched.
+
+### §9.0 Frame-coverage caveat
+
+The dispatch brief asked for frames {5, 10, 50, 100}. Production
+`lpcStep` aborts at **frame 29** of `LSP.IN` with
+`g729/lsp: fewer than 5 sign changes in F1 or F2 — LP filter not
+stable` (verified by re-running `TestEncode_LSPVectorBitExact`, which
+likewise fatals at frame 29 — the 79%/38%/16%/19% match-count line
+in d1 §1 was stale, predating the LP-stability guard tightening).
+We substitute frames {5, 10, 15, 25} so all four samples sit inside
+the range production can actually reach. This narrowing does not
+weaken the d2 conclusion — see §9.4.
+
+### §9.1 Frame-by-frame divergence pattern
+
+Want indices read from `LSP.BIT` per the d1 helper. "got" indices
+inferred from the L1 / L2 / L3 argmins under each selector
+(production's `Quantize` will pick the selector with lower total
+WMSE; we report the matching selector's stage outputs).
+
+| Frame | want (L0,L1,L2,L3) | sel matched at L0 | L1 argmin | L2 argmin (at gotL1) | L3 argmin (at gotL1, gotL2) | First-divergent stage |
+|------:|:------------------:|:-----------------:|:---------:|:--------------------:|:---------------------------:|:---------------------:|
+| 0     | (0, 120, 10, 10)   | 0                 | **120 ✓** | **2 ❌** (want 10)   | 11 ❌ (want 10)             | **L2** |
+| 5     | (1,   5, 14, 20)   | 1                 | **5 ✓**   | **14 ✓**             | **28 ❌** (want 20)         | **L3** |
+| 10    | (1,   5,  7, 23)   | 1                 | **5 ✓**   | **29 ❌** (want 7)   | 28 ❌ (want 23)             | **L2** |
+| 15    | (0,  92, 17, 13)   | 0                 | **56 ❌** (want 92) | 1 ❌                | 29 ❌                       | **L1** |
+| 25    | (—)                | —                 | varies    | varies               | varies                      | (sample only)         |
+
+**Pattern: the first-divergent stage moves around as a function of
+frame index.** Frame 0 diverges at L2; frame 5 makes it past L0/L1/L2
+and only diverges at L3; frame 10 diverges at L2; frame 15 diverges
+already at L1. This is **inconsistent with a fixed
+table-row-indexing bug** (which would either always-divert L1
+identically or always-divert L2 identically across frames).
+
+### §9.2 Table-shape sanity inspection
+
+Direct dump of `tables.LSPCodebookL1`, `LSPCodebookL2`, `LSPCodebookL3`,
+and `MAPredictorsLSP[0..1][0..3][0..9]`:
+
+* **`LSPCodebookL1` (128 × 10, Q13).** Row 0 strictly increasing
+  across columns ✓. Column ranges (col 0 ∈ [679, 4499]; col 9 ∈
+  [17514, 23533]) consistent with monotone LSF distributions whose
+  mean tracks i·π/11. Sampled rows 0/60/120/127 each show monotone
+  vectors with neighbouring-coef gaps in the expected 0.05–0.4 rad
+  range. Spec match: structural.
+* **`LSPCodebookL2` (32 × 5, Q13).** All entries in [−1596, +2337]
+  Q13 (≈ ±0.28 rad), consistent with "small residual" reading of
+  §3.2.4. Row 10 = `[-77, 344, -620, 763, 413]` — the want row at
+  frame 0; nothing structurally suspicious.
+* **`LSPCodebookL3` (32 × 5, Q13).** All entries in [−1752, +2223],
+  same residual scale as L2. Structural OK.
+* **`MAPredictorsLSP[0]` (selector 0, 4 taps × 10 coefs, Q15).**
+  Per-tap rowSums (Q15): tap 0 = 89080 (≈ 2.72 across 10 coefs
+  → ≈ 0.272/coef), tap 1 = 71767 (≈ 0.219/coef), tap 2 = 51438
+  (≈ 0.157/coef), tap 3 = 31230 (≈ 0.095/coef). Monotone tap-decay,
+  ΣP ≈ 24 000 Q15 (≈ 0.74), 1−ΣP ≈ 8 200 Q15 (≈ 0.25). The "0.30 /
+  0.30 / 0.20 / 0.20 split" reading from the dispatch brief is
+  approximate; the table values are within the published range
+  (taps decay roughly geometrically) and **do not exhibit any
+  off-by-row / off-by-column anomaly**.
+* **`MAPredictorsLSP[1]` (selector 1).** Differs significantly from
+  selector 0 (tap 0 ≈ 0.250/coef, tap 3 0.058/coef ≈ much steeper 
+  decay), as required for the L0 selector to discriminate. ΣP per
+  coef varies from 12993 to 18181 Q15 — well-behaved.
+
+**Verdict on H-E / H-F (data-side):** the table shapes, ranges, and
+selector-vs-selector contrast all look correct against the spec
+PDF's Tables and §3.2.4 verbal description. No row-order or column-
+transpose anomaly is visible by inspection.
+
+### §9.3 Permutation sanity (frame 0, selector 0)
+
+For each permutation we recompute the L2 argmin and compare to the
+production "got" (= 2) and the wanted (= 10) values.
+
+| Permutation | L2 argmin | Cost @ 2 | Cost @ 10 | Rescues to want? |
+|-------------|----------:|---------:|----------:|:----------------:|
+| (none — production)            | **2** | 32 017 769 | 39 676 666 | n/a (baseline) |
+| MAPredictorsLSP tap order reversed (preds[3-k] · mem[k])  | 2 | 32 017 769 | 39 676 666 | **No** |
+| MAPredictorsLSP selector swapped (sel=1 stand-in for sel=0) | 2 | 137 866 414 | 195 615 661 | **No** |
+| L2 row index 5-bit reversed (argmin = bitrev5(2) = 8)        | 8 → bitrev = 16 | — | — | **No** (≠ want 10 either way) |
+| L1 row index 7-bit reversed (control: argmin = 120 already matches want) | n/a | — | — | n/a (sanity) |
+
+**Verdict:** no single-table permutation rescues the frame-0 want.
+Combined with §9.2 (table shapes look right by inspection), this
+**refutes H-E and H-F** for the simple permutation cases. (More
+exotic permutations — e.g. simultaneous selector × tap × row swap —
+remain logically possible but lack any §-cited motivation.)
+
+### §9.4 Updated hypothesis set
+
+| H | Status after d2 | Evidence |
+|---|-----------------|----------|
+| H-A — ω accuracy (Chebyshev LSB)      | refuted in d1 (≤16 LSB; insufficient to flip argmin) | unchanged |
+| H-B — partial-cost convention         | refuted in d1 (in-test inline reproduces production argmin) | unchanged |
+| H-C — weight Q-format / ×1.2 boost    | refuted in d1 | unchanged |
+| H-D — silent-input LP convention      | **still live for frame 0** (silent input is structurally degenerate) | unchanged from d1 |
+| H-E — codebook row indexing           | **REFUTED** | §9.2 (shape) + §9.3 (permutation) + §9.1 (varying first-divergence stage incompatible with fixed permutation) |
+| H-F — MA-predictor table indexing     | **REFUTED** | §9.2 (rowSum monotonicity, selector contrast) + §9.3 (tap-reverse, selector-swap don't rescue) |
+| H-G — frame-alignment                 | refuted in d1 | unchanged |
+| H-H — pre-processor on silence        | refuted in d1 | unchanged |
+| H-I — eq. 21 cost full-vs-partial     | refuted in d1 | unchanged |
+| H-J — round-trip qLSP→ωLSF noise      | refuted in d1 | unchanged |
+| H-K — stability in L0 cost            | refuted in d1 | unchanged |
+| **H-L — upstream LP analysis divergence (NEW)** | **promoted to dominant hypothesis** | (a) production's `lpcStep` aborts at LSP.IN frame 29 with an LP-instability error; ITU's reference encoder reaches the end of LSP.IN without aborting (LSP.BIT contains 2232 valid frames). (b) Frame 5 sel=1 reproduces want L0/L1/L2 *but not* L3 → upstream ω at frame 5 already differs from ITU's. (c) Frame 15 misses at L1 already → wholesale ω drift, not VQ-stage drift. (d) The varying first-divergence stage across frames is the signature of accumulated LP-residual error feeding through `freqPrev`, not of a fixed VQ-stage bug. |
+
+**Most likely root cause:** one or more of the following modules is
+not bit-exact with ITU's reference at the LP-coefficient or
+LSP-extraction level — `internal/pcm.PreProcessor` (HPF coef
+formulation), `internal/lpc.Analyzer` (windowed autocorrelation,
+bandwidth expansion factor, white-noise correction, Levinson
+recursion), `internal/lsp.LPToLSP` (Chebyshev refinement
+iteration count or symmetric/antisymmetric polynomial split).
+
+### §9.5 Spec citations used by d2
+
+* **§3.2.1 lines 692–705 (eq. 7):** noise-floor multiplier; relevant
+  to frame-29 LP instability (a stronger noise-floor would smooth
+  the autocorrelation matrix).
+* **§3.2.2 (lines 717–736):** Levinson recursion stability; the
+  guard production hits at frame 29 lives one layer above here.
+* **§3.2.3 (LP→LSP via Chebyshev):** the "fewer than 5 sign changes
+  in F1 or F2" guard is the immediate fault site at frame 29.
+* **§3.2.4 lines 887–895:** unchanged from d1; production's VQ
+  search arithmetic is spec-conformant.
+* **§3.2.4 Tables (codebooks + MA predictor):** d2's structural
+  inspection confirms in-memory shapes match the published shapes.
+
+---
+
+## §10. d2 disposition
+
+**ESCALATE — open d3.**
+
+Justification:
+
+1. The d2 frame-by-frame data **rules out a single VQ-stage bug**
+   and **rules out simple table permutations** (§9.1 + §9.3).
+2. The d2 table-shape inspection **rules out gross codebook /
+   MA-predictor authoring errors** (§9.2).
+3. The d2 frame-29 reproduction of production's LP-instability
+   abort, plus the L1/L2/L3 divergence pattern's frame-by-frame
+   variability, points the next investigation **upstream of
+   `internal/lsp/encoder_*.go`** — into `internal/pcm`,
+   `internal/lpc`, and the LP→LSP path. d2 has no measurements
+   in these layers, so no `§`-cited fix is justifiable yet.
+4. With H-D (silent-input) plus the new H-L (upstream LP
+   divergence) live, two distinct root causes likely co-exist:
+   one for frame 0 (silent input → degenerate LP) and one for
+   frames 5+ (accumulated LP residual error). A single 1-line
+   fix is therefore unlikely; d3 must localise both.
+
+**Recommended d3 dispatch (next session):**
+
+* Open `docs/superpowers/plans/2026-05-04-phase2a-int1-d3-upstream-lp-plan.md`.
+* Add a measurement-only test that, at frames 5 / 10 / 15, prints
+  the full `r[0..10]` autocorrelation, the `a[1..10]` post-Levinson
+  filter, the F1 / F2 polynomials, and the q[0..9] LSP roots. Cross-
+  check the F1/F2 zero-locations against the closed-form
+  Chebyshev refinement at the same a-coefficients (a diff > 100
+  Q15 at any zero localises the Chebyshev iteration).
+* Add a structural test of `internal/pcm.PreProcessor` on a 5-frame
+  silence-plus-impulse synthetic, comparing the HPF impulse response
+  against the 2nd-order direct-form-II Q-format the spec
+  specifies in §3.1.1.
+* Add a frame-29 isolation test that captures the autocorrelation
+  matrix at the abort point and traces which Levinson reflection
+  coefficient overflows.
+* Defer any production change until d3 §6 yields a `§`-cited
+  upstream fix (estimated 2–3 d3 sub-cycles).
+
+**I5 budget after d2:** 0 of 5 attempts consumed. Five remain
+for d3.
+
+---
+
+## §11. Cross-references
+
+* d1 measurement test: `internal/lsp/phase2a_int1_d1_closed_form_test.go`
+* d2 measurement test: `internal/lsp/phase2a_int1_d2_closed_form_test.go`
+* Integration gate: `lsp_itu_vector_test.go::TestEncode_LSPVectorBitExact`
+  (RED at frame 29 with LP-instability fatal — pre-VQ failure).
+* d2 commit: see commit referenced by §10 disposition.
