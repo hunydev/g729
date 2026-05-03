@@ -18,3 +18,15 @@ func InitFreqPrev(freqPrev *[4][10]int16) {
 		freqPrev[k] = initialPastResidual
 	}
 }
+
+// InitLSPOld seeds the encoder-side previous-frame LSP cache with the
+// codec-start initial LSP vector q_i = cos(i·π/11) Q15 per ITU-T G.729
+// §3.2.6 / §4.1.5. Callers must invoke this exactly once after Encoder
+// construction (and after Reset) so that the FIX-3-B anti-palindromic
+// LP guard in lpcStep has a spec-aligned fallback if the very first
+// frame triggers an F1/F2 sign-change deficit.
+//
+// I3 / I4: pure write-through, no allocation.
+func InitLSPOld(lspOld *[10]int16) {
+	*lspOld = initialPrevLSP
+}

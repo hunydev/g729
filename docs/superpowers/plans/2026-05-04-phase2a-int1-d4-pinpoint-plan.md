@@ -2210,3 +2210,180 @@ initialization toward the **encoder's frame-0 ω input itself**:
   baseline (78.71 / 38.91 / 17.08 / 19.32 %).
 - ZeroAllocation: unaffected.
 - I5 budget: 3/5 consumed (unchanged); **2/5 remain**.
+
+---
+
+## §23 d10 — FIX-3-B applied (frame-596 anti-palindromic LP guard)
+
+**Date:** 2026-05-10 (d10 dispatch).
+**HEAD at entry:** `98b3679` (post-d9 docs, no production change).
+**I5 status:** **4/5 consumed** after this dispatch (1 slot remaining).
+**I6 status:** PARTIALLY LIFTED — `internal/lsp/lp_lsp.go` not modified
+in the end (existing `findLSPRoots` already returns `ErrLPCNonStable`
+on the sign-change deficit; the encoder callsite owns the recovery
+per d8 §20.7 instructions). Files touched:
+
+* `internal/lsp/encoder_init.go` — added `InitLSPOld` (cos(i·π/11) Q15
+  cold-start seed per §3.2.6 / §4.1.5), +13 lines.
+* `encoder.go` — wired `InitLSPOld` into `NewEncoder`/`Reset`, added
+  `lspReuseCount uint64` field + `LSPReuseCount()` accessor, replaced
+  the unconditional `LPToLSP` error propagation in `lpcStep` with a
+  `errors.Is(err, lsp.ErrLPCNonStable)` branch that copies `e.lspOld`
+  into `qQ15` and increments the counter; on success caches `qQ15` to
+  `e.lspOld`. ~28 lines net.
+* `phase2a_int1_d10_corpus_diagnostic_test.go` — root-package
+  diagnostic (`TestINT1D10CorpusDiagnostic`), read-only, reports
+  reuse count, frame-595..598 got/want, full/first-50/last-500/post-596
+  byte-EQ rates.
+
+### §23.1 Diff summary
+
+```
+encoder.go                                    | +37 -5
+internal/lsp/encoder_init.go                  | +13 -0
+phase2a_int1_d10_corpus_diagnostic_test.go    | +95 -0  (new)
+```
+
+### §23.2 Frame 596 status
+
+Fatal **CLEARED**. The guard fires exactly **once** across the
+2232-frame corpus (`LSPReuseCount = 1`), confirming d8 §17.7's
+forensic isolation: anti-palindromic `a[k] = −a[10−k]` is a
+genuine structural singularity, not a recurring numerical edge.
+
+Per-frame got vs want around the event:
+
+```
+frame 595: got=(1,13,27,14)  want=(1,13,30,12)     (pre-guard, normal)
+frame 596: got=(0,13,30, 9)  want=(1, 8,11, 3)     ← guard fired (reuse path)
+frame 597: got=(1,27,10, 5)  want=(1,27, 2, 3)
+frame 598: got=(1,78,11, 5)  want=(1,46,27, 5)
+```
+
+Frame-596 reused indices reflect the previous frame's quantized LSP
+re-fed through `LSPToLSF + Quantize` against the (now slightly
+different) MA-predictor FIFO, hence got=(0,13,30,9) ≠ frame-595's
+got=(1,13,27,14). This is consistent with §3.2.6's
+"reuse-then-continue" semantics: the LSP cache is preserved but the
+predictor history advances. Frame-596 byte-EQ on this single frame
+is L0=✗ L1=✗ L2=✗ L3=✗ vs WANT — expected, since the WANT bitstream
+was produced by the ITU encoder under whatever its own degenerate-LP
+recovery is (the ITU code is not consulted, I1).
+
+### §23.3 Reuse-path event count
+
+**1 / 2232 frames** triggered the guard (0.045 %). The frame is
+exactly the d3 `a[]` anti-palindromic frame at index 596 isolated in
+d8 §17.7 / §20.7. No other frame in the LSP.IN corpus exhibits the
+sign-change deficit.
+
+### §23.4 Full-corpus byte-EQ rates (END-TO-END, NEW)
+
+Now measurable for the first time across the full 2232 frames
+(d4–d9 baselines stopped at frame 595 due to the fatal):
+
+| L0 | L1 | L2 | L3 |
+|---:|---:|---:|---:|
+| **78.67 %** | **38.93 %** | **17.07 %** | **19.35 %** |
+
+Compared with d8 §19.3 partial-corpus rates (78.71 / 38.91 / 17.08 /
+19.32 % over 2231 frames including frame 596 skipped): the full-corpus
+rates are within ≤0.05 pp on every index. **The fatal-blocked tail
+(frames 597..2231) does NOT shift the byte-EQ rates** — confirming
+the partial-corpus measurement was already representative of the
+steady-state behaviour and FIX-3-B is purely an unblocking fix.
+
+### §23.5 Convergence pattern (CRITICAL for disposition)
+
+| window           | L0 %  | L1 %  | L2 %  | L3 %  |
+|------------------|------:|------:|------:|------:|
+| FIRST [0..50)    | 76.00 | 60.00 | 24.00 |  8.00 |
+| POST596 [596..1096) | 81.20 | 36.20 | 16.20 | 26.20 |
+| LAST  [1732..2232)  | 80.80 | 45.80 | 21.40 | 20.00 |
+| FULL  [0..2232)     | 78.67 | 38.93 | 17.07 | 19.35 |
+
+**Pattern: UNIFORM-MISS, not steady-state convergence.**
+
+* L0 ranges 76–81 % across all windows (≤5 pp spread).
+* L1 actually *drops* from first-50 (60 %) to full-corpus (38.9 %) —
+  the first-50 window is anomalously easy, not warmed-up.
+* L2 stays in the 16–24 % band throughout.
+* L3 starts low (8 %), reaches 26 % mid-corpus, settles ~20 %.
+
+There is **no monotonic improvement** as the encoder warms up.
+Cold-start drift is therefore NOT the dominant residual error
+source; the byte-EQ gap is a uniform per-frame protocol mismatch
+present at every frame from 0 onward (consistent with d8 §20.3's
+"no convergence trend" finding).
+
+### §23.6 Test / build / vet status
+
+* `go build ./...` — clean.
+* `go vet ./...` — clean.
+* `go test ./internal/lsp/...` — PASS (Levinson, LPToLSP, LSP unit
+  tests including `TestFindLSPRoots_NonStableReturnsErr` which still
+  exercises the unguarded `findLSPRoots` contract directly).
+* `TestLPToLSP_ZeroAlloc` — PASS (FIX-3-B adds no allocations; the
+  `e.lspOld` reuse path is a struct-array copy on the stack-resident
+  encoder).
+* `TestEncode_LSPVectorBitExact` — still FAIL (byte-EQ gate, not
+  closed by FIX-3-B) but **first-divergence frame now reported as
+  frame 0** with full-corpus match counts in the test log; no fatal.
+* `TestINT1D10CorpusDiagnostic` — PASS (new diagnostic).
+* Pre-existing failures (carried from d4 §16.5 / d8 §20.8):
+  `TestDiagnostic_SinglePulseChain`,
+  `TestDecode_LowEnergyCodebookIsSmooth`,
+  `TestDecode_SucceedsAcrossAllGainIndices` — unchanged, out of
+  INT-1 scope.
+
+### §23.7 Disposition
+
+**UNIFORM-MISS.** Byte-EQ rates do not converge to ≥95 % anywhere
+in the corpus and do not improve materially with frame index. The
+underlying mismatch is a per-frame, time-invariant protocol gap in
+the L0/L1/L2/L3 search arithmetic (most plausibly the MA-predictor
+FIFO seed convention or the L2/L3 cost-comparison Q-format, per d8
+20.5 mismatch-direction histograms).
+
+### §23.8 I5 budget after d10
+
+Consumed: **4/5** (FIX-1A revert, FIX-1B revert, FIX-2D retained,
+FIX-3-B applied). **Remaining: 1/5** — final dispatch slot.
+
+### §23.9 Recommendation for FINAL dispatch slot (5/5)
+
+Two viable paths under UNIFORM-MISS:
+
+1. **ACCEPT-PARTIAL with §-cite** (recommended if risk-averse).
+   The cold-start convention for `Encoder.freqPrev` (the past-LSF
+   residual FIFO seed) is genuinely under-specified in publicly
+   available G.729 (06/2012) text; §3.2.4 lines on `l̂_(−k)` are
+   silent on the exact numerical seed. The d9 reverse-engineering
+   exercise (H-M, §22) was inconclusive. Cite §3.2.4 + §3.2.6 +
+   note the §A.4 reference-implementation dependency, freeze the
+   gate at 78.7 / 38.9 / 17.1 / 19.4 %, and route the residual gap
+   to a Phase-2b/2c follow-up that has access to the full encode
+   pipeline (synthesis filter / weighting filter histories enable
+   downstream cross-checks unavailable in INT-1).
+
+2. **One final speculative fix** — H-N L2/L3 cost-domain probe.
+   d8 §20.5 found the L2 mismatches cluster on small |Δ| ≤ 5 deltas
+   ("systematic small bias" signature), pointing at a
+   per-coordinate weight or cost-comparison Q-format offset in
+   `searchL2` / `searchL3`. A focussed instrumentation test
+   (compare encoder cost vs decoder-roundtrip cost for the WANT
+   index on frame 0) could identify a single Q-shift that lifts
+   L2/L3 in the 30–50 pp range. **Risk:** if H-N is also refuted
+   we exit the dispatch budget at the same UNIFORM-MISS state; no
+   margin for a safety-net commit.
+
+**Recommended:** path (2) for one focussed L2-domain probe, with
+a hard pre-commit gate ("if probe shows the offset is ≤2 Q-LSB,
+revert and ACCEPT-PARTIAL; only commit if the probe predicts
+20 pp lift on L2"). This is an asymmetric bet — most of the
+dispatch budget is the measurement, the production patch (if
+warranted) is single-symbol on `searchL2`'s cost-comparison.
+
+If the operator prefers strict risk-aversion, path (1)
+(ACCEPT-PARTIAL with §3.2.4 + §A.4 citation) is the
+spec-compliant exit and unblocks INT-2 / Phase-2b immediately.

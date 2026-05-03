@@ -1,6 +1,8 @@
 package g729
 
 import (
+	"errors"
+
 	"github.com/exedev/g729/internal/acelp"
 	"github.com/exedev/g729/internal/filter"
 	"github.com/exedev/g729/internal/lpc"
@@ -28,6 +30,12 @@ type Encoder struct {
 	pastQuaEn  [4]int16
 	freqPrev   [4][10]int16
 
+	// FIX-3-B (Phase 2a INT-1 d10): count of frames that triggered the
+	// anti-palindromic LP guard in lpcStep (LPToLSP returned
+	// ErrLPCNonStable → previous-frame LSP reuse). Diagnostic-only;
+	// not gating. Per spec §3.2.6 stability-and-reuse precedent.
+	lspReuseCount uint64
+
 	// Per-block state owners.
 	lpc    lpc.Analyzer
 	acelp  acelp.Searcher
@@ -38,6 +46,7 @@ type Encoder struct {
 func NewEncoder() *Encoder {
 	e := &Encoder{}
 	lsp.InitFreqPrev(&e.freqPrev)
+	lsp.InitLSPOld(&e.lspOld)
 	return e
 }
 
@@ -46,7 +55,15 @@ func NewEncoder() *Encoder {
 func (e *Encoder) Reset() {
 	*e = Encoder{}
 	lsp.InitFreqPrev(&e.freqPrev)
+	lsp.InitLSPOld(&e.lspOld)
 }
+
+// LSPReuseCount returns the running tally of frames where the
+// FIX-3-B anti-palindromic LP guard fired (LPToLSP returned
+// ErrLPCNonStable → previous-frame LSP reuse). Diagnostic-only;
+// not part of the encoded bitstream. See §3.2.6 / §3.2.3 cite in
+// lpcStep.
+func (e *Encoder) LSPReuseCount() uint64 { return e.lspReuseCount }
 
 // EncodeFrame consumes exactly FrameSamples samples and writes exactly
 // FrameBytes bytes to out. Internal state is retained across calls.
@@ -107,7 +124,34 @@ func (e *Encoder) lpcStep(pcm []int16) (lsp.Indices, error) {
 
 	var qQ15 [10]int16
 	if err := lsp.LPToLSP(&aQ12, &qQ15); err != nil {
-		return lsp.Indices{}, err
+		// FIX-3-B (Phase 2a INT-1 d10): anti-palindromic LP guard.
+		//
+		// Spec citation: G.729 (06/2012) §3.2.3 establishes the F1/F2
+		// sum/difference polynomial construction and the 60-point
+		// sign-change scan, but is silent on the degenerate case
+		// where a[k] = ±a[10−k] makes one polynomial identically
+		// zero (no sign changes ⇒ root extraction fails). §3.2.6
+		// (LSP→LP for the synthesis filter) provides the
+		// stability-and-reuse precedent: when a freshly reconstructed
+		// LSP vector violates the ordering / spacing constraints,
+		// the previous frame's quantized LSPs are reused. Applying
+		// the same precedent here keeps the encoder graceful on
+		// rare anti-palindromic transients (e.g. LSP.IN frame 596)
+		// instead of fail-fast at the first non-stable frame.
+		//
+		// Cold-start safety: NewEncoder / Reset seed e.lspOld via
+		// InitLSPOld (cos(i·π/11) Q15 per §3.2.6 / §4.1.5), so the
+		// fallback is well-defined even if the very first frame
+		// triggers the guard.
+		if errors.Is(err, lsp.ErrLPCNonStable) {
+			qQ15 = e.lspOld
+			e.lspReuseCount++
+		} else {
+			return lsp.Indices{}, err
+		}
+	} else {
+		// Successful extraction: cache for future-frame reuse.
+		e.lspOld = qQ15
 	}
 
 	var omega [10]int16
