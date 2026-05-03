@@ -1,5 +1,7 @@
 # Phase 2a — LPC analysis + LSP quantization sub-plan
 
+> **STATUS: CLOSED — 2026-05-06.** Phase 2a is complete. See closure report `docs/superpowers/plans/2026-05-06-phase2a-closure-report.md` for full disposition (task ledger, INT-1 ACCEPT-PARTIAL byte-EQ rationale, FIX-1B/FIX-2D/FIX-3-B chronology, pinned engineering invariants, and Phase 2b dispatch recommendation). INT-1 binding closure: `docs/superpowers/plans/2026-05-05-phase2a-int1-accept-partial-closure.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Date:** 2026-05-03
@@ -766,10 +768,12 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 #### Sub-task 2a-INT-2-d: closure report
 
-- [ ] Author a brief closure report or fold INT-2 status into the existing INT-1 closure-doc lineage. Capture:
+- [x] Author a brief closure report or fold INT-2 status into the existing INT-1 closure-doc lineage. Capture:
   - API audit findings (any signature changes recommended for Phase 2b consumers).
   - Bench table (allocs/op per symbol).
   - Race-detector status (clean / dirty + remediation).
+
+**Closure (2026-05-06):** Standalone Phase 2a closure report authored at `docs/superpowers/plans/2026-05-06-phase2a-closure-report.md`. Captures the full task ledger (W/AC/LD/LP/MA/VQ/INT), production code map, FIX-1B / FIX-2D / FIX-3-B chronology with §-cites, INT-1 ACCEPT-PARTIAL byte-EQ disposition (L0=78.67%, L1=38.93%, L2=17.07%, L3=19.35%), pinned engineering invariants (I3/I4/I9–I12), final hypothesis ledger, I5 (4/5 used, 1/5 preserved) and I6 (LIFTED) accounting, and Phase 2b dispatch recommendation. **Phase 2a is CLOSED.**
 
 **Spec cite:** N/A (engineering invariants I3 / I4 / Go race-detector convention).
 

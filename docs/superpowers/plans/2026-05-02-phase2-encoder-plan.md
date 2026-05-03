@@ -943,9 +943,11 @@ EOF
 
 ---
 
-## 2. Phase 2a — LPC analysis + LSP quantization
+## 2. Phase 2a — LPC analysis + LSP quantization  — [x] **CLOSED 2026-05-06**
 
-**Status (2026-05-05):** Phase 2a INT-1 closed **ACCEPT-PARTIAL**. See sub-plan `docs/superpowers/plans/2026-05-03-phase2a-lpc-lsp-plan.md` §8 Task 2a-INT-1 and the binding closure doc `docs/superpowers/plans/2026-05-05-phase2a-int1-accept-partial-closure.md`. Encoder LP→LSP→VQ chain (`Encoder.lpcStep`) is spec-arithmetic conformant; final byte-EQ rates L0=78.67 % / L1=38.93 % (50× chance) / L2=17.07 % / L3=19.35 %. Residual is under-specified protocol detail (§3.2.4 cold-start MA-predictor seed, §3.2.5 sub-LSB inverse-cosine rounding, Annex A §A.4 VQ tie-breaks) not recoverable without the forbidden ITU C reference. INT-2 (API audit + zero-alloc + race-detector gate) dispatched 2026-05-05.
+**Closure report:** `docs/superpowers/plans/2026-05-06-phase2a-closure-report.md`.
+
+**Status (2026-05-06):** Phase 2a **CLOSED**. End-to-end LPC analysis + LSP quantization sub-chain (`Encoder.lpcStep`: HPF → window → autocorrelation → Levinson-Durbin → LP→LSP → 4-stage split-VQ + MA-predictor) delivered, spec-arithmetic conformant, zero-alloc on hot path (`TestNoAllocationInLPCStep` + `BenchmarkApplyWindow/Autocorr/LevinsonDurbin` all 0 allocs/op), race-detector clean. INT-1 byte-EQ gate closed **ACCEPT-PARTIAL** with final corpus rates L0=78.67 % / L1=38.93 % (50× chance) / L2=17.07 % / L3=19.35 % over 2232 frames; residual is under-specified protocol detail (§3.2.4 cold-start MA-predictor seed, §3.2.5 sub-LSB inverse-cosine rounding, Annex A §A.4 VQ tie-breaks) not recoverable without the forbidden ITU C reference. Three production fixes retained: FIX-1B (Levinson `aWork`/`aPrev` Q24 widening), FIX-2D (Newton-refined arccos + Chebyshev bisection 4→8), FIX-3-B (anti-palindromic LP guard with previous-frame LSP reuse). I5 used 4/5; 1/5 preserved for Phase 2-final. I6 production-freeze LIFTED (INT-1-specific). INT-2-d closure-report authored at HEAD `e2b689e`. See sub-plan `docs/superpowers/plans/2026-05-03-phase2a-lpc-lsp-plan.md` and INT-1 binding closure `docs/superpowers/plans/2026-05-05-phase2a-int1-accept-partial-closure.md`.
 
 **Scope (high-level):**
 - `internal/lpc.Analyzer.Analyze`: §3.2.1 windowed autocorrelation r[0..10] (240-sample asymmetric Hamming, 80 future-lookahead + 160 past), §3.2.2 lag windowing, §3.2.3 Levinson-Durbin recursion → a[1..10] in Q12.
