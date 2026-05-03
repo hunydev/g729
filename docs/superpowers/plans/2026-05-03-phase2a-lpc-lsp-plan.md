@@ -313,16 +313,16 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 ## 4. Task family LD — Levinson-Durbin (§3.2.2)
 
-### Task 2a-LD-1: Levinson-Durbin recursion → a[0..10] Q12
+### Task 2a-LD-1: Levinson-Durbin recursion → a[0..10] Q12 ✅
 
 **Files:** Create `internal/lpc/levinson.go`, `internal/lpc/levinson_test.go`.
 
-- [ ] **Step 1: Write failing test** with three inputs:
+- [x] **Step 1: Write failing test** with three inputs:
   1. r' = [1, 0, 0, ..., 0] → a = [1, 0, 0, ..., 0] (Q12: a[0] = 4096).
   2. r' from a known stable AR(1) process with pole = 0.5 → a[1] ≈ −2048 (Q12), a[2..10] ≈ 0.
   3. Frame-0 r' computed from `LSP.IN` first frame (after AC-1 + AC-2) → a[1..10] is captured as a "characterisation" assertion; the **values are pinned by direct §3.2.2 arithmetic, NOT by any external implementation**, and the test starts as a `t.Logf` capture. After Task 2a-INT-1 confirms downstream L1/L2/L3 gate-EQ on the same frame, this characterisation is promoted to `t.Errorf`.
-- [ ] **Step 2: Run to verify FAIL** (`undefined: levinsonDurbin`).
-- [ ] **Step 3: Write minimal implementation** following §3.2.2 verbatim:
+- [x] **Step 2: Run to verify FAIL** (`undefined: levinsonDurbin`).
+- [x] **Step 3: Write minimal implementation** following §3.2.2 verbatim:
   ```
   E[0] = r'(0)
   for i = 1..10:
@@ -332,8 +332,8 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
       E^{i} = (1 - k_i²) · E^{i-1}
   ```
   Q-format: r' Word32 in the AC shared scale; a in Q12; k_i (reflection coefficient) in Q15; E[i] in Word32 sharing the r' scale. Division uses `fixed.Div32`.
-- [ ] **Step 4: Run to verify PASS** on the synthetic inputs; `t.Logf` the frame-0 capture.
-- [ ] **Step 5: Commit.**
+- [x] **Step 4: Run to verify PASS** on the synthetic inputs; `t.Logf` the frame-0 capture.
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.2 lines 710–736 verbatim.
 
@@ -368,7 +368,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - [ ] **Step 2: Run to verify FAIL**.
 - [ ] **Step 3: Write minimal implementation:** in-place over `[6]int32` arrays for f1 and f2; promote a from Q12 to Q24 for the recursion to retain headroom (additions only — no products yet at this step).
 - [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.3 eq. 15 (lines 779–782), F1/F2 definitions eq. 9–14 (lines 744–771).
 
@@ -397,7 +397,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
   ```
   Q-format: x in Q15; f in Q24 (from LP-1); b in Q24; product 2x·b is Q15·Q24 → Word32 Q24 with explicit shifts to keep sums aligned. Output C(x) in Q24 Word32.
 - [ ] **Step 4: Run to verify PASS** within ±2^14 absolute tolerance (Q24).
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.3 eq. 16–17 (lines 786–799).
 
@@ -420,7 +420,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - [ ] **Step 2: Run to verify FAIL**.
 - [ ] **Step 3: Write minimal implementation** with **exactly** 60 grid points uniformly spaced on x ∈ [−1, +1] (the cosine domain of ω ∈ [0, π]) using `tables.CosLSP` (65 endpoints, sampled at 60 equally-spaced indices to match §3.2.3 line 783 verbatim "60 points equally spaced between 0 and π"). On each sign change between grid[k] and grid[k+1], divide the interval **4 times** (binary subdivision per line 784) before snapping to the midpoint. Track that 5 roots come from F1 and 5 from F2; interleave them in ω order. (I11.)
 - [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.3 lines 782–799. I11 binding: 60 grid + 4 subdivisions.
 
@@ -447,7 +447,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - [ ] **Step 2: Run to verify FAIL**.
 - [ ] **Step 3: Write minimal implementation:** chains LP-1 → LP-3 with appropriate buffer plumbing.
 - [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.3 lines 738–799 (full clause).
 
@@ -475,7 +475,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - [ ] **Step 2: Run to verify FAIL**.
 - [ ] **Step 3: Write minimal implementation:** copy of `(d *Decoder).applyPredictor`'s arithmetic body but reading from `mem *[4][10]int16` instead of `d.pastResiduals` and **omitting** the FIFO shift. `commitPredictorMemory` is the FIFO shift alone.
 - [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.4 eq. 20 (lines 836–840). I10 binding: encoder-owned memory.
 
@@ -501,7 +501,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - [ ] **Step 2: Run to verify FAIL**.
 - [ ] **Step 3: Write minimal implementation:** for each i, sum `Σ_{k=1..4} P_{i,k} · mem[k-1][i]`, subtract from ω(m), divide by `(1 − Σ_{k=1..4} P_{i,k})` using `fixed.Div32`. Q-format: ω, l_i in Q13; predictor Q15; intermediate Word32.
 - [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.4 eq. 23 (lines 884–886).
 
@@ -532,7 +532,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - [ ] **Step 2: Run to verify FAIL**.
 - [ ] **Step 3: Write minimal implementation:** exactly the three-branch piecewise of eq. 22 lines 864–880. ×1.2 boost on w_5/w_6 line 882. Q-format: ω in Q13, w in Q11 (so 1.0 = 2048; 1.2 = 2458). Constants 0.04π ≈ 0.1257 → 1029 (Q13), 0.92π ≈ 2.890 → 23676 (Q13), gap threshold 1.0 → 8192 (Q13). Compute (gap − 1.0) in Q13 then square to Q26, multiply by 10 → Q26, add 1.0 in Q26 (67108864), reciprocal via `fixed.Div32` to Q11 weight. Document each constant cite line-for-line.
 - [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.4 eq. 22 (lines 863–882).
 
@@ -556,7 +556,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - [ ] **Step 2: Run to verify FAIL**.
 - [ ] **Step 3: Write minimal implementation:** brute-force scan of all 128 rows; for each, compute Σ (target − row[i])² in Word32 (target Q13, row Q13, diff Q13, square Q26). Pick argmin. **No weighting at this stage** per §3.2.4 line 887 verbatim ("the entry L1 that minimizes the (unweighted) mean-squared error").
 - [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.4 lines 887–888.
 
@@ -579,7 +579,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - [ ] **Step 2: Run to verify FAIL**.
 - [ ] **Step 3: Write minimal implementation:** loop over 32 candidates; per candidate use a stack-allocated `[10]int16` workspace (only first 5 elements meaningful in the partial pass, but reuse the function signature). Reuse `combineResidual` with l3 = arbitrary placeholder (the partial cost only sums i=0..4 so L3 contribution is irrelevant). Apply `applyPredictorWithMemory` (non-destructive), then `rearrangeAdjacent` on the partial, then weighted MSE on i=0..4. **Note:** the L1+L2 combine is structurally L1[0..4]+L2; a direct partial-combine without the placeholder is preferred to keep the inner loop allocation-free.
 - [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.4 lines 889–892 (L2 search), line 890 ("rearranged to guarantee a minimum distance of 0.0012") = `lsfRearrJ1`.
 
@@ -603,7 +603,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - [ ] **Step 2: Run to verify FAIL**.
 - [ ] **Step 3: Write minimal implementation:** brute-force over 32 L3 rows; partial sum on i=5..9 weighted MSE.
 - [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.4 lines 893–895.
 
@@ -626,7 +626,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - [ ] **Step 2: Run to verify FAIL**.
 - [ ] **Step 3: Write minimal implementation:** outer loop over selector ∈ {0, 1}; for each, run VQ-2 → VQ-3 → VQ-4 to get (L1, L2, L3); reconstruct full ω̂ via predictor + J1 rearrangement; compute total weighted MSE Σ w_i·(ω_i − ω̂_i)². Pick the selector with lower MSE. Then `commitPredictorMemory` exactly once on the winning residual.
 - [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.4 lines 851 ("For each of the two MA predictors the best approximation … has to be found"), 896–897 ("the MA predictor L0 that produces the lowest weighted MSE is selected").
 
@@ -660,7 +660,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - [ ] **Step 2: Run to verify FAIL** (`undefined: extractLSPFields`).
 - [ ] **Step 3: Write minimal implementation** of `extractLSPFields(g192Frame []byte) (l0, l1, l2, l3 uint8)` — read 18 bit-words at offset 4 (skipping G.192 sync header), MSB-first per §A.4 Table A.4, pack into the four indices. Pure test helper.
 - [ ] **Step 4: Run to verify PASS** on a hand-traced first-frame oracle.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 **Spec cite:** §A.4 Table A.4 (transmission order); G.192 transport format.
 
@@ -697,7 +697,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
     4. Convert qQ15 → ω in Q13 via `arccos` LUT — **NEW SUB-TASK 2a-INT-1a if not already provided**: the existing `lsfToLSP` is the forward direction (ω→q); we need `lspToLSF(q, omega)`. If absent at INT-1 entry, spawn it as a strictly-test-driven micro-task before continuing.
     5. Call `lsp.Quantize(&omega, &e.freqPrev)` → `lsp.Indices`.
 - [ ] **Step 4: Run to verify PASS** on all 2232 frames.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 **Spec cite:** chains §3.2.1–§3.2.4 end-to-end; gate format §A.4.
 
@@ -727,7 +727,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - [ ] **Step 2: Run to verify FAIL** if any inner-loop allocation slipped in (likely VQ search workspace).
 - [ ] **Step 3: Write minimal implementation:** hoist any leaked allocation onto `Encoder` as a scratch field. Candidates flagged at design-time: the partial-vector workspace inside `searchL2`/`searchL3` (5-element int16 arrays — must be stack-allocated; verify `go build -gcflags='-m'` shows `does not escape`).
 - [ ] **Step 4: Run to verify PASS**.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 **Spec cite:** N/A (engineering invariant I4).
 
