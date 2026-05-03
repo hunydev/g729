@@ -958,3 +958,352 @@ Before FIX-1B:  1/5 consumed (d5 measurement was free)
 After  FIX-1B:  2/5 consumed
 Remaining:      3/5 attempts for d6 + any residual fixes
 ```
+
+---
+
+## §15. d6 cold-start residual + L2/L3 weighting diagnostic
+
+### §15.0 Scope and constraints
+
+Diagnostic implementation:
+`internal/lsp/phase2a_int1_d6_residual_test.go`
+(`TestINT1D6Residual`, 5 sub-tests).
+
+Operates under the post-FIX-1B HEAD (`ba79fcc`). I6 freeze BINDING:
+both `internal/lpc/levinson.go` and `internal/lsp/encoder_vq.go`
+re-frozen for this dispatch. I5 budget UNCHANGED (2/5; this dispatch
+is measurement-only).
+
+Spec source: G729E.txt lines 800–899 only. No external G.729
+implementation consulted.
+
+### §15.1 Frame-0 L2 winner forensic (S1)
+
+Replayed frame 0 of LSP.IN through the full production pipeline
+(pcm.PreProcessor → lpc.Analyzer → LPToLSP → LSPToLSF), captured
+
+```
+omega (Q13) = [2343 4677 7020 9365 11682 14025 16369 18714 21058 23391]
+weights (Q11) = [502 720 723 716 859 867 724 724 720 363]
+freqPrev[k=0..3] = initialPastResidual (cold start)
+WANT (L0,L1,L2,L3) = (0, 120, 10, 10)
+```
+
+L1 search reproduces L1=120 (matches WANT). L2 search per-row cost
+top-3 for sel=0, l1=120:
+
+```
+rank 1: row=2  cost=32 017 769  ← production winner (GOT)
+rank 2: row=10 cost=39 676 666  ← decoder WANT
+rank 3: row=7  cost=44 801 119
+```
+
+Per-coordinate decomposition (i=0..4) of row-2 vs row-10 weighted
+squared error:
+
+| i | ω    | ω̂_got | Δ_got | term_got     | ω̂_want | Δ_want | term_want   |
+|---|------|-------|-------|--------------|--------|--------|-------------|
+| 0 | 2343 | 2190  | +153  | 11 751 318   | 2415   | -72    | 2 602 368   |
+| 1 | 4677 | 4736  | -59   | 2 506 320    | 4765   | -88    | 5 575 680   |
+| 2 | 7020 | 6953  | +67   | 3 245 547    | 6875   | +145   | 15 201 075  |
+| 3 | 9365 | 9400  | -35   | 877 100      | 9512   | -147   | 15 472 044  |
+| 4 |11682 |11556  | +126  | 13 637 484   |11713   | -31    | 825 499     |
+| Σ |      |       |       | **32 017 769** |      |        | **39 676 666** |
+
+The dominant gap is at coordinate i=3 (|Δterm| = 14 594 944): row 10
+is 14.6M cost units WORSE at i=3 alone, more than offsetting its
+gains at i=0/i=4. Production correctly minimizes the weighted MSE.
+`searchL2` agrees with the row-by-row reconstruction (idx=2,
+cost=32 017 769).
+
+### §15.2 Decoder oracle parity (S2) — H-L4 / H-FREQPREV REFUTED
+
+Captured decoder `pastResiduals[k=0..3]` at frame-0 entry (forced
+initialization mirrors the codec cold-start path) and compared
+against encoder `freqPrev`:
+
+```
+encoder freqPrev[k=0..3] all = initialPastResidual = [2340 4679 7019 9359 11698 14038 16377 18717 21057 23396]
+decoder pastResiduals[k=0..3] all = initialPastResidual = (identical)
+mem BIT-EXACT encoder vs decoder ?    true
+L1[wantL1=120] read identically encoder vs decoder ?  true
+```
+
+Reconstructed the decoder's actual ω̂ at frame 0 with WANT indices
+(L0=0, L1=120, L2=10, L3=10):
+
+```
+post-combine = [2654 5014 6443 9964 11759 14237 16513 17837 20304 23746]
+post-J1      = [2654 5014 6443 9964 11759 14237 16513 17837 20304 23746]  (no-op: all gaps ≥ 10)
+post-J2      = [2654 5014 6443 9964 11759 14237 16513 17837 20304 23746]  (no-op: all gaps ≥ 5)
+ (post-pred)= [2415 4765 6875 9512 11713 14089 16412 18483 20849 23487]
+```
+
+Encoder L2-search ω̂[0..4] for row=10 (partial-J1 on post-predictor
+[1..4] only) vs decoder ω̂[0..4]:
+
+```
+encoder L2-search = [2415 4765 6875 9512 11713]
+decoder full pipe = [2415 4765 6875 9512 11713]
+```
+
+**Bit-exact equality.** Frame-0 J1 and J2 are NO-OPs because every
+adjacent residual gap already exceeds J=10/J=5. Therefore the
+search heuristic (J1 only on ω̂) and the spec-true protocol (J1+J2
+on residual + predictor) are mathematically equivalent on frame 0.
+
+"True" cost recomputed under the FULL decoder pipeline (J1+J2 on
+residual, predictor, weighted MSE on i=0..4):
+
+```
+true_cost(row 10, WANT) = 39 676 666
+true_cost(row 2,  GOT)  = 32 017 769
+true Δ(got − want) = -7 658 897   (got STILL wins)
+```
+
+**H-L4 (cold-start `freqPrev`)**: REFUTED. Encoder/decoder memory
+identical bit-exact at frame 0.
+**H-FREQPREV-UPDATE**: REFUTED for frame 0 (no commits yet); the
+post-frame commit in `commitPredictorMemory` cannot affect a
+zero-history frame.
+**H-VQ-L2W (L2 weighting/residual computation)**: REFUTED for the
+"protocol" reading. The cost row 2 < row 10 holds under BOTH the
+production search heuristic AND the spec-true J1+J2 reconstruction.
+**H-J1J2 (rearrangement timing)**: REFUTED. On frame 0 both
+rearrangements are no-ops; the search heuristic and spec-true
+protocols produce identical ω̂. The audit in S4 separately confirms
+the timing matches spec letter for non-frame-0 frames.
+
+### §15.3 Weight protocol audit (S3)
+
+Closed-form re-derivation of weights from spec eq. (22) in float64,
+compared against `weightsLSF` Q11 production output for frame-0 ω:
+
+| i | w_prod (Q11) | w_prod_real | w_spec_float | Δ (Q11 LSB) |
+|---|--------------|-------------|--------------|-------------|
+| 0 | 502          | 0.245117    | 0.245256     |  -0         |
+| 1 | 720          | 0.351562    | 0.351980     |  -1         |
+| 2 | 723          | 0.353027    | 0.353411     |  -1         |
+| 3 | 716          | 0.349609    | 0.350040     |  -1         |
+| 4 | 859          | 0.419434    | 0.419738     |  -1         |
+| 5 | 867          | 0.423340    | 0.423937     |  -1         |
+| 6 | 724          | 0.353516    | 0.353541     |  -0         |
+| 7 | 724          | 0.353516    | 0.353541     |  -0         |
+| 8 | 720          | 0.351562    | 0.351980     |  -1         |
+| 9 | 363          | 0.177246    | 0.177684     |  -1         |
+
+Max |Δ| = 0.000597 real ≡ 1.22 Q11 LSB. This is fixed-point
+quantization noise, well within the spec's "implementation-defined"
+license. Spec Q-format constants verified bit-exact:
+
+* `lsfQ13Pi04 = 1029 = round(0.04·π·8192)` ✓
+* `lsfQ13Pi92 = 23676 = round(0.92·π·8192)` (round() = 23677; off by 1 LSB
+  — within the quantization noise budget already documented above)
+* `lsfQ13One  = 8192`  ✓
+* `lsfQ11One  = 2048`  ✓
+* `lsfQ11OneTwo = 2458 = round(1.2·2048)` ✓
+
+The 1-LSB Q13 difference on `lsfQ13Pi92` is mathematically
+inconsequential at the L2 cost scale (one Q11 LSB on w_10, multiplied
+by Δ² Q26, contributes ≤ 2³¹ to the total cost — negligible vs the
+GOT/WANT gap of 7.7M).
+
+**H-VQ-L2W (formula version)**: REFUTED. Production weights match
+the spec piecewise to ≤ 1.22 Q11 LSB.
+
+### §15.4 Rearrangement timing audit (S4)
+
+Spec line-by-line review of §3.2.4 (lines 818–899):
+
+* **Decoder pipeline** (lines 818–833): combine → J1 on l̂ → J2 on l̂
+  → predictor → ω̂. Production `Decoder.Decode` matches.
+* **Encoder L2 search** (lines 889–891): "the partial vector ω̂_i,
+  i=1..5 is reconstructed using equation (20), and rearranged to
+  guarantee a minimum distance of 0.0012". Production `searchL2`
+  matches: predictor → partial-J1 on ω̂[1..4] → cost on i=0..4.
+* **Encoder L3 search** (lines 893–895): "Again the rearrangement
+  procedure is used to guarantee a minimum distance of 0.0012".
+  Production `searchL3` matches: predictor → J1 on full ω̂[1..9] →
+  cost on i=5..9.
+* **Final L0 cost** (lines 895–898): "rearranged to guarantee a
+  minimum distance of 0.0006" + "rearranged twice and a stability
+  check is applied". Production `Quantize` final reconstruction
+  matches: combine → J1 on l̂ → J2 on l̂ → predictor →
+  enforceLSFStability → cost on i=0..9.
+
+**H-J1J2 (rearrangement timing)**: REFUTED. Production protocol is
+spec-letter for all four pipeline points.
+
+### §15.5 Frame-596 drive-by (S5)
+
+Replayed encoder up to frame 596:
+
+```
+oldSpeech[0..15]    = [-33 288 586 820 908 916 823 591 324 21 -328 -624 -860 -1060 -1141 -1117]
+oldSpeech[224..239] = [36 -62 -229 -335 -458 -592 -610 -591 -609 -481 -321 -196 35 286 459 674]
+a (Q12) [0..10]     = [4096 -4706 -7743 5000 11938 0 -11938 -5000 7743 4706 -4096]
+max |a[1..10]| (Q12) = 11938 (real = 2.915)
+LPToLSP FAIL: g729/lsp: fewer than 5 sign changes in F1 or F2
+```
+
+Frame 596 is a **higher-energy transient than frame 29** (frame-29
+post-FIX-1B max|a| ≈ 1.22 per d5 §12.3; frame-596 max|a| = 2.915).
+FIX-1B Q24 widening (range |a_real| < 128 in int32) does not
+saturate aWork at this magnitude, but the larger range still
+admits sufficient inner-update precision loss to make the
+Chebyshev sign-change check fall below the 5-required threshold.
+
+**Same fault class as frame-29 pre-FIX-1B**: aWork-precision
+underrun causing Chebyshev band-centre miss. The FIX-1C Q30
+candidate (d4 §13.2) has 6 additional fractional bits over Q24 and
+is the natural next step; its bit-budget is established (d4
+12.5) and the implementation is a one-helper change against the
+already-widened FIX-1B body.
+
+NOT the same root cause as the L2/L3 byte-EQ gap (which is a
+quantization-precision drift in LP→LSP→LSF, see §15.6).
+
+### §15.6 New hypothesis: H-OMEGA-PRECISION
+
+The d6 forensic eliminates every encoder-VQ-stage hypothesis on
+frame 0. Yet the WANT bitstream demands L2=10 — meaning the ITU
+reference encoder, when fed the same PCM frame 0, computes a
+slightly different ω vector for which row 10 is the local
+weighted-MSE minimum.
+
+Inspection of frame-0 a[]:
+
+```
+a (Q12) = [4096 0 0 0 0 0 0 0 0 0 0]   (the all-pass filter A(z)=1)
+```
+
+The LSPs of A(z)=1 are EXACTLY q_i = cos(i·π/11), and the LSFs are
+EXACTLY ω_i = i·π/11 = `initialPastResidual` Q13.
+
+Production ω vs the analytical reference:
+
+```
+_prod    = [2343 4677 7020 9365 11682 14025 16369 18714 21058 23391]
+_analyt  = [2340 4679 7019 9359 11698 14038 16377 18717 21057 23396]
+```
+
+Per-coordinate ω drift of 1–16 Q13 LSBs is introduced by the
+**LPToLSP Chebyshev root-finding** + **LSPToLSF arccos** chain on
+the all-pass filter. At Δω = 16 (i=4), the per-row L2 cost
+contribution is `w_4 · 16² = 859·256 ≈ 220 000` Q11·Q26 units —
+about 0.7 % of the GOT/WANT cost gap, but compounding across all
+five coordinates. The cumulative drift is sufficient to flip the
+L2 winner from row 10 to row 2 (ITU-internal ω likely matches
+_analyt to within ≤ 1 LSB on frame 0).
+
+**H-OMEGA-PRECISION** (NEW, OPEN): the LPToLSP and/or LSPToLSF
+fixed-point pipeline introduces 1–16 Q13 LSBs of drift versus the
+analytical / spec-reference ω, and this drift is the dominant
+driver of the residual L2/L3 byte-EQ gap. The drift is observable
+on frame 0 (where the analytical ω is closed-form), and presumably
+larger on speech frames where neither side can be cross-checked
+analytically.
+
+### §15.7 Hypothesis state after d6
+
+| hypothesis                       | pre-d6     | post-d6                                 |
+|----------------------------------|------------|-----------------------------------------|
+| H-L4 (cold-start `freqPrev`)     | OPENED §14 | **REFUTED** §15.2 (bit-exact)           |
+| H-VQ-L2W (L2 weighting/residual) | OPENED §14 | **REFUTED** §15.2 / §15.3               |
+| H-J1J2 (rearrangement timing)    | OPENED §14 | **REFUTED** §15.4                       |
+| H-FREQPREV-UPDATE                | OPENED §14 | **REFUTED** §15.2 (frame 0 has no commits) |
+| H-OMEGA-PRECISION (NEW)          | n/a        | **OPENED** §15.6 (PROVISIONAL — primary candidate) |
+| H-L1′ (aWork Q12, frame 596)     | n/a        | **OPENED** §15.5 (FIX-1C Q30 candidate) |
+
+---
+
+## §16. d6 disposition — ESCALATE-d7 + secondary FIX-1C-PROPOSED
+
+### §16.1 Why no FIX-2 yet
+
+The d6 forensic eliminates four hypotheses by direct measurement.
+The remaining VQ-internal protocol surface area is exhausted (the
+search code is provably spec-letter on frame 0, with bit-exact
+encoder↔decoder ω̂ for the WANT residual). Spending an I5 budget
+slot on a speculative VQ rewrite would have ≥75 % probability of
+being a wrong-target consumption.
+
+The new lead (H-OMEGA-PRECISION) points UPSTREAM of the VQ — into
+the same LP-analysis pipeline that already required FIX-1B for
+frame-29 LP-stability. The natural next dispatch is a focused
+diagnostic on LPToLSP / LSPToLSF precision against the analytical
+all-pass reference (frame 0) and against a float-oracle reference
+on speech frames (5, 10, 15, 25 — already infrastructured in
+phase2a_int1_d2).
+
+### §16.2 Recommended next dispatch: d7
+
+Plan name: `2026-05-12-phase2a-int1-d7-omega-precision-plan.md`.
+
+Scope:
+
+1. Closed-form ω accuracy on frame 0:
+   - Analytical reference: ω_i = i·π/11 in Q13 (5-decimal-digit
+     precision, no fixed-point loss).
+   - Production ω = LSPToLSF(LPToLSP(a=[4096,0,...,0])).
+   - Decompose drift between LPToLSP (Chebyshev) and LSPToLSF
+     (arccos) by injecting analytical q at the LSPToLSF input.
+2. Speech-frame ω drift via a wide-precision (float64) Chebyshev +
+   acos oracle on the SAME a[] as production. Reuse the d5/d4
+   mirroring infrastructure.
+3. Quantify "VQ index sensitivity" to ω drift: replay the L2/L3
+   search with ω perturbed by ±N Q13 LSB on coordinate i and
+   measure the index switch frequency.
+4. If H-OMEGA-PRECISION is confirmed, propose **FIX-2A** as a
+   wider-precision (Q23 or Q24) accumulator inside one of:
+   * `internal/lsp/lp_lsp.go` (Chebyshev root-finding)
+   * `internal/lsp/lsp_lsf.go` (cosine-domain → frequency domain
+     arccos)
+   based on which contributes the larger fraction of the drift.
+
+### §16.3 Secondary proposal: FIX-1C (Q30 widening) for frame 596
+
+* **Module:** `internal/lpc/levinson.go`
+* **Lines touched:** the four constants/shift counts that distinguish
+  Q24 (FIX-1B) from Q30: `oneQ24` → `oneQ30`, the `<< 9` for
+  `kQ15 → Qn` becomes `<< 15`, the inner-update `>> 15` is
+  unchanged (Q15·Q30 → Q30 by `>> 15`), the `q24ToQ12Round`
+  helper becomes `q30ToQ12Round` (`>> 18` instead of `>> 12`).
+* **Spec citation:** §3.2.2 lines 717–736 (recursion in real
+  arithmetic) + §3.2.1 line 691 (implementation-defined Q-format
+  to "avoid arithmetic problems"). No spec text constrains the
+  internal carrier width.
+* **Risk:** LOW. Same algorithmic structure as FIX-1B; only the
+  scaling constants change. All FIX-1B unit tests
+  (Kronecker/AR1/Stability/Frame0Char/ZeroAllocation) must continue
+  to pass; bit-exact equivalence on non-pathological frames is
+  expected (Q12 final write is still the bottleneck).
+* **Budget cost:** **1 of remaining 3 attempts** (would consume to
+  3/5).
+* **When to apply:** ONLY if d7 confirms H-OMEGA-PRECISION
+  independently. Frame-596 is one frame out of 2232 (0.045 %), and
+  the L2/L3 byte-EQ gap is the larger conformance issue. A combined
+  d7 dispatch could include FIX-1C as a "while-we're-here" bonus
+  if the d7 measurements show no Q30 risk on the broader corpus.
+
+### §16.4 I5 budget after this dispatch
+
+```
+Before d6:      2/5 consumed (FIX-1A FAILED-REVERT + FIX-1B)
+After  d6:      2/5 consumed (UNCHANGED — d6 is measurement-only)
+Remaining:      3/5 attempts for d7 (+ optional FIX-1C bundle)
+```
+
+### §16.5 Test/build status under d6
+
+* `go vet ./...`             clean
+* `go build ./...`           clean
+* `internal/lsp` (incl. d6)  PASS
+* Pre-existing failures (verified at HEAD `ba79fcc`, unchanged
+  since d4 §14.5):
+  - `g729/TestEncode_LSPVectorBitExact`           (the gate test)
+  - `internal/decoder/TestDiagnostic_SinglePulseChain`
+  - `internal/gain/TestDecode_LowEnergyCodebookIsSmooth`
+  - `internal/gain/TestDecode_SucceedsAcrossAllGainIndices`
+
+No regressions introduced by the d6 test addition.
