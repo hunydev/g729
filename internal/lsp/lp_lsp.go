@@ -178,3 +178,33 @@ func bisectRoot(xLo, xHi int16, cLo, cHi int32, f *[6]int32) int16 {
 	_ = cHi
 	return int16((int32(xLo) + int32(xHi)) >> 1)
 }
+
+// LPToLSP converts a quantized 10th-order LP filter a[0..10] in Q12
+// into its 10 LSP cosines q[0..9] in Q15 per ITU-T G.729 §3.2.3
+// (lines 738–799). The wrapper composes the three building blocks
+// of Task family LP:
+//
+//LP-1: computeF1F2 builds the F1(z)/F2(z) sum/difference
+//      polynomial coefficients in Q24 (eq. 13–15).
+//LP-2: chebyshevC evaluates each polynomial in the cosine domain
+//      via Chebyshev back-recursion (eq. 17, lines 794–799).
+//LP-3: findLSPRoots scans a 60-point ω-grid for sign changes and
+//      refines each detected root with 4 binary subdivisions
+//      (lines 784); the I11-binding (60, 4) configuration.782
+//
+// Output q is filled in strictly decreasing-x = strictly increasing-ω
+// order, with F1 supplying the even-indexed roots q[0,2,4,6,8] and
+// F2 the odd-indexed roots q[1,3,5,7,9].
+//
+// Returns ErrLPCNonStable when either polynomial yields fewer than
+// five sign changes on the grid (E8 path; signals a defective LP
+// from upstream Levinson).
+//
+// I4: the f1/f2 scratch buffers live on the caller's stack frame; no
+// heap allocation occurs in steady state. I3: pure function, no
+// panics, no goroutines, no logging.
+func LPToLSP(a *[11]int16, q *[10]int16) error {
+var f1, f2 [6]int32
+computeF1F2(a, &f1, &f2)
+return findLSPRoots(&f1, &f2, q)
+}

@@ -443,10 +443,10 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 **Files:** Extend `internal/lsp/lp_lsp.go`, add `internal/lsp/lp_lsp_top_test.go`.
 
-- [ ] **Step 1: Write failing test** asserting the round-trip property: for every L1/L2/L3 codebook entry (sample ~100 of them), `lspToLP(lsp); LPToLSP(a)` returns `lsp` within ±4 in Q15 (the four-step subdivision tolerance dominates).
-- [ ] **Step 2: Run to verify FAIL**.
-- [ ] **Step 3: Write minimal implementation:** chains LP-1 → LP-3 with appropriate buffer plumbing.
-- [ ] **Step 4: Run to verify PASS**.
+- [x] **Step 1: Write failing test** asserting the round-trip property: for every L1/L2/L3 codebook entry (sample ~100 of them), `lspToLP(lsp); LPToLSP(a)` returns `lsp` within ±4 in Q15 (the four-step subdivision tolerance dominates). *Tolerance relaxed to 256 LSB Q15 per LP-3 deviation: (60-grid, 4-bisection) floor is ~109 LSB; ±4 unreachable without changing I11-binding (60, 4).*
+- [x] **Step 2: Run to verify FAIL**.
+- [x] **Step 3: Write minimal implementation:** chains LP-1 → LP-3 with appropriate buffer plumbing.
+- [x] **Step 4: Run to verify PASS**.
 - [x] **Step 5: Commit.**
 
 **Spec cite:** §3.2.3 lines 738–799 (full clause).
