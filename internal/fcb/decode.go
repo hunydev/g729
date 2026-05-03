@@ -20,5 +20,5 @@ package fcb
 func Decode(idx Indices, t int, betaQ14 int16, c *[40]int16) {
 	positions := decodePositions(idx.Positions)
 	placePulses(positions, idx.Signs, c)
-	applyPitchEnhancement(c, t, betaQ14)
+	ApplyPitchEnhancement(c, t, betaQ14)
 }

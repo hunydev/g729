@@ -23,7 +23,7 @@ func ClampPitchGainForEnhancement(gpPrevQ14 int16) int16 {
 	return gpPrevQ14
 }
 
-// applyPitchEnhancement runs the in-place IIR pitch enhancement
+// ApplyPitchEnhancement runs the in-place IIR pitch enhancement
 // filter c'(n) = c(n) + β·c'(n−T) for n = T..39, per ITU-T G.729
 // §3.8 equation (46), applied only when the integer pitch lag T is
 // less than the subframe size 40 (eq. 48).
@@ -37,7 +37,7 @@ func ClampPitchGainForEnhancement(gpPrevQ14 int16) int16 {
 //
 // In-place update means c[n-t] for n in [t..39] is the post-filtered
 // (cascaded) value, giving the correct IIR behaviour.
-func applyPitchEnhancement(c *[40]int16, t int, betaQ14 int16) {
+func ApplyPitchEnhancement(c *[40]int16, t int, betaQ14 int16) {
 if t < 1 || t >= 40 {
 return
 }

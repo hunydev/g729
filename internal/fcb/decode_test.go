@@ -65,7 +65,7 @@ func TestDecode_MatchesPiecewiseComposition(t *testing.T) {
 
 	positions := decodePositions(idx.Positions)
 	placePulses(positions, idx.Signs, &want)
-	applyPitchEnhancement(&want, t2, beta)
+	ApplyPitchEnhancement(&want, t2, beta)
 
 	if got != want {
 		t.Fatalf("Decode differs from piecewise composition:\n got=%v\nwant=%v", got, want)

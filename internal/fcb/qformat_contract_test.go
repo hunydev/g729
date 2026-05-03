@@ -63,7 +63,7 @@ func TestQFormatContract_PostEnhancementBoundedByMaxBeta(t *testing.T) {
 	c[10] = PulseAmplitude
 	c[15] = PulseAmplitude
 	betaQ14 := ClampPitchGainForEnhancement(32767)
-	applyPitchEnhancement(&c, 5, betaQ14)
+	ApplyPitchEnhancement(&c, 5, betaQ14)
 	for n, v := range c {
 		if v > 32767 || v < -32768 {
 			t.Errorf("c[%d] = %d after enhancement: out of int16 range",
