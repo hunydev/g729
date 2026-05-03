@@ -1,6 +1,8 @@
 # Phase 2b — Open-loop pitch estimation sub-plan
 
-> **STATUS: IN PROGRESS — 2026-05-07.** TDD task ledger for Annex A §A.3.3 (low-pass weighted speech) + §A.3.4 (decimated three-range open-loop pitch search). Awaits dispatch of WS-1.
+> **STATUS: CLOSED — 2026-05-08.** Phase 2b complete. Closure report: `docs/superpowers/plans/2026-05-08-phase2b-closure-report.md`. INT-1 disposition: ACCEPT-PARTIAL @ 53.95 % plausibility (range gate 100 %); structural residual (H-OQ2 / H-PHASE) deferred to Phase 2c diagnosis.
+
+> **Original status:** TDD task ledger for Annex A §A.3.3 (low-pass weighted speech) + §A.3.4 (decimated three-range open-loop pitch search). Awaits dispatch of WS-1.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -491,11 +493,11 @@ internal/pitch/openloop and root.
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 ```
 
-#### Task 2b-INT-3: Phase 2b closure report
+#### Task 2b-INT-3: Phase 2b closure report — **[x] CLOSED 2026-05-08** — `docs/superpowers/plans/2026-05-08-phase2b-closure-report.md`
 
 **Files:** Author `docs/superpowers/plans/YYYY-MM-DD-phase2b-closure-report.md`.
 
-- [ ] Capture: full task ledger (WS-1/2, OL-1..5, INT-0..2 status), files added, INT-1 disposition (consistency PASS / shortfall details), per-frame T_op statistics (min/max/mean/distribution), I5 budget consumed, race + alloc table, OQ-1/OQ-2 closure status, hand-off notes to Phase 2c.
+- [x] Capture: full task ledger (WS-1/2, OL-1..5, INT-0..2 status), files added, INT-1 disposition (consistency PASS / shortfall details), per-frame T_op statistics (min/max/mean/distribution), I5 budget consumed, race + alloc table, OQ-1/OQ-2 closure status, hand-off notes to Phase 2c.
 
 **Commit message:**
 ```
