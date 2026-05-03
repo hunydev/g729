@@ -985,7 +985,7 @@ EOF
 
 ---
 
-## 4. Phase 2c — Closed-loop pitch + adaptive codebook  — **IN PROGRESS 2026-05-09** — sub-plan: `docs/superpowers/plans/2026-05-09-phase2c-closed-loop-pitch-plan.md`
+## 4. Phase 2c — Closed-loop pitch + adaptive codebook  — **CLOSED-DEFERRED 2026-05-10** — sub-plan: `docs/superpowers/plans/2026-05-09-phase2c-closed-loop-pitch-plan.md` — closure report: [`docs/superpowers/plans/2026-05-10-phase2c-closure-report.md`](2026-05-10-phase2c-closure-report.md) (INT-1 STRICT byte-EQ FAIL-DEFERRED at P1 9.05 % / P0 56.46 % / P2 9.75 %; structural blockers H-CENTER + OQ-EXC-COMMIT + H-PHASE; I5 1/5 spent, 4/5 reserved for post-Phase-2d re-run; **next dispatch: Phase 2d sub-plan**)
 
 **Scope (high-level):**
 - `internal/pitch` encoder-side: §3.7 fractional-lag closed-loop search around T_op (sub-1/3 resolution per Annex A), adaptive codebook v[40] generation, P1 (8 bits = 6+2 frac), P0 (parity), P2 (5 bits = 4+1 frac, delta-from-P1).

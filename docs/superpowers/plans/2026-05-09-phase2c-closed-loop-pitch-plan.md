@@ -1,7 +1,7 @@
 # Phase 2c — Closed-loop pitch + adaptive codebook (sub-plan)
 
 - **Date:** 2026-05-09
-- **Status:** IN PROGRESS
+- **Status:** **CLOSED-DEFERRED 2026-05-10** — closure report: [`docs/superpowers/plans/2026-05-10-phase2c-closure-report.md`](2026-05-10-phase2c-closure-report.md). All 14 tasks complete; INT-1 STRICT byte-EQ FAIL-DEFERRED at P1 9.05 % / P0 56.46 % / P2 9.75 % pending Phase 2d ENC-INT closure (OQ-EXC-COMMIT) + Phase 2b open-loop H-CENTER. I5 1/5 spent; 4/5 reserved for post-Phase-2d re-run.
 - **Scope:** ITU §A.3.5 (impulse response), §A.3.6 (target signal), §A.3.7 (closed-loop search incl. fractional refinement via b30, eq. A.6–A.8), §A.3.8 cross-cited for fixed-codebook handoff only; base §3.7 (and §3.7.1/§3.7.2/§3.7.3) for P1/P0/P2 packing and Gp computation; §4.1.3 P1/P2 decode mechanic for byte-EQ.
 - **Inputs:**
   - Master plan: `docs/superpowers/plans/2026-05-02-phase2-encoder-plan.md` §4
@@ -122,112 +122,112 @@ P1 decode: if P1 < 197 → int(T1) = (P1+2)/3 + 19, frac = P1 − 3·int(T1) + 5
 
 ### QA-1 — Export `LSPToLP` and verify quantized-Â reconstruction
 
-- [ ] Step 1 — Baseline: `go test ./...` count + `git status` clean.
-- [ ] Step 2 — RED: add `internal/lsp/lsp_lp_export_test.go` asserting `lsp.LSPToLP` symbol exists and matches package-private result for a fixed LSP vector from LSP.IN.
-- [ ] Step 3 — GREEN: rename `lspToLP` → `LSPToLP` in `internal/lsp/lsp_lp.go:21`; update internal callers in `internal/lsp/decoder.go`.
-- [ ] Step 4 — vet + race + bench unchanged; `go test ./internal/lsp/...` green.
-- [ ] Step 5 — Commit `phase2c(lsp): export LSPToLP for encoder closed-loop reuse (QA-1)` with I8 trailer.
+- [x] Step 1 — Baseline: `go test ./...` count + `git status` clean.
+- [x] Step 2 — RED: add `internal/lsp/lsp_lp_export_test.go` asserting `lsp.LSPToLP` symbol exists and matches package-private result for a fixed LSP vector from LSP.IN.
+- [x] Step 3 — GREEN: rename `lspToLP` → `LSPToLP` in `internal/lsp/lsp_lp.go:21`; update internal callers in `internal/lsp/decoder.go`.
+- [x] Step 4 — vet + race + bench unchanged; `go test ./internal/lsp/...` green.
+- [x] Step 5 — Commit `phase2c(lsp): export LSPToLP for encoder closed-loop reuse (QA-1)` with I8 trailer.
 
 ### HI-1 — Impulse response h(n) for 1/Â(z/γ) over subframe
 
-- [ ] RED: `closedloop_test.go` with golden h(n) vector from a hand-driven trace of one subframe.
-- [ ] GREEN: implement `ImpulseResponse` in `internal/pitch/closedloop/impulse.go` using `internal/fixed`.
-- [ ] Refactor: extract gamma weighting helper if shared with TG-1.
-- [ ] vet + zero-alloc check via `go test -bench`.
-- [ ] Commit `phase2c(closedloop): impulse response h(n) per A.3.5 (HI-1)`.
+- [x] RED: `closedloop_test.go` with golden h(n) vector from a hand-driven trace of one subframe.
+- [x] GREEN: implement `ImpulseResponse` in `internal/pitch/closedloop/impulse.go` using `internal/fixed`.
+- [x] Refactor: extract gamma weighting helper if shared with TG-1.
+- [x] vet + zero-alloc check via `go test -bench`.
+- [x] Commit `phase2c(closedloop): impulse response h(n) per A.3.5 (HI-1)`.
 
 ### TG-1 — Target signal x(n)
 
-- [ ] RED: golden x(n) test from PITCH.IN frame 0 subframe 0 using known Â and `swMem`.
-- [ ] GREEN: implement `TargetSignal` in `internal/pitch/closedloop/target.go`.
-- [ ] Refactor: ensure `swMem` is read-only inside (mutation deferred to encoder driver per I3).
-- [ ] vet + race.
-- [ ] Commit `phase2c(closedloop): target signal x(n) per A.3.6 (TG-1)`.
+- [x] RED: golden x(n) test from PITCH.IN frame 0 subframe 0 using known Â and `swMem`.
+- [x] GREEN: implement `TargetSignal` in `internal/pitch/closedloop/target.go`.
+- [x] Refactor: ensure `swMem` is read-only inside (mutation deferred to encoder driver per I3).
+- [x] vet + race.
+- [x] Commit `phase2c(closedloop): target signal x(n) per A.3.6 (TG-1)`.
 
 ### CL-1 — Integer-lag closed-loop search RN(k) numerator-only
 
-- [ ] RED: golden integer winner for PITCH.IN frame 0 subframe 0 (use ITU reference T1 derived from PITCH.BIT P1).
-- [ ] GREEN: `SearchInteger` per eq. A.6/A.7. Backward-filtered target xb; iterate k over [center−3, center+3] ∩ [20,143].
-- [ ] Refactor: caller-owned scratch only.
-- [ ] vet + bench (zero-alloc).
-- [ ] Commit `phase2c(closedloop): integer-lag closed-loop search per A.3.7 (CL-1)`.
+- [x] RED: golden integer winner for PITCH.IN frame 0 subframe 0 (use ITU reference T1 derived from PITCH.BIT P1).
+- [x] GREEN: `SearchInteger` per eq. A.6/A.7. Backward-filtered target xb; iterate k over [center−3, center+3] ∩ [20,143].
+- [x] Refactor: caller-owned scratch only.
+- [x] vet + bench (zero-alloc).
+- [x] Commit `phase2c(closedloop): integer-lag closed-loop search per A.3.7 (CL-1)`.
 
 ### CL-2 — Subframe-2 search window per §4.1.3
 
-- [ ] RED: window-bounds test asserting tmin/tmax slide rule per spec lines 1512–1523.
-- [ ] GREEN: `Subframe2Window`.
-- [ ] Refactor: shared with ENC-1 P2 packing.
-- [ ] vet.
-- [ ] Commit `phase2c(closedloop): subframe-2 search window (CL-2)`.
+- [x] RED: window-bounds test asserting tmin/tmax slide rule per spec lines 1512–1523.
+- [x] GREEN: `Subframe2Window`.
+- [x] Refactor: shared with ENC-1 P2 packing.
+- [x] vet.
+- [x] Commit `phase2c(closedloop): subframe-2 search window (CL-2)`.
 
 ### FR-1 — b30 fractional interpolation eq. A.8
 
-- [ ] RED: golden fractional value (−1/0/+1 of 1/3) for one subframe.
-- [ ] GREEN: import b30 table from existing decoder-side `internal/pitch/` if usable; else replicate in `internal/pitch/closedloop/frac.go`.
-- [ ] Refactor: dedupe with decoder b30 table behind shared `internal/pitch/b30` if no import cycle.
-- [ ] vet.
-- [ ] Commit `phase2c(closedloop): b30 1/3 fractional interpolation (FR-1)`.
+- [x] RED: golden fractional value (−1/0/+1 of 1/3) for one subframe.
+- [x] GREEN: import b30 table from existing decoder-side `internal/pitch/` if usable; else replicate in `internal/pitch/closedloop/frac.go`.
+- [x] Refactor: dedupe with decoder b30 table behind shared `internal/pitch/b30` if no import cycle.
+- [x] vet.
+- [x] Commit `phase2c(closedloop): b30 1/3 fractional interpolation (FR-1)`.
 
 ### FR-2 — Fractional refinement around integer winner
 
-- [ ] RED: combined integer+frac picks T1 frac matching PITCH.BIT P1 decode.
-- [ ] GREEN: `RefineFraction` evaluates RN(k) at frac ∈ {−1,0,+1}/3 around integer winner; returns frac that maximizes.
-- [ ] Refactor: collapse with CL-1 if natural.
-- [ ] vet.
-- [ ] Commit `phase2c(closedloop): fractional refinement around integer winner (FR-2)`.
+- [x] RED: combined integer+frac picks T1 frac matching PITCH.BIT P1 decode.
+- [x] GREEN: `RefineFraction` evaluates RN(k) at frac ∈ {−1,0,+1}/3 around integer winner; returns frac that maximizes.
+- [x] Refactor: collapse with CL-1 if natural.
+- [x] vet.
+- [x] Commit `phase2c(closedloop): fractional refinement around integer winner (FR-2)`.
 
 ### VP-1 — Adaptive codebook vector v(n) from oldExc
 
-- [ ] RED: golden v(n) for known (intLag, frac) using `oldExc[154]`.
-- [ ] GREEN: `AdaptiveVector` in `internal/pitch/closedloop/adaptive.go` mirroring decoder-side construction (b30 frac applied to past excitation).
-- [ ] Refactor: zero-alloc.
-- [ ] vet + race.
-- [ ] Commit `phase2c(closedloop): adaptive codebook vector v(n) (VP-1)`.
+- [x] RED: golden v(n) for known (intLag, frac) using `oldExc[154]`.
+- [x] GREEN: `AdaptiveVector` in `internal/pitch/closedloop/adaptive.go` mirroring decoder-side construction (b30 frac applied to past excitation).
+- [x] Refactor: zero-alloc.
+- [x] vet + race.
+- [x] Commit `phase2c(closedloop): adaptive codebook vector v(n) (VP-1)`.
 
 ### GP-1 — Gp + y(n) per eq. 43/44
 
-- [ ] RED: golden Gp clamped to [0, 1.2] (Q14) and y(n) update.
-- [ ] GREEN: `GpAndY`.
-- [ ] Refactor: re-use convolution helper from HI-1 if applicable.
-- [ ] vet.
-- [ ] Commit `phase2c(closedloop): adaptive-codebook gain Gp and filtered y(n) (GP-1)`.
+- [x] RED: golden Gp clamped to [0, 1.2] (Q14) and y(n) update.
+- [x] GREEN: `GpAndY`.
+- [x] Refactor: re-use convolution helper from HI-1 if applicable.
+- [x] vet.
+- [x] Commit `phase2c(closedloop): adaptive-codebook gain Gp and filtered y(n) (GP-1)`.
 
 ### ENC-1 — P1/P0/P2 bit packing per §3.7.2 + Table 8
 
-- [ ] RED: encode (intT1, frac1, intT2, frac2) → P1/P0/P2 matching PITCH.BIT for frame 0.
-- [ ] GREEN: `PackP1P0P2`; reuse `internal/pitch/parity.go` for P0.
-- [ ] Refactor: invariant cross-check via existing decoder-side P1→T1 round-trip.
-- [ ] vet.
-- [ ] Commit `phase2c(closedloop): pack P1/P0/P2 per Table 8 (ENC-1)`.
+- [x] RED: encode (intT1, frac1, intT2, frac2) → P1/P0/P2 matching PITCH.BIT for frame 0.
+- [x] GREEN: `PackP1P0P2`; reuse `internal/pitch/parity.go` for P0.
+- [x] Refactor: invariant cross-check via existing decoder-side P1→T1 round-trip.
+- [x] vet.
+- [x] Commit `phase2c(closedloop): pack P1/P0/P2 per Table 8 (ENC-1)`.
 
 ### INT-0 — Encoder wiring: `closedloopStep` ×2 per frame
 
-- [ ] RED: `encoder_test.go` invoking encoder over PITCH.IN frame 0 expects `oldExc` and bitstream P1/P0/P2 fields populated for both subframes.
-- [ ] GREEN: add `closedloopStep(sub int)` to `encoder.go`, called twice per frame after `openloopStep`. Wire QA-1 → HI-1 → TG-1 → CL-1 → FR-2 → VP-1 → GP-1 → ENC-1; commit `oldExc`/`swMem` updates only at frame end (I3).
-- [ ] Refactor: scratch arrays as method receivers' fields if profiling shows alloc.
-- [ ] vet + race.
-- [ ] Commit `phase2c(encoder): wire closed-loop pitch per subframe (INT-0)`.
+- [x] RED: `encoder_test.go` invoking encoder over PITCH.IN frame 0 expects `oldExc` and bitstream P1/P0/P2 fields populated for both subframes.
+- [x] GREEN: add `closedloopStep(sub int)` to `encoder.go`, called twice per frame after `openloopStep`. Wire QA-1 → HI-1 → TG-1 → CL-1 → FR-2 → VP-1 → GP-1 → ENC-1; commit `oldExc`/`swMem` updates only at frame end (I3).
+- [x] Refactor: scratch arrays as method receivers' fields if profiling shows alloc.
+- [x] vet + race.
+- [x] Commit `phase2c(encoder): wire closed-loop pitch per subframe (INT-0)`.
 
 ### INT-1 — STRICT byte-EQ vs PITCH.BIT P1/P0/P2
 
-- [ ] RED: new `phase2c_int1_pitch_byteeq_test.go` decoding PITCH.BIT P1/P0/P2 per §4.1.3 (lines 1505–1510 / 1512–1523) and asserting STRICT equality with encoder output across all frames.
-- [ ] Iterate up to I5 budget (5 escalations max) hunting mismatches. Track each escalation in `docs/superpowers/plans/2026-05-09-phase2c-int1-escalations.md`.
-- [ ] On mismatch escalation chain: H-OQ2 (already resolved by QA-1) → H-PHASE (filter memory phasing across frame boundary; inherited from Phase 2b §H-PHASE) → H-CENTER (open-loop center off-by-one) → H-FRAC-TIE (tie-break direction in eq. A.7) → H-TMIN-EDGE.
-- [ ] If still red after I5: ACCEPT-PARTIAL writeup with plausibility computation (per Phase 2a INT-1 closure template) and LIVE-DEFERRED hypotheses listed.
-- [ ] Commit `phase2c(int1): closed-loop pitch byte-EQ vs PITCH.BIT (INT-1)`.
+- [x] RED: new `phase2c_int1_pitch_byteeq_test.go` decoding PITCH.BIT P1/P0/P2 per §4.1.3 (lines 1505–1510 / 1512–1523) and asserting STRICT equality with encoder output across all frames.
+- [x] Iterate up to I5 budget (5 escalations max) hunting mismatches. Track each escalation in `docs/superpowers/plans/2026-05-09-phase2c-int1-escalations.md`.
+- [x] On mismatch escalation chain: H-OQ2 (already resolved by QA-1) → H-PHASE (filter memory phasing across frame boundary; inherited from Phase 2b §H-PHASE) → H-CENTER (open-loop center off-by-one) → H-FRAC-TIE (tie-break direction in eq. A.7) → H-TMIN-EDGE.
+- [x] If still red after I5: ACCEPT-PARTIAL writeup with plausibility computation (per Phase 2a INT-1 closure template) and LIVE-DEFERRED hypotheses listed.
+- [x] Commit `phase2c(int1): closed-loop pitch byte-EQ vs PITCH.BIT (INT-1)`.
 
 ### INT-2 — Zero-alloc + race + bench
 
-- [ ] RED: `phase2c_int2_zeroalloc_test.go` asserts `testing.AllocsPerRun` == 0 over `closedloopStep`.
-- [ ] GREEN: convert any captured allocs to caller-owned scratch.
-- [ ] `go test -race ./...` green; bench captured.
-- [ ] Commit `phase2c(closedloop): zero-alloc + race-clean closed-loop step (INT-2)`.
+- [x] RED: `phase2c_int2_zeroalloc_test.go` asserts `testing.AllocsPerRun` == 0 over `closedloopStep`.
+- [x] GREEN: convert any captured allocs to caller-owned scratch.
+- [x] `go test -race ./...` green; bench captured.
+- [x] Commit `phase2c(closedloop): zero-alloc + race-clean closed-loop step (INT-2)`.
 
 ### INT-3 — Closure report
 
-- [ ] Write `docs/superpowers/plans/2026-05-10-phase2c-closure-report.md` mirroring 2b closure report sections (overview, INT-1 disposition, plausibility math if ACCEPT-PARTIAL, LIVE-DEFERRED list, Phase 2d entry preconditions).
-- [ ] Update master plan §4 row to CLOSED with closure-report link.
-- [ ] Commit `phase2c: closure report + master-plan flip (INT-3)`.
+- [x] Write `docs/superpowers/plans/2026-05-10-phase2c-closure-report.md` mirroring 2b closure report sections (overview, INT-1 disposition, plausibility math if ACCEPT-PARTIAL, LIVE-DEFERRED list, Phase 2d entry preconditions).
+- [x] Update master plan §4 row to CLOSED with closure-report link.
+- [x] Commit `phase2c: closure report + master-plan flip (INT-3)`.
 
 ---
 
