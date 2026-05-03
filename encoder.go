@@ -134,6 +134,12 @@ type Encoder struct {
 	ga1, gb1   uint8
 	ga2, gb2   uint8
 
+	// Phase 2f PACK-1: per-frame LSP VQ indices retained from
+	// lpcStep so buildBitstreamFrame can compose the §4.2.1 + Table 8
+	// 80-bit packed frame. Mirrors the p1/p0/p2 + s/c/ga/gb pattern
+	// above. Widths per Table 8: L0=1, L1=7, L2=5, L3=5.
+	l0, l1, l2, l3 uint16
+
 	// Per-block state owners.
 	lpc    lpc.Analyzer
 	acelp  acelp.Searcher
@@ -263,6 +269,13 @@ func (e *Encoder) lpcStep(pcm []int16) (lsp.Indices, error) {
 	lsp.LSPToLSF(&qQ15, &omega)
 
 	indices := lsp.Quantize(&omega, &e.freqPrev)
+
+	// Phase 2f PACK-1: retain the LSP VQ indices for §4.2.1 + Table 8
+	// frame packing in buildBitstreamFrame.
+	e.l0 = uint16(indices.L0)
+	e.l1 = uint16(indices.L1)
+	e.l2 = uint16(indices.L2)
+	e.l3 = uint16(indices.L3)
 
 	// Phase 2c INT-0: derive per-subframe quantized LP polynomials Â
 	// from the just-emitted indices. The decoder-side state in
