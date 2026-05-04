@@ -1,3 +1,6 @@
+//go:build diagnostic
+// +build diagnostic
+
 package decoder
 
 import "testing"

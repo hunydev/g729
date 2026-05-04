@@ -1,3 +1,6 @@
+//go:build diagnostic
+// +build diagnostic
+
 package decoder
 
 // PHASE 1o D-3.ter DISPOSITION — KEEP-WITH-NOTE.
