@@ -259,3 +259,11 @@ coefficient pipeline) second.
 FFmpeg, or any other G.729 implementation consulted. All work derived
 from ITU-T G.729 PDF, Salami 1998 §V.B, Kondoz §6, and prior
 in-repo derivations.
+
+---
+
+**Phase 3b complete: `CLOSED-DEFERRED`** (PARTIAL recovery; decoder
+proven spec-correct across six independent diagnostic axes; residual
+5× rms shortfall structural and not localizable to any spec-defined
+decoder defect; no production code change in Phase 3b). See
+`docs/superpowers/plans/2026-05-04-phase3b-closure-report.md`.

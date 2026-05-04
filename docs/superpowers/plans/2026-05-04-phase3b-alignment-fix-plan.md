@@ -234,5 +234,35 @@ Run only if DIAG-1 exonerates candidate B.
 
 ## 7. Disposition footer (filled at INT-3)
 
-`<DISPOSITION>` set by INT-3. Phase 3b plan closes when this footer
-is non-empty.
+Date: 2026-05-04 (post-`8114752`)
+Disposition: **`CLOSED-DEFERRED`** (PARTIAL recovery; decoder proven spec-correct).
+
+Six diagnostic iterations (DIAG-1..6) enumerated and **exonerated** every
+candidate cause from §1 ranking and §3 OQ table — MA gain-predictor
+cold-start, LP coefficient interpolation, adaptive-codebook FIFO +
+fractional resampling, postfilter bypass + 62-sample-shift premise (rebut),
+decoder energy-chain Salami identity, and LP spectral-envelope vs
+SPEECH.PST. The fail-gate (`rms(out)` 419 < 500 floor; SegSNR −0.90 < 0 dB)
+fires by metric, but the underlying failure is *upstream of any spec-defined
+decoder defect*. **No production code was changed in Phase 3b.**
+
+Closure report (full OQ resolutions, numerical evidence, Phase 3-final
+recommendations): `docs/superpowers/plans/2026-05-04-phase3b-closure-report.md`.
+
+| Task   | Status |
+|--------|--------|
+| DIAG-1 | [x] DONE (`faff330`) — App. E |
+| DIAG-2 | [x] DONE (`d4abbe9`) — App. F |
+| DIAG-3 | [x] DONE (`241c8d4`) — App. G (added during diagnosis) |
+| REF-1  | [-] N/A — no candidate survived to design (DIAG-1..3 all exonerated) |
+| IMPL-1 | [-] N/A — no candidate survived to fix |
+| IMPL-2 | [-] N/A — no candidate survived to fix |
+| INT-1  | [x] DONE (`f64eaf4`) — postfilter bypass discriminator + 62-sample shift premise REBUTTED — App. H |
+| INT-2  | [x] DONE (`237b40c`, `8114752`) — full-sweep + bench + race captured — App. I, J |
+| INT-3 (closure report) | [x] DONE — this footer + linked closure report |
+
+I1 risk: **none** — clean-room maintained; no ITU C reference, bcg729,
+Sipro Lab, FFmpeg, or any other G.729 implementation consulted. Sole
+external sources: ITU-T G.729 (06/2012) + Annex A PDFs, Salami 1998
+§V.B, Kondoz §6, Chu, Goldberg & Riek, Quackenbush et al. 1988,
+Oppenheim & Schafer.
