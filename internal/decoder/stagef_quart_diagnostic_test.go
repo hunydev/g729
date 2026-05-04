@@ -188,7 +188,7 @@ func decodeFquartSf0(t *testing.T, f *bitstream.Frame, ga, gb uint8) fquartBound
 	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 
 	var u [subframeLen]int16
-	synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+	synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
 
 	var out fquartBoundary
 	out.gpQ14 = gpQ14

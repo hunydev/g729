@@ -89,7 +89,7 @@ func TestDiagnostic_FsextPostfilterChain_Sf0Sample5to7(t *testing.T) {
 	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 
 	var u [subframeLen]int16
-	synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+	synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
 
 	// 4 chain stage capture
 	var syn synth.Synthesizer

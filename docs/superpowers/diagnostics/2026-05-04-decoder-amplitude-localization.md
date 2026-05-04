@@ -412,3 +412,40 @@ holds on PITCH/ALGTHM corpora before REF-1 freezes the API.
 
 No external G.729 implementation (ITU C reference, bcg729, Sipro
 Lab, FFmpeg, …) was consulted in producing this section.
+
+## 7. Appendix B — Post-IMPL-2 amplitude profile (2026-05-04)
+
+After Phase 3a IMPL-2 (synth.BuildExcitation switched from a single
+saturated g_c (Q12, int16) to the native (mantissa Q14, exponent int8)
+pair returned by gain.Decode per REF-1 §2), the decoder no longer
+truncates large g_c excursions at the Q12 boundary. The
+TestPhase3Diag_DecoderAmplitudeProfile per-frame snapshot (TAME
+SPEECH corpus) is now (selected frames):
+
+```
+frame    0 ourRMS=     0.8 pstRMS=     1.1 maxAbs=    4
+frame    4 ourRMS=    59.4 pstRMS=   102.1 maxAbs=  220
+frame    6 ourRMS=   172.6 pstRMS=   756.7 maxAbs=  444
+frame  600 ourRMS=   604.9 pstRMS=  3307.1 maxAbs= 1654
+frame 1400 ourRMS=  1713.7 pstRMS=  3948.8 maxAbs= 3566
+frame 2400 ourRMS=   552.1 pstRMS=  5833.5 maxAbs= 1420
+frame 3400 ourRMS=   907.0 pstRMS=  1666.8 maxAbs= 1542
+```
+
+Global max |sample| over 3750 frames: **5262** (was substantially
+lower under the Q12-saturated path at IMPL-1). The remaining residual
+ourRMS-vs-pstRMS gap on high-energy frames now sits in the
+post-filter / synthesis chain, not the gain-VQ saturation envelope —
+consistent with the REF-1 §2 prediction that the (mant, exp) format
+restores the dynamic range claimed by §3.9.2.
+
+Bench (Phase 3a IMPL-2, AMD EPYC 9554P, count=3):
+
+```
+BenchmarkBuildExcitation-2   235.0 ns/op   0 B/op   0 allocs/op
+BenchmarkBuildExcitation-2   250.3 ns/op   0 B/op   0 allocs/op
+BenchmarkBuildExcitation-2   257.1 ns/op   0 B/op   0 allocs/op
+```
+
+Allocation contract preserved (0 allocs/op) — the additional int8
+exponent argument is a value type, no heap traffic introduced.

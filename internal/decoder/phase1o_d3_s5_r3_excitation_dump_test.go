@@ -191,7 +191,7 @@ func TestPhase1o_D3_S5_R3_ExcitationDump(t *testing.T) {
 	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 
 	var u [subframeLen]int16
-	synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+	synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
 
 	t.Logf("=== Phase 1o D-3 S-5 R-3 BuildExcitation excitation dump ===")
 	t.Logf("Inputs (TAME frame 0 sf0):")

@@ -10,7 +10,7 @@ c[i] = int16(i * 27)
 }
 
 allocs := testing.AllocsPerRun(100, func() {
-BuildExcitation(12000, 1500, &v, &c, &u)
+BuildExcitation(12000, 6000, 0, &v, &c, &u)
 })
 if allocs != 0 {
 t.Errorf("BuildExcitation allocs = %v, want 0", allocs)
@@ -27,7 +27,7 @@ c[i] = int16((i - 5) * 200)
 }
 
 allocs := testing.AllocsPerRun(100, func() {
-synth.Synthesize(&a, &v, &c, 12000, 1500, &s)
+synth.Synthesize(&a, &v, &c, 12000, 6000, 0, &s)
 })
 if allocs != 0 {
 t.Errorf("Synthesize allocs = %v, want 0", allocs)

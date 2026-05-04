@@ -328,10 +328,12 @@ c[0], c[1], c[2], c[3] = 8192, 8192, 8192, 8192
 c[20], c[21], c[22], c[23] = 8192, 8192, 8192, 8192
 
 const gpQ14 int16 = 13815
-const gcQ12 int16 = 6844
+// gcQ12=6844 (g_c≈1.671) → mant=6844*4=27376, exp=0.
+const gcMantQ14 int16 = 27376
+const gcExp int8 = 0
 
 var u [40]int16
-BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+BuildExcitation(gpQ14, gcMantQ14, gcExp, &v, &c, &u)
 t.Logf("u[0..15] = %v", u[:16])
 
 var sy Synthesizer

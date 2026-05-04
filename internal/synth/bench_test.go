@@ -20,7 +20,7 @@ func init() {
 func BenchmarkBuildExcitation(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		BuildExcitation(12000, 1500, &benchV, &benchC, &benchU)
+		BuildExcitation(12000, 6000, 0, &benchV, &benchC, &benchU)
 	}
 }
 
@@ -28,7 +28,7 @@ func BenchmarkSynthesize(b *testing.B) {
 	var synth Synthesizer
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		synth.Synthesize(&benchA, &benchV, &benchC, 12000, 1500, &benchS)
+		synth.Synthesize(&benchA, &benchV, &benchC, 12000, 6000, 0, &benchS)
 	}
 }
 

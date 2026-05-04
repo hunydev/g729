@@ -202,7 +202,7 @@ func TestPhase1o_D3_S3_HandoffDump(t *testing.T) {
 		t.Logf("c[0..7]=%v", c[:8])
 
 		var u [subframeLen]int16
-		synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+		synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
 		t.Logf("u[0..7]=%v", u[:8])
 
 		var s [subframeLen]int16

@@ -99,7 +99,7 @@ func (d *Decoder) decodeSubframeWithTaps(
 	taps.GpQ14 = gpQ14
 	taps.GcQ12 = gcQ12
 
-	synth.BuildExcitation(gpQ14, gcQ12, &taps.V, &taps.C, &taps.U)
+	synth.BuildExcitation(gpQ14, gainTaps.GcMantQ14, gainTaps.GcExp, &taps.V, &taps.C, &taps.U)
 
 	d.syn.Filter(sfA, &taps.U, &taps.S)
 

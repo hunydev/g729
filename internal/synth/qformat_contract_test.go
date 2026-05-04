@@ -44,28 +44,32 @@ func TestQFormatContract_BuildExcitationCodeTermIsQ26ThenQ15(t *testing.T) {
 	}
 }
 
-// TestQFormatContract_BuildExcitationSinglePulseProducesGcQ12 — when
-// gpQ14 = 0 and v = 0, with c being a single Q13 pulse and gcQ12 a
-// known value, u[0] should equal round-to-int(gcQ12 / 4096) =
-// round-to-int(true gc).
+// TestQFormatContract_BuildExcitationSinglePulseProducesGc — when
+// gpQ14 = 0 and v = 0, with c being a single Q13 pulse and g_c specified
+// via (mantQ14, exp), u[0] should equal round(g_c).
 func TestQFormatContract_BuildExcitationSinglePulseProducesGcQ12(t *testing.T) {
 	tests := []struct {
-		name  string
-		gcQ12 int16
-		want  int16
+		name string
+		mant int16
+		exp  int8
+		want int16
 	}{
-		{"gc=1.0 (Q12=4096)", 4096, 1},
-		{"gc=2.0 (Q12=8192)", 8192, 2},
-		{"gc=5.5 (Q12=22528)", 22528, 6},
-		{"gc=0.0", 0, 0},
+		// gcQ12=4096 (g_c=1.0) → mant=16384, exp=0
+		{"gc=1.0 (mant=16384,exp=0)", 16384, 0, 1},
+		// gcQ12=8192 (g_c=2.0) → mant=16384, exp=1
+		{"gc=2.0 (mant=16384,exp=1)", 16384, 1, 2},
+		// gcQ12=22528 (g_c=5.5) → mant=22528, exp=1 (22528*2*2^-14 = 2.75? no)
+		// Actually g_c=5.5: mant=22528, exp=2 → 22528*2^(2-14)=22528/4096=5.5 ✓
+		{"gc=5.5 (mant=22528,exp=2)", 22528, 2, 6},
+		{"gc=0.0", 0, 0, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var v, c, u [40]int16
 			c[0] = 1 << 13
-			BuildExcitation(0, tt.gcQ12, &v, &c, &u)
+			BuildExcitation(0, tt.mant, tt.exp, &v, &c, &u)
 			if u[0] != tt.want {
-				t.Errorf("u[0] = %d, want %d (= round(gcQ12/4096))",
+				t.Errorf("u[0] = %d, want %d (= round(g_c))",
 					u[0], tt.want)
 			}
 		})

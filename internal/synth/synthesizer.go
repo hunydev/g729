@@ -5,11 +5,12 @@ package synth
 //
 // Inputs:
 //
-//	a        — LP coefficients for this subframe (Q12, a[0] = 4096)
-//	v        — adaptive codebook vector (Q0, from internal/pitch)
-//	c        — fixed codebook vector (Q13, from internal/fcb)
-//	gpQ14    — adaptive codebook gain (Q14, from internal/gain)
-//	gcQ12    — fixed codebook gain (Q12, from internal/gain)
+//	a          — LP coefficients for this subframe (Q12, a[0] = 4096)
+//	v          — adaptive codebook vector (Q0, from internal/pitch)
+//	c          — fixed codebook vector (Q13, from internal/fcb)
+//	gpQ14      — adaptive codebook gain (Q14, from internal/gain)
+//	gcMantQ14  — fixed codebook gain mantissa (Q14, from internal/gain)
+//	gcExp      — fixed codebook gain exponent (int8, from internal/gain)
 //
 // Output:
 //
@@ -19,9 +20,9 @@ package synth
 // 10 samples of s, ready for the next subframe.
 //
 // Zero-allocation: the intermediate excitation lives on this function's stack.
-func (synth *Synthesizer) Synthesize(a *[11]int16, v, c *[40]int16, gpQ14, gcQ12 int16, s *[40]int16) {
+func (synth *Synthesizer) Synthesize(a *[11]int16, v, c *[40]int16, gpQ14, gcMantQ14 int16, gcExp int8, s *[40]int16) {
 	var u [40]int16
-	BuildExcitation(gpQ14, gcQ12, v, c, &u)
+	BuildExcitation(gpQ14, gcMantQ14, gcExp, v, c, &u)
 	synth.filterSubframe(a, &u, s)
 }
 

@@ -297,7 +297,7 @@ gpQ14, gcMant_gcQ12, gcExp_gcQ12 := d.gn.Decode(gain.Indices{GA: sf.GA, GB: sf.G
 gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 
 var u [subframeLen]int16
-synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
 
 var s [subframeLen]int16
 sfACopy := sf.sfA

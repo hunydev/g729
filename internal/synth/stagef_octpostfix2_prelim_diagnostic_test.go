@@ -62,10 +62,9 @@ func TestDiagnostic_FoctPostfix2PrelimM3IIRMemory(t *testing.T) {
 	fcb.Decode(fcb.Indices{Positions: f.C1, Signs: uint8(f.S1)}, tInt, betaQ14, &c)
 	var gn gain.Decoder
 	gn.Reset()
-	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
-	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
+	gpQ14, gcMant, gcExp := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
 	var u [40]int16
-	BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+	BuildExcitation(gpQ14, gcMant, gcExp, &v, &c, &u)
 
 	t.Logf("──────── M3 fixture (ALGTHM frame 0 sf0) ────────")
 	t.Logf("LP a[0..10] (Q12, a[0]=4096) = %v", sfA)

@@ -78,14 +78,13 @@ func TestDiagnostic_FnonCgammaRevisit2SynthIIRMemoryTrace(t *testing.T) {
 	fcb.Decode(fcb.Indices{Positions: f.C1, Signs: uint8(f.S1)}, tInt, betaQ14, &c)
 	var gn gain.Decoder
 	gn.Reset()
-	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
-	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
+	gpQ14, gcMant, gcExp := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
 	var u [40]int16
-	BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+	BuildExcitation(gpQ14, gcMant, gcExp, &v, &c, &u)
 
 	t.Logf("──────── G-2 sub-test A fixture (ALGTHM frame 0 sf0) ────────")
 	t.Logf("LP a[0..10] (Q12, a[0]=4096) = %v", a)
-	t.Logf("g_p (Q14)=%+d   g_c (Q12)=%+d", gpQ14, gcQ12)
+	t.Logf("g_p (Q14)=%+d   g_c=(mant=%d, exp=%d)", gpQ14, gcMant, gcExp)
 	t.Logf("v[0..7] (adaptive cb) = %v", [8]int16{v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]})
 	t.Logf("c[0..7] (fixed cb, Q13) = %v", [8]int16{c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]})
 	t.Logf("u[0..7] (excitation, Q0) = %v", [8]int16{u[0], u[1], u[2], u[3], u[4], u[5], u[6], u[7]})
@@ -248,10 +247,9 @@ func TestDiagnostic_FnonCgammaRevisit2YMagnitudePerturbationTrace(t *testing.T) 
 	fcb.Decode(fcb.Indices{Positions: f.C1, Signs: uint8(f.S1)}, tInt, betaQ14, &c)
 	var gn gain.Decoder
 	gn.Reset()
-	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
-	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
+	gpQ14, gcMant, gcExp := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
 	var u [40]int16
-	BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+	BuildExcitation(gpQ14, gcMant, gcExp, &v, &c, &u)
 
 	t.Logf("──────── G-2 sub-test B fixture (ALGTHM frame 0 sf0) ────────")
 	t.Logf("baseline a[0..10] (Q12) = %v", a)

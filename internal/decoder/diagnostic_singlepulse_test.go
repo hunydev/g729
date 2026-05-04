@@ -94,7 +94,7 @@ func TestDiagnostic_SinglePulseChain(t *testing.T) {
 		expectedGcPrime)
 
 	var v, u [40]int16
-	synth.BuildExcitation(0, gcQ12, &v, &c, &u)
+	synth.BuildExcitation(0, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
 	t.Logf("[⑪ u] u[0]=%d (= round(gcQ12/4096) = round(%.4f) = expect %d)",
 		u[0], gcTrue, int(math.Round(gcTrue)))
 

@@ -80,7 +80,7 @@ func TestDiagnostic_FourPulseCanonicalChain(t *testing.T) {
 		gcQ12 == 32767 || gcQ12 == -32768)
 
 	var v, u [40]int16
-	synth.BuildExcitation(0, gcQ12, &v, &c, &u)
+	synth.BuildExcitation(0, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
 	t.Logf("[⑪ u] u[5]=%d u[11]=%d u[22]=%d u[33]=%d (other=0 expected)",
 		u[5], u[11], u[22], u[33])
 
@@ -149,7 +149,7 @@ func TestDiagnostic_PitchActivePulseChain(t *testing.T) {
 	t.Logf("[⑩ gain] gcQ12=%d (true gc=%.4f)", gcQ12, gcTrue)
 
 	var u [40]int16
-	synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+	synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
 	t.Logf("[⑪ u] u[0..7]=%v", u[:8])
 	t.Logf("[⑪ u] u[20..27]=%v", u[20:28])
 	t.Logf("[⑪ u] u[32..39]=%v", u[32:40])

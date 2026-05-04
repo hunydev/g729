@@ -88,21 +88,34 @@ func TestDiagnostic_FseptExcitationDecomposition_Sf0Sample5(t *testing.T) {
 	t.Logf("c[] sample 0..7 = [%+5d %+5d %+5d %+5d %+5d %+5d %+5d %+5d]",
 		c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7])
 
-	// (e) gain → gp_q14, gc_q12
+	// (e) gain → gp_q14, (gc mant Q14, gc exp)
 	var gn gain.Decoder
 	gn.Reset()
 	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
-	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
-	t.Logf("gain sf0: gp_q14=%d gc_q12=%d (beta_q14=%d, GA1=%d GB1=%d)",
-		gpQ14, gcQ12, betaQ14, f.GA1, f.GB1)
+	t.Logf("gain sf0: gp_q14=%d gc(mant=%d,exp=%d) (beta_q14=%d, GA1=%d GB1=%d)",
+		gpQ14, gcMant_gcQ12, gcExp_gcQ12, betaQ14, f.GA1, f.GB1)
+
+	// Local helper mirroring synth.BuildExcitation's code-half (REF-1 §2):
+	// lCode at Q15 = LMult(gcMantQ14, c[n]) shifted by (13 - gcExp).
+	lCodeOf := func(cn int16) fixed.Word32 {
+		if gcMant_gcQ12 == 0 {
+			return 0
+		}
+		prod32 := fixed.LMult(fixed.Word16(gcMant_gcQ12), fixed.Word16(cn))
+		shiftR := 13 - int(gcExp_gcQ12)
+		if shiftR >= 0 {
+			return fixed.LShr(prod32, fixed.Word16(shiftR))
+		}
+		return fixed.LShl(prod32, fixed.Word16(-shiftR))
+	}
 
 	// (f) excitation u[0..7] 분해 trace — production BuildExcitation 알고리즘 재현.
 	t.Logf("──────── excitation u[0..7] 분해 trace (§4.1.6 eq. 75) ────────")
-	t.Logf("[ n]   v       c        lPitch=LMult(gp,v)   lCode=LShr(LMult(gc,c),11)   lSum         u")
+	t.Logf("[ n]   v       c        lPitch=LMult(gp,v)   lCode=mantExp-shift(c)   lSum         u")
 	var u [subframeLen]int16
 	for n := 0; n <= 7; n++ {
 		lPitch := fixed.LMult(fixed.Word16(gpQ14), fixed.Word16(v[n]))
-		lCode := fixed.LShr(fixed.LMult(fixed.Word16(gcQ12), fixed.Word16(c[n])), 11)
+		lCode := lCodeOf(c[n])
 		lSum := fixed.LAdd(lPitch, lCode)
 		u[n] = int16(fixed.Round(fixed.LShl(lSum, 1)))
 		t.Logf("[%2d] %+5d  %+5d   %+12d         %+12d              %+12d  %+5d",
@@ -111,7 +124,7 @@ func TestDiagnostic_FseptExcitationDecomposition_Sf0Sample5(t *testing.T) {
 
 	// (g) sample 5 집중 분석.
 	lPitch5 := fixed.LMult(fixed.Word16(gpQ14), fixed.Word16(v[5]))
-	lCode5 := fixed.LShr(fixed.LMult(fixed.Word16(gcQ12), fixed.Word16(c[5])), 11)
+	lCode5 := lCodeOf(c[5])
 	lSum5 := fixed.LAdd(lPitch5, lCode5)
 	u5 := int16(fixed.Round(fixed.LShl(lSum5, 1)))
 
@@ -495,9 +508,8 @@ fcb.Decode(fcb.Indices{Positions: f.C1, Signs: uint8(f.S1)}, tInt, betaQ14, &c)
 var gn gain.Decoder
 gn.Reset()
 gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
-gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 var u [subframeLen]int16
-synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
 
 t.Logf("u[] sample 0..7 = [%+d %+d %+d %+d %+d %+d %+d %+d]",
 u[0], u[1], u[2], u[3], u[4], u[5], u[6], u[7])

@@ -111,9 +111,8 @@ func TestDiagnostic_FnonCgammaRevisit1PostfilterSubStageTrace(t *testing.T) {
 	var gn gain.Decoder
 	gn.Reset()
 	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
-	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 	var u [subframeLen]int16
-	synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+	synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
 
 	// (3) Synth IIR — pre-postfilter input s[] per §4.1.6.
 	var syn synth.Synthesizer

@@ -34,10 +34,9 @@ func (d *Decoder) decodeSubframe(
 	fcb.Decode(fcb.Indices{Positions: C, Signs: S}, tInt, betaQ14, &c)
 
 	gpQ14, gcMant, gcExp := d.gn.Decode(gain.Indices{GA: GA, GB: GB}, &c)
-	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant, gcExp)
 
 	var u [subframeLen]int16
-	synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+	synth.BuildExcitation(gpQ14, gcMant, gcExp, &v, &c, &u)
 
 	var s [subframeLen]int16
 	d.syn.Filter(sfA, &u, &s)

@@ -35,7 +35,7 @@ for i := range v {
 v[i] = int16(500 + i*10)
 }
 
-synth.Synthesize(&a, &v, &c, 16384, 0, &s)
+synth.Synthesize(&a, &v, &c, 16384, 0, 0, &s)
 
 for i := range s {
 if s[i] != v[i] {
@@ -55,12 +55,13 @@ c[i] = int16((i - 20) * 400)
 
 var synthRef Synthesizer
 var uRef, sRef [40]int16
-BuildExcitation(10000, 2000, &v, &c, &uRef)
+// gcQ12=2000 → mant=8000, exp=0 (preserves intent: g_c ≈ 0.488).
+BuildExcitation(10000, 8000, 0, &v, &c, &uRef)
 synthRef.filterSubframe(&a, &uRef, &sRef)
 
 var synthUUT Synthesizer
 var sUUT [40]int16
-synthUUT.Synthesize(&a, &v, &c, 10000, 2000, &sUUT)
+synthUUT.Synthesize(&a, &v, &c, 10000, 8000, 0, &sUUT)
 
 for i := range sRef {
 if sRef[i] != sUUT[i] {
@@ -85,7 +86,8 @@ c[i] = int16((i - 10) * 200)
 
 var synthRef Synthesizer
 var sRef [40]int16
-synthRef.Synthesize(&a, &v, &c, 12000, 1500, &sRef)
+// gcQ12=1500 → mant=6000, exp=0 (preserves intent: g_c ≈ 0.366).
+synthRef.Synthesize(&a, &v, &c, 12000, 6000, 0, &sRef)
 
 var synthUUT Synthesizer
 for i := range synthUUT.pastSynth {
@@ -94,7 +96,7 @@ synthUUT.pastSynth[i] = int16(5000 - i*50)
 synthUUT.Reset()
 
 var sUUT [40]int16
-synthUUT.Synthesize(&a, &v, &c, 12000, 1500, &sUUT)
+synthUUT.Synthesize(&a, &v, &c, 12000, 6000, 0, &sUUT)
 
 for i := range sRef {
 if sRef[i] != sUUT[i] {
@@ -110,8 +112,8 @@ a := [11]int16{4096, 4000, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 
 v1[0] = 4000
 
-synth.Synthesize(&a, &v1, &c, 16384, 0, &s1)
-synth.Synthesize(&a, &v2, &c, 0, 0, &s2)
+synth.Synthesize(&a, &v1, &c, 16384, 0, 0, &s1)
+synth.Synthesize(&a, &v2, &c, 0, 0, 0, &s2)
 
 anyNonZero := false
 for i := range s2 {
@@ -133,14 +135,16 @@ v[i] = int16(100 + 3*i)
 c[i] = int16(50 - 2*i)
 }
 gpQ14 := int16(8192)
-gcQ12 := int16(2048)
+// gcQ12=2048 → mant=8192, exp=0 (g_c=0.5).
+gcMantQ14 := int16(8192)
+gcExp := int8(0)
 
 var sRef [40]int16
 var synRef Synthesizer
-synRef.Synthesize(&a, &v, &c, gpQ14, gcQ12, &sRef)
+synRef.Synthesize(&a, &v, &c, gpQ14, gcMantQ14, gcExp, &sRef)
 
 var u, sSplit [40]int16
-BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+BuildExcitation(gpQ14, gcMantQ14, gcExp, &v, &c, &u)
 var synSplit Synthesizer
 synSplit.Filter(&a, &u, &sSplit)
 

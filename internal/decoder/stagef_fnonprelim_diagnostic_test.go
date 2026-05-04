@@ -79,11 +79,10 @@ func TestDiagnostic_FnonPrelimXExcitationSubterms(t *testing.T) {
 	var gn gain.Decoder
 	gn.Reset()
 	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
-	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
-
+	
 	// (2) Production composite excitation u[0..39].
 	var u [subframeLen]int16
-	synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+	synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
 
 	// (3) Sub-term isolated excitation contributions (Q0, post-Round)
 	//     by re-running BuildExcitation with one gain zeroed. This
@@ -91,10 +90,10 @@ func TestDiagnostic_FnonPrelimXExcitationSubterms(t *testing.T) {
 	//     therefore yields the per-sample sub-term Q0 contribution
 	//     that the spec eq. (75) defines, modulo cross-rounding ±1.
 	var uPitchOnly [subframeLen]int16
-	synth.BuildExcitation(gpQ14, 0, &v, &c, &uPitchOnly)
+	synth.BuildExcitation(gpQ14, 0, 0, &v, &c, &uPitchOnly)
 
 	var uCodeOnly [subframeLen]int16
-	synth.BuildExcitation(0, gcQ12, &v, &c, &uCodeOnly)
+	synth.BuildExcitation(0, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &uCodeOnly)
 
 	// (4) Raw pre-Round Q15 sub-term values (additive in the Q15
 	//     domain *before* rounding to Q0). Useful when |contribution|
@@ -105,7 +104,18 @@ func TestDiagnostic_FnonPrelimXExcitationSubterms(t *testing.T) {
 	var lSumQ15 [subframeLen]int32
 	for n := 0; n < subframeLen; n++ {
 		lp := fixed.LMult(fixed.Word16(gpQ14), fixed.Word16(v[n]))
-		lc := fixed.LShr(fixed.LMult(fixed.Word16(gcQ12), fixed.Word16(c[n])), 11)
+		// Replicate BuildExcitation's code-half: prod32 = LMult(mant, c[n])
+		// at Q28; right-shift by (13 - gcExp) lands at Q15.
+		var lc fixed.Word32
+		if gcMant_gcQ12 != 0 {
+			prod32 := fixed.LMult(fixed.Word16(gcMant_gcQ12), fixed.Word16(c[n]))
+			shiftR := 13 - int(gcExp_gcQ12)
+			if shiftR >= 0 {
+				lc = fixed.LShr(prod32, fixed.Word16(shiftR))
+			} else {
+				lc = fixed.LShl(prod32, fixed.Word16(-shiftR))
+			}
+		}
 		ls := fixed.LAdd(lp, lc)
 		lPitchQ15[n] = int32(lp)
 		lCodeQ15[n] = int32(lc)
@@ -127,7 +137,7 @@ func TestDiagnostic_FnonPrelimXExcitationSubterms(t *testing.T) {
 	t.Logf("indices: P1=%d C1=0x%04x S1=0x%x GA1=%d GB1=%d", f.P1, f.C1, f.S1, f.GA1, f.GB1)
 	t.Logf("pitch delay: tInt=%d tFrac=%d   beta_q14=%d", tInt, tFrac, betaQ14)
 	t.Logf("[X g_p Q14]  value=%+6d  sign=%s  Q-format=Q14", gpQ14, signOfInt16(gpQ14))
-	t.Logf("[X g_c Q12]  value=%+6d  sign=%s  Q-format=Q12", gcQ12, signOfInt16(gcQ12))
+	t.Logf("[X g_c]      mant=%+6d exp=%+d (linear g_c=mant·2^(exp-14))", gcMant_gcQ12, gcExp_gcQ12)
 
 	t.Logf("──────── sub-term raw (sample 0..4) ────────")
 	t.Logf("[X v[0..4]]    pitch codebook v   = [%+6d %+6d %+6d %+6d %+6d]  signs=[%s %s %s %s %s]",
@@ -216,9 +226,8 @@ func decodeFnonProdU(t *testing.T, framePacked []byte) [subframeLen]int16 {
 	var gn gain.Decoder
 	gn.Reset()
 	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
-	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 	var u [subframeLen]int16
-	synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+	synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
 	return u
 }
 
@@ -401,9 +410,8 @@ fcb.Decode(fcb.Indices{Positions: f.C1, Signs: uint8(f.S1)}, tInt, betaQ14, &c)
 var gn gain.Decoder
 gn.Reset()
 gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
-gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 var u [subframeLen]int16
-synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
+synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
 
 // Baseline syn[] with production a[].
 var synBase [subframeLen]int16
