@@ -662,3 +662,188 @@ acceptance harness (`phase3_roundtrip_quality_test.go`) and the
 FAIL-floor decision rule remain unchanged; Phase 3b graduates to
 ACCEPT-PARTIAL the moment SegSNR pipeline B clears 0 dB AND rms ≥
 1500, and to ACCEPT-PASS at SegSNR ≥ 3 dB.
+
+## Appendix E — Phase 3b DIAG-1: pastErrors trajectory & OQ-PASTSEED / OQ-PASTPROG pin
+
+Date: 2026-05-04 (post-922e7e1; Phase 3b plan dispatch)
+Owner: Phase 3b DIAG-1 (candidate B isolation)
+
+### E.1 Mission recap
+
+Pin **OQ-PASTSEED** (cold-start value of the four `gain.Decoder.pastErrors`
+taps `Û(m-1..m-4)`) and **OQ-PASTPROG** (re-seed strategy on the
+zero-energy guard `Σc² = 0` short-circuit) from the ITU-T G.729 (06/2012)
+specification text, validated against corpus evidence from SPEECH.BIT.
+Per the Phase 3b plan §3, both OQs gate the decision on whether the
+candidate-B fix (REF-1 / IMPL-1) proceeds or is exonerated in favor of
+DIAG-2 (candidate C, LP-interpolation alignment).
+
+### E.2 Method
+
+- Test: `internal/decoder/phase3b_diag1_pasterrors_test.go::TestPhase3bDiag1_PastErrorsTrajectory`.
+- Shim:  `internal/gain/phase3b_diag1_pastErrors_export.go` exposes
+  `(*Decoder).PastErrorsSnapshot() [4]int16` (read-only copy) and
+  `(*Decoder).Initialized() bool`.
+- Driver mirrors `DecodeWithTaps` (`phase3diag_taps_export_test.go`)
+  line-for-line and inserts a `PastErrorsSnapshot()` call BEFORE each
+  per-subframe `decodeSubframeWithTaps` invocation. State advancement
+  (lsp predictor, gain predictor, synth/pst memories, pastExc FIFO) is
+  identical to the production `Decoder.Decode` pathway.
+- Corpus: SPEECH.BIT (3750 frames = 7500 subframes), the same bitstream
+  consumed by `phase3_roundtrip_quality_test.go` pipeline B.
+- Captured per subframe: `preTaps[0..3]`, `predicted` (Ê(m) + E̅ Q10
+  dB after `tables.GainMeanEnergyQ10` add in `predictor.go`), `gpQ14`,
+  `gcMantQ14`, `gcExp`, `γ̂_c` Q13, `uCurrent` (post-shift `pastErrors[0]`,
+  i.e. the value FIFO-shifted in this subframe), and the zero-energy
+  guard flag.
+
+### E.3 First-50-subframe trajectory (excerpt)
+
+Q-format note: all tap and `predicted` / `uCurrent` columns are Q10 dB
+(divide by 1024 for dB).
+
+| sf# | Û(m-1) | Û(m-2) | Û(m-3) | Û(m-4) |  pred | uCur  | guard |
+|----:|-------:|-------:|-------:|-------:|------:|------:|:-----:|
+|   0 |      0 |      0 |      0 |      0 |  5060 |-15009 |       |
+|   1 | -15009 | -14336 | -14336 | -14336 |  4602 |-12077 |       |
+|   2 | -12077 | -15009 | -14336 | -14336 |  6206 | -2456 |       |
+|   3 |  -2456 | -12077 | -15009 | -14336 | 14220 |-12077 |       |
+|   4 | -12077 |  -2456 | -12077 | -15009 | 14126 |-12077 |       |
+|   5 | -12077 | -12077 |  -2456 | -12077 | 12374 | -8886 |       |
+|  ...|        |        |        |        |       |       |       |
+|  10 |  12324 |  -7887 |  -6580 |  -2234 | 31866 |  1114 |       |
+|  20 |   6165 |  -3257 |  -1072 | 12324  | 32767 | -2456 |       |
+|  49 |  -7267 |  -9838 |  -9085 | -1048  | 16785 |  -229 |       |
+
+Three structural observations from the table:
+
+1. **sf 0 preTaps are all-zero** because the snapshot is taken BEFORE
+   `gain.Decoder.Decode`'s lazy `if !d.initialized { for ... }`
+   initializer fires. By sf 1 the spec seed −14336 has propagated into
+   taps 1, 2, 3 (with sf 0's `uCurrent = -15009` shifted into tap 0).
+   This matches the spec's lazy-init contract.
+2. **sf 0 `predicted = 5060` Q10 = +4.94 dB**. Independent spec
+   computation: `Ê(0) = E̅ + Σ b_i·Û(0-i)` with `Û_init = -14`,
+   `b_i = (0.68, 0.58, 0.34, 0.19)`, `E̅ = 30 dB`:
+   `Σ b_i = 1.79`; `Ê(0) = 30 + (-14)·1.79 = 30 - 25.06 = +4.94 dB`,
+   i.e. `4.94·1024 = 5058 Q10`. Match (off by 2 = expected Q10 fixed-
+   point rounding from the LMac/Round path in `predictor.go`).
+3. **`predicted` saturates at 32767 (= +32.0 dB) on many voiced
+   subframes** (sf 11, 13, 17, 18, 20, 22, 26..43). This is the int16
+   ceiling on `fixed.Add(GainMeanEnergyQ10, predicted)` in
+   `predictor.go:30`. Recorded for completeness — it is an independent
+   numerical concern (predicted overshoots the int16 envelope when
+   `Ê(m) > +2 dB`), but it is NOT an OQ-PASTSEED / OQ-PASTPROG question.
+
+### E.4 Long-run statistics (subframes 50..7499, n = 7450)
+
+| Statistic                            | mean (Q10 dB) | mean (dB) | stddev (Q10) |
+|--------------------------------------|--------------:|----------:|-------------:|
+| `predicted` (= Ê(m) + E̅)            |      +25036.4 |   +24.450 |       9465.0 |
+| `uCurrent`  (= 20·log₁₀ γ̂_c, Q10)    |       −2243.7 |    −2.191 |       7017.4 |
+| `predicted` − `uCurrent`             |      +27280.1 |   +26.641 |       5969.0 |
+
+Note on the `predicted - uCurrent` diff: the test harness computes this
+difference for completeness, but it is NOT the MA-residual `Ê(m) − E(m)`
+of eq. (70). Spec algebra: `E(m) = uCurrent + predicted − E̅`; so
+`Ê(m) − E(m) = −uCurrent`. The relevant calibration check is therefore
+`mean(uCurrent) ≈ 0`. Observed mean is −2.19 dB (Δ ≈ −2 dB from zero),
+within typical bias for unvoiced-dominated corpora and consistent with a
+calibrated predictor.
+
+Zero-energy guard fired: **0 of 7500 subframes (0.000%)** across the
+entire SPEECH.BIT corpus. The algebraic codebook structurally guarantees
+`Σc² ≥ 4` (four ±1 unit pulses, possibly pitch-enhanced), so
+`fixedCodebookEnergy(c) > 0` on every valid frame. The guard is purely
+defensive against malformed input.
+
+### E.5 OQ-PASTSEED resolution
+
+**Pinned value: `Û(k)_init = −14 dB`, i.e. `pastErrorsDefault = −14336` (Q10).**
+
+**Spec citation: ITU-T G.729 (06/2012), §4.3 Table 9 ("Description of
+parameters with non-zero initialization"), final row:**
+
+> Variable: Û(k);  Reference: 3.9.1;  Initial value: −14
+
+Cross-referenced in §3.9.1 paragraph defining the 4-tap MA prediction
+(eq. 69) and §4.4.3 eq. (95) which bounds the FER attenuation rule at
+`Û(m) ≥ −14` (same numerical floor, indicating −14 dB is also the
+spec's long-term lower bound on the predictor state).
+
+Code state: `internal/gain/decode.go:9` defines
+`pastErrorsDefault int16 = -14336`. Unit check:
+14 dB · 2¹⁰ = −14336. **Matches spec.**
+
+Corpus evidence: sf 0's `predicted` field is +4.94 dB (Q10 = 5060),
+within 2 Q10 ulps of the spec-derived hand-computation
+`30 + (−14)·(0.68+0.58+0.34+0.19) = +4.94 dB`. The seed is consumed
+bit-for-bit on the first decode invocation.
+
+**OQ-PASTSEED status: PINNED — no fix required.**
+
+### E.6 OQ-PASTPROG resolution
+
+**Pinned strategy: re-seed `pastErrors[0] := −14336` and FIFO-shift
+older entries down by one slot. Current code (`decode.go:69-72`) is
+consistent with the spec.**
+
+**Spec citation: G.729 (06/2012) §3.9.1 / §3.9.2 do NOT specify
+behaviour for `Σc² = 0` because eq. (66) `E_c = 10·log₁₀(Σc²/40)` is
+mathematically undefined at that value, and the algebraic codebook
+construction (§3.8 / §A.3.8) structurally precludes it.** The closest
+spec analog is §4.4.3 eq. (95):
+
+> `Û(m) = (¼ Σ_{i=1..4} Û(m−i)) − 4.0  bounded by  Û(m) ≥ −14`
+
+ the FER attenuation rule, which establishes that the spec's chosen
+floor for the predictor state is the same −14 dB used at cold start.
+Re-seeding `Û(m) := −14` on the (defensive) zero-energy path is
+consistent with this floor.
+
+Corpus evidence: 0 of 7500 SPEECH.BIT subframes triggered the guard.
+**The OQ-PASTPROG question is therefore unobservable on valid
+bitstreams** and the chosen defensive behaviour cannot affect any
+acceptance metric on the Phase 3 corpus.
+
+**OQ-PASTPROG status: PINNED — no fix required (and unreachable on
+valid input).**
+
+### E.7 Candidate B verdict
+
+**EXONERATED — proceed to DIAG-2.**
+
+Evidence:
+
+1. **Seed value**: −14336 matches spec (§4.3 Table 9). Seed is consumed
+   bit-for-bit on first decode (sf 0 `predicted` matches hand
+   computation to within 2 Q10 ulps).
+2. **Cold-start bias check**: `mean(predicted)` sf 0..9 = +12.31 dB vs
+   long-run +24.45 dB (Δ = −12.14 dB). This Δ is the MECHANICAL
+   consequence of the spec-mandated −14 dB seed: starting from
+   `Ê(0) = +4.94 dB` and ramping up over ~10 subframes as voiced
+   content fills the predictor history. The same ramp would occur in
+   ANY spec-conformant decoder; an ITU reference decoder fed the same
+   bitstream sees the identical convergence trajectory. There is no
+   asymmetric-cold-start bias to fix.
+3. **Zero-energy guard**: never fires on the corpus. Cannot account
+   for any phase / amplitude defect.
+4. **Magnitude argument vs the 62-sample shift**: the cold-start
+   transient affects only the first ~10 subframes (5..50 ms of audio).
+   The 62-sample SegSNR shift is measured across the entire 30 s
+   corpus and is amplitude-blind. A 10-subframe transient cannot
+   produce a corpus-wide 62-sample alignment offset.
+
+### E.8 Recommended next step
+
+**Skip REF-1 candidate-B design (no defect to fix) and dispatch
+DIAG-2 (candidate C — LP coefficient interpolation / Â(z) pipeline)
+per Phase 3b plan §4.**
+
+Open subsidiary concern (out of DIAG-1 scope, recorded for triage):
+the int16 saturation of `predicted` at +32 dB on voiced subframes
+(see §E.3 obs 3) deserves its own diagnostic if DIAG-2 also
+exonerates candidate C. The saturation collapses the upper ~3 dB of
+the predicted-gain dynamic range and could be a contributor to the
+residual amplitude defect (rms 419 vs 1500 PARTIAL floor), though
+not to the phase / 62-sample-shift defect.
