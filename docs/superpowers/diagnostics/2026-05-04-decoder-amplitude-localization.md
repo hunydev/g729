@@ -521,3 +521,144 @@ pulse chain or the §A.3.10 macro-level pin envelope.
 `gain.Decoder.Decode`, and `synth.BuildExcitation` continue to report
 0 B/op / 0 allocs/op under their pinned `AllocsPerRun` /
 `-benchmem` measurements.
+
+---
+
+## Appendix D — Phase 3a INT-1 FAIL diagnostic
+
+Date: 2026-05-04 (post-c7fcc06; INT-1 + IMPL-4 finalization run)
+Disposition: **FAIL — gate triggered, no closure-PASS commit**
+Acceptance band breached: SegSNR pipeline B = −0.90 dB (< 0 dB FAIL
+floor) AND rms(out) pipeline B = 419 (< 500 FAIL floor). Both legs of
+the FAIL guard fired.
+
+### D.1 — Acceptance numbers (SPEECH corpus, 3750 frames, 300 000 samples)
+
+| Metric                    | Pre-IMPL-1 baseline | INT-1 (HEAD = c7fcc06)     | Δ        |
+|---------------------------|---------------------|----------------------------|----------|
+| Pipeline B rms(out)       | 65                  | 419                        | +6.45×   |
+| Pipeline B max\|sample\|  | 850                 | 5262                       | +6.19×   |
+| Pipeline B GlobalSNR      | n/r                 | −0.05 dB                   |          |
+| Pipeline B SegSNR         | −0.46 dB            | −0.90 dB                   | −0.44 dB |
+| Pipeline C rms(out)       | n/r                 | 5                          |          |
+| Pipeline C SegSNR         | n/r                 | +0.00 dB                   |          |
+| Reference rms (SPEECH.IN) | 2237                | 2237                       |          |
+
+Per-frame samples (every 200th, plus first 10) confirm the recovery
+shape: ourDec frame-by-frame RMS now climbs into the 100–1700 envelope
+on voiced frames (was capped at low tens by the IMPL-1 saturation),
+and the 5262 global max\|sample\| sits at the right order of magnitude
+relative to the 2237 corpus RMS reference.
+
+### D.2 — Verdict
+
+The IMPL-1..3 chain (mantissa Q14 + exponent int8 representation
+threaded through gain.Decode → synth.BuildExcitation → encoder fcbStep)
+is **directionally correct and incomplete**:
+
+- Amplitude envelope: **RECOVERED**. The 33× shortfall identified by
+  the original diagnostic (rms 65 vs 2095) has collapsed to a 5×
+  shortfall (rms 419 vs 2237 reference, or vs 2095 path-A). g_c0/g_c
+  no longer wraps at the int16 envelope; the formerly-saturated VQ
+  domain now reaches its natural [16384, 32767) mantissa band with a
+  free exponent.
+- Phase / waveform alignment: **NOT recovered**. SegSNR pipeline B is
+  unchanged from the IMPL-2 measurement (−0.90 dB at IMPL-3 head; was
+  −0.46 dB pre-IMPL-1). The cross-correlation peak shift
+  (−22 samples) reported by the roundtrip harness diverges from the
+  pipeline-A intrinsic shift (+40 samples) by 62 samples — a gross
+  mis-alignment that no g_c-magnitude fix can repair.
+- The 62-sample gap is consistent with the diagnostic report's
+  candidate B (MA predictor cold-start) and candidate C (LP coefficient
+  pipeline) hypothesis space: a per-frame predictor or LP-filter
+  initialization defect would manifest as a phase/timing skew that is
+  amplitude-blind (RMS recovers, SegSNR does not) — exactly the
+  observed signature.
+
+### D.3 — Phase 3b candidate ranking
+
+Ranked by signature match to the residual −0.90 dB SegSNR / −22-sample
+shift defect:
+
+1. **Candidate B — MA predictor cold-start** (gain.Decoder.pastErrors
+   FIFO seed). The four pastErrorsDefault entries are seeded from
+   spec-default (-14 dB) but the encoder side may seed from a different
+   convention; a seed mismatch would manifest as a per-frame phase
+   error that compounds across the corpus, matching the SegSNR-flat /
+   RMS-recovered signature. **Highest-priority probe.**
+2. **Candidate C — LP coefficient interpolation / Â(z) pipeline**.
+   Phase 1o D-3 byte-EQ holds at sample 0 for SPEECH/LSP/TEST, which
+   bounds the LP defect surface, but does not prove sample-by-sample
+   alignment across the corpus. A 1-sample LP interpolation skew per
+   subframe would accumulate into a 62-sample drift over 3750 frames.
+3. (Lower priority) Postfilter long-term / tilt μ. Already reviewed in
+   gate 17 D-1b (commit 6633b28) and Phase 1h diagnostic; no surviving
+   open hypothesis.
+
+### D.4 — Why this is FAIL not PARTIAL
+
+Per Phase 3a plan §2 acceptance bands:
+- ACCEPT: SegSNR ≥ 3 dB
+- ACCEPT-PARTIAL: SegSNR ∈ [0, 3 dB) AND rms(out) ≥ 1500
+- FAIL: SegSNR < 0 dB OR rms(out) < 500
+
+Measured SegSNR = −0.90 dB violates the SegSNR < 0 leg; rms(out) = 419
+violates the rms < 500 leg. Both FAIL conditions fire. The amplitude
+recovery (RMS 65 → 419, max 850 → 5262) is real and substantial but
+does not clear the rms ≥ 1500 PARTIAL floor either.
+
+Disposition: **CLOSED-DEFERRED** at the plan level (IMPL-1..4 + INT-1
+land as a coherent representation-fix ladder; Phase 3 acceptance is
+deferred to Phase 3b). NO closure-PASS report is written, per the
+plan's FAIL guard.
+
+### D.5 — Pin / sweep status snapshot at FAIL
+
+- Phase 1o D-3 PSTdomain pins:
+  - SPEECH (sample-0 byte-EQ gate): **PASS** — sample 0 = 2 (matches).
+  - LSP (sample-40 byte-EQ): **PASS**.
+  - TEST (sample-40 byte-EQ): **PASS**.
+  - TAME, FIXED, PITCH, OVERFLOW: **FAIL by design** — PASS-by-design
+    pins flagged the production-output change from IMPL-1..3 (drift
+    moved to sample 40–41), exactly the documented "reactivation
+    trigger" #4 in `itu_vector_pstdomain_test.go` docstring (lines
+    94–98). Disposition update is owned by Phase 3b once the
+    candidate B / C diagnosis lands.
+- Phase 2c INT-1 byte-EQ: P1 10.79% → 10.41% (−0.38 pp), P0 57.49% →
+  57.22% (−0.27 pp), P2 11.66% → 11.50% (−0.16 pp). Within IMPL-3
+  documented drift tolerance.
+- Phase 2d INT-1a byte-EQ: S1 5.18% / C1 0.00% / GA1 12.15% / GB1
+  5.29% / S2 4.36% / C2 0.00% / GA2 11.77% / GB2 4.90%. Matches the
+  IMPL-3 baseline recorded in the "IMPL-3 byte-EQ deltas" appendix
+  table earlier in this document.
+- Phase 2f TAME-1: GA1 6.25%, GB1 2.34%, GA2 3.91%, GB2 3.91% — the
+  four documented plausibility-floor breaches under OQ-TAMING-THR
+  (slot 5/5).
+- `TestDiagnostic_SinglePulseChain`: pre-existing diagnostic FAIL
+  (gain log-domain 14 dB suspect, ledger entry from Phase 1g). Not a
+  Phase 3a regression.
+
+### D.6 — Hot-path zero-allocation budget (retained)
+
+| Bench                         | ns/op (HEAD c7fcc06) | allocs |
+|-------------------------------|----------------------|--------|
+| `gain.BenchmarkDecode`        | 132.1                | 0      |
+| `synth.BenchmarkBuildExcitation` | 233.7             | 0      |
+| `synth.BenchmarkSynthesize`   | 933.0                | 0      |
+| `synth.BenchmarkFilterSubframe`  | 757.4             | 0      |
+| `decoder.BenchmarkDecode`     | 8011                 | 0      |
+
+INT-1 introduces no production code change (decoder wiring already
+landed in IMPL-2, encoder wiring in IMPL-3, repo-wide audit confirmed
+zero remaining production consumers of `LegacyGcQ12FromMantExp`).
+ns/op deltas vs c7fcc06 are therefore 0 by construction; the table
+above is the ratified post-IMPL-3 baseline carried into Phase 3b.
+
+### D.7 — Next action
+
+Open Phase 3b plan targeting candidate B (MA predictor cold-start)
+first, with candidate C (LP coefficient pipeline) as fallback. The
+acceptance harness (`phase3_roundtrip_quality_test.go`) and the
+FAIL-floor decision rule remain unchanged; Phase 3b graduates to
+ACCEPT-PARTIAL the moment SegSNR pipeline B clears 0 dB AND rms ≥
+1500, and to ACCEPT-PASS at SegSNR ≥ 3 dB.

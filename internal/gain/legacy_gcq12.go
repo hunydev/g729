@@ -1,20 +1,32 @@
 package gain
 
-// SCHEDULED FOR REMOVAL: Phase 3a INT-1.
+// KEPT-WITH-TEST-CONSUMERS: Phase 3a INT-1 (IMPL-4 finalization).
 //
-// After IMPL-3 (this commit), no production consumer of
-// LegacyGcQ12FromMantExp remains. IMPL-2 removed the synth-side use
-// (BuildExcitation/Synthesize take (gcMantQ14, gcExp) natively per
-// REF-1 §2); IMPL-3 removes the encoder-side use (encoder.go fcbStep
-// now derives a non-saturating int32 Q12 directly from (mant, exp) for
-// its §A.3.10 commit accumulators — see encoder.go mantExpToQ12 — and
-// internal/gainquant.SearchConjugate returns γ̂_c Q13 instead of the
-// pre-IMPL-3 saturated ĝc Q12). The remaining callers are diagnostic
-// test files in internal/decoder that emit gcQ12-formatted log lines
-// for cross-comparison with historic numbers; they do not feed any
-// production path.
+// IMPL-4 audit (INT-1, post-c7fcc06): production-side consumers of
+// LegacyGcQ12FromMantExp = 0. Verified by repo-wide grep:
 //
-// Remaining call sites at IMPL-3 landing:
+//	grep -rn 'LegacyGcQ12FromMantExp' --include='*.go' . \
+//	  | grep -v '_test.go'
+//
+// returns only this file and a back-reference comment in
+// internal/gain/phase3a_diag1_export.go (DocComment, not a call site).
+//
+// Native (gpQ14, gcMantQ14 Q14, gcExp int8) triple is end-to-end:
+//   - decoder: internal/decoder/subframe.go:36-39 calls
+//     d.gn.Decode(...) → (gpQ14, gcMant, gcExp) and feeds them
+//     directly to synth.BuildExcitation.
+//   - encoder: internal/encoder.go derives a non-saturating int32 Q12
+//     from (mant, exp) via mantExpToQ12 for its §A.3.10 commit
+//     accumulators; internal/gainquant.SearchConjugate returns γ̂_c
+//     Q13 instead of the pre-IMPL-3 saturated ĝ_c Q12.
+//
+// Remaining test-only callers at INT-1 landing (10 files; exceeds the
+// IMPL-4 plan's "≤ 3 tests inlined" budget for adapter excision, so
+// the adapter is KEPT rather than inlined; revisited under Phase 3b
+// once decoder amplitude-recovery follow-up lands and the decoder
+// diagnostic test surface is rewritten):
+//   - internal/gain/legacy_gcq12_test.go (adapter self-test)
+//   - internal/gain/decode_test.go (Q12 logging in legacy harness)
 //   - internal/decoder/decode_test.go (logging)
 //   - internal/decoder/diagnostic_singlepulse_test.go (logging)
 //   - internal/decoder/diagnostic_multipulse_test.go (logging)
@@ -25,8 +37,12 @@ package gain
 //   - internal/decoder/stagef_fnonprelim_xsplit_diagnostic_test.go
 //     (constant comparison)
 //
-// INT-1 will excise these probes (replacing them with (mant, exp)
-// readouts) and delete this helper.
+// All of the above are diagnostic / dump probes, not production-
+// surface tests. They cross-reference historical Q12-formatted log
+// lines for byte-comparable trace artefacts; none feed a production
+// pipeline. The adapter therefore has zero binary footprint in
+// shipped code paths and zero impact on the IMPL-1..3 arithmetic
+// IMPL-4 / INT-1 has finalized.
 //
 // LegacyGcQ12FromMantExp converts the new (mantissa Q14, exponent int8)
 // g_c representation back to the legacy single Q12 int16 form with

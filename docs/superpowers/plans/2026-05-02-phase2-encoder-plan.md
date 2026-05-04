@@ -1154,3 +1154,10 @@ Plan complete and to be saved at `docs/superpowers/plans/2026-05-02-phase2-encod
 2. **Inline Execution** — Execute tasks in this session using executing-plans, batch execution with checkpoints.
 
 **Which approach?**
+
+---
+
+## Phase 3a follow-up entry (post-c7fcc06, INT-1 + IMPL-4 landed)
+
+- Phase 3a (g_c Q-format fix) **CLOSED-DEFERRED → Phase 3b**. Disposition + acceptance numbers in `docs/superpowers/plans/2026-05-04-phase3a-gc-qformat-fix-plan.md` §7. FAIL diagnostic (residual phase/timing defect, candidate B/C ranking) in `docs/superpowers/diagnostics/2026-05-04-decoder-amplitude-localization.md` Appendix D.
+- Encoder-side byte-EQ deltas (vs pre-Phase-3a baseline): Phase 2c INT-1 P1 10.79%→10.41% (−0.38 pp), P0 57.49%→57.22% (−0.27 pp), P2 11.66%→11.50% (−0.16 pp). Phase 2d INT-1a S1 5.18% / GA1 12.15% / GB1 5.29% / S2 4.36% / GA2 11.77% / GB2 4.90% (matches the IMPL-3 ratified table). Phase 2f TAME-1 four plausibility-floor breaches (GA1 6.25%, GB1 2.34%, GA2 3.91%, GB2 3.91%) carried forward under OQ-TAMING-THR.

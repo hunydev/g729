@@ -220,3 +220,42 @@ Each commit message ends with the standard trailer:
 - R3: encoder-side IMPL-3 may *worsen* one of the FAIL-DEFERRED byte-EQ
   metrics. Acceptable if SegSNR pipeline B improves; document in
   INT-3 closure.
+
+---
+
+## 7. Final disposition (INT-1 + IMPL-4 landed)
+
+Date: 2026-05-04 (post-c7fcc06)
+Disposition: **CLOSED-DEFERRED → Phase 3b**
+
+| Task    | Status |
+|---------|--------|
+| DIAG-1  | [x] DONE (commit b4f6b05) |
+| REF-1   | [x] DONE (commit f9de742) |
+| IMPL-1  | [x] DONE (commit b0e6955) |
+| IMPL-2  | [x] DONE (commit f137fbf) |
+| IMPL-3  | [x] DONE (commit c7fcc06) |
+| IMPL-4  | [x] DONE (audit at INT-1; production wiring 100% native; legacy adapter KEPT for 10 test-only call sites — see internal/gain/legacy_gcq12.go header) |
+| INT-1   | [x] DONE — **FAIL gate triggered** on Phase 3 acceptance harness; see Appendix D in `docs/superpowers/diagnostics/2026-05-04-decoder-amplitude-localization.md` |
+| INT-2   | [x] DONE — bench + race captured in Appendix D.6 |
+| INT-3 (closure-PASS report) | **WITHHELD** per FAIL guard — replaced by Appendix D FAIL diagnostic |
+
+### Outcome summary
+
+- Pipeline B rms(out): **65 → 419** (+6.45×)
+- Pipeline B max\|sample\|: **850 → 5262** (+6.19×)
+- Pipeline B SegSNR: **−0.46 dB → −0.90 dB** (−0.44 dB)
+- Acceptance: SegSNR < 0 AND rms < 500 → **FAIL**
+
+Amplitude envelope recovered (g_c0 no longer wraps int16); residual
+defect is phase / waveform alignment (cross-correlation peak at −22
+samples vs path-A intrinsic +40). Diagnosis points to Phase 3b
+candidate B (MA predictor cold-start) first, candidate C (LP
+coefficient pipeline) second.
+
+### I1 risk
+
+**none** — clean-room maintained; no ITU C reference, bcg729, Sipro,
+FFmpeg, or any other G.729 implementation consulted. All work derived
+from ITU-T G.729 PDF, Salami 1998 §V.B, Kondoz §6, and prior
+in-repo derivations.
