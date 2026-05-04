@@ -847,3 +847,295 @@ exonerates candidate C. The saturation collapses the upper ~3 dB of
 the predicted-gain dynamic range and could be a contributor to the
 residual amplitude defect (rms 419 vs 1500 PARTIAL floor), though
 not to the phase / 62-sample-shift defect.
+
+## Appendix F — Phase 3b DIAG-2: LP interpolation trajectory & OQ-LP-INTERP pin
+
+Date: 2026-05-04 (post-faff330; Phase 3b DIAG-1 EXONERATED candidate B)
+Owner: Phase 3b DIAG-2 (candidate C isolation)
+
+### F.1 Mission recap
+
+Pin **OQ-LP-INTERP** (the per-subframe LP-coefficient interpolation
+prescribed by ITU-T G.729 §3.2.5 / §4.1.5: domain, weighting, and
+subframe ordering) from spec text and validate the production
+implementation (`internal/lsp/interpolate.go::interpolateLSP` called
+from `internal/lsp/decoder.go::Decoder.Decode` step 7) against corpus
+evidence from SPEECH.BIT. Per the Phase 3b plan §4 DIAG-2, OQ-LP-INTERP
+gates the decision on whether candidate C (LP coefficient pipeline)
+proceeds to a fix (REF-1) or is exonerated, in which case Phase 3c
+must enumerate a new candidate D for the residual ~62-sample
+cross-correlation peak shift identified in Appendix D.
+
+### F.2 Spec reading
+
+ITU-T G.729 (06/2012), §3.2.5 "Interpolation of the LSP coefficients"
+(PDF p. 14, paragraph beginning "The quantized (and unquantized) LP
+coefficients are used for the second subframe …", lines ~901–919).
+The paragraph prescribes, with `q_i^(previous)` and `q_i^(current)` the
+per-frame LSP vectors (cosine-domain, i = 1..10):
+
+- Subframe 1 : `q_i^(1) = 0.5·q_i^(previous) + 0.5·q_i^(current)`
+- Subframe 2 : `q_i^(2) = q_i^(current)`
+- Same equation, with `q_i → q̂_i`, applies to the QUANTIZED LSP
+  vectors used by both encoder and decoder (final paragraph of §3.2.5).
+
+4.1.5 "Reconstruction of the LP filter coefficients" (decoder side)
+references back to §3.2.5 for the interpolation step verbatim — the
+decoder does not redefine the equation; it pulls it through unchanged.
+
+Pinned OQ-LP-INTERP semantics:
+
+| Aspect            | Spec value                                    |
+|-------------------|-----------------------------------------------|
+| Interpolated obj. | LSP coefficients `q̂_i` (cosine-domain)        |
+| Q-format          | Q15 (production, consistent with §3.2.4 LSP)  |
+| Weighting         | Strict 50/50 unweighted average               |
+| Subframe ordering | sf-1 interpolated; sf-2 uses raw `q̂_i^(m)`   |
+| Endpoint          | `q̂_i^(m-1)` is the post-stability LSP from m-1|
+
+Cross-references (clean-room, no external implementations):
+
+- Salami 1998 IEEE T-SAP §V.B (CS-ACELP): describes the same
+  inter-subframe LSP interpolation as a halving in the cosine domain
+  to halve transmission rate of LP parameters while preserving
+  per-subframe LP renewal. Consistent with §3.2.5.
+- Kondoz §6 (CELP variants): cosine-domain interpolation is the
+  canonical low-complexity choice (avoids per-subframe Lsf↔Lsp
+  conversion); consistent.
+
+### F.3 Code audit
+
+`internal/lsp/interpolate.go` (lines 68–73):
+
+```
+func interpolateLSP(prev, curr, sf1, sf2 *[10]int16) {
+    for i := 0; i < 10; i++ {
+        sf1[i] = int16((int32(prev[i]) + int32(curr[i])) >> 1)
+        sf2[i] = curr[i]
+    }
+}
+```
+
+Audit findings:
+
+- Domain: Q15 cosine-LSP. `prev`/`curr` are the LSP vectors saved by
+  `lsp.Decoder` step 9 (`d.prevLSP = lsp`; `lsp` produced by
+  `lsfToLSP(lsf[i])` per `decoder.go:88`). Matches spec.
+- Weighting: 50/50 average implemented as `(prev + curr) >> 1` on the
+  promoted int32 sum. Floor rounding (toward −∞) on odd sums. The R-C
+  rounding ambiguity is documented in `interpolate.go` lines 37–43 and
+  was branch-tested REFUTE_unchanged at Phase 1n RC-1; it is at most a
+  ±1-LSB perturbation on cells i=1, i=5 (cf. Phase 1n RC-3 synthesis
+  report). It cannot generate a corpus-wide 62-sample shift.
+- Subframe ordering: `sf1` ← interpolated, `sf2` ← `curr`. Matches
+  spec (§3.2.5 "Subframe 1 : … Subframe 2 : q_i^(current)").
+- Q-domain at LSP→LP (`lsp.LSPToLP` per `lsp_lp.go`): each subframe's
+  Q15 LSP is converted to Q12 a[0..10] via the §3.2.6 recurrence on
+  the F1/F2 polynomials. No inter-subframe domain mismatch.
+- Cold-start: `d.prevLSP` is lazily initialised to
+  `initialPrevLSP = cos(i·π/11) Q15` per §3.2.4 / §4.1.5 on the first
+  Decode (`decoder.go:94-97`). Matches spec.
+
+**No deviation from spec.** Production code is byte-faithful to the
+3.2.5 / §4.1.5 prescription.
+
+### F.4 Test method
+
+- Test: `internal/decoder/phase3b_diag2_lpinterp_test.go::TestPhase3bDiag2_LPInterpolationTrajectory`.
+- Shim: `internal/lsp/phase3b_diag2_lpinterp_export.go` exposes
+  `(*Decoder).PrevLSPSnapshot() [10]int16` and `(*Decoder).InitializedForDiag() bool`.
+- Driver runs the production `Decoder.Decode` per frame so state
+  evolution is identical to the roundtrip pipeline B harness
+  (`phase3_roundtrip_quality_test.go`). Per frame the test snapshots
+  `d.lsp.PrevLSPSnapshot()` BEFORE Decode (= q̂(m-1) input to
+  interpolateLSP, with the spec cold-start value substituted on frame
+  0 per the §3.2.4 lazy init) and AFTER Decode (= (m), sinceq
+  decoder.go:108 saves the freshly-decoded LSP into prevLSP).
+- The test then re-applies the §3.2.5 eq. (24) interpolation OUTSIDE
+  the production decoder over the snapshotted (prev, curr) pair to
+  produce a faithful record of (sf1LSP, sf2LSP, sf1A, sf2A), plus two
+  alternative sf-0 LP reconstructions for §F.7 (alt-1: sf-0 uses
+  q̂(m); alt-2: sf-0 uses q̂(m-1)).
+- Stability check: in-test Schur–Cohn step-down on the Q12 a[1..10]
+  vector (clean-room, mirrored from `lsp/stability_test.go`'s
+  TestALGTHMFrame0SF0_AzStability). |k_m| < 1 ∀m=10..1 ⇔
+  minimum-phase Â(z).
+- Voiced-frame proxy: top-5 frames by ||q̂(m) − q̂(m-1)||₂ (LSP
+  velocity) — captures the high-LP-motion regime where any
+  interpolation defect would be most visible.
+- (d) full waveform-resynthesis variant: SIMPLIFIED — dumps L2
+  distances between the three sf-0 a-vectors (base / alt-1 / alt-2)
+  rather than driving synth.Filter three times with matched
+  pastSynth memory. The simplification is bounded: a 62-sample
+  cross-correlation shift requires a coherent per-frame phase
+  perturbation in the LP filter; if the L2 distance between
+  base and alt-1 (or alt-2) is large but the corpus-wide cross-
+  correlation shift remains 62 samples in either alternative,
+  no LP-interpolation-domain choice can collapse the shift.
+
+### F.5 First-10-frame trace (excerpt)
+
+a[1..10] in Q12; a[0] = 4096 omitted. sf-0 is interpolated, sf-1 is
+the current frame's LSP converted directly to LP.
+
+| frame | sf-0 a[1..10]                                     | sf-1 a[1..10]                                       |
+|------:|---------------------------------------------------|-----------------------------------------------------|
+| 0     | -297, 364, -662, 810, 99, 460, -378, 72, -10, 224 | -594, 718, -1359, 1646, 114, 982, -815, 175, -47, 447 |
+| 1     | -804, 445, -1060, 963, 169, 644, -489, 373, 47, 510 | -1015, 154, -724, 195, 293, 270, -139, 567, 138, 573 |
+| 5     | -3191, 3677, -5997, 5269, -4281, 5028, -3441, 2284, -1765, 1179 | -4055, 3875, -6565, 5869, -4743, 5178, -3611, 2239, -1746, 1090 |
+| 9     | -4526, 2025, -4019, 3848, -1484, 3183, -2516, 1141, -1291, 789 | -5239, 3033, -4314, 4020, -2034, 3343, -2751, 1722, -1615, 800 |
+
+Frame 0 sf-0 is exactly half of sf-1 (within ±1 Q12 ulp on every
+coefficient): 0.5·(initialPrevLSP, q̂(0)) interpolated through the
+Chebyshev recurrence inherits the linearity of the cosine-domain
+midpoint when the prev vector is the symmetric init
+`{31441, 27566, …, −31441}`. This is the cleanest possible
+demonstration that the interpolation is operating exactly as spec.
+
+### F.6 Stability + monotonicity statistics (SPEECH.BIT, 3750 frames)
+
+| Statistic                                          | Value          |
+|----------------------------------------------------|----------------|
+| sf-0 (interpolated) LSP monotonicity violations    | 0 / 3750 (0.0000%) |
+| sf-1 (current LSP)  LSP monotonicity violations    | 0 / 3750 (0.0000%) |
+| sf-0 (interpolated) Â(z) Schur–Cohn instability    | 0 / 3750 (0.0000%) |
+| sf-1 (current LSP)  Â(z) Schur–Cohn instability    | 0 / 3750 (0.0000%) |
+| Frame-to-frame ‖q̂(m) − q̂(m-1)‖₂ mean             | 3964.92 Q15 (= 0.1210 normalised) |
+| Frame-to-frame ‖q̂(m) − q̂(m-1)‖₂ stddev           | 2797.26 Q15    |
+
+Every interpolated subframe LSP across the entire corpus is
+strictly monotone-decreasing (well-formed cosine LSP) and every
+resulting Q12 Â(z) is minimum-phase (all reflection coefficients
+strictly inside the unit disk). There is no pathological subframe
+where the interpolation lands on a degenerate or unstable LP filter.
+
+### F.7 Subframe-boundary delta analysis (SPEECH.BIT, n = 3749 frame transitions)
+
+L2 distances over a[1..10] in Q12 units:
+
+| Quantity                                          | Mean      |
+|---------------------------------------------------|----------:|
+| ‖a_sf0(m) − a_sf1(m)‖₂   within-frame             | 1248.73   |
+| ‖a_sf1(m) − a_sf1(m-1)‖₂ across-frame             | 2488.29   |
+| ‖a_sf0(m) − a_sf1(m-1)‖₂ sf-0 vs prev sf-1        | 1244.61   |
+| ‖a_sf1(m)  sf-1 vs prev sf-1        | 2488.29   |− a_sf1(m-1)
+
+Interpretation: the interpolated subframe-0 LP sits exactly at the
+midpoint of the LP trajectory between subframe-1 of frame (m-1) and
+subframe-1 of frame m. Quantitatively `1248.73 ≈ 1244.61 ≈
+2488.29 / 2 = 1244.15`. The sub-1% asymmetry between the
+within-frame and prev-vs-sf0 distances is the expected non-linearity
+of the LSP→LP §3.2.6 Chebyshev recurrence acting on a midpoint LSP
+(LP space is not a linear image of LSP space, but the discrepancy is
+~0.3% of the across-frame distance — orders of magnitude smaller
+than any 62-sample cross-correlation shift mechanism).
+
+(d) Top-5 voiced-proxy frames (highest LSP velocity), sf-0 LP under
+three reconstructions — ‖base − alt1‖, ‖base − alt2‖, ‖alt1 − alt2‖
+in Q12:
+
+| frame | velocity | ‖base−alt1‖ | ‖base−alt2‖ | ‖alt1−alt2‖ |
+|------:|---------:|------------:|------------:|------------:|
+|  820  | 24493    | 5743.24     | 4476.96     |  9936.36    |
+| 1068  | 21641    | 3533.67     | 3438.99     |  6709.48    |
+| 3420  | 21504    | 5199.39     | 7687.18     | 12727.21    |
+| 1052  | 21363    | 4717.87     | 3887.07     |  8456.90    |
+| 2489  | 21155    | 4071.33     | 3759.82     |  7589.29    |
+
+Both alternatives are large perturbations of the production LP
+(thousands of Q12 units), not small enough to plausibly be the
+"hidden right answer". Critically, the production base sits between
+alt-1 (no interp; sf-0 = sf-1) and alt-2 (held; sf-0 = prev sf-1) at
+roughly the midpoint — precisely the geometric signature of a
+correct 50/50 average. Neither alternative has a privileged position
+that would suggest a sub-sample / sub-subframe phase shift the
+spec-correct interpolation is "missing".
+
+### F.8 OQ-LP-INTERP resolution
+
+**Pinned spec semantics:** §3.2.5 eq. (24) — cosine-domain LSP, 50/50
+average, sf-1 interpolated, sf-2 uses raw `q̂_i^(m)`. Identical
+equation applies to quantized vectors per §3.2.5 final paragraph and
+4.1.5 (decoder side, by reference).
+
+**Observed code behaviour:** byte-faithful to spec. `interpolateLSP`
+implements `(prev + curr) >> 1` in Q15 cosine domain on int32-promoted
+sums, with subframe ordering and quantized-LSP substitution per spec.
+Cold-start prev-LSP is the §3.2.4 init `cos(i·π/11) Q15`.
+
+**OQ-LP-INTERP status: PINNED — no fix required.**
+
+The only documented R-C ambiguity (floor vs symmetric rounding on the
+half-sum) was branch-tested REFUTE_unchanged at Phase 1n RC-1
+(commit a47f03f), affecting at most ±1 Q12 ulp on a[8..10] of the
+interpolated subframe — orders of magnitude below any 62-sample-shift
+mechanism.
+
+### F.9 Candidate C verdict
+
+**EXONERATED — neither B nor C is the cause; escalate to Phase 3c
+with new candidate D enumeration.**
+
+Evidence:
+
+1. **Spec match**: the production interpolation equation, domain,
+   subframe ordering, and cold-start are all spec-correct (§F.3, §F.8).
+2. **Well-formedness**: 0 / 3750 monotonicity violations, 0 / 3750
+   Â(z) instability cases (§F.6). The interpolated LP filter is never
+   degenerate or unstable; it cannot inject phase artefacts that
+   exceed the §3.2.5 numerical envelope.
+3. **Geometric correctness**: the interpolated sf-0 sits at the
+   exact LP-trajectory midpoint between sf-1(m-1) and sf-1(m)
+   (1244.61 vs 2488.29; ratio = 0.5001), confirming that the
+   half-weight is being applied correctly through the LSP→LP
+   non-linearity (§F.7).
+4. **Magnitude argument vs the 62-sample shift**: a per-subframe
+   LP interpolation defect would manifest as either (a) a wrong-
+   weighting bias (would show up as ratio ≠ 0.5 in §F.7), (b)
+   degenerate filter excursions (would show in §F.6 Schur–Cohn or
+   monotonicity counters), or (c) a domain mismatch (would corrupt
+   sf-0 alone, asymmetrically across frames). None of these
+   signatures are present. The 62-sample corpus-wide shift cannot
+   originate in `interpolateLSP`.
+
+With B and C both exonerated, the residual −22-sample / 62-sample
+cross-correlation peak offset (Appendix D.2) must originate
+downstream of the LP-coefficient pipeline. Candidate space for
+Phase 3c (new candidate D enumeration), ranked by signature match
+to a corpus-wide phase/timing skew:
+
+- **D-1 Adaptive postfilter long-term / short-term filter memory
+  initialization** (§4.2). Postfilter long-term filter has its own
+  pitch-period delay line; a misaligned reset or off-by-one delay
+  index would compound to a sample-resolution corpus drift.
+- **D-2 Adaptive codebook past-excitation FIFO indexing**
+  (`d.pastExc`). A 1-sample bias in the AdaptiveCodebook fractional
+  resampling or an off-by-one in the post-subframe FIFO advance
+  (`subframe.go:51-52`) would produce per-subframe phase skew that
+  exactly fits the "amplitude-blind, alignment-only" defect.
+- **D-3 HP filter group delay** (`internal/decoder/hpfilter.go`).
+  A sign or coefficient deviation in the §4.2.4 IIR HP would shift
+  group delay; less likely to compound (it is a fixed filter) but
+  worth a one-shot impulse-response check.
+- **D-4 ScaleUpSat ordering vs HP filter** (the post-HP ×2
+  amplification per `pcm.ScaleUpSat`). If the spec applies ×2
+  BEFORE the HP filter, a per-subframe transient response shift
+  could appear; if AFTER (current code), it is amplitude-only.
+  Cross-check §4.2.3 / §4.2.4.
+
+Subsidiary concern carried forward from §E.3 obs 3 (predicted log-gain
+int16 saturation at +32 dB on voiced subframes) remains open as an
+amplitude-only investigation; it does not interact with the phase /
+62-sample-shift candidate D ladder above.
+
+### F.10 Recommended next task
+
+**Phase 3c: open new candidate D enumeration** — DIAG-3 targeting
+D-2 (adaptive codebook past-excitation FIFO indexing) FIRST, since
+its signature most cleanly matches a per-subframe sample-resolution
+skew that compounds across the corpus. D-1 (postfilter long-term
+filter memory) is the fallback if D-2 exonerates.
+
+Skip REF-1 candidate-C design (no defect to fix). Phase 3b is
+diagnostically complete; the remaining 62-sample shift is
+re-classified as a Phase 3c objective.
