@@ -289,3 +289,126 @@ The two pre-existing untracked phase 3 entry tests
 (`phase3_roundtrip_quality_test.go`,
 `phase3_roundtrip_quality_diag_test.go`) are committed unchanged to
 preserve the diagnostic baseline these new tests build upon.
+
+## 6. Appendix A — Phase 3a DIAG-1 unsaturated tap distribution (date 2026-05-04)
+
+Source: `internal/decoder/phase3a_diag1_gc_taps_test.go`
+Driver:  `(*gain.Decoder).DecodeWithFullTaps` shim
+         (`internal/gain/phase3a_diag1_export.go`, test-only diagnostic
+         helper — mirror of `Decode` returning the unsaturated 32-bit
+         intermediates; production `decode.go` / `pow2.go` unchanged.)
+Corpus:  `testdata/itu/G729_Release3/g729AnnexA/test_vectors/SPEECH.BIT`
+         3750 frames × 2 subframes = 7500 subframes
+Date:    2026-05-04
+
+### 6.1 Aggregate distribution
+
+| tap                  | unit       | min     | max      | mean       |
+|----------------------|------------|---------|----------|------------|
+| `predicted`          | Q10 dB     | 3855    | 32767    | 25049.8    |
+| `ecBarDbQ10`         | Q10 dB     | -11462  | -7434    | -9963.8    |
+| `log2GcQ10`          | Q10        | 2252    | 5443     | 4905.9     |
+| `gc0Q14_unsat`       | int32 @Q14 | 75244   | 652416   | 525722.7   |
+| `prodQ12_unsat`      | int32 @Q12 | 3627    | 652396   | 156258.6   |
+
+Wrap counts (subframes whose unsaturated tap exceeds the int16
+envelope `[-32768, 32767]`):
+
+| tap                  | wrap count    | wrap % |
+|----------------------|---------------|--------|
+| `gc0Q14_unsat`       | 7500 / 7500   | 100.00 |
+| `prodQ12_unsat`      | 5811 / 7500   |  77.48 |
+| zero-energy guard    | 0 / 7500      |   0.00 |
+
+### 6.2 First 10 subframes (raw dump)
+
+```
+frame  sf     pred    ecBar   log2Gc    gc0Q14_un   prodQ12_un    gpQ14    gcQ12   gammaC
+    0   1     5060   -10068     2513        89784         4153     1995     4153     1516
+    0   2     4602   -10240     2465        86908         5590     5143     5590     2108
+    1   1     6206   -10240     2732       104128        19759    13400    19759     6218
+    1   2    14220   -10240     4063       256352        16491     5143    16491     2108
+    2   1    14126   -10135     4030       250688        16127     5143    16127     2108
+    2   2    12374    -9319     3603       187768        17288     6693    17288     3017
+    3   1    13101   -10240     3877       226032        43988     8092    32767     6377
+    3   2    17648    -9731     4548       355968        42486     6161    32767     3911
+    4   1    19635   -10240     4962       471120        48552    17300    32767     3377
+    4   2    19093   -10240     4872       443280       443266    17839    32767    32767
+```
+
+(`gpQ14` / `gcQ12` are the post-saturation values currently returned
+by `Decode`; `gcQ12` already pegs to 32767 by frame 3.)
+
+### 6.3 Spec-grounded interpretation
+
+ITU-T G.729 §3.9.2 expresses the fixed-codebook gain as
+
+  g_c   = γ̂_c · g_c0                                   (eq. 74)
+  g_c0  = 10^( (Ê(m) − E̅_c)/20 ) = 2^( (Ê(m) − E̅_c)/(20·log10 2) )   (eq. 75)
+
+with γ̂_c ∈ ~[0, ~2] in Q13 and g_c0 the predicted-energy gain target.
+Salami 1998 §V.B (pp. 137–140) describes the conjugate-structure
+mantissa-+-correction reconstruction, and Kondoz §6 (gain VQ) confirms
+that the predicted-gain magnitude can substantially exceed unity for
+voiced/transition subframes, so its representation is not bounded by
+the codeword range alone.
+
+The corpus numbers concur:
+
+* `gc0Q14_unsat` is **100 %** outside int16 at Q14. Its true value
+  ranges roughly 4.6 ≤ g_c0 ≤ 39.8 (75244 / 2^14 to 652416 / 2^14),
+  with mean ≈ 32.1. No int16-Q14 packing can hold this tap.
+* The product `γ̂_c · g_c0` at Q12 wraps int16 in **77.5 %** of all
+  subframes, with peaks at 652396 (≈ 159.2 in unscaled units) — the
+  full-pipeline `gcQ12` is therefore *systematically* clipped, which
+  is exactly the amplitude-collapse symptom this diagnostic chain is
+  tracking (cross-ref §3, where total excitation `u` underwhelms the
+  spec by ≈ 6×).
+* All taps fit comfortably within int32 (max ≈ 6.5·10⁵, well below
+  2³¹ ≈ 2.1·10⁹).
+
+### 6.4 OQ-GCREP pin
+
+**Pin: (a) mantissa Q14 + exponent int8** (the plan's strong default).
+
+Justification (corpus + spec):
+
+The natural decomposition produced by eq. (75) and implemented in
+`pow2Fixed` already splits log2 g_c0 into an integer part (the
+exponent of the binary point shift) and a fractional part interpolated
+through `tables.Pow2Table` to give a Q14 mantissa in [1.0, 2.0). The
+DIAG-1 distribution shows g_c0 magnitudes of ~4–40 (i.e. exponents 2–6
+above unity) and the post-multiply g_c spans ~1–160 — both safely
+representable as `(mantQ14 int16) · 2^(exp int8)` with `exp` ∈ [-15,
++8]. This keeps every existing Q14 hot-path stage (LMul / LAdd)
+operating on a 16-bit mantissa (no Q-format ripple beyond the
+gain→excitation handoff), while the int8 exponent absorbs the dynamic
+range that today causes the int16 saturation visible in §6.1's wrap
+table. Options (b) Word32-Q16 and (c) two-level (gc0 + γ̂_c kept
+separate) both work numerically but force either a wider arithmetic
+type or an extra multiply at every consumer of `g_c`; the spec's own
+2^x reconstruction makes (a) the cheapest match.
+
+OQ-BWIDTH (the dynamic-range bracket): the corpus puts
+|g_c0|·2^14 ≤ 6.6·10⁵ and |g_c|·2^12 ≤ 6.6·10⁵, so an int8 exponent
+range of [-15, +8] (worst-case g_c0 ≈ 256, g_c ≈ 256) is sufficient
+with margin; the encoder side (DIAG-2) must confirm the same bracket
+holds on PITCH/ALGTHM corpora before REF-1 freezes the API.
+
+### 6.5 Spec citations (clean-room, no external implementations)
+
+* ITU-T G.729 (06/2012) §3.9, §3.9.1 eq. (69)–(73) — MA log-gain
+  predictor.
+* ITU-T G.729 (06/2012) §3.9.2 eq. (74)–(75) — g_c = γ̂_c · g_c0,
+  g_c0 = 2^((Ê(m)−E̅_c)/(20·log10 2)).
+* ITU-T G.729 (06/2012) §4.1.6 — decoder excitation reconstruction.
+* Salami, R. et al., "Design and Description of CS-ACELP: A Toll
+  Quality 8 kb/s Speech Coder," IEEE Trans. Speech Audio Proc., vol.
+  6 no. 2 (March 1998), §V.B pp. 137–140 — gain quantization
+  mantissa-correction structure.
+* Kondoz, A. M., *Digital Speech: Coding for Low Bit Rate
+  Communication Systems*, 2nd ed., Wiley 2004, §6 — CS-ACELP gain VQ
+  representation.
+
+No external G.729 implementation (ITU C reference, bcg729, Sipro
+Lab, FFmpeg, …) was consulted in producing this section.

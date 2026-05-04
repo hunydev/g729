@@ -24,6 +24,13 @@ type Phase3DiagSubframeTaps struct {
 	S      [40]int16 // post 1/Â(z)               (Q0, pre-postfilter)
 	SPf    [40]int16 // post postfilter           (Q0)
 	HpOut  [40]int16 // post HP filter            (Q0, pre ScaleUpSat ×2)
+
+	// GainTaps captures the unsaturated 32-bit gain-decoder
+	// intermediates (Phase 3a DIAG-1). Test-only; populated by
+	// gain.Decoder.DecodeWithFullTaps which is called in place of
+	// Decode in this taps pathway so the predictor is advanced
+	// exactly once per subframe.
+	GainTaps gain.GainDecodeFullTaps
 }
 
 // Phase3DiagFrameTaps groups the two subframes and the post-ScaleUpSat
@@ -85,7 +92,10 @@ func (d *Decoder) decodeSubframeWithTaps(
 
 	fcb.Decode(fcb.Indices{Positions: C, Signs: S}, tInt, betaQ14, &taps.C)
 
-	gpQ14, gcQ12 := d.gn.Decode(gain.Indices{GA: GA, GB: GB}, &taps.C)
+	gainTaps := d.gn.DecodeWithFullTaps(gain.Indices{GA: GA, GB: GB}, &taps.C)
+	taps.GainTaps = gainTaps
+	gpQ14 := gainTaps.GpQ14Final
+	gcQ12 := gainTaps.GcQ12Final
 	taps.GpQ14 = gpQ14
 	taps.GcQ12 = gcQ12
 
