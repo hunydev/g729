@@ -266,3 +266,8 @@ Sipro Lab, FFmpeg, or any other G.729 implementation consulted. Sole
 external sources: ITU-T G.729 (06/2012) + Annex A PDFs, Salami 1998
 §V.B, Kondoz §6, Chu, Goldberg & Riek, Quackenbush et al. 1988,
 Oppenheim & Schafer.
+
+**Phase 3-final unified closure: `CLOSED-PARTIAL`** — Phase 3a + Phase 3b
+rolled into a single shipping closure. Codec ships under spec-compliance
+binding criterion. See
+`docs/superpowers/plans/2026-05-04-phase3-final-closure-report.md`.

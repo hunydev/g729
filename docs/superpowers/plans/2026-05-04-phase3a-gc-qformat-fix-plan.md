@@ -267,3 +267,8 @@ proven spec-correct across six independent diagnostic axes; residual
 5× rms shortfall structural and not localizable to any spec-defined
 decoder defect; no production code change in Phase 3b). See
 `docs/superpowers/plans/2026-05-04-phase3b-closure-report.md`.
+
+**Phase 3-final unified closure: `CLOSED-PARTIAL`** — Phase 3a + Phase 3b
+rolled into a single shipping closure. Codec ships under spec-compliance
+binding criterion. See
+`docs/superpowers/plans/2026-05-04-phase3-final-closure-report.md`.
