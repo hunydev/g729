@@ -42,4 +42,3 @@ func (a *Analyzer) Analyze(speech *[LPCWindowSamples]int16, out *[LPCOrder + 1]i
 	levinsonDurbin(&r, out)
 	return nil
 }
-

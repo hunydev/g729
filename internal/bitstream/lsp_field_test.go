@@ -45,7 +45,7 @@ func extractLSPFields(g192Frame []byte) (l0, l1, l2, l3 uint8) {
 //
 // Oracle derivation (manual, in-spec):
 //   - LSP.BIT is G.192 framed: 1 sync word (0x6B21) + 1 length word (0x0050=80)
-//     + 80 softbit data words per frame, little-endian on disk.
+//   - 80 softbit data words per frame, little-endian on disk.
 //   - Softbit map: 0x0081 → 1, 0x007F → 0 (G.191 STL convention).
 //   - §A.4 Table A.4 transmission order places L0 (1b), L1 (7b), L2 (5b),
 //     L3 (5b) at bit positions 0..17 of the 80-bit payload, MSB-first.

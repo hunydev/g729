@@ -30,4 +30,3 @@ func TestAnalyzer_Analyze_AllZeroSpeechProducesTrivialFilter(t *testing.T) {
 		}
 	}
 }
-

@@ -11,7 +11,7 @@ import "github.com/exedev/g729/internal/tables"
 // 25736/64 = 402.125 — we use floor (lspStep = 402) and absorb the
 // sub-unit residual in the linear interpolation.
 const (
-	lspStep    int32 = 402   // floor(π_Q13 / 64)
+	lspStep     int32 = 402 // floor(π_Q13 / 64)
 	lspNumCells int32 = 64
 	lspMaxOmega int32 = lspStep * lspNumCells // 25728, just under π_Q13 = 25736
 )

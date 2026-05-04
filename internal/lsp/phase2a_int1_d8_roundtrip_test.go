@@ -14,11 +14,12 @@ import (
 // Decoder.applyPredictor by design — see encoder_predictor_test.go).
 //
 // Then compares the reconstructed ω_decoder against:
-//   (a) the analytical i·π/11 Q13 seed (what the encoder sees on
-//       cold start with zero PCM input);
-//   (b) what the encoder actually computes (run via LPToLSP +
-//       LSPToLSF on a zero-windowed buffer — the steady cold-start
-//       state).
+//
+//	(a) the analytical i·π/11 Q13 seed (what the encoder sees on
+//	    cold start with zero PCM input);
+//	(b) what the encoder actually computes (run via LPToLSP +
+//	    LSPToLSF on a zero-windowed buffer — the steady cold-start
+//	    state).
 //
 // If ω_decoder(WANT) is far from analytical, the ITU encoder did
 // NOT see analytical ω at frame 0 — it saw something else (e.g.

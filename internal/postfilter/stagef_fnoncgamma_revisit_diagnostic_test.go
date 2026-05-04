@@ -27,45 +27,45 @@ import (
 //
 // Spec polarity expectation (PDF verbatim 인용 — ITU-T G.729 (06/2012)):
 //
-//   §4.2.1 Long-term postfilter, p.28 line 1565..1572 (eq 78):
-//     "Hp(z) = (1/(1+γp·gl)) · (1 + γp·gl·z^-T)"
-//     "gl is bounded by 1, and it is set to zero if the long-term
-//     prediction gain is less than 3 dB."
-//     → Hp(z) = (1/(1+γp·gl))·1  + (γp·gl/(1+γp·gl))·z^-T  ;  γp=0.5.
-//     coefficients g0 = 1/(1+γp·gl), g1 = γp·gl/(1+γp·gl) — both ≥ 0
-//     for any 0 ≤ gl ≤ 1.  Polarity preserve when r̂(n) and r̂(n-T)
-//     share sign (or when gl=0 → output = r̂(n) exactly).
+//	§4.2.1 Long-term postfilter, p.28 line 1565..1572 (eq 78):
+//	  "Hp(z) = (1/(1+γp·gl)) · (1 + γp·gl·z^-T)"
+//	  "gl is bounded by 1, and it is set to zero if the long-term
+//	  prediction gain is less than 3 dB."
+//	  → Hp(z) = (1/(1+γp·gl))·1  + (γp·gl/(1+γp·gl))·z^-T  ;  γp=0.5.
+//	  coefficients g0 = 1/(1+γp·gl), g1 = γp·gl/(1+γp·gl) — both ≥ 0
+//	  for any 0 ≤ gl ≤ 1.  Polarity preserve when r̂(n) and r̂(n-T)
+//	  share sign (or when gl=0 → output = r̂(n) exactly).
 //
-//   §4.2.2 Short-term postfilter, p.28 line 1626..1644 (eq 84):
-//     "Hf(z) = (1/gf) · (Â(z/γn)/Â(z/γd))"
-//     IIR with LP-derived denominator coefficients aˆ_i (γn=0.55,
-//     γd=0.7). Polarity preserve under stable IIR with sign-equal
-//     coefficients (F-non-prelim-1: a[0..10] sign 11/11 == reference).
+//	§4.2.2 Short-term postfilter, p.28 line 1626..1644 (eq 84):
+//	  "Hf(z) = (1/gf) · (Â(z/γn)/Â(z/γd))"
+//	  IIR with LP-derived denominator coefficients aˆ_i (γn=0.55,
+//	  γd=0.7). Polarity preserve under stable IIR with sign-equal
+//	  coefficients (F-non-prelim-1: a[0..10] sign 11/11 == reference).
 //
-//   §4.2.3 Tilt compensation, p.29 line 1646..1667 (eq 86, 87):
-//     "Ht(z) = (1/gt)·(1 + γt·k1' · z^-1)"
-//     "Two values for γt are used depending on the sign of k1'.
-//     If k1' is negative, γt = 0.9, and if k1' is positive, γt = 0.2."
-//     One-tap FIR: s_tilt(n) = s_st(n) + (γt·k1') · s_st(n-1).
-//     Polarity preserve when s_st sample 5..7 dominate over μ·s_st(n-1)
-//     contribution (μ = γt·k1', |μ| < 1 typical).
+//	§4.2.3 Tilt compensation, p.29 line 1646..1667 (eq 86, 87):
+//	  "Ht(z) = (1/gt)·(1 + γt·k1' · z^-1)"
+//	  "Two values for γt are used depending on the sign of k1'.
+//	  If k1' is negative, γt = 0.9, and if k1' is positive, γt = 0.2."
+//	  One-tap FIR: s_tilt(n) = s_st(n) + (γt·k1') · s_st(n-1).
+//	  Polarity preserve when s_st sample 5..7 dominate over μ·s_st(n-1)
+//	  contribution (μ = γt·k1', |μ| < 1 typical).
 //
-//   §4.2.4 Adaptive gain control, p.29 line 1669..1686 (eq 88, 89, 90):
-//     "G = Σ ŝ(n) / Σ sf(n)"   (main spec; Annex A §A.4.2.4 = Σŝ²/Σsf²)
-//     "sf'(n) = g(n)·sf(n)"
-//     "g(n) = 0.85·g(n-1) + 0.15·G"   (main spec; Annex A = 0.9/0.1)
-//     g(n) is a positive scalar gain → strict polarity preserve.
+//	§4.2.4 Adaptive gain control, p.29 line 1669..1686 (eq 88, 89, 90):
+//	  "G = Σ ŝ(n) / Σ sf(n)"   (main spec; Annex A §A.4.2.4 = Σŝ²/Σsf²)
+//	  "sf'(n) = g(n)·sf(n)"
+//	  "g(n) = 0.85·g(n-1) + 0.15·G"   (main spec; Annex A = 0.9/0.1)
+//	  g(n) is a positive scalar gain → strict polarity preserve.
 //
-//   §4.2.5 High-pass filtering and upscaling, p.29 line 1687..1693
-//     (eq 91):
-//     "H_h2(z) = (0.93980581 − 1.8795834·z^-1 + 0.93980581·z^-2) /
-//                (1 − 1.9330735·z^-1 + 0.93589199·z^-2)"
-//     "The filtered signal is multiplied by a factor 2 to restore the
-//     input signal level."
-//     Linear-phase 2-pole 2-zero IIR + ×2 scale. Polarity preserve at
-//     steady-state DC-removed input; at sample 0..7 (first samples
-//     after zero state init) impulse response is +b0·×2 ≈ +1.879
-//     applied to first input → first sample sign = sign(input[0]).
+//	§4.2.5 High-pass filtering and upscaling, p.29 line 1687..1693
+//	  (eq 91):
+//	  "H_h2(z) = (0.93980581 − 1.8795834·z^-1 + 0.93980581·z^-2) /
+//	             (1 − 1.9330735·z^-1 + 0.93589199·z^-2)"
+//	  "The filtered signal is multiplied by a factor 2 to restore the
+//	  input signal level."
+//	  Linear-phase 2-pole 2-zero IIR + ×2 scale. Polarity preserve at
+//	  steady-state DC-removed input; at sample 0..7 (first samples
+//	  after zero state init) impulse response is +b0·×2 ≈ +1.879
+//	  applied to first input → first sample sign = sign(input[0]).
 //
 // 종합 polarity expectation: syn[5..7]=[+1,+1,+1] (F-non-prelim-1
 // 측정값) + 4 sub-stage 모두 polarity preserve (spec 인용 위) →
@@ -329,8 +329,8 @@ func TestDiagnostic_FnonCgammaRevisit1PostfilterSubStageTrace(t *testing.T) {
 	//     expectation (= "+", since syn[5..7]=[+,+,+] and PST chain is
 	//     polarity-preserving per spec §4.2.* quotes above).
 	type subStageResult struct {
-		label   string
-		sec     string
+		label      string
+		sec        string
 		v5, v6, v7 int16
 	}
 	results := []subStageResult{

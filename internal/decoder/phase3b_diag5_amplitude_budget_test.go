@@ -81,17 +81,17 @@ func TestPhase3bDiag5_AmplitudeBudget(t *testing.T) {
 
 	// Per-subframe records.
 	type sfRec struct {
-		frame, sf            int
-		gpQ14                int16
-		gcMantQ14            int16
-		gcExp                int8
-		gcLin                float64
-		gpLin                float64
-		eV, eC_lin, eU       float64
-		eGpV, eGcC, eCross   float64
-		eS, eSPf             float64
-		eOut80               float64 // per-frame, repeated for each sf so we can filter
-		ePstFrame            float64
+		frame, sf          int
+		gpQ14              int16
+		gcMantQ14          int16
+		gcExp              int8
+		gcLin              float64
+		gpLin              float64
+		eV, eC_lin, eU     float64
+		eGpV, eGcC, eCross float64
+		eS, eSPf           float64
+		eOut80             float64 // per-frame, repeated for each sf so we can filter
+		ePstFrame          float64
 	}
 	recs := make([]sfRec, 0, frames*2)
 

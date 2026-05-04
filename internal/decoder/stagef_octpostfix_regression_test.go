@@ -43,7 +43,9 @@ import "testing"
 //
 // -------------------------------------------------------------------
 // HISTORICAL RECORD — verbatim quote of gate 17 RED docstring
-//   (commit 9ab1c91, last re-annotated through a3f43e6)
+//
+//	(commit 9ab1c91, last re-annotated through a3f43e6)
+//
 // -------------------------------------------------------------------
 //
 //	TestDecode_AlgthmFrame0Sf0Sample5to7_NegativeOutput is the

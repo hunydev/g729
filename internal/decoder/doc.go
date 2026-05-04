@@ -6,31 +6,31 @@
 //
 // # Block diagram
 //
-//	              ┌────────────┐
-//	 10-byte ───▶ │ bitstream  │──▶ Frame (15 index fields)
-//	 frame        │  Unpack    │
-//	              └────────────┘
-//	                    │
-//	                    ▼
-//	              ┌────────────┐
-//	              │   lsp      │──▶ sf1A, sf2A (Q12 LP coefs)
-//	              │ Decoder    │
-//	              └────────────┘
-//	                    │                          per-subframe loop
-//	                    ▼                          ┌──────────────────┐
-//	         ┌──────────────────────────┐          │ pitch.AdaptCode  │
-//	         │   decodeSubframe (×2)    │ ◀────────│ fcb.Decode       │
-//	         │  writes 40 HP samples    │          │ gain.Decode      │
-//	         └──────────────────────────┘          │ synth.Filter     │
-//	                    │                          │ postfilter.Filter│
-//	                    ▼                          │ hpFilter         │
-//	         ┌──────────────────────────┐          └──────────────────┘
-//	         │     pcm.ScaleUpSat       │
-//	         │     (×2 amplitude)       │
-//	         └──────────────────────────┘
-//	                    │
-//	                    ▼
-//	              80 int16 PCM
+//	             ┌────────────┐
+//	10-byte ───▶ │ bitstream  │──▶ Frame (15 index fields)
+//	frame        │  Unpack    │
+//	             └────────────┘
+//	                   │
+//	                   ▼
+//	             ┌────────────┐
+//	             │   lsp      │──▶ sf1A, sf2A (Q12 LP coefs)
+//	             │ Decoder    │
+//	             └────────────┘
+//	                   │                          per-subframe loop
+//	                   ▼                          ┌──────────────────┐
+//	        ┌──────────────────────────┐          │ pitch.AdaptCode  │
+//	        │   decodeSubframe (×2)    │ ◀────────│ fcb.Decode       │
+//	        │  writes 40 HP samples    │          │ gain.Decode      │
+//	        └──────────────────────────┘          │ synth.Filter     │
+//	                   │                          │ postfilter.Filter│
+//	                   ▼                          │ hpFilter         │
+//	        ┌──────────────────────────┐          └──────────────────┘
+//	        │     pcm.ScaleUpSat       │
+//	        │     (×2 amplitude)       │
+//	        └──────────────────────────┘
+//	                   │
+//	                   ▼
+//	             80 int16 PCM
 //
 // # State layout
 //

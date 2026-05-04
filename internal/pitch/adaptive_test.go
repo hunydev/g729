@@ -77,36 +77,36 @@ func TestAdaptiveCodebookFractionalVariesWithTFrac(t *testing.T) {
 }
 
 func TestAdaptiveCodebookShortPitchIntegerDelay(t *testing.T) {
-var pastExc [200]int16
-for i := 180; i < 200; i++ {
-pastExc[i] = int16(i - 179)
-}
-var v [40]int16
-AdaptiveCodebook(20, 0, pastExc[:], &v)
+	var pastExc [200]int16
+	for i := 180; i < 200; i++ {
+		pastExc[i] = int16(i - 179)
+	}
+	var v [40]int16
+	AdaptiveCodebook(20, 0, pastExc[:], &v)
 
-for n := 0; n < 20; n++ {
-want := int16(n + 1)
-if v[n] != want {
-t.Errorf("v[%d] = %d, want %d (pre-replication window)", n, v[n], want)
-}
-}
-for n := 20; n < 40; n++ {
-want := v[n-20]
-if v[n] != want {
-t.Errorf("v[%d] = %d, want v[%d] = %d (replicated)", n, v[n], n-20, want)
-}
-}
+	for n := 0; n < 20; n++ {
+		want := int16(n + 1)
+		if v[n] != want {
+			t.Errorf("v[%d] = %d, want %d (pre-replication window)", n, v[n], want)
+		}
+	}
+	for n := 20; n < 40; n++ {
+		want := v[n-20]
+		if v[n] != want {
+			t.Errorf("v[%d] = %d, want v[%d] = %d (replicated)", n, v[n], n-20, want)
+		}
+	}
 }
 
 func TestAdaptiveCodebookShortPitchBoundary(t *testing.T) {
-var pastExc [200]int16
-for i := 100; i < 200; i++ {
-pastExc[i] = int16(i - 100)
-}
-var v [40]int16
-AdaptiveCodebook(39, 0, pastExc[:], &v)
-if v[39] != v[0] {
-t.Errorf("v[39] = %d, want v[0] = %d (T_int=39 replication at last sample)",
-v[39], v[0])
-}
+	var pastExc [200]int16
+	for i := 100; i < 200; i++ {
+		pastExc[i] = int16(i - 100)
+	}
+	var v [40]int16
+	AdaptiveCodebook(39, 0, pastExc[:], &v)
+	if v[39] != v[0] {
+		t.Errorf("v[39] = %d, want v[0] = %d (T_int=39 replication at last sample)",
+			v[39], v[0])
+	}
 }

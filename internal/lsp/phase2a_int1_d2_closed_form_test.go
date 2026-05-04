@@ -50,6 +50,7 @@ import (
 // — the integration gate stops there too. The substituted frames
 // (15, 25) keep the four-sample shape requested by the brief while
 // staying inside the frame range production can actually reach.
+//
 //	TableShape_LSPCodebookL1 — first/middle/last rows + range stats
 //	TableShape_LSPCodebookL2 — first/last rows + range stats
 //	TableShape_LSPCodebookL3 — first/last rows + range stats
@@ -67,7 +68,7 @@ func TestINT1D2Frame5ClosedForm(t *testing.T) {
 		samplesPerFrame  = 80
 		bytesPerInFrame  = 2 * samplesPerFrame
 		bytesPerBitFrame = 164 // G.192 framed: 1 sync + 1 len + 80 data, ×2 bytes each
-		minFramesNeeded  = 28 // we drive 0..27 inclusive (frame 29 hits LPToLSP guard)
+		minFramesNeeded  = 28  // we drive 0..27 inclusive (frame 29 hits LPToLSP guard)
 	)
 
 	inPath := filepath.Join("..", "..", "testdata", "itu",

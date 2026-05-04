@@ -167,5 +167,3 @@ func TestInterpolate3_NoAlloc(t *testing.T) {
 // Compile-time guard: ensure the FIR table size we depend on
 // hasn't drifted out from under the FR-1 implementation.
 var _ = [1]struct{}{}[31-len(tables.PitchInterpFIR)]
-
-

@@ -10,10 +10,10 @@ func TestComputeF1F2(t *testing.T) {
 	const oneQ24 int32 = 1 << 24
 
 	cases := []struct {
-		name       string
-		a          [11]int16
-		wantF1     [6]int32
-		wantF2     [6]int32
+		name   string
+		a      [11]int16
+		wantF1 [6]int32
+		wantF2 [6]int32
 	}{
 		{
 			// All-zero a[1..10]: every (a[i+1]±a[10-i]) term is 0,

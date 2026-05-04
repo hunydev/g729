@@ -55,7 +55,9 @@ func TestRefineFraction_FracZeroForExactImpulse(t *testing.T) {
 // candidate u_kt(n) sample streams from a generic past-excitation
 // buffer using the production Interpolate3 primitive, then drive
 // xb := u_{intLag, +1}. By the Cauchy–Schwarz inequality
-//   Σ s_+ · s_+ ≥ |Σ s_+ · s_x|
+//
+//	Σ s_+ · s_+ ≥ |Σ s_+ · s_x|
+//
 // for any other sequence s_x not proportional to s_+, so RN is
 // strictly maximised at frac = +1 for non-degenerate exc.
 //

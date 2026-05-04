@@ -155,10 +155,10 @@ func Reconstruct(pastQuaEn *[4]int16, c *[40]int16, ga, gb uint8) (gpQ14, gcMant
 
 // UpdatePastQuaEn applies the §3.9.1 eq. (72) past-energy FIFO update:
 //
-//pastQuaEn[3] ← pastQuaEn[2]
-//pastQuaEn[2] ← pastQuaEn[1]
-//pastQuaEn[1] ← pastQuaEn[0]
-//pastQuaEn[0] ← U(m) = 20·log10(γ̂_c)   (Q10 dB)
+// pastQuaEn[3] ← pastQuaEn[2]
+// pastQuaEn[2] ← pastQuaEn[1]
+// pastQuaEn[1] ← pastQuaEn[0]
+// pastQuaEn[0] ← U(m) = 20·log10(γ̂_c)   (Q10 dB)
 //
 // The new entry U(m) is the current quantized prediction error in dB
 // (eq. 72 line 1379), feeding the next subframe's MA prediction (eq. 69).
@@ -176,21 +176,21 @@ func Reconstruct(pastQuaEn *[4]int16, c *[40]int16, ga, gb uint8) (gpQ14, gcMant
 // re-seed pastQuaEn[0] with PastErrorsDefault (-14 dB Q10), matching
 // the decoder's gain.Decode zero-energy guard.
 func UpdatePastQuaEn(pastQuaEn *[4]int16, gammaCQ13 int16) {
-var uCurrent int16
-if gammaCQ13 > 0 {
-gammaLog2Q10 := int32(gain.Log2Fixed(fixed.Word32(gammaCQ13))) - 13*1024
-val := (gammaLog2Q10*dbPerLog2Q10 + (1 << 9)) >> 10
-if val > 32767 {
-val = 32767
-} else if val < -32768 {
-val = -32768
-}
-uCurrent = int16(val)
-} else {
-uCurrent = gain.PastErrorsDefault
-}
-pastQuaEn[3] = pastQuaEn[2]
-pastQuaEn[2] = pastQuaEn[1]
-pastQuaEn[1] = pastQuaEn[0]
-pastQuaEn[0] = uCurrent
+	var uCurrent int16
+	if gammaCQ13 > 0 {
+		gammaLog2Q10 := int32(gain.Log2Fixed(fixed.Word32(gammaCQ13))) - 13*1024
+		val := (gammaLog2Q10*dbPerLog2Q10 + (1 << 9)) >> 10
+		if val > 32767 {
+			val = 32767
+		} else if val < -32768 {
+			val = -32768
+		}
+		uCurrent = int16(val)
+	} else {
+		uCurrent = gain.PastErrorsDefault
+	}
+	pastQuaEn[3] = pastQuaEn[2]
+	pastQuaEn[2] = pastQuaEn[1]
+	pastQuaEn[1] = pastQuaEn[0]
+	pastQuaEn[0] = uCurrent
 }

@@ -171,26 +171,26 @@ func TestFilter_StatePropagatesAcrossSubframes(t *testing.T) {
 // introduces algorithmic group delay, so the first output sample must
 // reflect the first input sample scaled by the AGC gain.
 func TestFilter_ImpulseResponse_FirstSampleNonZero(t *testing.T) {
-var pf Postfilter
+	var pf Postfilter
 
-var a [11]int16
-a[0] = 4096
+	var a [11]int16
+	a[0] = 4096
 
-var s [subframeLen]int16
-for i := range s {
-s[i] = 100
-}
+	var s [subframeLen]int16
+	for i := range s {
+		s[i] = 100
+	}
 
-var sPf [subframeLen]int16
-pf.Filter(&a, 40, &s, &sPf)
+	var sPf [subframeLen]int16
+	pf.Filter(&a, 40, &s, &sPf)
 
-if sPf[0] == 0 {
-t.Fatalf("Filter output sample 0 is 0; expected non-zero (input was 100 flat). "+
-"Postfilter introduced a startup delay. sPf[:8]=%v", sPf[:8])
-}
-if sPf[0] < 50 || sPf[0] > 150 {
-t.Fatalf("Filter output sample 0 = %d; expected ≈100 (input was 100 flat, AGC should pass unity).", sPf[0])
-}
+	if sPf[0] == 0 {
+		t.Fatalf("Filter output sample 0 is 0; expected non-zero (input was 100 flat). "+
+			"Postfilter introduced a startup delay. sPf[:8]=%v", sPf[:8])
+	}
+	if sPf[0] < 50 || sPf[0] > 150 {
+		t.Fatalf("Filter output sample 0 = %d; expected ≈100 (input was 100 flat, AGC should pass unity).", sPf[0])
+	}
 }
 
 // TestFilter_SmoothPositiveInput_PreservesPolarity asserts that a
@@ -198,29 +198,29 @@ t.Fatalf("Filter output sample 0 = %d; expected ≈100 (input was 100 flat, AGC 
 // positive postfilter output (at least 75 % of samples must be
 // non-negative).
 func TestFilter_SmoothPositiveInput_PreservesPolarity(t *testing.T) {
-var pf Postfilter
+	var pf Postfilter
 
-var a [11]int16
-a[0] = 4096
-a[1] = -2048
-a[2] = 1024
+	var a [11]int16
+	a[0] = 4096
+	a[1] = -2048
+	a[2] = 1024
 
-var s [subframeLen]int16
-for i := range s {
-s[i] = int16(500 + i*10)
-}
+	var s [subframeLen]int16
+	for i := range s {
+		s[i] = int16(500 + i*10)
+	}
 
-var sPf [subframeLen]int16
-pf.Filter(&a, 40, &s, &sPf)
+	var sPf [subframeLen]int16
+	pf.Filter(&a, 40, &s, &sPf)
 
-negCount := 0
-for _, v := range sPf {
-if v < 0 {
-negCount++
-}
-}
-if negCount > subframeLen/4 {
-t.Fatalf("Postfilter inverted %d/%d samples on a monotonically-positive input. sPf=%v",
-negCount, subframeLen, sPf[:])
-}
+	negCount := 0
+	for _, v := range sPf {
+		if v < 0 {
+			negCount++
+		}
+	}
+	if negCount > subframeLen/4 {
+		t.Fatalf("Postfilter inverted %d/%d samples on a monotonically-positive input. sPf=%v",
+			negCount, subframeLen, sPf[:])
+	}
 }

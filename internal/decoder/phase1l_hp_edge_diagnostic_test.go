@@ -29,8 +29,9 @@ import (
 // two low-energy boundary-cluster vectors (ALGTHM, SPEECH).
 //
 // Reference plan:
-//   docs/superpowers/plans/2026-05-06-phase1l-stage-f-non-hpost-plan.md
-//   §Task 2 (HP-2).
+//
+//	docs/superpowers/plans/2026-05-06-phase1l-stage-f-non-hpost-plan.md
+//	§Task 2 (HP-2).
 //
 // ABSOLUTE CONSTRAINTS (E1/E2/E4/E5):
 //   - clean-room MIT: no ITU C / bcg729 / Sipro / FFmpeg G.729 / Annex A
@@ -51,78 +52,81 @@ import (
 //
 // ============================================================================
 // SPEC VERBATIM CITATIONS (mandatory) — extracted via:
-//   pdftotext -layout docs/superpowers/specs/itu/G729E.pdf -
+//
+//	pdftotext -layout docs/superpowers/specs/itu/G729E.pdf -
+//
 // ============================================================================
 //
 // (1) §4.2.5 "High-pass filtering and upscaling" (PDF lines 1687..1693):
 //
-//     "A high-pass filter with a cut-off frequency of 100 Hz is applied
-//      to the reconstructed postfiltered speech sf'(n). The filter is
-//      given by:
+//	"A high-pass filter with a cut-off frequency of 100 Hz is applied
+//	 to the reconstructed postfiltered speech sf'(n). The filter is
+//	 given by:
 //
-//                       0.93980581 − 1.8795834 z⁻¹ + 0.93980581 z⁻²
-//        H_h2(z)  =  ───────────────────────────────────────────────
-//                       1 − 1.9330735 z⁻¹ + 0.93589199 z⁻²
+//	                  0.93980581 − 1.8795834 z⁻¹ + 0.93980581 z⁻²
+//	   H_h2(z)  =  ───────────────────────────────────────────────
+//	                  1 − 1.9330735 z⁻¹ + 0.93589199 z⁻²
 //
-//      The filtered signal is multiplied by a factor 2 to restore the
-//      input signal level."
+//	 The filtered signal is multiplied by a factor 2 to restore the
+//	 input signal level."
 //
-//     Coefficient extraction:
-//        b0 = +0.93980581, b1 = −1.8795834, b2 = +0.93980581
-//        a0 = 1, a1 = −1.9330735, a2 = +0.93589199
-//     Difference equation (canonical):
-//        y[n] = b0·x[n] + b1·x[n-1] + b2·x[n-2]
-//             − a1·y[n-1] − a2·y[n-2]
-//             = b0·x[n] + b1·x[n-1] + b2·x[n-2]
-//             + 1.9330735·y[n-1] − 0.93589199·y[n-2]
+//	Coefficient extraction:
+//	   b0 = +0.93980581, b1 = −1.8795834, b2 = +0.93980581
+//	   a0 = 1, a1 = −1.9330735, a2 = +0.93589199
+//	Difference equation (canonical):
+//	   y[n] = b0·x[n] + b1·x[n-1] + b2·x[n-2]
+//	        − a1·y[n-1] − a2·y[n-2]
+//	        = b0·x[n] + b1·x[n-1] + b2·x[n-2]
+//	        + 1.9330735·y[n-1] − 0.93589199·y[n-2]
 //
-//     ⇒ §4.2.5 IS VERBATIM SILENT on the values of x[−1], x[−2], y[−1],
-//     y[−2] at the very first call (frame 0, sample 0). No "initial",
-//     "init", "reset", "zero" wording in the §4.2.5 paragraph itself.
+//	⇒ §4.2.5 IS VERBATIM SILENT on the values of x[−1], x[−2], y[−1],
+//	y[−2] at the very first call (frame 0, sample 0). No "initial",
+//	"init", "reset", "zero" wording in the §4.2.5 paragraph itself.
 //
 // (2) §A.4.2.5 "High-pass filtering and upscaling" (PDF lines 2292..2293):
 //
-//     "Same as described in clause 4.2.5."
+//	"Same as described in clause 4.2.5."
 //
-//     Annex A defers entirely to §4.2.5; no Annex-specific HP init
-//     statement. Therefore the §4.2.5 silence is inherited.
+//	Annex A defers entirely to §4.2.5; no Annex-specific HP init
+//	statement. Therefore the §4.2.5 silence is inherited.
 //
 // (3) §4.3 "Encoder and decoder initialization" (PDF lines 1696..1707):
 //
-//     "All static encoder and decoder variables should be initialized
-//      to zero, except the variables listed in Table 9.
+//	"All static encoder and decoder variables should be initialized
+//	 to zero, except the variables listed in Table 9.
 //
-//                Table 9 – Description of parameters with non-zero
-//                          initialization
-//        Variable      Reference        Initial value
-//        β              3.8              0.8
-//        g(–1)          4.2.4            1.0
-//        ^l_i           3.2.4            iπ/11
-//        q_i            3.2.4            arccos(iπ/11)
-//        Û^(k)          3.9.1            −14"
+//	           Table 9 – Description of parameters with non-zero
+//	                     initialization
+//	   Variable      Reference        Initial value
+//	   β              3.8              0.8
+//	   g(–1)          4.2.4            1.0
+//	   ^l_i           3.2.4            iπ/11
+//	   q_i            3.2.4            arccos(iπ/11)
+//	   Û^(k)          3.9.1            −14"
 //
-//     The HP filter state x[n−1], x[n−2], y[n−1], y[n−2] (production:
-//     Decoder.hpX, Decoder.hpY) are NOT in Table 9. Per §4.3 they
-//     therefore "should be initialized to zero". This is an EXPLICIT
-//     spec mandate (default-zero) reached by the §4.3 catch-all clause,
-//     not by §A.4.2.5 directly.
+//	The HP filter state x[n−1], x[n−2], y[n−1], y[n−2] (production:
+//	Decoder.hpX, Decoder.hpY) are NOT in Table 9. Per §4.3 they
+//	therefore "should be initialized to zero". This is an EXPLICIT
+//	spec mandate (default-zero) reached by the §4.3 catch-all clause,
+//	not by §A.4.2.5 directly.
 //
-//     ⇒ specInit (HP state, frame 0) = ZERO  (explicit via §4.3 default).
+//	⇒ specInit (HP state, frame 0) = ZERO  (explicit via §4.3 default).
 //
 // (4) §A.4.3 "Encoder and decoder initialization" (PDF line 2294):
 //
-//     "Same as described in clause 4.3."
+//	"Same as described in clause 4.3."
 //
-//     Annex A inherits the §4.3 default-zero rule. No override.
+//	Annex A inherits the §4.3 default-zero rule. No override.
 //
 // (5) Frame vs subframe cadence — §4.2.5 applies H_h2 to "the
-//     reconstructed postfiltered speech sf'(n)" without specifying
-//     batch size. Production (decoder/subframe.go:48) calls hpFilter
-//     once per subframe (40 samples). Because H_h2 is a strictly causal
-//     IIR with state {x[n−1], x[n−2], y[n−1], y[n−2]} carried across
-//     calls (decoder/hpfilter.go:60-63 stores back into d.hpX, d.hpY),
-//     two consecutive 40-sample calls are mathematically identical to
-//     one 80-sample call. Cadence has no effect on the time series.
+//
+//	reconstructed postfiltered speech sf'(n)" without specifying
+//	batch size. Production (decoder/subframe.go:48) calls hpFilter
+//	once per subframe (40 samples). Because H_h2 is a strictly causal
+//	IIR with state {x[n−1], x[n−2], y[n−1], y[n−2]} carried across
+//	calls (decoder/hpfilter.go:60-63 stores back into d.hpX, d.hpY),
+//	two consecutive 40-sample calls are mathematically identical to
+//	one 80-sample call. Cadence has no effect on the time series.
 //
 // ============================================================================
 // VERDICT MODEL
@@ -130,32 +134,32 @@ import (
 //
 // HP-2 verdict per (vector × region) cell:
 //
-//   productionInit (sample 0, BEFORE first hpFilter call of frame 0):
-//     hpX[0] = 0, hpX[1] = 0, hpY[0] = 0, hpY[1] = 0 — observed below
-//     from a freshly zero-valued Decoder.
+//	productionInit (sample 0, BEFORE first hpFilter call of frame 0):
+//	  hpX[0] = 0, hpX[1] = 0, hpY[0] = 0, hpY[1] = 0 — observed below
+//	  from a freshly zero-valued Decoder.
 //
-//   specInit (frame 0, BEFORE first hpFilter call):
-//     §4.2.5 itself: SILENT.
-//     §A.4.2.5: defers to §4.2.5 (silent).
-//     §4.3 (catch-all): "All static decoder variables should be
-//                        initialized to zero, except [Table 9]" and
-//                        Table 9 does NOT include HP filter state.
-//     ⇒ specInit = ZERO (explicit via §4.3 catch-all).
+//	specInit (frame 0, BEFORE first hpFilter call):
+//	  §4.2.5 itself: SILENT.
+//	  §A.4.2.5: defers to §4.2.5 (silent).
+//	  §4.3 (catch-all): "All static decoder variables should be
+//	                     initialized to zero, except [Table 9]" and
+//	                     Table 9 does NOT include HP filter state.
+//	  ⇒ specInit = ZERO (explicit via §4.3 catch-all).
 //
-//   verdict for "early" (i ∈ [0..21]):
-//     EQ if productionInit == specInit (both zero) AND transientPattern
-//        is decay-toward-zero (consistent with zero-state IIR step
-//        response).
-//     NE if productionInit ≠ specInit.
-//     UNDETERMINED only if specInit is silent — NOT the case here, so
-//        UNDETERMINED is not expected for the early cell.
+//	verdict for "early" (i ∈ [0..21]):
+//	  EQ if productionInit == specInit (both zero) AND transientPattern
+//	     is decay-toward-zero (consistent with zero-state IIR step
+//	     response).
+//	  NE if productionInit ≠ specInit.
+//	  UNDETERMINED only if specInit is silent — NOT the case here, so
+//	     UNDETERMINED is not expected for the early cell.
 //
-//   verdict for "late" (i ∈ [65..79]):
-//     The §4.2.5 spec is silent on what should happen at the late edge
-//     of frame 0; no spec-mandated late-edge invariant exists. We
-//     report this cell as "observation" (not EQ / NE). It is tagged
-//     UNDETERMINED in the verdict column (E4: spec silence on
-//     late-frame-0-edge invariant).
+//	verdict for "late" (i ∈ [65..79]):
+//	  The §4.2.5 spec is silent on what should happen at the late edge
+//	  of frame 0; no spec-mandated late-edge invariant exists. We
+//	  report this cell as "observation" (not EQ / NE). It is tagged
+//	  UNDETERMINED in the verdict column (E4: spec silence on
+//	  late-frame-0-edge invariant).
 //
 // ============================================================================
 // HARD ASSERTIONS — spec-derivable invariants only
@@ -294,7 +298,7 @@ func TestDiagnostic_Phase1lHp2EdgeTrace(t *testing.T) {
 					ff := int32(hpB0Q13)*int32(xn) +
 						int32(hpB1Q13)*int32(x1) +
 						int32(hpB2Q13)*int32(x2) // Q13
-					ff >>= 1                     // Q12
+					ff >>= 1 // Q12
 
 					fb := int64(hpNegA1Q12) * int64(y1) // Q24
 					fb >>= 12
@@ -398,7 +402,7 @@ func TestDiagnostic_Phase1lHp2EdgeTrace(t *testing.T) {
 
 			// Full per-sample state series for early region [0..21].
 			t.Logf("--- early region [0..21] full HP state series ---")
-			t.Logf("  i | preX=[x1,x2] preY=[y1,y2] | xn=sPf | "+
+			t.Logf("  i | preX=[x1,x2] preY=[y1,y2] | xn=sPf | " +
 				"postX=[x1,x2] postY=[y1,y2] | postHP postX2 want Δ")
 			for i := 0; i <= 21; i++ {
 				t.Logf("  %2d | preX=[%6d,%6d] preY=[%9d,%9d] | "+
@@ -413,7 +417,7 @@ func TestDiagnostic_Phase1lHp2EdgeTrace(t *testing.T) {
 
 			// Full per-sample state series for late region [65..79].
 			t.Logf("--- late region [65..79] full HP state series ---")
-			t.Logf("  i | preX=[x1,x2] preY=[y1,y2] | xn=sPf | "+
+			t.Logf("  i | preX=[x1,x2] preY=[y1,y2] | xn=sPf | " +
 				"postX=[x1,x2] postY=[y1,y2] | postHP postX2 want Δ")
 			for i := 65; i <= 79; i++ {
 				t.Logf("  %2d | preX=[%6d,%6d] preY=[%9d,%9d] | "+
@@ -470,7 +474,7 @@ func TestDiagnostic_Phase1lHp2EdgeTrace(t *testing.T) {
 
 	// ---- 4-cell verdict matrix (top-level Logf) ----
 	t.Logf("──────── HP-2 verdict matrix (4 cells) ────────")
-	t.Logf("| vector  | region    | productionInit                    | "+
+	t.Logf("| vector  | region    | productionInit                    | " +
 		"specInit                          | transientPattern   | verdict       |")
 	t.Logf("|---------|-----------|-----------------------------------|" +
 		"-----------------------------------|--------------------|---------------|")
@@ -485,19 +489,20 @@ func TestDiagnostic_Phase1lHp2EdgeTrace(t *testing.T) {
 // over a closed sample range [lo..hi] of the frame-0 80-sample Δ vector.
 //
 // Categories (first match wins):
-//   "all-zero"           — every Δ in [lo..hi] is zero.
-//   "decay-toward-zero"  — strict-or-equal decreasing |Δ| from lo to hi
-//                          AND |Δ[lo]| > 0 (impulse-response transient
-//                          envelope candidate at the leading edge).
-//   "growth-toward-edge" — strict-or-equal increasing |Δ| from lo to hi
-//                          AND |Δ[hi]| > 0 (state-accumulation candidate
-//                          at the trailing edge).
-//   "sign-uniform"       — every nonzero Δ shares the same sign AND
-//                          neither monotonic shape applies (constant-ish
-//                          offset candidate).
-//   "flat"               — all |Δ| identical and nonzero (constant
-//                          offset candidate).
-//   "random"             — otherwise.
+//
+//	"all-zero"           — every Δ in [lo..hi] is zero.
+//	"decay-toward-zero"  — strict-or-equal decreasing |Δ| from lo to hi
+//	                       AND |Δ[lo]| > 0 (impulse-response transient
+//	                       envelope candidate at the leading edge).
+//	"growth-toward-edge" — strict-or-equal increasing |Δ| from lo to hi
+//	                       AND |Δ[hi]| > 0 (state-accumulation candidate
+//	                       at the trailing edge).
+//	"sign-uniform"       — every nonzero Δ shares the same sign AND
+//	                       neither monotonic shape applies (constant-ish
+//	                       offset candidate).
+//	"flat"               — all |Δ| identical and nonzero (constant
+//	                       offset candidate).
+//	"random"             — otherwise.
 func classifyHp2EdgeRegion(deltas []int16, lo, hi int) string {
 	if lo < 0 || hi >= len(deltas) || lo > hi {
 		return "invalid-range"
@@ -597,19 +602,20 @@ func classifyHp2EdgeRegion(deltas []int16, lo, hi int) string {
 // from the §4.2.5 / §A.4.2.5 / §4.3 verbatim quotations in the file
 // header.
 //
-//   vector            : "ALGTHM" or "SPEECH" (recorded for traceability).
-//   region            : "early" (i ∈ [0..21]) or "late" (i ∈ [65..79]).
-//   x0,x1             : production HP state x1, x2 at the region's
-//                       sample-0 (i.e. BEFORE the first hpFilter call
-//                       of frame 0 for "early"; OR at i=65 for "late").
-//   y0,y1             : production HP state y1, y2 at the same instant
-//                       (Q12).
-//   transientPattern  : output of classifyHp2EdgeRegion for the region.
+//	vector            : "ALGTHM" or "SPEECH" (recorded for traceability).
+//	region            : "early" (i ∈ [0..21]) or "late" (i ∈ [65..79]).
+//	x0,x1             : production HP state x1, x2 at the region's
+//	                    sample-0 (i.e. BEFORE the first hpFilter call
+//	                    of frame 0 for "early"; OR at i=65 for "late").
+//	y0,y1             : production HP state y1, y2 at the same instant
+//	                    (Q12).
+//	transientPattern  : output of classifyHp2EdgeRegion for the region.
 //
 // Returns:
-//   productionInit   : "hpX=[x0,x1],hpY=[y0,y1]" snapshot.
-//   specInit         : the §4.2.5/A.4.2.5/§4.3 mandate for this region.
-//   verdict          : "EQ" / "NE" / "UNDETERMINED" per §VERDICT MODEL.
+//
+//	productionInit   : "hpX=[x0,x1],hpY=[y0,y1]" snapshot.
+//	specInit         : the §4.2.5/A.4.2.5/§4.3 mandate for this region.
+//	verdict          : "EQ" / "NE" / "UNDETERMINED" per §VERDICT MODEL.
 func classifyHp2EdgeState(vector, region string,
 	x0, x1 int16, y0, y1 int32,
 	transientPattern string,

@@ -204,17 +204,17 @@ func (e *Encoder) LSPReuseCount() uint64 { return e.lspReuseCount }
 // Phase 2f API-1 wiring (plan §6 Task API-1):
 //
 //  1. lpcStep(pcm)            — §3.2 LP analysis + LSP VQ → l0..l3,
-//                                aQ12Latest, aHatSF1/2, oldSpeech slide.
+//     aQ12Latest, aHatSF1/2, oldSpeech slide.
 //  2. openloopStep()          — §A.3.3/A.3.4 weighted speech + open-loop
-//                                pitch → tOp.
+//     pitch → tOp.
 //  3. closedloopStep(0)       — §A.3.5–A.3.10 subframe 1 → p1, p0; calls
-//                                fcbStep(0) internally → s1, c1, ga1, gb1.
+//     fcbStep(0) internally → s1, c1, ga1, gb1.
 //  4. closedloopStep(1)       — subframe 2 → p2; calls fcbStep(1)
-//                                internally → s2, c2, ga2, gb2.
+//     internally → s2, c2, ga2, gb2.
 //  5. buildBitstreamFrame     — composes the 15 per-frame indices into
-//                                a stack-allocated bitstream.Frame.
+//     a stack-allocated bitstream.Frame.
 //  6. bitstream.Pack          — emits the canonical 10-byte G.729
-//                                frame per §4.2.1 + Table 8.
+//     frame per §4.2.1 + Table 8.
 //
 // I3 / I4: per-frame state is mutated exactly once per call by the
 // step methods; no allocation on the hot path (the bitstream.Frame
@@ -525,13 +525,13 @@ func (e *Encoder) closedloopStep(sub int) (intLag int16, frac int8) {
 //  11. ENC-1 PackS / PackC : (S, C) bit fields             (§3.8.2 eq. 61, 62)
 //  12. ENC-1 PackGains     : (GA, GB) bit fields           (§3.9.3)
 //  13. eq. A.10 commit     : swMemErr[n−30] = sat(x(n) −
-//                                  (ĝp·y(n) >> 14) − (ĝc·z(n) >> 12))
-//                            for n=30..39 (G729E.txt line 2211)
+//     (ĝp·y(n) >> 14) − (ĝc·z(n) >> 12))
+//     for n=30..39 (G729E.txt line 2211)
 //  14. eq. A.9  commit     : shift oldExc left by SubframeLen and
-//                            append u(n) = sat((ĝp·v(n) >> 14)
-//                            + (ĝc·c(n) >> 12)) for n=0..39 (line 2202)
+//     append u(n) = sat((ĝp·v(n) >> 14)
+//     + (ĝc·c(n) >> 12)) for n=0..39 (line 2202)
 //  15. GQ-3 UpdatePastQuaEn: FIFO shift; new entry = 20·log10(γ̂_c) Q10
-//                            (§3.9.1 eq. 72)
+//     (§3.9.1 eq. 72)
 //  16. prevGpQ14 ← ĝp ; prevTaming ← taming
 //
 // Q-format reconciliation (OQ-Q-FORMAT-A10): ĝp is Q14, y is Q0;

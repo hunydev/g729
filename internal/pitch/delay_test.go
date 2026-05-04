@@ -4,8 +4,8 @@ import "testing"
 
 // Boundary-case table derived from ITU-T G.729 §3.7.1 equation (41):
 //
-//   P1 = 3*(T1 − 19) + frac − 1   for T1 ∈ [19, 85], frac ∈ {-1, 0, 1}
-//   P1 = (T1 − 85) + 197          for T1 ∈ [86, 143], frac = 0
+//	P1 = 3*(T1 − 19) + frac − 1   for T1 ∈ [19, 85], frac ∈ {-1, 0, 1}
+//	P1 = (T1 − 85) + 197          for T1 ∈ [86, 143], frac = 0
 //
 // Inverting the first branch: T_int = 19 + (P1+2)/3, T_frac = (P1+2)%3 − 1.
 // The first valid (T1, frac) pair is (19, +1) at P1=0 because the smallest

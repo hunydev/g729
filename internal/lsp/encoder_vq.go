@@ -134,10 +134,10 @@ func Quantize(omega *[10]int16, freqPrev *[4][10]int16) Indices {
 	weightsLSF(omega, &weights)
 
 	var (
-		bestSel              uint8
+		bestSel                uint8
 		bestL1, bestL2, bestL3 uint8
-		bestResidual         [10]int16
-		bestCost             int64 = -1
+		bestResidual           [10]int16
+		bestCost               int64 = -1
 
 		target   [10]int16
 		residual [10]int16

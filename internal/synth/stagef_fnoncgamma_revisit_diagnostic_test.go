@@ -335,7 +335,9 @@ func TestDiagnostic_FnonCgammaRevisit2YMagnitudePerturbationTrace(t *testing.T) 
 // single mem_syn[0..9] state: production vs spec-derived reference.
 //
 // EQ = sample-exact equality (Pass-1 §3.10 direct form is deterministic;
-//      any divergence = production deviation from spec).
+//
+//	any divergence = production deviation from spec).
+//
 // NE = ≥1 sample differs.
 //
 // Phase 0.4 강압-적합 회피: no "approximately matches" / "within tolerance".
@@ -350,11 +352,16 @@ func classifyCgammaSynthSubStage(prod, ref [10]int16) string {
 // perturbed syn[5..7] sign tuple vs baseline sign tuple.
 //
 // EQ           — all 3 signs match baseline (magnitude perturbation
-//                does NOT flip output sign; G-2-Y-mag refute).
+//
+//	does NOT flip output sign; G-2-Y-mag refute).
+//
 // NE           — ≥1 sign flipped (magnitude perturbation IS a sign
-//                mechanism candidate).
+//
+//	mechanism candidate).
+//
 // INCONCLUSIVE — ≥1 sample is 0 in either tuple (degenerate; sign
-//                undefined; spec polarity not contradicted).
+//
+//	undefined; spec polarity not contradicted).
 func classifyCgammaYMagSubStage(baseline, perturbed [3]int16) string {
 	hasZero := false
 	hasFlip := false

@@ -14,16 +14,16 @@ import (
 // captured by DecodeWithTaps. Test-only — exists in a _test.go file so
 // no production API surface is added.
 type Phase3DiagSubframeTaps struct {
-	TInt   int
-	TFrac  int
-	GpQ14  int16
-	GcQ12  int16
-	V      [40]int16 // adaptive codebook vector  (Q0)
-	C      [40]int16 // fixed codebook vector     (Q13)
-	U      [40]int16 // total excitation          (Q0, after BuildExcitation)
-	S      [40]int16 // post 1/Â(z)               (Q0, pre-postfilter)
-	SPf    [40]int16 // post postfilter           (Q0)
-	HpOut  [40]int16 // post HP filter            (Q0, pre ScaleUpSat ×2)
+	TInt  int
+	TFrac int
+	GpQ14 int16
+	GcQ12 int16
+	V     [40]int16 // adaptive codebook vector  (Q0)
+	C     [40]int16 // fixed codebook vector     (Q13)
+	U     [40]int16 // total excitation          (Q0, after BuildExcitation)
+	S     [40]int16 // post 1/Â(z)               (Q0, pre-postfilter)
+	SPf   [40]int16 // post postfilter           (Q0)
+	HpOut [40]int16 // post HP filter            (Q0, pre ScaleUpSat ×2)
 
 	// GainTaps captures the unsaturated 32-bit gain-decoder
 	// intermediates (Phase 3a DIAG-1). Test-only; populated by

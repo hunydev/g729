@@ -47,7 +47,7 @@ func chebyshevC(x int16, f *[6]int32) int32 {
 
 	// b[5] = 1.0 in Q24; b[6] = 0. The recursion only needs the
 	// rolling pair (b[k+1], b[k+2]) so we keep two scalars.
-	bk1 := oneQ24 // b[k+1], starts as b[5]
+	bk1 := oneQ24   // b[k+1], starts as b[5]
 	bk2 := int32(0) // b[k+2], starts as b[6]
 
 	x32 := int64(x)
@@ -191,16 +191,21 @@ func bisectRoot(xLo, xHi int16, cLo, cHi int32, f *[6]int32) int16 {
 // (lines 738–799). The wrapper composes the three building blocks
 // of Task family LP:
 //
-//LP-1: computeF1F2 builds the F1(z)/F2(z) sum/difference
-//      polynomial coefficients in Q24 (eq. 13–15).
-//LP-2: chebyshevC evaluates each polynomial in the cosine domain
-//      via Chebyshev back-recursion (eq. 17, lines 794–799).
-//LP-3: findLSPRoots scans a 60-point ω-grid for sign changes and
-//      refines each detected root with 8 binary subdivisions
-//      (lines 784); the I11-binding (60, 8) configuration. The
-//      bisection count was raised from 4 → 8 by Phase 2a INT-1
-//      FIX-2D (see d4 plan §19) so that the Q15 root precision
-//      reaches the floor required for L2/L3 byte-equality.
+// LP-1: computeF1F2 builds the F1(z)/F2(z) sum/difference
+//
+//	polynomial coefficients in Q24 (eq. 13–15).
+//
+// LP-2: chebyshevC evaluates each polynomial in the cosine domain
+//
+//	via Chebyshev back-recursion (eq. 17, lines 794–799).
+//
+// LP-3: findLSPRoots scans a 60-point ω-grid for sign changes and
+//
+//	refines each detected root with 8 binary subdivisions
+//	(lines 784); the I11-binding (60, 8) configuration. The
+//	bisection count was raised from 4 → 8 by Phase 2a INT-1
+//	FIX-2D (see d4 plan §19) so that the Q15 root precision
+//	reaches the floor required for L2/L3 byte-equality.
 //
 // Output q is filled in strictly decreasing-x = strictly increasing-ω
 // order, with F1 supplying the even-indexed roots q[0,2,4,6,8] and
@@ -214,7 +219,7 @@ func bisectRoot(xLo, xHi int16, cLo, cHi int32, f *[6]int32) int16 {
 // heap allocation occurs in steady state. I3: pure function, no
 // panics, no goroutines, no logging.
 func LPToLSP(a *[11]int16, q *[10]int16) error {
-var f1, f2 [6]int32
-computeF1F2(a, &f1, &f2)
-return findLSPRoots(&f1, &f2, q)
+	var f1, f2 [6]int32
+	computeF1F2(a, &f1, &f2)
+	return findLSPRoots(&f1, &f2, q)
 }

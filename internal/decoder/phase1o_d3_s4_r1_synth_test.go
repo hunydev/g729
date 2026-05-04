@@ -36,10 +36,11 @@ import (
 // the suite stays GREEN while the defect remains live.
 //
 // SPEC ANCHORS:
-//   §4.1.6 eq. (77):  ŝ(n) = u(n) − Σ_{i=1..10} âi·ŝ(n−i)
-//   §6.2.1 Table 10:  Word16 round(Word32 L_var)  := extract_h(L_add(L_var, 0x00008000))
-//   §6.2.1 Table 10:  Word32 L_shl(Word32, Word16) — saturating left shift
-//   §6.2.1 Table 10:  Word32 L_mult(Word16, Word16) — 2·a·b with overflow only at Min16·Min16
+//
+//	§4.1.6 eq. (77):  ŝ(n) = u(n) − Σ_{i=1..10} âi·ŝ(n−i)
+//	§6.2.1 Table 10:  Word16 round(Word32 L_var)  := extract_h(L_add(L_var, 0x00008000))
+//	§6.2.1 Table 10:  Word32 L_shl(Word32, Word16) — saturating left shift
+//	§6.2.1 Table 10:  Word32 L_mult(Word16, Word16) — 2·a·b with overflow only at Min16·Min16
 //
 // VERDICT: R-1 NO-FIX. Re-rank R-2 (LP interpolation §4.1.5) and R-3
 // (BuildExcitation rounding §4.1.6 eq. (75)) for S-5.
@@ -94,7 +95,7 @@ func TestPhase1o_D3_S4_R1_SynthRoundingBoundary(t *testing.T) {
 	t.Logf("R-1b (LShl=4, NON-spec):     Round(LShl(3976, 4)) = Round(63616) = %d  → BUT breaks trivial-passthrough → REFUTED", withShl4)
 
 	// Demonstrate that LShl(4) breaks sample 0 of the contract test:
-	lAcc0 := fixed.LMult(1, a0)              // u[0]=1, no past
+	lAcc0 := fixed.LMult(1, a0) // u[0]=1, no past
 	s0New := fixed.Round(fixed.LShl(lAcc0, 4))
 	t.Logf("           LShl(4) sample-0 contract: u[0]=1 → s[0]=%d (want 1) → contract violated", s0New)
 
@@ -112,8 +113,8 @@ func TestPhase1o_D3_S4_R1_SynthRoundingBoundary(t *testing.T) {
 	// Eq. (77) explicit. Implementations that use L_deposit_h(u[n])
 	// + Σ a[i]·s[n-i] (Q16 formulation) are byte-equivalent — verified:
 	// ---------------------------------------------------------------
-	lAccAlt := fixed.LMsu(0, a1, s0)         // start at 0, accumulate -a·s in Q13
-	lShiftedAlt := fixed.LShl(lAccAlt, 3)   // Q13 → Q16
+	lAccAlt := fixed.LMsu(0, a1, s0)                             // start at 0, accumulate -a·s in Q13
+	lShiftedAlt := fixed.LShl(lAccAlt, 3)                        // Q13 → Q16
 	lShiftedAlt = fixed.LAdd(lShiftedAlt, fixed.LDepositH(uN_1)) // add u[1] in Q16
 	roundedAlt := fixed.Round(lShiftedAlt)
 	t.Logf("R-1d (alt-form L_deposit_h):  Round(_) = %d (matches production %d) → byte-EQ → REFUTED", roundedAlt, rounded)
@@ -171,10 +172,10 @@ func TestPhase1o_D3_S4_R1_SynthRoundingBoundary(t *testing.T) {
 	t.Logf("")
 	t.Logf("Sensitivity check (what input perturbation lifts s[1] to 1?):")
 	for _, alt := range []struct {
-		label   string
-		uVal    int16
-		s0Val   int16
-		a1Val   int16
+		label string
+		uVal  int16
+		s0Val int16
+		a1Val int16
 	}{
 		{"u[1]=2 (R-3 candidate, +1 LSB)", 2, 1, 2108},
 		{"a[1]=1500 (R-2 candidate, sf-1 a[2])", 1, 1, 1500},

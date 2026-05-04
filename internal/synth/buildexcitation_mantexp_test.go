@@ -54,8 +54,20 @@ func TestBuildExcitation_MantExp_Cases(t *testing.T) {
 		{name: "saturating left-shift gcExp=30", gp: 0, mant: 16384, exp: 30, c: mkPulse(5, 8192)},
 		// Mixed pitch + code: g_p=0.5 (Q14=8192), g_c=0.5 (mant=8192, exp=0); v[i]=200 c[i]=8192.
 		{name: "mixed pitch+code", gp: 8192, mant: 8192, exp: 0,
-			v: func() [40]int16 { var a [40]int16; for i := range a { a[i] = 200 }; return a }(),
-			c: func() [40]int16 { var a [40]int16; for i := range a { a[i] = 8192 }; return a }(),
+			v: func() [40]int16 {
+				var a [40]int16
+				for i := range a {
+					a[i] = 200
+				}
+				return a
+			}(),
+			c: func() [40]int16 {
+				var a [40]int16
+				for i := range a {
+					a[i] = 8192
+				}
+				return a
+			}(),
 		},
 	}
 

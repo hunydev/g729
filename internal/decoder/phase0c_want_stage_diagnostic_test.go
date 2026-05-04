@@ -51,24 +51,26 @@ import (
 // ============================================================================
 //
 // (1) READMETV.txt (g729AnnexA test_vectors tree) — silent on chain
-//     stage of *.pst:
 //
-//        "decoder file.bit file.pst"
+//	stage of *.pst:
 //
-//     README only declares *.pst as the decoder's *output*; it does NOT
-//     state whether the output is post-postfilter, post-HP, or post-×2.
-//     The chain-stage interpretation must be derived from the PDF.
+//	   "decoder file.bit file.pst"
+//
+//	README only declares *.pst as the decoder's *output*; it does NOT
+//	state whether the output is post-postfilter, post-HP, or post-×2.
+//	The chain-stage interpretation must be derived from the PDF.
 //
 // (2) PDF §4.2 — postfilter definition (long-term + short-term + tilt
-//     + AGC). Section header + key sentences:
 //
-//        "4.2 Post-processing"
-//        "Post-processing consists of three functions: adaptive
-//         postfiltering, high-pass filtering and signal up-scaling.
-//         The adaptive postfilter is the cascade of three filters:
-//         a long-term postfilter Hp(z), a short-term postfilter Hf(z),
-//         and a tilt compensation filter Ht(z), followed by an
-//         adaptive gain control procedure."
+//   - AGC). Section header + key sentences:
+//
+//     "4.2 Post-processing"
+//     "Post-processing consists of three functions: adaptive
+//     postfiltering, high-pass filtering and signal up-scaling.
+//     The adaptive postfilter is the cascade of three filters:
+//     a long-term postfilter Hp(z), a short-term postfilter Hf(z),
+//     and a tilt compensation filter Ht(z), followed by an
+//     adaptive gain control procedure."
 //
 //     => sPf = §4.2 adaptive postfilter cascade output (Hp ∘ Hf ∘ Ht
 //     ∘ AGC). For Annex A this collapses to the simplified cascade
@@ -76,41 +78,42 @@ import (
 //     unchanged.
 //
 // (3) PDF §A.4.2.5 — post-processing (HP filter + ×2 multiplier).
-//     Verbatim as cited in plan §0:
 //
-//        "A.4.2.5 Post-processing
-//         Same as described in clause 4.2.5."
+//	Verbatim as cited in plan §0:
 //
-//     §4.2.5 contains the operative sentence:
+//	   "A.4.2.5 Post-processing
+//	    Same as described in clause 4.2.5."
 //
-//        "The filtered signal is multiplied by a factor 2 to restore
-//         the input signal level."
+//	§4.2.5 contains the operative sentence:
 //
-//     Q-format unspecified in spec text (UNDETERMINED per E4); we
-//     observe that production pcm.ScaleUpSat applies ×2 with int16
-//     saturation at frame end.
+//	   "The filtered signal is multiplied by a factor 2 to restore
+//	    the input signal level."
+//
+//	Q-format unspecified in spec text (UNDETERMINED per E4); we
+//	observe that production pcm.ScaleUpSat applies ×2 with int16
+//	saturation at frame end.
 //
 // (4) PDF §4.1.6 — synthesis IIR producing syn (= postfilter input).
 //
-//        "4.1.6 Computation of the reconstructed speech
-//         The reconstructed speech is computed by filtering the
-//         excitation u(n) through the LP synthesis filter
-//             1 / Â(z)
-//         The reconstructed speech for the subframe of size L=40 is
-//         given by
-//             ŝ(n) = u(n) − Σ_{i=1..10} â_i · ŝ(n-i),  n=0..39."
+//	   "4.1.6 Computation of the reconstructed speech
+//	    The reconstructed speech is computed by filtering the
+//	    excitation u(n) through the LP synthesis filter
+//	        1 / Â(z)
+//	    The reconstructed speech for the subframe of size L=40 is
+//	    given by
+//	        ŝ(n) = u(n) − Σ_{i=1..10} â_i · ŝ(n-i),  n=0..39."
 //
-//     => syn = §4.1.6 ŝ(n) for 80 samples (two subframes).
+//	=> syn = §4.1.6 ŝ(n) for 80 samples (two subframes).
 //
 // ============================================================================
 // CHAIN MAPPING (production → stage label)
 // ============================================================================
 //
-//   syn    = synth.Synthesizer.Filter output           (§4.1.6)
-//   sPf    = postfilter.Postfilter.Filter output       (§4.2 / §A.4.2)
-//   postHP = decoder.hpFilter output                   (§A.4.2.5 step 1)
-//   postX2 = pcm.ScaleUpSat(postHP)                    (§A.4.2.5 step 2)
-//          = current production PST candidate.
+//	syn    = synth.Synthesizer.Filter output           (§4.1.6)
+//	sPf    = postfilter.Postfilter.Filter output       (§4.2 / §A.4.2)
+//	postHP = decoder.hpFilter output                   (§A.4.2.5 step 1)
+//	postX2 = pcm.ScaleUpSat(postHP)                    (§A.4.2.5 step 2)
+//	       = current production PST candidate.
 //
 // ============================================================================
 // CONVENTIONS
@@ -126,11 +129,12 @@ import (
 // with int32 to avoid int16 overflow on intermediate subtractions.
 //
 // Δ pattern classifier:
-//   "zero"                     — all stage[i] == want[i].
-//   "sample-uniform-constant"  — non-zero, all (stage[i]−want[i]) equal.
-//   "sign-uniform"             — non-constant Δ, but every nonzero
-//                                stage[i] has same sign as want[i].
-//   "random"                   — otherwise.
+//
+//	"zero"                     — all stage[i] == want[i].
+//	"sample-uniform-constant"  — non-zero, all (stage[i]−want[i]) equal.
+//	"sign-uniform"             — non-constant Δ, but every nonzero
+//	                             stage[i] has same sign as want[i].
+//	"random"                   — otherwise.
 //
 // ============================================================================
 // HARD ASSERTIONS — spec-derivable invariants only

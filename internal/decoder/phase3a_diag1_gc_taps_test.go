@@ -42,16 +42,16 @@ func TestPhase3aDiag1_GcUnsaturatedTaps_SPEECH(t *testing.T) {
 		sum      int64
 	}
 	var (
-		predicted        i16stat
-		ecBar            i16stat
-		log2Gc           i32stat
-		gc0Unsat         i32stat
-		prodUnsat        i32stat
-		gc0WrapInt16     int
-		prodWrapInt16    int
-		zeroEnergyCount  int
-		nSub             int
-		showSubs         = 10
+		predicted       i16stat
+		ecBar           i16stat
+		log2Gc          i32stat
+		gc0Unsat        i32stat
+		prodUnsat       i32stat
+		gc0WrapInt16    int
+		prodWrapInt16   int
+		zeroEnergyCount int
+		nSub            int
+		showSubs        = 10
 	)
 	predicted.min, ecBar.min = math.MaxInt16, math.MaxInt16
 	predicted.max, ecBar.max = math.MinInt16, math.MinInt16

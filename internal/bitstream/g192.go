@@ -108,9 +108,9 @@ func ReadG192Frame(r io.Reader, frame []byte) (bool, error) {
 // internal/bitstream/phase1o_d2_overflow_diagnostic_test.go (commit
 // 1e83d6b) for the full structural survey:
 //
-//   "Across all 30 720 bit-words (384 × 80), the only values observed
-//    are 0x007F (~17 505), 0x0081 (~13 135), and 0x0000 (exactly 80,
-//    ALL concentrated in a single frame)."
+//	"Across all 30 720 bit-words (384 × 80), the only values observed
+//	 are 0x007F (~17 505), 0x0081 (~13 135), and 0x0000 (exactly 80,
+//	 ALL concentrated in a single frame)."
 //
 // G.191 STL (per the broader ITU softbit convention referenced in
 // textbook treatments and STL2009 source documentation) defines

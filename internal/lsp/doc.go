@@ -14,9 +14,9 @@
 //  4. Stability:          sort + edge clamps + minimum spacing on ω̂.
 //  5. LSF → LSP:          cosine lookup via tables.CosLSP, Q15 output.
 //  6. Interpolation:      half-and-half with prev frame for subframe 1,
-//                         current frame directly for subframe 2.
+//     current frame directly for subframe 2.
 //  7. LSP → LP:           Chebyshev polynomial expansion per subframe,
-//                         producing a[0..10] Q12 with a[0] = 4096.
+//     producing a[0..10] Q12 with a[0] = 4096.
 //
 // Steps 3 and 6 carry state across frames (past 4 residuals; one
 // frame of LSP history). A Decoder's zero value is a valid Reset

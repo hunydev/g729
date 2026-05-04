@@ -12,14 +12,16 @@ import (
 //
 //  1. Normalize x so its MSB lies at bit position 30 (NormL gives the
 //     left-shift count s). Then x·2^s ∈ [2^30, 2^31).
+//
 //  2. Integer part: log2(x) = (30 - s) + log2(mantissa) with
 //     mantissa = (x·2^s)/2^30 ∈ [1, 2).
+//
 //  3. Express mantissa as 1 + f, f ∈ [0, 1).  The top 15 bits of the
 //     30-bit fractional region give f in Q15.  Split f into a 5-bit
 //     index i and a 10-bit interpolation residual a:
 //
-//         tables.Log2Table[i]   ≈ log2(1 + i/32) · 2¹⁵
-//         frac_Q15 ≈ Log2Table[i] + (Log2Table[i+1] - Log2Table[i])·a/1024
+//     tables.Log2Table[i]   ≈ log2(1 + i/32) · 2¹⁵
+//     frac_Q15 ≈ Log2Table[i] + (Log2Table[i+1] - Log2Table[i])·a/1024
 //
 //  4. Combine: result_Q10 = (intPart << 10) + (frac_Q15 >> 5).
 //

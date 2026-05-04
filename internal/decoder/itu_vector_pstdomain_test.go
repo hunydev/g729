@@ -118,8 +118,8 @@ type pstDomainCase struct {
 	// Recorded PST first-frame surface used as the documented known
 	// difference. Only the first-divergence sample is asserted unchanged
 	// (so an upstream PST-file change fires a deliberate, audible signal).
-	pstFirstDivSample int
-	pstFirstDivValue  int16
+	pstFirstDivSample  int
+	pstFirstDivValue   int16
 	productionFirstDiv int16
 }
 
@@ -360,7 +360,9 @@ func TestDecode_ITUVectorTESTKnownPSTDomainDifference(t *testing.T) {
 
 // -----------------------------------------------------------------------------
 // OVERFLOW — original: TestDecode_ITUVectorOverflowBitExact
-//                      (decode_test.go:579)
+//
+//	(decode_test.go:579)
+//
 // -----------------------------------------------------------------------------
 // First-divergence (frame 0): sample 1, got=0 want=2, |Δ|=2.
 // Cross-frame cascade per b43c689: max |Δ|=55406 (384/384 frames diverge).

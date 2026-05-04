@@ -36,17 +36,18 @@ import (
 // === RUN-CAPTURED RESULT (S-3, fix attempt 2 of 5; H-1 seed RESTORED) ===
 //
 // TAME frame 0 sf0 (LP a = [4096 2108 1500 -137 399 -135 156 -55 301 256 189],
-//                   tInt=20, tFrac=0, gpQ14=1995, gcQ12=4153):
 //
-//   idx | uExc | sSynth | sPf | hpOut | final | want | Δfinal
-//   ----+------+--------+-----+-------+-------+------+-------
-//     0 |    1 |      1 |   1 |     1 |     2 |    2 |  +0
-//     1 |    1 |      0 |   0 |     0 |     0 |    2 |  -2  ← FIRST DIFF
-//     2 |    1 |      1 |   1 |     1 |     2 |    0 |  +2
-//     3 |    1 |      1 |   1 |     1 |     2 |    0 |  +2
-//     4 |    0 |     -1 |  -1 |    -1 |    -2 |    0 |  -2
-//     5 |    0 |      0 |   1 |     1 |     2 |    0 |  +2
-//     6 |    0 |      0 |   0 |     0 |     0 |    0 |  +0
+//	                tInt=20, tFrac=0, gpQ14=1995, gcQ12=4153):
+//
+//	idx | uExc | sSynth | sPf | hpOut | final | want | Δfinal
+//	----+------+--------+-----+-------+-------+------+-------
+//	  0 |    1 |      1 |   1 |     1 |     2 |    2 |  +0
+//	  1 |    1 |      0 |   0 |     0 |     0 |    2 |  -2  ← FIRST DIFF
+//	  2 |    1 |      1 |   1 |     1 |     2 |    0 |  +2
+//	  3 |    1 |      1 |   1 |     1 |     2 |    0 |  +2
+//	  4 |    0 |     -1 |  -1 |    -1 |    -2 |    0 |  -2
+//	  5 |    0 |      0 |   1 |     1 |     2 |    0 |  +2
+//	  6 |    0 |      0 |   0 |     0 |     0 |    0 |  +0
 //
 // Localisation summary:
 //
@@ -64,10 +65,10 @@ import (
 // Hand-arithmetic at sample 1 with a[1]=2108 (Q12 ≈ 0.515) and
 // pastSynth all-zero per §4.3:
 //
-//   lTemp = LMult(u[1]=1, a[0]=4096)           = 8192      (Q-LMult)
-//   lTemp = LMsu(lTemp, a[1]=2108, s[0]=1)     = 3976
-//   lTemp = LShl(lTemp, 3)                     = 31808
-//   s[1]  = Round(lTemp) = (31808+32768)>>16   = 0
+//	lTemp = LMult(u[1]=1, a[0]=4096)           = 8192      (Q-LMult)
+//	lTemp = LMsu(lTemp, a[1]=2108, s[0]=1)     = 3976
+//	lTemp = LShl(lTemp, 3)                     = 31808
+//	s[1]  = Round(lTemp) = (31808+32768)>>16   = 0
 //
 // True real-valued result: y[1] = (u[1] - a[1]·y[0]/a[0]) = 1 - 2108/4096
 // = 0.485. Annex A's fixed-point Round truncates 0.485 to 0; the ITU
@@ -78,30 +79,35 @@ import (
 // === H-11 FAMILY VERDICT: REFUTED ===
 //
 // H-11a (pastSynthPost initial value): pastSynthPost is irrelevant here
-//   because the postfilter short-term IIR's first sample contribution
-//   from pastSynthPost is multiplied by aDen[1..10]·0 = 0; even if it
-//   were non-zero, it could not propagate a -2 at sample 1 through a
-//   pass-through identity stage. Refuted.
+//
+//	because the postfilter short-term IIR's first sample contribution
+//	from pastSynthPost is multiplied by aDen[1..10]·0 = 0; even if it
+//	were non-zero, it could not propagate a -2 at sample 1 through a
+//	pass-through identity stage. Refuted.
 //
 // H-11b (postfilter consumes synth via stale-by-one indexing): refuted —
-//   the per-sample table shows sPf[n] == s[n] for n ∈ {0,1,2,3,4}, no
-//   shift evidence.
+//
+//	the per-sample table shows sPf[n] == s[n] for n ∈ {0,1,2,3,4}, no
+//	shift evidence.
 //
 // H-11c (postfilter pre-emphasis Q14 floor vs symmetric rounding):
-//   refuted — the rOut/sSt/sTilt chain inside postfilter cannot lift a
-//   0 input to a non-zero output through a tilt of magnitude < 1.
+//
+//	refuted — the rOut/sSt/sTilt chain inside postfilter cannot lift a
+//	0 input to a non-zero output through a tilt of magnitude < 1.
 //
 // H-11d (synth output mem[] zero-init OR off-by-one in mem update
-//   timing): mem[] zero-init at frame 0 is consistent with §4.3 + §3.10
-//   (work[:10] = synth.pastSynth = 0 on entry; verified). The mem
-//   update timing within onePass writes work[10+n] AFTER reading
-//   work[10+n-i] for i=1..10, which is the canonical order. Refuted as
-//   handoff-stage cause.
+//
+//	timing): mem[] zero-init at frame 0 is consistent with §4.3 + §3.10
+//	(work[:10] = synth.pastSynth = 0 on entry; verified). The mem
+//	update timing within onePass writes work[10+n] AFTER reading
+//	work[10+n-i] for i=1..10, which is the canonical order. Refuted as
+//	handoff-stage cause.
 //
 // H-11e (HP input has off-by-one DC handling): refuted — HP input at
-//   sample 0 is 1 and produces 1 (matches want). HP input at sample 1
-//   is 0 and produces 0; the defect is the input value, not the HP
-//   filter response. Refuted.
+//
+//	sample 0 is 1 and produces 1 (matches want). HP input at sample 1
+//	is 0 and produces 0; the defect is the input value, not the HP
+//	filter response. Refuted.
 //
 // All five H-11 sub-hypotheses are REFUTED by the stage dump.
 //
@@ -110,24 +116,24 @@ import (
 // The off-by-2 originates in synth.Filter (1/A(z)) at sample n=1 of
 // frame 0, and the candidate causes are:
 //
-//   R-1. Wrong rounding mode in synth.onePass — fixed.Round currently
-//        truncates 31808/65536 to 0 where ITU rounds to 1. Hypothesis:
-//        a missing +1 bias, or use of LShl(3) where the spec specifies
-//        LShl(4) followed by Round, or the spec's per-tap accumulator
-//        is at a different Q-format. Spec sections: §3.10 / §A.3.10
-//        and the basop reference (G.191) for L_mult / L_mac / L_msu /
-//        L_shl / round semantics.
+//	R-1. Wrong rounding mode in synth.onePass — fixed.Round currently
+//	     truncates 31808/65536 to 0 where ITU rounds to 1. Hypothesis:
+//	     a missing +1 bias, or use of LShl(3) where the spec specifies
+//	     LShl(4) followed by Round, or the spec's per-tap accumulator
+//	     is at a different Q-format. Spec sections: §3.10 / §A.3.10
+//	     and the basop reference (G.191) for L_mult / L_mac / L_msu /
+//	     L_shl / round semantics.
 //
-//   R-2. Wrong LP coefficient interpolation (sf0 LP) — the printed
-//        a = [4096 2108 1500 -137 399 -135 156 -55 301 256 189] is the
-//        sf-1 interpolated LP. If §4.1.5 interpolation is mis-routed
-//        (e.g. sf-0 LP fed into sf-1 slot or vice versa), s[1] could
-//        match a different reference. Owners: lsp.Decoder.
+//	R-2. Wrong LP coefficient interpolation (sf0 LP) — the printed
+//	     a = [4096 2108 1500 -137 399 -135 156 -55 301 256 189] is the
+//	     sf-1 interpolated LP. If §4.1.5 interpolation is mis-routed
+//	     (e.g. sf-0 LP fed into sf-1 slot or vice versa), s[1] could
+//	     match a different reference. Owners: lsp.Decoder.
 //
-//   R-3. Wrong excitation u[1] — gpQ14=1995, gcQ12=4153, c[1]=8192,
-//        v[1]=0 ⇒ u[1] = round(gc·c >> 11) ≈ round(4153·8192·2 >> 11
-//        << 1) = ... small. Possibly off by one due to the LShr(11)
-//        timing inside BuildExcitation. Spec: §4.1.6 eq. (75).
+//	R-3. Wrong excitation u[1] — gpQ14=1995, gcQ12=4153, c[1]=8192,
+//	     v[1]=0 ⇒ u[1] = round(gc·c >> 11) ≈ round(4153·8192·2 >> 11
+//	     << 1) = ... small. Possibly off by one due to the LShr(11)
+//	     timing inside BuildExcitation. Spec: §4.1.6 eq. (75).
 //
 // Recommended S-4 dispatch order: R-1 (synth rounding) first because
 // it's the smallest delta from spec text, the on-paper math (0.485 →

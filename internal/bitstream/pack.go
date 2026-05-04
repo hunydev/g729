@@ -39,25 +39,25 @@ func Pack(f *Frame, out []byte) error {
 //
 // Returns ErrShortInput if len(bits) < FrameBytes. Never allocates.
 func Unpack(bits []byte, f *Frame) error {
-if len(bits) < FrameBytes {
-return ErrShortInput
-}
-var r BitReader
-r.Init(bits[:FrameBytes])
-f.L0 = r.Read(1)
-f.L1 = r.Read(7)
-f.L2 = r.Read(5)
-f.L3 = r.Read(5)
-f.P1 = r.Read(8)
-f.P0 = r.Read(1)
-f.C1 = r.Read(13)
-f.S1 = r.Read(4)
-f.GA1 = r.Read(3)
-f.GB1 = r.Read(4)
-f.P2 = r.Read(5)
-f.C2 = r.Read(13)
-f.S2 = r.Read(4)
-f.GA2 = r.Read(3)
-f.GB2 = r.Read(4)
-return nil
+	if len(bits) < FrameBytes {
+		return ErrShortInput
+	}
+	var r BitReader
+	r.Init(bits[:FrameBytes])
+	f.L0 = r.Read(1)
+	f.L1 = r.Read(7)
+	f.L2 = r.Read(5)
+	f.L3 = r.Read(5)
+	f.P1 = r.Read(8)
+	f.P0 = r.Read(1)
+	f.C1 = r.Read(13)
+	f.S1 = r.Read(4)
+	f.GA1 = r.Read(3)
+	f.GB1 = r.Read(4)
+	f.P2 = r.Read(5)
+	f.C2 = r.Read(13)
+	f.S2 = r.Read(4)
+	f.GA2 = r.Read(3)
+	f.GB2 = r.Read(4)
+	return nil
 }

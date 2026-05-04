@@ -14,11 +14,11 @@ import (
 // TestPhase3Diag_SynthesisBypass measures RMS at every stage of the
 // per-subframe pipeline so we can read off WHICH stage drops amplitude:
 //
-//   u    : excitation feeding 1/Â(z)
-//   s    : output of synthesis filter 1/Â(z)
-//   sPf  : output of postfilter (Annex A short+long-term + tilt + AGC)
-//   hp   : output of decoder HP filter (pre ScaleUpSat ×2)
-//   out  : final 80-sample frame after pcm.ScaleUpSat (×2)
+//	u    : excitation feeding 1/Â(z)
+//	s    : output of synthesis filter 1/Â(z)
+//	sPf  : output of postfilter (Annex A short+long-term + tilt + AGC)
+//	hp   : output of decoder HP filter (pre ScaleUpSat ×2)
+//	out  : final 80-sample frame after pcm.ScaleUpSat (×2)
 //
 // Also runs a parallel "synthesis-bypass" reconstruction in which the
 // postfilter is skipped (out_bypass = ScaleUpSat(hp(s))) so the

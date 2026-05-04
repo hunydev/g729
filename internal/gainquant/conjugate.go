@@ -179,8 +179,8 @@ func SearchConjugate(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14,
 			gam := gam1 + gam2                     // Q13
 			gcQ := (gam * int64(gpcPredQ12)) >> 13 // Q12
 
-			cost := gpQ * gpQ * A           // Q28
-			cost += (gcQ * gcQ * B) << 4    // Q24<<4 = Q28
+			cost := gpQ * gpQ * A        // Q28
+			cost += (gcQ * gcQ * B) << 4 // Q24<<4 = Q28
 			cost += (2 * gpQ * gcQ * C) << 2
 			cost -= (2 * gpQ * D) << 14
 			cost -= (2 * gcQ * F) << 16

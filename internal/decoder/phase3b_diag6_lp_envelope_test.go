@@ -155,11 +155,11 @@ func TestPhase3bDiag6_LPEnvelopeForensic(t *testing.T) {
 
 	// L2 distances per probe frame (raw + shape-normalised).
 	type frameL2 struct {
-		frame                                   int
-		l2PfRef, l2SynthRef, l2PfSy             float64
-		l2ShPfRef, l2ShSynthRef, l2ShPfSy       float64
-		rmsSynth, rmsPf, rmsRef                 float64
-		meanPf, meanSy, meanRef                 float64
+		frame                             int
+		l2PfRef, l2SynthRef, l2PfSy       float64
+		l2ShPfRef, l2ShSynthRef, l2ShPfSy float64
+		rmsSynth, rmsPf, rmsRef           float64
+		meanPf, meanSy, meanRef           float64
 	}
 	l2s := make([]frameL2, 0, len(probes))
 

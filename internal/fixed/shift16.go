@@ -44,15 +44,15 @@ func Shr(a, n Word16) Word16 {
 // ShrR returns a shifted right by n with rounding. For n <= 0 this is
 // equivalent to Shl(a, -n). For n > 15 the result is 0.
 func ShrR(a, n Word16) Word16 {
-if n <= 0 {
-return Shl(a, -n)
-}
-if n > 15 {
-return 0
-}
-out := Shr(a, n)
-if a&(1<<uint(n-1)) != 0 {
-out = Add(out, 1)
-}
-return out
+	if n <= 0 {
+		return Shl(a, -n)
+	}
+	if n > 15 {
+		return 0
+	}
+	out := Shr(a, n)
+	if a&(1<<uint(n-1)) != 0 {
+		out = Add(out, 1)
+	}
+	return out
 }

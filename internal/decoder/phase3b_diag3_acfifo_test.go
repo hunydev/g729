@@ -141,7 +141,7 @@ func TestPhase3bDiag3_AdaptiveCodebookTrajectory(t *testing.T) {
 	// ── §G.6 T_int / T_frac distribution + parity sanity ──────────
 	tIntHist := make(map[int]int)
 	tFracHist := make(map[int]int)
-	tIntMin, tIntMax := 1 << 30, -1 << 30
+	tIntMin, tIntMax := 1<<30, -1<<30
 	tIntOutOfRange := 0
 	parityMismatches := 0
 	for _, r := range records {

@@ -60,48 +60,50 @@ func TestRearrangeAdjacentNoChangeWhenSpaced(t *testing.T) {
 // 얻은 a[](Q12)가 minimum-phase(모든 근 inside unit disk)인지 확인.
 //
 // 알고리즘: Schur–Cohn step-down. monic A(z)에 대해
-//   k_m = a^(m)[m] (반사 계수)
-//   a^(m-1)[i] = (a^(m)[i] - k_m·a^(m)[m-i]) / (1 - k_m^2)
+//
+//	k_m = a^(m)[m] (반사 계수)
+//	a^(m-1)[i] = (a^(m)[i] - k_m·a^(m)[m-i]) / (1 - k_m^2)
+//
 // 모든 |k_m| < 1 ⟺ A(z) minimum-phase.
 //
 // 본  FAIL → Stage F 분기점은 lsp.* (LSPToLP 또는 디코더)
 // 본 어서션이 PASS → Stage F 분기점은 synth.Filter
 func TestALGTHMFrame0SF0_AzStability(t *testing.T) {
-var dec Decoder
-sf1A, _ := dec.Decode(Indices{L0: 1, L1: 105, L2: 17, L3: 0})
+	var dec Decoder
+	sf1A, _ := dec.Decode(Indices{L0: 1, L1: 105, L2: 17, L3: 0})
 
-// Q12 → float64 (테스트 검증용; production 영향 없음)
-a := make([]float64, 11)
-for i := 0; i <= 10; i++ {
-a[i] = float64(sf1A[i]) / 4096.0
-}
-t.Logf("a[] (int16 Q12) = %v", sf1A)
-t.Logf("a[] (float, Q12-normalized) = %v", a)
-if math.Abs(a[0]-1.0) > 1e-9 {
-t.Fatalf("a[0]=%.6f, want 1.0 (Q12 normalization broken)", a[0])
-}
+	// Q12 → float64 (테스트 검증용; production 영향 없음)
+	a := make([]float64, 11)
+	for i := 0; i <= 10; i++ {
+		a[i] = float64(sf1A[i]) / 4096.0
+	}
+	t.Logf("a[] (int16 Q12) = %v", sf1A)
+	t.Logf("a[] (float, Q12-normalized) = %v", a)
+	if math.Abs(a[0]-1.0) > 1e-9 {
+		t.Fatalf("a[0]=%.6f, want 1.0 (Q12 normalization broken)", a[0])
+	}
 
-// Schur–Cohn step-down on a[1..10] with implicit a[0]=1.
-work := make([]float64, 11)
-copy(work, a)
-for m := 10; m >= 1; m-- {
-k := work[m]
-if math.Abs(k) >= 1.0 {
-t.Logf("OBSERVATION (F-prep-1): A(z) NOT minimum-phase at step m=%d: |k_m|=%.6f >= 1; "+
-"Stage F branch points at lsp.* (LSP→LP conversion or decoder bug). "+
-"Promoted to t.Errorf in F-fix.", m, math.Abs(k))
-t.Logf("a[] (float, Q12-normalized) = %v", a)
-return
-}
-denom := 1.0 - k*k
-next := make([]float64, m)
-next[0] = 1.0
-for i := 1; i < m; i++ {
-next[i] = (work[i] - k*work[m-i]) / denom
-}
-copy(work[:m], next)
-t.Logf("step m=%d: k=%.6f", m, k)
-}
-t.Logf("A(z) minimum-phase confirmed; reflection coefficients all |k|<1. " +
-"Stage F branch = synth.Filter (LP synthesis IIR primitives).")
+	// Schur–Cohn step-down on a[1..10] with implicit a[0]=1.
+	work := make([]float64, 11)
+	copy(work, a)
+	for m := 10; m >= 1; m-- {
+		k := work[m]
+		if math.Abs(k) >= 1.0 {
+			t.Logf("OBSERVATION (F-prep-1): A(z) NOT minimum-phase at step m=%d: |k_m|=%.6f >= 1; "+
+				"Stage F branch points at lsp.* (LSP→LP conversion or decoder bug). "+
+				"Promoted to t.Errorf in F-fix.", m, math.Abs(k))
+			t.Logf("a[] (float, Q12-normalized) = %v", a)
+			return
+		}
+		denom := 1.0 - k*k
+		next := make([]float64, m)
+		next[0] = 1.0
+		for i := 1; i < m; i++ {
+			next[i] = (work[i] - k*work[m-i]) / denom
+		}
+		copy(work[:m], next)
+		t.Logf("step m=%d: k=%.6f", m, k)
+	}
+	t.Logf("A(z) minimum-phase confirmed; reflection coefficients all |k|<1. " +
+		"Stage F branch = synth.Filter (LP synthesis IIR primitives).")
 }

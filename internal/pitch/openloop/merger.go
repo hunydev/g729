@@ -56,6 +56,7 @@ const (
 //
 //  1. Start T_op = lag1 (the shortest-range candidate is favored by
 //     default per the "favouring the lower range" rule).
+//
 //  2. For each higher range r ∈ {2, 3} in order, override T_op iff the
 //     candidate's normalized eq. A.5 score strictly beats the current
 //     T_op's score, with one of two thresholds:

@@ -35,15 +35,16 @@ import (
 // against c_raw.
 //
 // Spec ground-truth (verbatim, ITU-T G.729 (06/2012) PDF):
-//   §3.8 eq. (45):
-//     c(n) = s0 δ(n − m0) + s1 δ(n − m1) + s2 δ(n − m2) + s3 δ(n − m3)
-//   §3.8.2 eq. (61):  S = s0 + 2 s1 + 4 s2 + 8 s3   (s = 1 → +1, s = 0 → −1)
-//   §3.8 eq. (47):  β = ĝ_p^(m−1)   bounded by 0.2 ≤ β ≤ 0.8
-//   §3.8 eq. (48):  c(n) = c(n)              for n = 0..T−1
-//                   c(n) = c(n) + β c(n − T)  for n = T..39
-//   §A.3.8: decoder-side decoding identical to encoder-side §3.8.2.
-//   §4.1.5/6 eq. (75):  u[n] = Round(g_p · v[n] + g_c · c[n])
-//   §4.3 Table 9: past_exc[*] = 0, ĝ_p^(−1) = 0 (implicit, frame 0).
+//
+//	§3.8 eq. (45):
+//	  c(n) = s0 δ(n − m0) + s1 δ(n − m1) + s2 δ(n − m2) + s3 δ(n − m3)
+//	§3.8.2 eq. (61):  S = s0 + 2 s1 + 4 s2 + 8 s3   (s = 1 → +1, s = 0 → −1)
+//	§3.8 eq. (47):  β = ĝ_p^(m−1)   bounded by 0.2 ≤ β ≤ 0.8
+//	§3.8 eq. (48):  c(n) = c(n)              for n = 0..T−1
+//	                c(n) = c(n) + β c(n − T)  for n = T..39
+//	§A.3.8: decoder-side decoding identical to encoder-side §3.8.2.
+//	§4.1.5/6 eq. (75):  u[n] = Round(g_p · v[n] + g_c · c[n])
+//	§4.3 Table 9: past_exc[*] = 0, ĝ_p^(−1) = 0 (implicit, frame 0).
 //
 // F-non-prelim synthesis (e867f5e) §3.1 identifies single source =
 // `g_c · c[n]` product positive (Q15 pre-Round = +33224). §4.1
@@ -248,23 +249,25 @@ func absInt16(v int16) int32 {
 // +4153, (h) sign-determining sub-stage classification.
 //
 // Spec ground-truth (verbatim, ITU-T G.729 (06/2012) PDF):
-//   §3.9 eq. (65):  g_c = γ · g_c'
-//   §3.9.1 eq. (69): Ẽ(m) = Σ_{i=1..4} b_i · Û(m−i)
-//                    [b1 b2 b3 b4] = [0.68 0.58 0.34 0.19]
-//   §3.9.1 eq. (71): g_c' = 10^((Ẽ(m) + Ē − E)/20),  Ē = 30 dB
-//   §3.9.2 eq. (73): ĝ_p = GA1(GA) + GB1(GB)
-//   §3.9.2 eq. (74): ĝ_c = g_c' · γ̂ = g_c' (GA2(GA) + GB2(GB))
-//   §A.3.9        : "Same as described in clause 3.9."
-//   §4.3 Table 9  : non-zero initialization variables — gain MA
-//                   predictor past_err[0..3] = MIN_GAIN_PRED_DB.
+//
+//	§3.9 eq. (65):  g_c = γ · g_c'
+//	§3.9.1 eq. (69): Ẽ(m) = Σ_{i=1..4} b_i · Û(m−i)
+//	                 [b1 b2 b3 b4] = [0.68 0.58 0.34 0.19]
+//	§3.9.1 eq. (71): g_c' = 10^((Ẽ(m) + Ē − E)/20),  Ē = 30 dB
+//	§3.9.2 eq. (73): ĝ_p = GA1(GA) + GB1(GB)
+//	§3.9.2 eq. (74): ĝ_c = g_c' · γ̂ = g_c' (GA2(GA) + GB2(GB))
+//	§A.3.9        : "Same as described in clause 3.9."
+//	§4.3 Table 9  : non-zero initialization variables — gain MA
+//	                predictor past_err[0..3] = MIN_GAIN_PRED_DB.
 //
 // production wiring (§Spec §3.9 cross-ref):
-//   gain.decodeVQ                  : entry = GainGBK*[GainImap*[idx]]
-//   gain.predictedLogGain          : Round(LShl(LMac chain, 2)) + Ē Q10
-//   gain.Decoder.Decode            : returns (gpQ14, gcQ12)
-//   gain.pastErrorsDefault = -14336 (Q10) = MIN_GAIN_PRED_DB
-//   tables.GainMAPredictor         = [5571, 4751, 2785, 1556] (Q13)
-//   tables.GainMeanEnergyQ10       = 30720 (Ē = 30 dB Q10)
+//
+//	gain.decodeVQ                  : entry = GainGBK*[GainImap*[idx]]
+//	gain.predictedLogGain          : Round(LShl(LMac chain, 2)) + Ē Q10
+//	gain.Decoder.Decode            : returns (gpQ14, gcQ12)
+//	gain.pastErrorsDefault = -14336 (Q10) = MIN_GAIN_PRED_DB
+//	tables.GainMAPredictor         = [5571, 4751, 2785, 1556] (Q13)
+//	tables.GainMeanEnergyQ10       = 30720 (Ē = 30 dB Q10)
 //
 // F-non-prelim synthesis (e867f5e) §3.1: single source =
 // `g_c · c[n]` product positive (Q15 pre-Round = +33224); §4.1

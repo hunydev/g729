@@ -16,8 +16,9 @@ import (
 // subframe-1 → subframe-2 boundary (sample 39 → sample 40) of frame 0.
 //
 // Reference plan:
-//   docs/superpowers/plans/2026-05-06-phase1l-stage-f-non-hpost-plan.md
-//   §Task 1 (HP-1).
+//
+//	docs/superpowers/plans/2026-05-06-phase1l-stage-f-non-hpost-plan.md
+//	§Task 1 (HP-1).
 //
 // ABSOLUTE CONSTRAINTS (E1/E2/E4/E5):
 //   - clean-room MIT: no ITU C / bcg729 / Sipro / FFmpeg G.729 / Annex A
@@ -33,176 +34,179 @@ import (
 //
 // ============================================================================
 // SPEC VERBATIM CITATIONS (mandatory) — extracted via:
-//   pdftotext -layout docs/superpowers/specs/itu/G729E.pdf -
+//
+//	pdftotext -layout docs/superpowers/specs/itu/G729E.pdf -
 //
 // (1) §4.2.1 "Long-term postfilter" (PDF lines 1565..1625):
 //
-//     "The long-term postfilter is given by:
-//        H_p(z) = 1 / (1 + γ_p g_l) · (1 + γ_p g_l z^{-T})
-//      where T is the pitch delay, and g_l is the gain coefficient. ...
-//      The long-term delay and gain are computed from the residual signal
-//      r̂(n) obtained by filtering the speech ŝ(n) through Â(z/γ_n) ..."
+//	"The long-term postfilter is given by:
+//	   H_p(z) = 1 / (1 + γ_p g_l) · (1 + γ_p g_l z^{-T})
+//	 where T is the pitch delay, and g_l is the gain coefficient. ...
+//	 The long-term delay and gain are computed from the residual signal
+//	 r̂(n) obtained by filtering the speech ŝ(n) through Â(z/γ_n) ..."
 //
-//     §4.2.1 spells out the H_p TRANSFER FUNCTION and how T, g_l are
-//     RECOMPUTED per subframe from r̂(n), but is verbatim SILENT on
-//     whether the residual buffer r̂(·) (production: pf.pastResidual)
-//     is carried over or zeroed at the sf-1 → sf-2 boundary. No
-//     "reset", "initialize", "clear" wording appears in §4.2.1.
-//     ⇒ specPolicy(Hp) = UNDETERMINED (E4 ambiguity).
+//	§4.2.1 spells out the H_p TRANSFER FUNCTION and how T, g_l are
+//	RECOMPUTED per subframe from r̂(n), but is verbatim SILENT on
+//	whether the residual buffer r̂(·) (production: pf.pastResidual)
+//	is carried over or zeroed at the sf-1 → sf-2 boundary. No
+//	"reset", "initialize", "clear" wording appears in §4.2.1.
+//	⇒ specPolicy(Hp) = UNDETERMINED (E4 ambiguity).
 //
 // (2) §4.2.2 "Short-term postfilter" (PDF lines 1626..1645):
 //
-//     "The short-term postfilter is given by:
-//        H_f(z) = (1/g_f) · Â(z/γ_n)/Â(z/γ_d)
-//      where Â(z) is the received quantized LP inverse filter ...
-//      γ_n = 0.55, γ_d = 0.7. The gain term g_f is calculated on the
-//      truncated impulse response h_f(n) of the filter
-//      Â(z/γ_n)/Â(z/γ_d) ..."
+//	"The short-term postfilter is given by:
+//	   H_f(z) = (1/g_f) · Â(z/γ_n)/Â(z/γ_d)
+//	 where Â(z) is the received quantized LP inverse filter ...
+//	 γ_n = 0.55, γ_d = 0.7. The gain term g_f is calculated on the
+//	 truncated impulse response h_f(n) of the filter
+//	 Â(z/γ_n)/Â(z/γ_d) ..."
 //
-//     §4.2.2 defines H_f as an IIR cascade. The IIR memory rows
-//     (production: pf.pastS for Â(z/γ_n) numerator history,
-//     pf.pastSynthPost for Â(z/γ_d) denominator history) are NOT
-//     mentioned with respect to subframe-boundary handling. No
-//     "reset between subframes" wording appears.
-//     ⇒ specPolicy(Hf-pastS, Hf-pastSynthPost) = UNDETERMINED.
+//	§4.2.2 defines H_f as an IIR cascade. The IIR memory rows
+//	(production: pf.pastS for Â(z/γ_n) numerator history,
+//	pf.pastSynthPost for Â(z/γ_d) denominator history) are NOT
+//	mentioned with respect to subframe-boundary handling. No
+//	"reset between subframes" wording appears.
+//	⇒ specPolicy(Hf-pastS, Hf-pastSynthPost) = UNDETERMINED.
 //
 // (3) §4.2.3 "Tilt compensation" (PDF lines 1646..1668):
 //
-//     "The filter H_t(z) compensates for the tilt in the short-term
-//      postfilter H_f(z) and is given by:
-//        H_t(z) = (1/g_t) · (1 + γ_t k1' z^{-1})
-//      where γ_t k1' is a tilt factor k1' being the first reflection
-//      coefficient calculated from h_f(n) ... Two values for γ_t are
-//      used depending on the sign of k1'. If k1' is negative, γ_t = 0.9,
-//      and if k1' is positive, γ_t = 0.2."
+//	"The filter H_t(z) compensates for the tilt in the short-term
+//	 postfilter H_f(z) and is given by:
+//	   H_t(z) = (1/g_t) · (1 + γ_t k1' z^{-1})
+//	 where γ_t k1' is a tilt factor k1' being the first reflection
+//	 coefficient calculated from h_f(n) ... Two values for γ_t are
+//	 used depending on the sign of k1'. If k1' is negative, γ_t = 0.9,
+//	 and if k1' is positive, γ_t = 0.2."
 //
-//     The tilt filter contains a single z^{-1} delay, whose state in
-//     production is pf.pastTiltInput. §4.2.3 does NOT describe whether
-//     this delay is carried over or zeroed at the subframe boundary.
-//     ⇒ specPolicy(γ_t past tilt input) = UNDETERMINED.
+//	The tilt filter contains a single z^{-1} delay, whose state in
+//	production is pf.pastTiltInput. §4.2.3 does NOT describe whether
+//	this delay is carried over or zeroed at the subframe boundary.
+//	⇒ specPolicy(γ_t past tilt input) = UNDETERMINED.
 //
 // (4) §4.2.4 "Adaptive gain control" (PDF lines 1669..1686) — this is
-//     the ONLY postfilter sub-state for which the spec gives an explicit
-//     verbatim subframe-boundary carryover statement:
 //
-//     "g(n) = 0.85 g(n−1) + 0.15 G   n = 0,...,39
-//      The initial value of g(–1) = 1.0 is used. Then for each new
-//      subframe, g(–1) is set equal to g(39) of the previous subframe."
+//	the ONLY postfilter sub-state for which the spec gives an explicit
+//	verbatim subframe-boundary carryover statement:
 //
-//     => specPolicy(AGC g(n−1)) = CARRYOVER (verbatim mandated).
+//	"g(n) = 0.85 g(n−1) + 0.15 G   n = 0,...,39
+//	 The initial value of g(–1) = 1.0 is used. Then for each new
+//	 subframe, g(–1) is set equal to g(39) of the previous subframe."
+//
+//	=> specPolicy(AGC g(n−1)) = CARRYOVER (verbatim mandated).
 //
 // (5) Annex A simplifications (PDF lines 2236..2293):
 //
-//     §A.4.2.1: "The only difference from clause 4.2.1 is that the
-//                long-term delay T is always an integer delay and it
-//                is computed by searching the range [Tcl – 3, Tcl + 3]."
-//     §A.4.2.2: "The only difference from clause 4.2.2 is that the gain
-//                factor g_f is eliminated."
-//     §A.4.2.3: "...The value of γ_t = 0.8 is used if k1' < 0 and γ_t
-//                is set to zero if k1' ≥ 0. The gain factor g_t which
-//                is used in clause 4.2.3 is eliminated."
-//     §A.4.2.4: "The same as described in clause 4.2.4, with the only
-//                difference being that the gain scaling factor G for
-//                the present subframe is computed by [sum of squares
-//                form] ... and g(n) is given by:
-//                g(n) = 0.9 g(n−1) + 0.1 G,  n = 0,...,39"
+//	§A.4.2.1: "The only difference from clause 4.2.1 is that the
+//	           long-term delay T is always an integer delay and it
+//	           is computed by searching the range [Tcl – 3, Tcl + 3]."
+//	§A.4.2.2: "The only difference from clause 4.2.2 is that the gain
+//	           factor g_f is eliminated."
+//	§A.4.2.3: "...The value of γ_t = 0.8 is used if k1' < 0 and γ_t
+//	           is set to zero if k1' ≥ 0. The gain factor g_t which
+//	           is used in clause 4.2.3 is eliminated."
+//	§A.4.2.4: "The same as described in clause 4.2.4, with the only
+//	           difference being that the gain scaling factor G for
+//	           the present subframe is computed by [sum of squares
+//	           form] ... and g(n) is given by:
+//	           g(n) = 0.9 g(n−1) + 0.1 G,  n = 0,...,39"
 //
-//     Annex A modifies coefficients / search ranges but DOES NOT
-//     introduce any subframe-boundary reset language for Hp / Hf /
-//     γ_t state. §A.4.2.4 inherits the §4.2.4 carryover statement
-//     ("the same as described in clause 4.2.4") for AGC state — only
-//     the smoothing constants and the energy form change.
-//     ⇒ specPolicy carries over unchanged from §4.2.x to §A.4.2.x.
+//	Annex A modifies coefficients / search ranges but DOES NOT
+//	introduce any subframe-boundary reset language for Hp / Hf /
+//	γ_t state. §A.4.2.4 inherits the §4.2.4 carryover statement
+//	("the same as described in clause 4.2.4") for AGC state — only
+//	the smoothing constants and the energy form change.
+//	⇒ specPolicy carries over unchanged from §4.2.x to §A.4.2.x.
 //
 // (6) §4.3 "Encoder and decoder initialization" (PDF lines 1695..1708):
 //
-//     "All static encoder and decoder variables should be initialized
-//      to zero, except the variables listed in Table 9.   ...   g(–1)
-//      reference §4.2.4 initial value 1.0."
+//	"All static encoder and decoder variables should be initialized
+//	 to zero, except the variables listed in Table 9.   ...   g(–1)
+//	 reference §4.2.4 initial value 1.0."
 //
-//     §4.3 governs FRAME-0 / call-start initialization, NOT the
-//     subframe boundary. It is cited here to confirm that there is
-//     no spec hook for "reset between subframes". (Production
-//     initialized=false → seeds agcGainPrev from g_target on the very
-//     first applyAGC call, which is the §A.4.2.4 first-call init.)
+//	§4.3 governs FRAME-0 / call-start initialization, NOT the
+//	subframe boundary. It is cited here to confirm that there is
+//	no spec hook for "reset between subframes". (Production
+//	initialized=false → seeds agcGainPrev from g_target on the very
+//	first applyAGC call, which is the §A.4.2.4 first-call init.)
 //
 // ============================================================================
 // EXPECTED-POLICY MATRIX (4 sub-states × {spec verbatim})
 // ============================================================================
 //
-//   sub-state              | spec verbatim section          | specPolicy
-//   -----------------------+--------------------------------+--------------
-//   Hp (pastResidual)      | §4.2.1 / §A.4.2.1              | UNDETERMINED
-//   Hf-pastS               | §4.2.2 / §A.4.2.2              | UNDETERMINED
-//   Hf-pastSynthPost       | §4.2.2 / §A.4.2.2              | UNDETERMINED
-//   γ_t (pastTiltInput)    | §4.2.3 / §A.4.2.3              | UNDETERMINED
-//   AGC (agcGainPrev)      | §4.2.4 / §A.4.2.4              | CARRYOVER
+//	sub-state              | spec verbatim section          | specPolicy
+//	-----------------------+--------------------------------+--------------
+//	Hp (pastResidual)      | §4.2.1 / §A.4.2.1              | UNDETERMINED
+//	Hf-pastS               | §4.2.2 / §A.4.2.2              | UNDETERMINED
+//	Hf-pastSynthPost       | §4.2.2 / §A.4.2.2              | UNDETERMINED
+//	γ_t (pastTiltInput)    | §4.2.3 / §A.4.2.3              | UNDETERMINED
+//	AGC (agcGainPrev)      | §4.2.4 / §A.4.2.4              | CARRYOVER
 //
 // ============================================================================
 // SUBFRAME-BOUNDARY SNAPSHOT TIMING (per plan §Task 1, R-B)
 // ============================================================================
 //
-//   A — state captured RIGHT AFTER pf.Filter() returns for sf-1
-//       (= "right after sample 39 processed, before sf-2 begins").
-//   B — state captured JUST BEFORE pf.Filter() is invoked for sf-2
-//       (= "just before sample 40 processed"). In production this
-//       runs back-to-back with no intervening mutator, so B == A
-//       trivially unless a code path between subframes touches pf.
-//   C — state captured RIGHT AFTER pf.Filter() returns for sf-2
-//       (= "right after sample 79 processed"). Used to verify that
-//       the state actually advanced (B → C should be non-trivial).
+//	A — state captured RIGHT AFTER pf.Filter() returns for sf-1
+//	    (= "right after sample 39 processed, before sf-2 begins").
+//	B — state captured JUST BEFORE pf.Filter() is invoked for sf-2
+//	    (= "just before sample 40 processed"). In production this
+//	    runs back-to-back with no intervening mutator, so B == A
+//	    trivially unless a code path between subframes touches pf.
+//	C — state captured RIGHT AFTER pf.Filter() returns for sf-2
+//	    (= "right after sample 79 processed"). Used to verify that
+//	    the state actually advanced (B → C should be non-trivial).
 //
-//   In Postfilter.Filter() (postfilter.go), the per-call state
-//   mutations happen at well-defined points within the chain:
-//     - pf.pastResidual: slid + tail-written near the top of Filter()
-//       (BEFORE refinePitch). Carries new r(·) into the buffer.
-//     - pf.pastS:        updated inside applyShortTerm (numerator IIR
-//                        history rolls forward).
-//     - pf.pastSynthPost:updated inside applyShortTerm (denominator
-//                        IIR history rolls forward).
-//     - pf.pastTiltInput:updated inside applyTiltWithMu (single z^{-1}
-//                        delay).
-//     - pf.agcGainPrev / pf.initialized: updated inside applyAGC
-//                        (first-call seeds agcGainPrev = g_target_Q24,
-//                        sets initialized = true; subsequent calls
-//                        smooth toward G).
-//   None of the state fields are touched outside Filter() in the
-//   postfilter package, so the A == B identity is by construction.
-//   The diagnostic still measures A and B independently to make any
-//   future regression visible.
+//	In Postfilter.Filter() (postfilter.go), the per-call state
+//	mutations happen at well-defined points within the chain:
+//	  - pf.pastResidual: slid + tail-written near the top of Filter()
+//	    (BEFORE refinePitch). Carries new r(·) into the buffer.
+//	  - pf.pastS:        updated inside applyShortTerm (numerator IIR
+//	                     history rolls forward).
+//	  - pf.pastSynthPost:updated inside applyShortTerm (denominator
+//	                     IIR history rolls forward).
+//	  - pf.pastTiltInput:updated inside applyTiltWithMu (single z^{-1}
+//	                     delay).
+//	  - pf.agcGainPrev / pf.initialized: updated inside applyAGC
+//	                     (first-call seeds agcGainPrev = g_target_Q24,
+//	                     sets initialized = true; subsequent calls
+//	                     smooth toward G).
+//	None of the state fields are touched outside Filter() in the
+//	postfilter package, so the A == B identity is by construction.
+//	The diagnostic still measures A and B independently to make any
+//	future regression visible.
 //
 // ============================================================================
 // VERDICT CLASSIFIER
 // ============================================================================
 //
-//   ΔAB = B − A   (elementwise for vectors, scalar for γ_t/AGC)
+//	ΔAB = B − A   (elementwise for vectors, scalar for γ_t/AGC)
 //
-//   productionPolicy =
-//     "carryover"  if ΔAB == 0 across every element of the sub-state
-//     "reset"      if B is all-zero AND A had ≥1 nonzero entry
-//     "partial"    otherwise (some elements changed, not all to zero)
+//	productionPolicy =
+//	  "carryover"  if ΔAB == 0 across every element of the sub-state
+//	  "reset"      if B is all-zero AND A had ≥1 nonzero entry
+//	  "partial"    otherwise (some elements changed, not all to zero)
 //
-//   verdict =
-//     "EQ"            if specPolicy is concrete AND productionPolicy
-//                     matches it.
-//     "NE"            if specPolicy is concrete AND productionPolicy
-//                     differs.
-//     "UNDETERMINED"  if specPolicy = UNDETERMINED (§4.2.x silent on
-//                     subframe-boundary policy; E4 ambiguity).
+//	verdict =
+//	  "EQ"            if specPolicy is concrete AND productionPolicy
+//	                  matches it.
+//	  "NE"            if specPolicy is concrete AND productionPolicy
+//	                  differs.
+//	  "UNDETERMINED"  if specPolicy = UNDETERMINED (§4.2.x silent on
+//	                  subframe-boundary policy; E4 ambiguity).
 //
 // ============================================================================
 // HARD ASSERTIONS (spec-derivable invariants only)
 // ============================================================================
 //   - len(produced) == 80 per vector frame (sf-1 sPf || sf-2 sPf).
-//   No sub-state values or verdicts are hard-asserted.
+//     No sub-state values or verdicts are hard-asserted.
 //
 // ============================================================================
 // R-D HIGH-ENERGY CHECK
 // ============================================================================
-//   Frame-0 max|sPf| is logged for ALGTHM/FIXED/PITCH so the
-//   "FIXED + PITCH = high-energy interior [40..64] Δ" precondition
-//   from the plan's cross-vector evidence (P0c-3) can be validated
-//   here at frame 0 (i.e., it is not silence at frame 0).
+//
+//	Frame-0 max|sPf| is logged for ALGTHM/FIXED/PITCH so the
+//	"FIXED + PITCH = high-energy interior [40..64] Δ" precondition
+//	from the plan's cross-vector evidence (P0c-3) can be validated
+//	here at frame 0 (i.e., it is not silence at frame 0).
 func TestDiagnostic_Phase1lHp1SubframeBoundaryTrace(t *testing.T) {
 	type vectorSpec struct {
 		name    string

@@ -49,12 +49,12 @@ func TestPhase3bDiag2_LPInterpolationTrajectory(t *testing.T) {
 	}
 
 	type frameRec struct {
-		prevLSP [10]int16   // q̂_i^(m-1) Q15 (cosine domain), as fed to interp
-		currLSP [10]int16   // q̂_i^(m)   Q15 — the freshly-decoded LSP
-		sf1LSP  [10]int16   // interpolated LSP for subframe 1 Q15
-		sf2LSP  [10]int16   // = currLSP, by spec
-		sf1A    [11]int16   // a[0..10] Q12 from sf1LSP
-		sf2A    [11]int16   // a[0..10] Q12 from sf2LSP (= currLSP)
+		prevLSP [10]int16 // q̂_i^(m-1) Q15 (cosine domain), as fed to interp
+		currLSP [10]int16 // q̂_i^(m)   Q15 — the freshly-decoded LSP
+		sf1LSP  [10]int16 // interpolated LSP for subframe 1 Q15
+		sf2LSP  [10]int16 // = currLSP, by spec
+		sf1A    [11]int16 // a[0..10] Q12 from sf1LSP
+		sf2A    [11]int16 // a[0..10] Q12 from sf2LSP (= currLSP)
 		// alternative reconstructions of sf-1 LP (for §F.7 dump):
 		sf0AltCurr [11]int16 // alt-1: sf-0 uses q̂_i^(m)   (no interp)
 		sf0AltPrev [11]int16 // alt-2: sf-0 uses q̂_i^(m-1) (previous frame)

@@ -30,17 +30,21 @@ import (
 // yields the M ITU is using.
 //
 // Math (decoder eq. 20, sel=0):
-//   ω̂_i = comp_i · r̂_i + S_i,    comp_i = 1 − Σ_k p_{0,k,i}    (Q15)
+//
+//	ω̂_i = comp_i · r̂_i + S_i,    comp_i = 1 − Σ_k p_{0,k,i}    (Q15)
+//
 // Where r̂_i is the post-rearrange residual for WANT.
 //
 // d8's omegaWant uses M = analytical, so:
-//   omegaWant_i = comp_i · r̂_i + sumP_i · analytical_i (uniform M)
-//   ⇒ comp_i · r̂_i = omegaWant_i − S_analytical_i
+//
+//	omegaWant_i = comp_i · r̂_i + sumP_i · analytical_i (uniform M)
+//	⇒ comp_i · r̂_i = omegaWant_i − S_analytical_i
 //
 // For ITU choosing WANT optimally with target ω = analytical:
-//   analytical_i ≈ comp_i · r̂_i + S_i^ITU
-//   ⇒ S_i^ITU = analytical_i − comp_i · r̂_i
-//             = analytical_i − omegaWant_i + S_analytical_i
+//
+//	analytical_i ≈ comp_i · r̂_i + S_i^ITU
+//	⇒ S_i^ITU = analytical_i − comp_i · r̂_i
+//	          = analytical_i − omegaWant_i + S_analytical_i
 //
 // Under the simplifying assumption that all 4 lags share the same
 // scalar M_i (a common cold-start convention), M_i^ITU = S_i^ITU /

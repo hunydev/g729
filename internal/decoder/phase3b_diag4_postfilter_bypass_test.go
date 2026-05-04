@@ -16,36 +16,39 @@ import (
 // delay line + tilt + AGC).
 //
 // Background (see docs Appendix D / G):
-//   Pipeline B (ITU encoder → our decoder) shows a corpus-wide
-//   cross-correlation peak shift of −22 samples vs reference SPEECH.PST
-//   while the intrinsic ITU-vs-ITU pipeline A reports +40 samples — a
-//   62-sample gap that is amplitude-blind and survives both Phase 3b
-//   DIAG-1 (gain MA predictor seed, EXONERATED candidate B) and DIAG-2
-//   (LP interpolation, EXONERATED candidate C) and DIAG-3 (AC FIFO,
-//   EXONERATED candidate D-2).
+//
+//	Pipeline B (ITU encoder → our decoder) shows a corpus-wide
+//	cross-correlation peak shift of −22 samples vs reference SPEECH.PST
+//	while the intrinsic ITU-vs-ITU pipeline A reports +40 samples — a
+//	62-sample gap that is amplitude-blind and survives both Phase 3b
+//	DIAG-1 (gain MA predictor seed, EXONERATED candidate B) and DIAG-2
+//	(LP interpolation, EXONERATED candidate C) and DIAG-3 (AC FIFO,
+//	EXONERATED candidate D-2).
 //
 // Method:
-//   Build two pipelines side-by-side over the entire SPEECH.BIT corpus:
-//     A_pf   : Decoder.Decode    — full pipeline (synthesis + postfilter
-//                                  + HP + ScaleUpSat). Current default.
-//     A_raw  : Decoder.DecodeFrameNoPostfilter — synthesis output fed
-//                                  directly to HP filter, postfilter
-//                                  chain skipped (test-only shim;
-//                                  structurally identical to Decode
-//                                  except for the pst.Filter call).
-//   Compare both signals against SPEECH.PST (REF_pf, ITU post-postfilter
-//   reference). REF_raw (a pre-postfilter ITU reference) is NOT shipped
-//   in the Annex A test_vectors directory; the discriminator therefore
-//   runs against REF_pf only and the verdict is informative — a
-//   pre-postfilter shift of ≈0 against a post-postfilter reference
-//   would still indicate that the postfilter contributes the observed
-//   alignment skew, but the absolute alignment number against a missing
-//   REF_raw cannot be verified.
+//
+//	Build two pipelines side-by-side over the entire SPEECH.BIT corpus:
+//	  A_pf   : Decoder.Decode    — full pipeline (synthesis + postfilter
+//	                               + HP + ScaleUpSat). Current default.
+//	  A_raw  : Decoder.DecodeFrameNoPostfilter — synthesis output fed
+//	                               directly to HP filter, postfilter
+//	                               chain skipped (test-only shim;
+//	                               structurally identical to Decode
+//	                               except for the pst.Filter call).
+//	Compare both signals against SPEECH.PST (REF_pf, ITU post-postfilter
+//	reference). REF_raw (a pre-postfilter ITU reference) is NOT shipped
+//	in the Annex A test_vectors directory; the discriminator therefore
+//	runs against REF_pf only and the verdict is informative — a
+//	pre-postfilter shift of ≈0 against a post-postfilter reference
+//	would still indicate that the postfilter contributes the observed
+//	alignment skew, but the absolute alignment number against a missing
+//	REF_raw cannot be verified.
 //
 // Verdict logic (logged, not asserted):
-//   shift(A_raw) ≈ 0 (within ±2)         → D-1 CONFIRMED
-//   shift(A_raw) ≈ shift(A_pf) (Δ ≤ 2)   → D-1 EXONERATED
-//   |shift(A_raw)| < |shift(A_pf)|       → D-1 PARTIALLY CONFIRMED
+//
+//	shift(A_raw) ≈ 0 (within ±2)         → D-1 CONFIRMED
+//	shift(A_raw) ≈ shift(A_pf) (Δ ≤ 2)   → D-1 EXONERATED
+//	|shift(A_raw)| < |shift(A_pf)|       → D-1 PARTIALLY CONFIRMED
 //
 // Spec citations (clean-room): ITU-T G.729 §A.4.2 (Annex A postfilter,
 // long-term + short-term + tilt + AGC), §3.10 / §4.1.6 (synthesis), and

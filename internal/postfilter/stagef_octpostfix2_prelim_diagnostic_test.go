@@ -29,16 +29,16 @@ import (
 // §"Spec § 인용" cites the chain order long-term → short-term → tilt → AGC
 // as recorded in Postfilter.Filter):
 //
-//	1. expandBandwidth      → aNum (γ_n=0.55), aDen (γ_d=0.70)   §A.4.2.1
-//	2. computeResidual      → r(n)                                §A.4.2.1
-//	3. refinePitch          → T  ∈ {tInt-1, tInt, tInt+1}         §A.4.2.2
-//	4. computeLongTermGain  → g0, g1   (branch: R<=0||E==0)       §A.4.2.2
-//	5. applyLongTerm        → r'(n)                               §A.4.2.2
-//	6. applyShortTerm       → s_st(n)                             §A.4.2.1
-//	7. computeTiltMu        → μ        (γ_t branch: active|inactive) §A.4.2.3
-//	8. applyTiltWithMu      → s_tilt(n)                           §A.4.2.3
-//	9. computeAGCTargetGain → g_target                            §A.4.2.4
-//	10. applyAGC            → sPf(n)   (branch: initialized seed)  §A.4.2.4
+//  1. expandBandwidth      → aNum (γ_n=0.55), aDen (γ_d=0.70)   §A.4.2.1
+//  2. computeResidual      → r(n)                                §A.4.2.1
+//  3. refinePitch          → T  ∈ {tInt-1, tInt, tInt+1}         §A.4.2.2
+//  4. computeLongTermGain  → g0, g1   (branch: R<=0||E==0)       §A.4.2.2
+//  5. applyLongTerm        → r'(n)                               §A.4.2.2
+//  6. applyShortTerm       → s_st(n)                             §A.4.2.1
+//  7. computeTiltMu        → μ        (γ_t branch: active|inactive) §A.4.2.3
+//  8. applyTiltWithMu      → s_tilt(n)                           §A.4.2.3
+//  9. computeAGCTargetGain → g_target                            §A.4.2.4
+//  10. applyAGC            → sPf(n)   (branch: initialized seed)  §A.4.2.4
 //
 // codec-start (frame 0 sf0): Postfilter zero value — pastResidual = 0,
 // pastSynthPost = 0, pastTiltInput = 0, agcGainPrev = 0, initialized = false.
@@ -210,10 +210,10 @@ func TestDiagnostic_FoctPostfix2PrelimM1Prime(t *testing.T) {
 	// (7) Sign-transition decision — identify the stage that *creates* the
 	// sample 5..7 sign mismatch vs PST want.
 	stages := []struct {
-		name  string
-		v5    int16
-		v6    int16
-		v7    int16
+		name string
+		v5   int16
+		v6   int16
+		v7   int16
 	}{
 		{"input s        ", s[5], s[6], s[7]},
 		{"residual r     ", r[5], r[6], r[7]},

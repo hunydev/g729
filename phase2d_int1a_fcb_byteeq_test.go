@@ -98,11 +98,11 @@ func TestPhase2dINT1a_FCBByteEQ(t *testing.T) {
 	var pcm [samplesPerFrame]int16
 
 	type fieldStats struct {
-		name    string
-		match   int
-		hist    map[int]int
-		gotFn   func() uint16
-		refFn   func() uint16
+		name  string
+		match int
+		hist  map[int]int
+		gotFn func() uint16
+		refFn func() uint16
 	}
 	var (
 		gC1, gS1, gGA1, gGB1, gC2, gS2, gGA2, gGB2 uint16

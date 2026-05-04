@@ -35,5 +35,5 @@ func (synth *Synthesizer) Synthesize(a *[11]int16, v, c *[40]int16, gpQ14, gcMan
 // Spec: ITU-T G.729 §4.1.2 / §3.10. Updates synth.pastSynth to the last
 // 10 samples of out. Zero-allocation.
 func (synth *Synthesizer) Filter(a *[11]int16, u, out *[40]int16) {
-synth.filterSubframe(a, u, out)
+	synth.filterSubframe(a, u, out)
 }

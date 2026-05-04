@@ -59,24 +59,24 @@ import (
 //
 // HAND-COMPUTED EXPECTED u[0..7] per §4.1.6 eq. (75) + G.191 basops:
 //
-//   For each n where v[n]=0 and c[n]=8192 (n = 0..3):
-//     lPitch = L_mult(1995, 0)              = 0            (Q15)
-//     lCode  = L_mult(4153, 8192)           = 68_042_752   (Q26)
-//                                             [= 2·4153·8192]
-//     lCode  = L_shr(_, 11)                 = 33_224       (Q15)
-//                                             [exact: 33_224·2048 = 68_042_752]
-//     lSum   = L_add(0, 33_224)             = 33_224       (Q15)
-//     u[n]   = round(L_shl(33_224, 1))
-//            = extract_h(66_448 + 0x8000)
-//            = extract_h(99_216) = 1                        (Q0)
+//	For each n where v[n]=0 and c[n]=8192 (n = 0..3):
+//	  lPitch = L_mult(1995, 0)              = 0            (Q15)
+//	  lCode  = L_mult(4153, 8192)           = 68_042_752   (Q26)
+//	                                          [= 2·4153·8192]
+//	  lCode  = L_shr(_, 11)                 = 33_224       (Q15)
+//	                                          [exact: 33_224·2048 = 68_042_752]
+//	  lSum   = L_add(0, 33_224)             = 33_224       (Q15)
+//	  u[n]   = round(L_shl(33_224, 1))
+//	         = extract_h(66_448 + 0x8000)
+//	         = extract_h(99_216) = 1                        (Q0)
 //
-//   For each n where v[n]=0 and c[n]=0 (n = 4..7):
-//     u[n]   = round(L_shl(0, 1)) = 0
+//	For each n where v[n]=0 and c[n]=0 (n = 4..7):
+//	  u[n]   = round(L_shl(0, 1)) = 0
 //
 // Real-valued check:
 //
-//   gc·c[1] / (2^12 · 2^13) = 4153·8192 / 33_554_432
-//                           = 1.01392... → round-to-nearest → 1
+//	gc·c[1] / (2^12 · 2^13) = 4153·8192 / 33_554_432
+//	                        = 1.01392... → round-to-nearest → 1
 //
 // Production output (S-3 dump): u[0..7] = [1 1 1 1 0 0 0 0].
 // EXPECTED         (this test): u[0..7] = [1 1 1 1 0 0 0 0].
@@ -85,45 +85,45 @@ import (
 //
 // SUB-HYPOTHESIS REFUTATIONS:
 //
-//   R-3a (Q26→Q15 LShr(11) rounding mode):
-//     Production uses L_shr (arithmetic floor). Alternate modes
-//     (L_shr_r round, +0x400 bias before >>11, symmetric round)
-//     all yield the SAME 33_216 because L_mult(4153, 8192) is
-//     EXACT in the low 11 bits (4153·8192·2 = 68_026_368 = 33_216·
-//     2_048; remainder = 0). No rounding-mode change can lift
-//     u[1] from 1 to 2 here. Furthermore, the final stage
-//     round(L_shl(lSum, 1)) is the canonical §6.2.1 Table 10
-//     `round` — already byte-EQ to G.191. REFUTED.
+//	R-3a (Q26→Q15 LShr(11) rounding mode):
+//	  Production uses L_shr (arithmetic floor). Alternate modes
+//	  (L_shr_r round, +0x400 bias before >>11, symmetric round)
+//	  all yield the SAME 33_216 because L_mult(4153, 8192) is
+//	  EXACT in the low 11 bits (4153·8192·2 = 68_026_368 = 33_216·
+//	  2_048; remainder = 0). No rounding-mode change can lift
+//	  u[1] from 1 to 2 here. Furthermore, the final stage
+//	  round(L_shl(lSum, 1)) is the canonical §6.2.1 Table 10
+//	  `round` — already byte-EQ to G.191. REFUTED.
 //
-//   R-3b (gain Q14 application order / saturation):
-//     v[n]=0 ⇒ lPitch = L_mult(gp, 0) = 0 regardless of order or
-//     saturation. lCode = 33_216 is well within Word32 range (no
-//     saturation triggered). Reordering LMac vs separate L_add
-//     can only matter when both operands are non-zero AND one
-//     overflows; neither holds here. REFUTED.
+//	R-3b (gain Q14 application order / saturation):
+//	  v[n]=0 ⇒ lPitch = L_mult(gp, 0) = 0 regardless of order or
+//	  saturation. lCode = 33_216 is well within Word32 range (no
+//	  saturation triggered). Reordering LMac vs separate L_add
+//	  can only matter when both operands are non-zero AND one
+//	  overflows; neither holds here. REFUTED.
 //
-//   R-3c (FCB innovation construction, ±PulseAmplitude / sign mapping):
-//     §3.8: 4 pulses, ±1.0 amplitude in Q13 = ±8192. With
-//     positions C=0x0000 and signs S=0x0F (all +1), the pulses
-//     land at positions {0, 1, 2, 3} (one per track 0..3), each
-//     at +8192. The S-3 c[0..3] = [8192 8192 8192 8192] dump
-//     matches this exactly. Pitch enhancement only affects
-//     n ≥ tInt = 20, so c[0..3] are pristine. REFUTED.
+//	R-3c (FCB innovation construction, ±PulseAmplitude / sign mapping):
+//	  §3.8: 4 pulses, ±1.0 amplitude in Q13 = ±8192. With
+//	  positions C=0x0000 and signs S=0x0F (all +1), the pulses
+//	  land at positions {0, 1, 2, 3} (one per track 0..3), each
+//	  at +8192. The S-3 c[0..3] = [8192 8192 8192 8192] dump
+//	  matches this exactly. Pitch enhancement only affects
+//	  n ≥ tInt = 20, so c[0..3] are pristine. REFUTED.
 //
-//   R-3d (pastExc[] indexing at frame-0 boundary):
-//     §4.3 (decoder initial state): "the past excitation u(n) for
-//     n < 0 is set to zero". Decoder.pastExc is the zero-value
-//     of [pastExcLen]int16 on construction. pitch.AdaptiveCodebook
-//     reads pastExc with index n − tInt − 1 (T1 path) for tInt=20,
-//     all reads land on zero entries. v[0..7] = [0…0] in the
-//     S-3 dump confirms this. REFUTED.
+//	R-3d (pastExc[] indexing at frame-0 boundary):
+//	  §4.3 (decoder initial state): "the past excitation u(n) for
+//	  n < 0 is set to zero". Decoder.pastExc is the zero-value
+//	  of [pastExcLen]int16 on construction. pitch.AdaptiveCodebook
+//	  reads pastExc with index n − tInt − 1 (T1 path) for tInt=20,
+//	  all reads land on zero entries. v[0..7] = [0…0] in the
+//	  S-3 dump confirms this. REFUTED.
 //
-//   R-3e (subframe 0 vs subframe 1 routing):
-//     The S-3 dump shows sf0 and sf1 receive distinct (gp, gc, c,
-//     v) tuples that match their respective bitstream indices
-//     (P1=20·8+0 → tInt=20; P2 → tInt=24). No cross-wiring of
-//     sf-0 inputs with sf-1 inputs is evident from the dump.
-//     REFUTED.
+//	R-3e (subframe 0 vs subframe 1 routing):
+//	  The S-3 dump shows sf0 and sf1 receive distinct (gp, gc, c,
+//	  v) tuples that match their respective bitstream indices
+//	  (P1=20·8+0 → tInt=20; P2 → tInt=24). No cross-wiring of
+//	  sf-0 inputs with sf-1 inputs is evident from the dump.
+//	  REFUTED.
 //
 // CONCLUSION: All five R-3 sub-hypotheses are REFUTED. The off-by-2
 // at TAME f0 sample 1 IS NOT introduced by BuildExcitation. The
@@ -139,16 +139,18 @@ import (
 //
 // Re-rank for S-6 (FINAL diagnostic budget):
 //
-//   S-6 R-2: LP interpolation routing (§4.1.2 / §4.1.5).
-//             Owners: internal/lsp/.
-//             Sub-hypotheses to enumerate before applying any fix:
-//               R-2a: previous-LSP initial vector (§4.3 default)
-//               R-2b: interpolation factor (avg vs other ratio)
-//               R-2c: LSP→LP conversion ordering
-//               R-2d: sf-0/sf-1 routing inversion
+//	S-6 R-2: LP interpolation routing (§4.1.2 / §4.1.5).
+//	          Owners: internal/lsp/.
+//	          Sub-hypotheses to enumerate before applying any fix:
+//	            R-2a: previous-LSP initial vector (§4.3 default)
+//	            R-2b: interpolation factor (avg vs other ratio)
+//	            R-2c: LSP→LP conversion ordering
+//	            R-2d: sf-0/sf-1 routing inversion
 //
 // Cumulative refutation budget: 4 / 5 consumed
-//   (S-2 H-1, S-3 H-11, S-4 R-1, S-5 R-3).
+//
+//	(S-2 H-1, S-3 H-11, S-4 R-1, S-5 R-3).
+//
 // Remaining: 1 attempt before mandatory user-gate G-D3-EXHAUSTED.
 func TestPhase1o_D3_S5_R3_ExcitationDump(t *testing.T) {
 	bitPath := vectorPath("TAME.BIT")

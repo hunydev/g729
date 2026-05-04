@@ -17,8 +17,9 @@ import (
 // stage (gp · v + gc · c) or only later (synthesis filter / postfilter).
 //
 // References (clean-room, public spec only):
-//   ITU-T G.729 §3.7 (adaptive codebook), §3.8 (fixed codebook),
-//   §3.9 (gain quantization), §4.1.6 (excitation reconstruction).
+//
+//	ITU-T G.729 §3.7 (adaptive codebook), §3.8 (fixed codebook),
+//	§3.9 (gain quantization), §4.1.6 (excitation reconstruction).
 //
 // Informational: t.Logf only.
 func TestPhase3Diag_ExcitationRMS_SPEECH(t *testing.T) {
@@ -41,7 +42,7 @@ func TestPhase3Diag_ExcitationRMS_SPEECH(t *testing.T) {
 	}
 	var gpStats, gcStats bucket
 	var tDist [144 + 8]int // pitch lag histogram T_int 0..151
-	gpStats.min, gcStats.min = 1 << 30, 1 << 30
+	gpStats.min, gcStats.min = 1<<30, 1<<30
 	gpStats.max, gcStats.max = -(1 << 30), -(1 << 30)
 
 	frames := 0

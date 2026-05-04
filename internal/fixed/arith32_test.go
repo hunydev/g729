@@ -51,35 +51,35 @@ func TestLSub(t *testing.T) {
 }
 
 func TestLNegate(t *testing.T) {
-tests := []struct {
-in, want Word32
-}{
-{0, 0},
-{1, -1},
-{-1, 1},
-{Max32, -Max32},
-{Min32, Max32},
-}
-for _, tc := range tests {
-if got := LNegate(tc.in); got != tc.want {
-t.Errorf("LNegate(%d) = %d, want %d", tc.in, got, tc.want)
-}
-}
+	tests := []struct {
+		in, want Word32
+	}{
+		{0, 0},
+		{1, -1},
+		{-1, 1},
+		{Max32, -Max32},
+		{Min32, Max32},
+	}
+	for _, tc := range tests {
+		if got := LNegate(tc.in); got != tc.want {
+			t.Errorf("LNegate(%d) = %d, want %d", tc.in, got, tc.want)
+		}
+	}
 }
 
 func TestLAbs(t *testing.T) {
-tests := []struct {
-in, want Word32
-}{
-{0, 0},
-{100, 100},
-{-100, 100},
-{Max32, Max32},
-{Min32, Max32},
-}
-for _, tc := range tests {
-if got := LAbs(tc.in); got != tc.want {
-t.Errorf("LAbs(%d) = %d, want %d", tc.in, got, tc.want)
-}
-}
+	tests := []struct {
+		in, want Word32
+	}{
+		{0, 0},
+		{100, 100},
+		{-100, 100},
+		{Max32, Max32},
+		{Min32, Max32},
+	}
+	for _, tc := range tests {
+		if got := LAbs(tc.in); got != tc.want {
+			t.Errorf("LAbs(%d) = %d, want %d", tc.in, got, tc.want)
+		}
+	}
 }

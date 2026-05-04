@@ -293,7 +293,7 @@ func TestINT1D4Pinpoint(t *testing.T) {
 		t.Logf("    leaves AC-norm under-specified (\"to avoid arithmetic")
 		t.Logf("    problems\"); fix = require ≥1 extra bit of headroom.")
 		t.Logf("  - If saturation persists at scale+2, the bug is intrinsic to")
-		t.Logf("    levinsonDurbin's Q-format choices (e/sum/num shift") 
+		t.Logf("    levinsonDurbin's Q-format choices (e/sum/num shift")
 		t.Logf("    arrangement); fix lives in internal/lpc/levinson.go.")
 	})
 
@@ -577,11 +577,11 @@ func mirrorApplyLagWindow(r *[11]int32) {
 // mirrorLevinsonTraced (S5 instrumentation).
 type levinsonTrace struct {
 	iter [11]struct {
-		sum         int64
-		qDivResult  int64
-		kQ15        int32
-		eAfter      int64
-		aWork       [11]int32
+		sum        int64
+		qDivResult int64
+		kQ15       int32
+		eAfter     int64
+		aWork      [11]int32
 	}
 }
 

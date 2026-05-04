@@ -29,15 +29,15 @@ import (
 //
 // Live hypotheses entering d6:
 //   - H-L4           cold-start `freqPrev` propagation differs from
-//                    decoder
+//     decoder
 //   - H-VQ-L2W       L2-stage weighted-MSE protocol (eq. 22 +
-//                    rearrangement order) deviates from spec §3.2.4
+//     rearrangement order) deviates from spec §3.2.4
 //   - H-J1J2         J1/J2 rearrangement applied at wrong pipeline
-//                    point in L2/L3 search vs spec lines 887–895
+//     point in L2/L3 search vs spec lines 887–895
 //   - H-FREQPREV-UPDATE  encoder commits predictor memory at wrong
-//                    point so decoder's reconstruction at frame N+1
-//                    consumes a different past-residual than the
-//                    encoder's L2/L3 search did
+//     point so decoder's reconstruction at frame N+1
+//     consumes a different past-residual than the
+//     encoder's L2/L3 search did
 //
 // ABSOLUTE CONSTRAINTS (parent plan §0.4 + prior d* §0):
 //   - Clean-room MIT: no ITU C / bcg729 / Sipro / FFmpeg G.729

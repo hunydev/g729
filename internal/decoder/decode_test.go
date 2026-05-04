@@ -30,135 +30,135 @@ func TestResetAfterUse(t *testing.T) {
 }
 
 func TestDecode_AllZeroFrameDeterministic(t *testing.T) {
-var packed [10]byte
-var d1, d2 Decoder
-var out1, out2 [80]int16
-if err := d1.Decode(packed[:], false, out1[:]); err != nil {
-t.Fatalf("d1: %v", err)
-}
-if err := d2.Decode(packed[:], false, out2[:]); err != nil {
-t.Fatalf("d2: %v", err)
-}
-if out1 != out2 {
-t.Fatal("two identical calls diverged")
-}
+	var packed [10]byte
+	var d1, d2 Decoder
+	var out1, out2 [80]int16
+	if err := d1.Decode(packed[:], false, out1[:]); err != nil {
+		t.Fatalf("d1: %v", err)
+	}
+	if err := d2.Decode(packed[:], false, out2[:]); err != nil {
+		t.Fatalf("d2: %v", err)
+	}
+	if out1 != out2 {
+		t.Fatal("two identical calls diverged")
+	}
 }
 
 func TestDecode_ShortInputRejected(t *testing.T) {
-var d Decoder
-var short [9]byte
-var out [80]int16
-out[0] = 42
-if err := d.Decode(short[:], false, out[:]); err != ErrShortInput {
-t.Fatalf("want ErrShortInput, got %v", err)
-}
-if out[0] != 42 {
-t.Fatal("out mutated despite ErrShortInput")
-}
+	var d Decoder
+	var short [9]byte
+	var out [80]int16
+	out[0] = 42
+	if err := d.Decode(short[:], false, out[:]); err != ErrShortInput {
+		t.Fatalf("want ErrShortInput, got %v", err)
+	}
+	if out[0] != 42 {
+		t.Fatal("out mutated despite ErrShortInput")
+	}
 }
 
 func TestDecode_ShortOutputRejected(t *testing.T) {
-var d Decoder
-var packed [10]byte
-var short [79]int16
-if err := d.Decode(packed[:], false, short[:]); err != ErrShortOutput {
-t.Fatalf("want ErrShortOutput, got %v", err)
-}
+	var d Decoder
+	var packed [10]byte
+	var short [79]int16
+	if err := d.Decode(packed[:], false, short[:]); err != ErrShortOutput {
+		t.Fatalf("want ErrShortOutput, got %v", err)
+	}
 }
 
 func TestDecode_TwoFramesStateAdvance(t *testing.T) {
-var d Decoder
-var packed [10]byte
-packed[0] = 0x40
-var outA, outB [80]int16
-if err := d.Decode(packed[:], false, outA[:]); err != nil {
-t.Fatal(err)
-}
-if err := d.Decode(packed[:], false, outB[:]); err != nil {
-t.Fatal(err)
-}
-if outA == outB {
-t.Fatal("state did not advance between two identical frames")
-}
+	var d Decoder
+	var packed [10]byte
+	packed[0] = 0x40
+	var outA, outB [80]int16
+	if err := d.Decode(packed[:], false, outA[:]); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Decode(packed[:], false, outB[:]); err != nil {
+		t.Fatal(err)
+	}
+	if outA == outB {
+		t.Fatal("state did not advance between two identical frames")
+	}
 }
 
 func TestDecode_ResetRestoresDeterminism(t *testing.T) {
-var d Decoder
-var packed [10]byte
-var throwaway [80]int16
-_ = d.Decode(packed[:], false, throwaway[:])
+	var d Decoder
+	var packed [10]byte
+	var throwaway [80]int16
+	_ = d.Decode(packed[:], false, throwaway[:])
 
-var freshOut, resetOut [80]int16
-var fresh Decoder
-if err := fresh.Decode(packed[:], false, freshOut[:]); err != nil {
-t.Fatal(err)
-}
-d.Reset()
-if err := d.Decode(packed[:], false, resetOut[:]); err != nil {
-t.Fatal(err)
-}
-if freshOut != resetOut {
-t.Fatal("Reset did not restore zero-value decode output")
-}
+	var freshOut, resetOut [80]int16
+	var fresh Decoder
+	if err := fresh.Decode(packed[:], false, freshOut[:]); err != nil {
+		t.Fatal(err)
+	}
+	d.Reset()
+	if err := d.Decode(packed[:], false, resetOut[:]); err != nil {
+		t.Fatal(err)
+	}
+	if freshOut != resetOut {
+		t.Fatal("Reset did not restore zero-value decode output")
+	}
 }
 
 func TestDecode_BadFlagAcceptedButIgnored(t *testing.T) {
-var d1, d2 Decoder
-var packed [10]byte
-var out1, out2 [80]int16
-_ = d1.Decode(packed[:], false, out1[:])
-_ = d2.Decode(packed[:], true, out2[:])
-if out1 != out2 {
-t.Fatal("Phase 1g must ignore the bad flag; Phase 1h will add concealment")
-}
+	var d1, d2 Decoder
+	var packed [10]byte
+	var out1, out2 [80]int16
+	_ = d1.Decode(packed[:], false, out1[:])
+	_ = d2.Decode(packed[:], true, out2[:])
+	if out1 != out2 {
+		t.Fatal("Phase 1g must ignore the bad flag; Phase 1h will add concealment")
+	}
 }
 
 func TestDecode_SubStatesZeroedByReset(t *testing.T) {
-var d Decoder
-var packed [10]byte
-var throwaway [80]int16
+	var d Decoder
+	var packed [10]byte
+	var throwaway [80]int16
 
-for i := 0; i < 10; i++ {
-packed[i%10] = byte(i)
-_ = d.Decode(packed[:], false, throwaway[:])
-}
-d.Reset()
+	for i := 0; i < 10; i++ {
+		packed[i%10] = byte(i)
+		_ = d.Decode(packed[:], false, throwaway[:])
+	}
+	d.Reset()
 
-if d.prevGpQ14 != 0 {
-t.Errorf("prevGpQ14 = %d after Reset", d.prevGpQ14)
-}
-if d.hpX != ([2]int16{}) {
-t.Errorf("hpX = %v after Reset", d.hpX)
-}
-if d.hpY != ([2]int32{}) {
-t.Errorf("hpY = %v after Reset", d.hpY)
-}
-if d.pastExc != ([pastExcLen]int16{}) {
-t.Errorf("pastExc not zeroed after Reset")
-}
-var fresh Decoder
-var freshOut, resetOut [80]int16
-packed = [10]byte{}
-_ = fresh.Decode(packed[:], false, freshOut[:])
-_ = d.Decode(packed[:], false, resetOut[:])
-if freshOut != resetOut {
-t.Error("Reset did not fully clear sub-state (output mismatch vs fresh)")
-}
+	if d.prevGpQ14 != 0 {
+		t.Errorf("prevGpQ14 = %d after Reset", d.prevGpQ14)
+	}
+	if d.hpX != ([2]int16{}) {
+		t.Errorf("hpX = %v after Reset", d.hpX)
+	}
+	if d.hpY != ([2]int32{}) {
+		t.Errorf("hpY = %v after Reset", d.hpY)
+	}
+	if d.pastExc != ([pastExcLen]int16{}) {
+		t.Errorf("pastExc not zeroed after Reset")
+	}
+	var fresh Decoder
+	var freshOut, resetOut [80]int16
+	packed = [10]byte{}
+	_ = fresh.Decode(packed[:], false, freshOut[:])
+	_ = d.Decode(packed[:], false, resetOut[:])
+	if freshOut != resetOut {
+		t.Error("Reset did not fully clear sub-state (output mismatch vs fresh)")
+	}
 }
 
 func TestDecode_FirstThreeFramesAreNontrivial(t *testing.T) {
-var d Decoder
-packed := [10]byte{0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x11, 0x22}
-var out1, out2, out3 [80]int16
-_ = d.Decode(packed[:], false, out1[:])
-_ = d.Decode(packed[:], false, out2[:])
-_ = d.Decode(packed[:], false, out3[:])
-if out1 == out2 {
-t.Error("frame 1 == frame 2 — state did not advance across frames")
-}
-if out2 == out3 {
-t.Error("frame 2 == frame 3 — state did not advance across frames")
-}
+	var d Decoder
+	packed := [10]byte{0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x11, 0x22}
+	var out1, out2, out3 [80]int16
+	_ = d.Decode(packed[:], false, out1[:])
+	_ = d.Decode(packed[:], false, out2[:])
+	_ = d.Decode(packed[:], false, out3[:])
+	if out1 == out2 {
+		t.Error("frame 1 == frame 2 — state did not advance across frames")
+	}
+	if out2 == out3 {
+		t.Error("frame 2 == frame 3 — state did not advance across frames")
+	}
 }
 
 func TestDecode_ITUVectorAlgthmBitExact(t *testing.T) {
@@ -194,38 +194,38 @@ func TestDecode_ITUVectorAlgthmBitExact(t *testing.T) {
 		"is too aggressive (kicks in for unstable LP filters that ITU " +
 		"lets saturate naturally); ITU's overflow flag-based recovery " +
 		"semantics need re-derivation from first principles.")
-bitPath := vectorPath("ALGTHM.BIT")
-pstPath := vectorPath("ALGTHM.PST")
-ensureTestdataPresent(t, bitPath, pstPath)
+	bitPath := vectorPath("ALGTHM.BIT")
+	pstPath := vectorPath("ALGTHM.PST")
+	ensureTestdataPresent(t, bitPath, pstPath)
 
-frames, bads := readG192Frames(t, bitPath)
-wantFrames := readPSTFrames(t, pstPath)
+	frames, bads := readG192Frames(t, bitPath)
+	wantFrames := readPSTFrames(t, pstPath)
 
-if len(frames) != len(wantFrames) {
-t.Fatalf("frame count mismatch: bit=%d pst=%d",
-len(frames), len(wantFrames))
-}
+	if len(frames) != len(wantFrames) {
+		t.Fatalf("frame count mismatch: bit=%d pst=%d",
+			len(frames), len(wantFrames))
+	}
 
-var d Decoder
-var out [frameSamples]int16
-for i, packed := range frames {
-if err := d.Decode(packed, bads[i], out[:]); err != nil {
-t.Fatalf("frame %d: %v", i, err)
-}
-if out != wantFrames[i] {
-for n := 0; n < frameSamples; n++ {
-if out[n] != wantFrames[i][n] {
-t.Errorf("frame %d sample %d: got %d, want %d (delta %+d)",
-i, n, out[n], wantFrames[i][n],
-int(out[n])-int(wantFrames[i][n]))
-break
-}
-}
-if t.Failed() && i >= 2 {
-t.Fatal("stopping after 3 divergent frames")
-}
-}
-}
+	var d Decoder
+	var out [frameSamples]int16
+	for i, packed := range frames {
+		if err := d.Decode(packed, bads[i], out[:]); err != nil {
+			t.Fatalf("frame %d: %v", i, err)
+		}
+		if out != wantFrames[i] {
+			for n := 0; n < frameSamples; n++ {
+				if out[n] != wantFrames[i][n] {
+					t.Errorf("frame %d sample %d: got %d, want %d (delta %+d)",
+						i, n, out[n], wantFrames[i][n],
+						int(out[n])-int(wantFrames[i][n]))
+					break
+				}
+			}
+			if t.Failed() && i >= 2 {
+				t.Fatal("stopping after 3 divergent frames")
+			}
+		}
+	}
 }
 
 // TestDecode_ITUVectorSpeechBitExact: demoted to PASS-by-design in Phase 1o
@@ -244,159 +244,159 @@ t.Fatal("stopping after 3 divergent frames")
 // energy concentration, predictor-state smoothness). The end-to-end
 // bit-exact check lives in TestDecode_ITUVectorAlgthmBitExact.
 func TestFrame0StageByStage(t *testing.T) {
-bitPath := vectorPath("ALGTHM.BIT")
-ensureTestdataPresent(t, bitPath)
+	bitPath := vectorPath("ALGTHM.BIT")
+	ensureTestdataPresent(t, bitPath)
 
-frames, _ := readG192Frames(t, bitPath)
-if len(frames) == 0 {
-t.Fatal("ALGTHM.BIT: no frames")
-}
+	frames, _ := readG192Frames(t, bitPath)
+	if len(frames) == 0 {
+		t.Fatal("ALGTHM.BIT: no frames")
+	}
 
-var f bitstream.Frame
-if err := bitstream.Unpack(frames[0], &f); err != nil {
-t.Fatal(err)
-}
-t.Logf("frame 0 params: %+v", f)
+	var f bitstream.Frame
+	if err := bitstream.Unpack(frames[0], &f); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("frame 0 params: %+v", f)
 
-var ls lsp.Decoder
-sf1A, sf2A := ls.Decode(lsp.Indices{
-L0: uint8(f.L0), L1: uint8(f.L1),
-L2: uint8(f.L2), L3: uint8(f.L3),
-})
-t.Logf("frame 0 sf1A = %+v", sf1A)
-t.Logf("frame 0 sf2A = %+v", sf2A)
+	var ls lsp.Decoder
+	sf1A, sf2A := ls.Decode(lsp.Indices{
+		L0: uint8(f.L0), L1: uint8(f.L1),
+		L2: uint8(f.L2), L3: uint8(f.L3),
+	})
+	t.Logf("frame 0 sf1A = %+v", sf1A)
+	t.Logf("frame 0 sf2A = %+v", sf2A)
 
-tInt1, tFrac1 := pitch.DecodeDelaySubframe1(uint8(f.P1))
-tInt2, tFrac2 := pitch.DecodeDelaySubframe2(uint8(f.P2), tInt1)
-t.Logf("frame 0 pitch: sf1 T=%d+%d/3, sf2 T=%d+%d/3",
-tInt1, tFrac1, tInt2, tFrac2)
+	tInt1, tFrac1 := pitch.DecodeDelaySubframe1(uint8(f.P1))
+	tInt2, tFrac2 := pitch.DecodeDelaySubframe2(uint8(f.P2), tInt1)
+	t.Logf("frame 0 pitch: sf1 T=%d+%d/3, sf2 T=%d+%d/3",
+		tInt1, tFrac1, tInt2, tFrac2)
 
-stages := []struct {
-name   string
-tInt   int
-tFrac  int
-sfA    [lpcOrder + 1]int16
+	stages := []struct {
+		name   string
+		tInt   int
+		tFrac  int
+		sfA    [lpcOrder + 1]int16
 		C      uint16
 		S      uint8
-GA, GB uint8
-}{
-{"sf1", tInt1, tFrac1, sf1A, f.C1, uint8(f.S1), uint8(f.GA1), uint8(f.GB1)},
-{"sf2", tInt2, tFrac2, sf2A, f.C2, uint8(f.S2), uint8(f.GA2), uint8(f.GB2)},
-}
+		GA, GB uint8
+	}{
+		{"sf1", tInt1, tFrac1, sf1A, f.C1, uint8(f.S1), uint8(f.GA1), uint8(f.GB1)},
+		{"sf2", tInt2, tFrac2, sf2A, f.C2, uint8(f.S2), uint8(f.GA2), uint8(f.GB2)},
+	}
 
-var d Decoder
-for _, sf := range stages {
-var v [subframeLen]int16
-pitch.AdaptiveCodebook(sf.tInt, sf.tFrac, d.pastExc[:], &v)
+	var d Decoder
+	for _, sf := range stages {
+		var v [subframeLen]int16
+		pitch.AdaptiveCodebook(sf.tInt, sf.tFrac, d.pastExc[:], &v)
 
-betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
-var c [subframeLen]int16
-fcb.Decode(fcb.Indices{Positions: sf.C, Signs: sf.S}, sf.tInt, betaQ14, &c)
+		betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
+		var c [subframeLen]int16
+		fcb.Decode(fcb.Indices{Positions: sf.C, Signs: sf.S}, sf.tInt, betaQ14, &c)
 
-gpQ14, gcMant_gcQ12, gcExp_gcQ12 := d.gn.Decode(gain.Indices{GA: sf.GA, GB: sf.GB}, &c)
-gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
+		gpQ14, gcMant_gcQ12, gcExp_gcQ12 := d.gn.Decode(gain.Indices{GA: sf.GA, GB: sf.GB}, &c)
+		gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 
-var u [subframeLen]int16
-synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
+		var u [subframeLen]int16
+		synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
 
-var s [subframeLen]int16
-sfACopy := sf.sfA
-d.syn.Filter(&sfACopy, &u, &s)
+		var s [subframeLen]int16
+		sfACopy := sf.sfA
+		d.syn.Filter(&sfACopy, &u, &s)
 
-var sPf [subframeLen]int16
-d.pst.Filter(&sfACopy, sf.tInt, &s, &sPf)
+		var sPf [subframeLen]int16
+		d.pst.Filter(&sfACopy, sf.tInt, &s, &sPf)
 
-var hp [subframeLen]int16
-d.hpFilter(&sPf, hp[:])
-var scaled [subframeLen]int16
-copy(scaled[:], hp[:])
-pcm.ScaleUpSat(scaled[:], scaled[:])
+		var hp [subframeLen]int16
+		d.hpFilter(&sPf, hp[:])
+		var scaled [subframeLen]int16
+		copy(scaled[:], hp[:])
+		pcm.ScaleUpSat(scaled[:], scaled[:])
 
-t.Logf("%s v[]: peak=%d rms²=%d", sf.name, peak(v[:]), sumSq(v[:]))
-t.Logf("%s c[]: peak=%d rms²=%d", sf.name, peak(c[:]), sumSq(c[:]))
-t.Logf("%s (gp Q14, gc Q12) = (%d, %d)", sf.name, gpQ14, gcQ12)
-t.Logf("%s u[]: peak=%d rms²=%d", sf.name, peak(u[:]), sumSq(u[:]))
-t.Logf("%s s[]: peak=%d rms²=%d", sf.name, peak(s[:]), sumSq(s[:]))
-t.Logf("%s sPf[]: peak=%d rms²=%d", sf.name, peak(sPf[:]), sumSq(sPf[:]))
-t.Logf("%s hp[]: peak=%d rms²=%d", sf.name, peak(hp[:]), sumSq(hp[:]))
-t.Logf("%s scaled[]: peak=%d rms²=%d", sf.name, peak(scaled[:]), sumSq(scaled[:]))
+		t.Logf("%s v[]: peak=%d rms²=%d", sf.name, peak(v[:]), sumSq(v[:]))
+		t.Logf("%s c[]: peak=%d rms²=%d", sf.name, peak(c[:]), sumSq(c[:]))
+		t.Logf("%s (gp Q14, gc Q12) = (%d, %d)", sf.name, gpQ14, gcQ12)
+		t.Logf("%s u[]: peak=%d rms²=%d", sf.name, peak(u[:]), sumSq(u[:]))
+		t.Logf("%s s[]: peak=%d rms²=%d", sf.name, peak(s[:]), sumSq(s[:]))
+		t.Logf("%s sPf[]: peak=%d rms²=%d", sf.name, peak(sPf[:]), sumSq(sPf[:]))
+		t.Logf("%s hp[]: peak=%d rms²=%d", sf.name, peak(hp[:]), sumSq(hp[:]))
+		t.Logf("%s scaled[]: peak=%d rms²=%d", sf.name, peak(scaled[:]), sumSq(scaled[:]))
 
-if sf.GA != 0 && sf.GB != 0 {
-if gcQ12 == 32767 || gcQ12 == -32768 {
-t.Logf("DIAGNOSTIC %s: gcQ12 saturated (%d) — non-zero-energy input drove gain VQ to extremum (open issue, see completion report)", sf.name, gcQ12)
-}
-}
-if peak(s[:]) == 32767 {
-t.Logf("DIAGNOSTIC %s: synthesis filter saturated to +32767 (open issue)", sf.name)
-}
-if peak(sPf[:]) == 32767 {
-t.Logf("DIAGNOSTIC %s: postfilter saturated (open issue)", sf.name)
-}
+		if sf.GA != 0 && sf.GB != 0 {
+			if gcQ12 == 32767 || gcQ12 == -32768 {
+				t.Logf("DIAGNOSTIC %s: gcQ12 saturated (%d) — non-zero-energy input drove gain VQ to extremum (open issue, see completion report)", sf.name, gcQ12)
+			}
+		}
+		if peak(s[:]) == 32767 {
+			t.Logf("DIAGNOSTIC %s: synthesis filter saturated to +32767 (open issue)", sf.name)
+		}
+		if peak(sPf[:]) == 32767 {
+			t.Logf("DIAGNOSTIC %s: postfilter saturated (open issue)", sf.name)
+		}
 
-copy(d.pastExc[:pastExcLen-subframeLen], d.pastExc[subframeLen:])
-copy(d.pastExc[pastExcLen-subframeLen:], u[:])
-d.prevGpQ14 = gpQ14
-}
+		copy(d.pastExc[:pastExcLen-subframeLen], d.pastExc[subframeLen:])
+		copy(d.pastExc[pastExcLen-subframeLen:], u[:])
+		d.prevGpQ14 = gpQ14
+	}
 }
 
 func peak(x []int16) int32 {
-var p int32
-for _, v := range x {
-a := int32(v)
-if a < 0 {
-a = -a
-}
-if a > p {
-p = a
-}
-}
-return p
+	var p int32
+	for _, v := range x {
+		a := int32(v)
+		if a < 0 {
+			a = -a
+		}
+		if a > p {
+			p = a
+		}
+	}
+	return p
 }
 
 func sumSq(x []int16) int64 {
-var s int64
-for _, v := range x {
-s += int64(v) * int64(v)
-}
-return s
+	var s int64
+	for _, v := range x {
+		s += int64(v) * int64(v)
+	}
+	return s
 }
 
 // runITUVectorBitExact is the per-vector validation harness used by
 // Tasks 7-11. Skipped in Phase 1h pending postfilter / HP-filter
 // re-investigation (see TestDecode_ITUVectorAlgthmBitExact).
 func runITUVectorBitExact(t *testing.T, vector string) {
-t.Helper()
-bitPath := vectorPath(vector + ".BIT")
-pstPath := vectorPath(vector + ".PST")
-ensureTestdataPresent(t, bitPath, pstPath)
+	t.Helper()
+	bitPath := vectorPath(vector + ".BIT")
+	pstPath := vectorPath(vector + ".PST")
+	ensureTestdataPresent(t, bitPath, pstPath)
 
-frames, bads := readG192Frames(t, bitPath)
-wantFrames := readPSTFrames(t, pstPath)
+	frames, bads := readG192Frames(t, bitPath)
+	wantFrames := readPSTFrames(t, pstPath)
 
-if len(frames) != len(wantFrames) {
-t.Fatalf("frame count mismatch: bit=%d pst=%d", len(frames), len(wantFrames))
-}
+	if len(frames) != len(wantFrames) {
+		t.Fatalf("frame count mismatch: bit=%d pst=%d", len(frames), len(wantFrames))
+	}
 
-var d Decoder
-var out [frameSamples]int16
-for i, packed := range frames {
-if err := d.Decode(packed, bads[i], out[:]); err != nil {
-t.Fatalf("frame %d: %v", i, err)
-}
-if out != wantFrames[i] {
-for n := 0; n < frameSamples; n++ {
-if out[n] != wantFrames[i][n] {
-t.Errorf("frame %d sample %d: got %d, want %d (delta %+d)",
-i, n, out[n], wantFrames[i][n],
-int(out[n])-int(wantFrames[i][n]))
-break
-}
-}
-if t.Failed() && i >= 2 {
-t.Fatal("stopping after 3 divergent frames")
-}
-}
-}
+	var d Decoder
+	var out [frameSamples]int16
+	for i, packed := range frames {
+		if err := d.Decode(packed, bads[i], out[:]); err != nil {
+			t.Fatalf("frame %d: %v", i, err)
+		}
+		if out != wantFrames[i] {
+			for n := 0; n < frameSamples; n++ {
+				if out[n] != wantFrames[i][n] {
+					t.Errorf("frame %d sample %d: got %d, want %d (delta %+d)",
+						i, n, out[n], wantFrames[i][n],
+						int(out[n])-int(wantFrames[i][n]))
+					break
+				}
+			}
+			if t.Failed() && i >= 2 {
+				t.Fatal("stopping after 3 divergent frames")
+			}
+		}
+	}
 }
 
 // TestDecode_ITUVectorFixedBitExact: demoted to PASS-by-design in Phase 1o
@@ -422,5 +422,3 @@ t.Fatal("stopping after 3 divergent frames")
 // TestDecode_ITUVectorOverflowBitExact: demoted to PASS-by-design in Phase 1o
 // D-3 — see internal/decoder/itu_vector_pstdomain_test.go
 // (TestDecode_ITUVectorOVERFLOWKnownPSTDomainDifference).
-
-

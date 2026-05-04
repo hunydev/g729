@@ -97,7 +97,7 @@ func TestPhase2fTAME1_Slot5_OQTamingThrSweep(t *testing.T) {
 	}
 
 	type variantResult struct {
-		v                       variant
+		v                        variant
 		full, ga1, gb1, ga2, gb2 float64
 	}
 	results := make([]variantResult, 0, len(variants))

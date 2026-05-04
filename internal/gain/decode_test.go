@@ -71,29 +71,29 @@ func TestDecode_ResetRestoresZeroValueDeterminism(t *testing.T) {
 }
 
 func TestTenLog10_40Q10_MatchesSpecDerivation(t *testing.T) {
-want := int16(math.Round(10 * math.Log10(40) * 1024))
-if tenLog10_40Q10 != want {
-t.Fatalf("tenLog10_40Q10 = %d; want %d (= round(10·log10(40)·2^10))", tenLog10_40Q10, want)
-}
+	want := int16(math.Round(10 * math.Log10(40) * 1024))
+	if tenLog10_40Q10 != want {
+		t.Fatalf("tenLog10_40Q10 = %d; want %d (= round(10·log10(40)·2^10))", tenLog10_40Q10, want)
+	}
 }
 
 func TestDbPerLog2Q13_MatchesSpecDerivation(t *testing.T) {
-want := int16(math.Round(10 * math.Log10(2) * 8192))
-if dbPerLog2Q13 != want {
-t.Fatalf("dbPerLog2Q13 = %d; want %d (= round(10·log10(2)·2^13))", dbPerLog2Q13, want)
-}
+	want := int16(math.Round(10 * math.Log10(2) * 8192))
+	if dbPerLog2Q13 != want {
+		t.Fatalf("dbPerLog2Q13 = %d; want %d (= round(10·log10(2)·2^13))", dbPerLog2Q13, want)
+	}
 }
 
 func TestInvDbScaleQ15_MatchesSpecDerivation(t *testing.T) {
-want := int16(math.Round(1 / (20 * math.Log10(2)) * 32768))
-if invDbScaleQ15 != want {
-t.Fatalf("invDbScaleQ15 = %d; want %d (= round(1/(20·log10(2))·2^15))", invDbScaleQ15, want)
-}
+	want := int16(math.Round(1 / (20 * math.Log10(2)) * 32768))
+	if invDbScaleQ15 != want {
+		t.Fatalf("invDbScaleQ15 = %d; want %d (= round(1/(20·log10(2))·2^15))", invDbScaleQ15, want)
+	}
 }
 
 func TestDbPerLog2Q10_MatchesSpecDerivation(t *testing.T) {
-want := int16(math.Round(20 * math.Log10(2) * 1024))
-if dbPerLog2Q10 != want {
-t.Fatalf("dbPerLog2Q10 = %d; want %d (= round(20·log10(2)·2^10))", dbPerLog2Q10, want)
-}
+	want := int16(math.Round(20 * math.Log10(2) * 1024))
+	if dbPerLog2Q10 != want {
+		t.Fatalf("dbPerLog2Q10 = %d; want %d (= round(20·log10(2)·2^10))", dbPerLog2Q10, want)
+	}
 }

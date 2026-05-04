@@ -35,7 +35,7 @@ func (d *Decoder) hpFilter(in *[subframeLen]int16, out []int16) {
 		ff := int32(hpB0Q13)*int32(xn) +
 			int32(hpB1Q13)*int32(x1) +
 			int32(hpB2Q13)*int32(x2) // Q13
-		ff >>= 1                     // Q12
+		ff >>= 1 // Q12
 
 		fb := int64(hpNegA1Q12) * int64(y1) // Q24
 		fb >>= 12

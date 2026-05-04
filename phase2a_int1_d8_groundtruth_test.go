@@ -20,23 +20,23 @@ import (
 //
 // Steps performed:
 //
-//   S1: Raw inspection of LSP.IN frames 0..7 (already done in the
-//       d8 plan turn, repeated here with the production reader so
-//       the artifact is self-contained).
-//   S2: Encoder cold-start state inventory snapshot.
-//   S3: Per-frame got vs want for frames 0..50 (convergence pattern).
-//   S4: Per-frame index alignment sweep — does got[N] == want[N+k]
-//       for some constant k? If yes, that is the 1-frame
-//       analysis-vs-encode delay surfacing as a global offset.
-//   S5: L0 mismatch direction histogram across all 2232 frames.
-//   S6: Decoder-roundtrip ground truth for frame 0:
-//          take WANT (L0=0, L1=120, L2=10, L3=10) and run them
-//          through the same MA-predictor + L1+L2+L3 reconstruction
-//          the decoder uses; compare the resulting ω against the
-//          analytical i·π/11 baseline AND against the encoder's
-//          actually-computed ω from frame 0.
-//   S7: Frame 596 PCM dump + windowed/autocorr/levinson trace
-//       confirming anti-palindromic a[].
+//	S1: Raw inspection of LSP.IN frames 0..7 (already done in the
+//	    d8 plan turn, repeated here with the production reader so
+//	    the artifact is self-contained).
+//	S2: Encoder cold-start state inventory snapshot.
+//	S3: Per-frame got vs want for frames 0..50 (convergence pattern).
+//	S4: Per-frame index alignment sweep — does got[N] == want[N+k]
+//	    for some constant k? If yes, that is the 1-frame
+//	    analysis-vs-encode delay surfacing as a global offset.
+//	S5: L0 mismatch direction histogram across all 2232 frames.
+//	S6: Decoder-roundtrip ground truth for frame 0:
+//	       take WANT (L0=0, L1=120, L2=10, L3=10) and run them
+//	       through the same MA-predictor + L1+L2+L3 reconstruction
+//	       the decoder uses; compare the resulting ω against the
+//	       analytical i·π/11 baseline AND against the encoder's
+//	       actually-computed ω from frame 0.
+//	S7: Frame 596 PCM dump + windowed/autocorr/levinson trace
+//	    confirming anti-palindromic a[].
 func TestINT1D8GroundTruth(t *testing.T) {
 	const (
 		inPath  = "testdata/itu/G729_Release3/g729/test_vectors/LSP.IN"

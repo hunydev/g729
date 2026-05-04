@@ -100,7 +100,7 @@ func TestAdjustedTarget_HandDerivation(t *testing.T) {
 
 	for n := range x {
 		prod := int32(gp) * int32(y[n]) // Q14
-		shifted := prod >> 14            // Q0
+		shifted := prod >> 14           // Q0
 		raw := int32(x[n]) - shifted
 		var want int16
 		switch {

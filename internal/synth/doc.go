@@ -12,21 +12,21 @@
 //
 //  1. BuildExcitation:  u(n) = g_p · v(n) + g_c · c(n), saturated to Q0.
 //  2. Synthesize:       s(n) = u(n) − Σ_{i=1..10} a[i] · s(n−i),
-//                       with s(n−i) for n−i < 0 drawn from pastSynth.
+//     with s(n−i) for n−i < 0 drawn from pastSynth.
 //
 // Step 2 carries state across subframes (the 10 most recent synthesized
 // samples). A Synthesizer's zero value is a valid Reset state per §4.3.
 //
 // # Numerical contract
 //
-//gpQ14:      Q14 Word16; range [0, ~19661] (≈ 1.2)
-//gcMantQ14:  Q14 Word16 mantissa of g_c, gcMantQ14 ∈ [16384, 32767] (or 0)
-//gcExp:      int8 binary exponent of g_c; g_c = gcMantQ14 · 2^(gcExp-14)
-//v[n]:       Q0  Word16 (adaptive codebook)
-//c[n]:       Q13 Word16 (fixed codebook, pulses ±8192)
-//a[i]:       Q12 Word16; a[0] = 4096 (present for layout only)
-//u[n]:       Q0  Word16 (excitation, saturated)
-//s[n]:       Q0  Word16 (synthesis, saturated)
+// gpQ14:      Q14 Word16; range [0, ~19661] (≈ 1.2)
+// gcMantQ14:  Q14 Word16 mantissa of g_c, gcMantQ14 ∈ [16384, 32767] (or 0)
+// gcExp:      int8 binary exponent of g_c; g_c = gcMantQ14 · 2^(gcExp-14)
+// v[n]:       Q0  Word16 (adaptive codebook)
+// c[n]:       Q13 Word16 (fixed codebook, pulses ±8192)
+// a[i]:       Q12 Word16; a[0] = 4096 (present for layout only)
+// u[n]:       Q0  Word16 (excitation, saturated)
+// s[n]:       Q0  Word16 (synthesis, saturated)
 //
 // # Q-format alignment in BuildExcitation
 //

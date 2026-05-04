@@ -46,30 +46,33 @@ import (
 // ============================================================================
 //
 // (1) READMETV.txt (g729AnnexA test_vectors tree) — decoder invocation
-//     and PCM format:
 //
-//        "decoder file.bit file.pst"
-//        "Format: all files contain 16 bit sampled data using the
-//         Intel (PC) format."
+//	and PCM format:
 //
-//     => *.pst is the decoder's output, 16-bit little-endian PCM. The
-//     README does NOT specify the chain stage written to *.pst (no
-//     "post-postfilter" / "post-HP" / "post-×2" qualifier). P0c-2
-//     verified S* = postX2 (current production assumption holds).
+//	   "decoder file.bit file.pst"
+//	   "Format: all files contain 16 bit sampled data using the
+//	    Intel (PC) format."
+//
+//	=> *.pst is the decoder's output, 16-bit little-endian PCM. The
+//	README does NOT specify the chain stage written to *.pst (no
+//	"post-postfilter" / "post-HP" / "post-×2" qualifier). P0c-2
+//	verified S* = postX2 (current production assumption holds).
 //
 // (2) READMETV.txt — vector size lines (file size in bytes), used here
-//     to derive the multiple-of-160 (= 80 samples × 2 bytes) invariant:
 //
-//        "    5600  algthm.pst"       (35 frames × 160)
-//        "  600000  speech.pst"       (3750 frames × 160)
-//        "   19200  fixed.pst"        (120 frames × 160)
-//        "  293600  pitch.pst"        (1835 frames × 160)
+//	to derive the multiple-of-160 (= 80 samples × 2 bytes) invariant:
+//
+//	   "    5600  algthm.pst"       (35 frames × 160)
+//	   "  600000  speech.pst"       (3750 frames × 160)
+//	   "   19200  fixed.pst"        (120 frames × 160)
+//	   "  293600  pitch.pst"        (1835 frames × 160)
 //
 // (3) Vector substitution note: SPEED.PST and SINE.PST are NOT present
-//     in the Annex A test_vectors directory. The plan §Task 3 selects
-//     SPEECH / FIXED / PITCH as the actually-available substitutes
-//     (ALGTHM = baseline). This is evidence-based per the file-listing
-//     section of READMETV.txt above, not a cherry-pick.
+//
+//	in the Annex A test_vectors directory. The plan §Task 3 selects
+//	SPEECH / FIXED / PITCH as the actually-available substitutes
+//	(ALGTHM = baseline). This is evidence-based per the file-listing
+//	section of READMETV.txt above, not a cherry-pick.
 //
 // ============================================================================
 // CHAIN-STAGE NOTE
@@ -88,19 +91,19 @@ import (
 //
 // classifyDeltaPattern(deltas []int16) string returns one of:
 //
-//   "zero"                     — all Δ == 0 (vector-EQ; no mismatch).
-//   "sample-uniform-constant"  — all Δ identical and != 0 (post-
-//                                processing constant offset candidate).
-//   "sign-uniform-jitter"      — every nonzero Δ shares the same sign
-//                                AND |Δ| ≤ 2 ∀ i (LSB rounding
-//                                candidate).
-//   "boundary-cluster"         — non-empty differ-set, ALL differ
-//                                indices satisfy i < 22 OR i ≥ 65
-//                                (HP filter transient / frame-boundary
-//                                state mechanism candidate; edges
-//                                derived from the P0c-2 cluster
-//                                observation [1..21] ∪ [65..79]).
-//   "random"                   — otherwise.
+//	"zero"                     — all Δ == 0 (vector-EQ; no mismatch).
+//	"sample-uniform-constant"  — all Δ identical and != 0 (post-
+//	                             processing constant offset candidate).
+//	"sign-uniform-jitter"      — every nonzero Δ shares the same sign
+//	                             AND |Δ| ≤ 2 ∀ i (LSB rounding
+//	                             candidate).
+//	"boundary-cluster"         — non-empty differ-set, ALL differ
+//	                             indices satisfy i < 22 OR i ≥ 65
+//	                             (HP filter transient / frame-boundary
+//	                             state mechanism candidate; edges
+//	                             derived from the P0c-2 cluster
+//	                             observation [1..21] ∪ [65..79]).
+//	"random"                   — otherwise.
 //
 // Categories are checked in the order above; first match wins. The
 // "boundary-cluster" check uses the 80-sample window only; the 16-

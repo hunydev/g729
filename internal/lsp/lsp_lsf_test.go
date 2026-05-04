@@ -78,4 +78,3 @@ func TestLSPToLSFMonotonic(t *testing.T) {
 		prev = got
 	}
 }
-

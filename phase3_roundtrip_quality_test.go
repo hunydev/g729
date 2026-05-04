@@ -34,7 +34,8 @@ import (
 //
 // (C-SegSNR − B-SegSNR) ≈ encoder perceptual contribution.
 // (B-SegSNR − A-SegSNR) ≈ decoder perceptual contribution
-//                         (incorporates Phase 1o D-3 PSTdomain Δ).
+//
+//	(incorporates Phase 1o D-3 PSTdomain Δ).
 //
 // Metrics (clean-room, public-textbook references only):
 //

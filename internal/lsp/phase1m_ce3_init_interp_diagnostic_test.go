@@ -55,24 +55,24 @@ import (
 //     verbatim-present invariant with NO documented spec ambiguity.
 //   - verdicts are EQ / NE / UNDETERMINED. UNDETERMINED is reserved for
 //     cells whose spec text is verbatim ambiguous:
-//       * R-C: §3.2.5 eq. (24) gives the interpolation weight as a
-//         real-valued "0.5·prev + 0.5·curr" with NO mention of the
-//         fixed-point rounding mode; production uses `(prev+curr) >> 1`
-//         which is floor-toward-negative-infinity on a 2's-complement
-//         shift. For odd `(prev+curr)` with negative result the spec
-//         "0.5 multiplication" is ambiguous between symmetric round
-//         (round-half-away-from-zero) and arithmetic right shift.
-//         Cells where this disagreement is observable on ALGTHM frame
-//         0 are recorded UNDETERMINED with annotation "R-C blocking".
-//       * §4.3 Table 9 entry `q_i ... arccos(iπ/11)` is a verbatim
-//         spec inconsistency: by eq. (18) `ω_i = arccos(q_i)` so
-//         `q_i = cos(ω_i)`; with the `l̂_i` row of Table 9 setting the
-//         initial LSF residual to `iπ/11` (which is the LSF value, not
-//         the LSP value), the corresponding initial LSP value must be
-//         `cos(iπ/11)`, NOT `arccos(iπ/11)` (which is dimensionally an
-//         angle, not a cosine). Production uses `cos(iπ/11)` Q15. This
-//         is recorded as a Table-9-vs-eq.(18) cross-evidence
-//         disambiguation, NOT R-C.
+//   - R-C: §3.2.5 eq. (24) gives the interpolation weight as a
+//     real-valued "0.5·prev + 0.5·curr" with NO mention of the
+//     fixed-point rounding mode; production uses `(prev+curr) >> 1`
+//     which is floor-toward-negative-infinity on a 2's-complement
+//     shift. For odd `(prev+curr)` with negative result the spec
+//     "0.5 multiplication" is ambiguous between symmetric round
+//     (round-half-away-from-zero) and arithmetic right shift.
+//     Cells where this disagreement is observable on ALGTHM frame
+//     0 are recorded UNDETERMINED with annotation "R-C blocking".
+//   - §4.3 Table 9 entry `q_i ... arccos(iπ/11)` is a verbatim
+//     spec inconsistency: by eq. (18) `ω_i = arccos(q_i)` so
+//     `q_i = cos(ω_i)`; with the `l̂_i` row of Table 9 setting the
+//     initial LSF residual to `iπ/11` (which is the LSF value, not
+//     the LSP value), the corresponding initial LSP value must be
+//     `cos(iπ/11)`, NOT `arccos(iπ/11)` (which is dimensionally an
+//     angle, not a cosine). Production uses `cos(iπ/11)` Q15. This
+//     is recorded as a Table-9-vs-eq.(18) cross-evidence
+//     disambiguation, NOT R-C.
 //
 // ============================================================================
 // SPEC VERBATIM CITATIONS (mandatory) — extracted via:
@@ -125,31 +125,32 @@ import (
 //	  `tables.MAPredictorsLSP[selector]` directly (predictor.go:30).
 //
 // (2) §4.3 Table 9 "Description of parameters with non-zero
-//     initialization" (PDF p. 30, lines 1696..1708):
 //
-//	"All static encoder and decoder variables should be initialized to
-//	 zero, except the variables listed in Table 9.
+//	    initialization" (PDF p. 30, lines 1696..1708):
 //
-//	     Variable    Reference    Initial value
-//	         β         3.8           0.8
-//	      g(–1)        4.2.4         1.0
-//	       l̂_i        3.2.4         iπ/11
-//	       q_i        3.2.4         arccos(iπ/11)
-//	       Û^(k)      3.9.1         –14"
+//		"All static encoder and decoder variables should be initialized to
+//		 zero, except the variables listed in Table 9.
 //
-//	⇒ Table 9 row `l̂_i = iπ/11` is the SAME initial as §3.2.4 verbatim
-//	  (cross-evidence consistency for INVARIANT-A above).
+//		     Variable    Reference    Initial value
+//		         β         3.8           0.8
+//		      g(–1)        4.2.4         1.0
+//		       l̂_i        3.2.4         iπ/11
+//		       q_i        3.2.4         arccos(iπ/11)
+//		       Û^(k)      3.9.1         –14"
 //
-//	⇒ Table 9 row `q_i = arccos(iπ/11)` is verbatim INCONSISTENT with
-//	  eq. (18) `ω_i = arccos(q_i)` (which would make q_i =
-//	  cos(iπ/11), not arccos(iπ/11)). Cross-evidence resolution:
-//	  eq. (18) defines q_i as a cosine value, the LSF init iπ/11 is
-//	  in the angle domain, so the LSP init must be cos(iπ/11).
-//	  PRODUCTION: `initialPrevLSP` in `decoder.go:29~32` uses
-//	  cos(iπ/11) Q15 = round(cos(iπ/11) · 32768) clamped to int16 ∈
-//	  [31441, 27566, 21458, 13612, 4663, -4663, -13612, -21458,
-//	  -27566, -31441]. CELL VERDICT: cross-evidence-disambiguated EQ
-//	  (NOT R-C; documented as a Table-9-vs-eq.(18) verbatim typo).
+//		⇒ Table 9 row `l̂_i = iπ/11` is the SAME initial as §3.2.4 verbatim
+//		  (cross-evidence consistency for INVARIANT-A above).
+//
+//		⇒ Table 9 row `q_i = arccos(iπ/11)` is verbatim INCONSISTENT with
+//		  eq. (18) `ω_i = arccos(q_i)` (which would make q_i =
+//		  cos(iπ/11), not arccos(iπ/11)). Cross-evidence resolution:
+//		  eq. (18) defines q_i as a cosine value, the LSF init iπ/11 is
+//		  in the angle domain, so the LSP init must be cos(iπ/11).
+//		  PRODUCTION: `initialPrevLSP` in `decoder.go:29~32` uses
+//		  cos(iπ/11) Q15 = round(cos(iπ/11) · 32768) clamped to int16 ∈
+//		  [31441, 27566, 21458, 13612, 4663, -4663, -13612, -21458,
+//		  -27566, -31441]. CELL VERDICT: cross-evidence-disambiguated EQ
+//		  (NOT R-C; documented as a Table-9-vs-eq.(18) verbatim typo).
 //
 // (3) §3.2.5 "Interpolation of the LSP coefficients"
 //
@@ -188,14 +189,15 @@ import (
 //	  "R-C blocking".
 //
 // (4) §3.2.6 "LSP to LP conversion" (PDF p. 14, lines 921..933 +
-//     onward) — defines the F1/F2 polynomial expansion and A(z)
-//     symmetric/antisymmetric assembly. PRODUCTION: `LSPToLP` in
-//     `lsp_lp.go`. Spec verbatim is silent on intermediate-precision
-//     overflow handling for the F polynomials; production resolves
-//     this with int64 accumulation + final Word16 saturation. This
-//     §3.2.6-internal Q-management is NOT a CE-3 measurement target
-//     (CE-3 = init+interp); the test only verifies sf1A[0] = sf2A[0]
-//     = 4096 (the §3.2.6 verbatim a[0] = 1.0 contract).
+//
+//	onward) — defines the F1/F2 polynomial expansion and A(z)
+//	symmetric/antisymmetric assembly. PRODUCTION: `LSPToLP` in
+//	`lsp_lp.go`. Spec verbatim is silent on intermediate-precision
+//	overflow handling for the F polynomials; production resolves
+//	this with int64 accumulation + final Word16 saturation. This
+//	§3.2.6-internal Q-management is NOT a CE-3 measurement target
+//	(CE-3 = init+interp); the test only verifies sf1A[0] = sf2A[0]
+//	= 4096 (the §3.2.6 verbatim a[0] = 1.0 contract).
 //
 // (5) §A.3.2.4 / §A.3.2.5 / §A.3.2.6 (PDF p. 47, lines 2047..2056):
 //
@@ -548,8 +550,8 @@ func TestDiagnostic_Phase1mCe3InitInterpVerbatim(t *testing.T) {
 		prev := int32(initialPrevLSP[i])
 		curr := int32(prodLSP[i])
 		sum := prev + curr
-		shifted := sum >> 1            // production
-		var rounded int32              // symmetric round
+		shifted := sum >> 1 // production
+		var rounded int32   // symmetric round
 		if sum >= 0 {
 			rounded = (sum + 1) >> 1
 		} else {

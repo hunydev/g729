@@ -78,10 +78,10 @@ func TestSearchInteger_ImpulseExcitationLocksLag(t *testing.T) {
 func TestSearchInteger_BackwardFilteredAlignment(t *testing.T) {
 	const k0 = 80
 	var x, h [SubframeLen]int16
-	h[0] = 4096           // 1.0 in Q12 — identity impulse response.
-	x[0] = 1234           // arbitrary non-trivial target sample.
-	x[5] = -7             // ensure a second nonzero target sample.
-	x[39] = 42            // ensure last-sample alignment is exercised.
+	h[0] = 4096 // 1.0 in Q12 — identity impulse response.
+	x[0] = 1234 // arbitrary non-trivial target sample.
+	x[5] = -7   // ensure a second nonzero target sample.
+	x[39] = 42  // ensure last-sample alignment is exercised.
 
 	var xb [SubframeLen]int16
 	BackwardFilter(&x, &h, &xb)
