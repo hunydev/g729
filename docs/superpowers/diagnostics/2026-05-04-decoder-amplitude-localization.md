@@ -449,3 +449,75 @@ BenchmarkBuildExcitation-2   257.1 ns/op   0 B/op   0 allocs/op
 
 Allocation contract preserved (0 allocs/op) — the additional int8
 exponent argument is a value type, no heap traffic introduced.
+
+## 8. Appendix C — Post-IMPL-3 encoder representation alignment (2026-05-04)
+
+After Phase 3a IMPL-3 (this commit), the encoder side mirrors the
+decoder's native (gpQ14, gcMantQ14, gcExp) representation introduced
+by IMPL-1/IMPL-2. Two changes land:
+
+1. `gainquant.PredictedGcQ12` now returns **int32** (no int16
+   saturation). DIAG-1 (§6) showed the natural g_c0·γ̂_c product
+   routinely exceeds the int16 envelope (peaks ≈ 159 ⇒ Q12 ≈ 651 264);
+   collapsing it inside the §3.9.2 cost-search input biased the
+   conjugate-codebook winner selection toward smaller-energy entries.
+
+2. `gainquant.SearchConjugate` now returns **γ̂_c (Q13)** directly (sum
+   of `GainGBK1[ga][1]+GainGBK2[gb][1]`) instead of a saturated ĝc Q12.
+   The encoder pairs this with a new `gainquant.Reconstruct` /
+   `gainquant.DequantGc` log-domain split that mirrors
+   `gain.Decoder.Decode` bit-for-bit (pinned by
+   `TestApply_MantissaExponent`). The §A.3.10 commit accumulators
+   (`swMemErr`, `oldExc`) consume the (mant, exp) pair through
+   `encoder.mantExpToQ12`, an int32-Q12 conversion that absorbs the
+   full dynamic range without int16 collapse.
+
+### Byte-EQ deltas vs IMPL-2 baseline (SPEECH corpus, 1835 frames)
+
+| Param | IMPL-2 baseline | IMPL-3 | Δ           |
+|-------|-----------------|--------|-------------|
+| P1    | 10.79%          | 10.41% | −0.38 pp    |
+| P0    | 57.49%          | 57.22% | −0.27 pp    |
+| P2    | 11.66%          | 11.50% | −0.16 pp    |
+| S1    | 5.50%           | 5.18%  | −0.32 pp    |
+| C1    | 0.00%           | 0.00%  |  0          |
+| GA1   | 12.15%          | 12.15% |  0          |
+| GB1   | 5.29%           | 5.29%  |  0          |
+| S2    | 4.20%           | 4.36%  | +0.16 pp    |
+| C2    | 0.00%           | 0.00%  |  0          |
+| GA2   | 11.77%          | 11.77% |  0          |
+| GB2   | 4.52%           | 4.90%  | +0.38 pp    |
+
+The drift is in the expected direction: the unbiased cost search picks
+slightly different (ga, gb) winners on a small fraction of subframes,
+which then permutes adjacent-subframe pitch indices through the
+encoder's predictor state. The plan treats this drift as
+acceptable — Phase 3a's REF-1 mandate is *representation alignment*
+between encoder and decoder, not bit-equality with the ITU reference
+encoder (which is Phase 4 / I5 territory).
+
+### RoundTrip quality (SPEECH corpus, 3750 frames)
+
+| Pipeline | RMS | GlobalSNR | SegSNR  |
+|----------|-----|-----------|---------|
+| B (ITU.bit → ourDec)            | 419 | −0.05 dB | −0.90 dB |
+| C (ourEnc → ourDec, full RT)    |   5 |  0.01 dB |  0.00 dB |
+
+Both lines are within noise of the IMPL-2 baseline (B: 419 / −0.05 / −0.90;
+C: 5 / 0.01 / +0.01). The full round-trip self-consistency holds.
+
+### PSTdomain pins
+
+The four `TestDecode_ITUVectorXxxKnownPSTDomainDifference`
+(TAME/FIXED/PITCH/OVERFLOW) and `TestPhase2fTAME1_ByteEQ` /
+`TestDiagnostic_SinglePulseChain` failures remain unchanged from the
+IMPL-2 baseline — these are FAIL-DEFERRED upstream pins (Phase 1o D-3
+PASS-by-design), and IMPL-3 does not touch the post-filter / single-
+pulse chain or the §A.3.10 macro-level pin envelope.
+
+### Hot-path zero-allocation budget
+
+`gainquant.SearchConjugate`, `gainquant.PredictedGcQ12`,
+`gain.Decoder.Decode`, and `synth.BuildExcitation` continue to report
+0 B/op / 0 allocs/op under their pinned `AllocsPerRun` /
+`-benchmem` measurements.

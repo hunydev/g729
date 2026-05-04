@@ -33,9 +33,9 @@ func TestPredictedGcQ12_ColdStartFourPulses(t *testing.T) {
 
 	got := PredictedGcQ12(&past, &c)
 
-	const wantApprox int16 = 22878 // Q12 (5.585 × 2^12)
+	const wantApprox int32 = 22878 // Q12 (5.585 × 2^12)
 	const tol = 230                // ≈ 1%
-	diff := int32(got) - int32(wantApprox)
+	diff := got - wantApprox
 	if diff < -tol || diff > tol {
 		t.Fatalf("PredictedGcQ12 cold-start 4 pulses = %d (Q12), want %d ±%d",
 			got, wantApprox, tol)

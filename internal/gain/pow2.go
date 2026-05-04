@@ -60,6 +60,15 @@ func Pow2Fixed(x fixed.Word32) fixed.Word32 {
 	return pow2Fixed(x)
 }
 
+// Pow2FracQ14 is the exported form of pow2FracQ14: returns 2^(frac/1024)
+// at Q14 (an int16 in [16384, 32767] representing [1.0, 2.0)). Used by
+// the encoder-side dequantizer (internal/gainquant) to mirror the
+// decoder mantissa split bit-for-bit per REF-1 §2. `frac` MUST be in
+// [0, 1024); see pow2FracQ14 for the table-lookup contract.
+func Pow2FracQ14(frac int32) int16 {
+	return pow2FracQ14(frac)
+}
+
 // pow2FracQ14 returns 2^(frac/1024) at Q14 — i.e. an int16 in
 // [16384, 32767] representing a value in [1.0, 2.0). `frac` MUST be in
 // [0, 1024); callers obtain it as the low 10 bits of a Q10 exponent.

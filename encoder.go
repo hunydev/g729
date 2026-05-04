@@ -601,11 +601,13 @@ func (e *Encoder) fcbStep(
 	var z [N]int16
 	fcbsearch.FilterCode(&c, h, &z)
 
-	// 8. GQ-1: g'c (Q12).
+	// 8. GQ-1: g'c (Q12, NOT saturated; see PredictedGcQ12 docstring)
+	// and the predictor's log2 form for §3.9.2 eq. (74) reconstruction
+	// in the native (mant Q14, exp) decoder representation per REF-1.
 	gpcPredQ12 := gainquant.PredictedGcQ12(&e.pastQuaEn, &c)
 
-	// 9. GQ-2: conjugate-codebook 2D VQ → (ga, gb, ĝp Q14, ĝc Q12).
-	gaPhys, gbPhys, gpHatQ14, gcHatQ12 := gainquant.SearchConjugate(x, y, &z, gpcPredQ12)
+	// 9. GQ-2: conjugate-codebook 2D VQ → (ga, gb, ĝp Q14, γ̂_c Q13).
+	gaPhys, gbPhys, gpHatQ14, gammaCQ13 := gainquant.SearchConjugate(x, y, &z, gpcPredQ12)
 
 	// 10. GQ-3: taming (one-sided clamp on ĝp under predicted-overflow).
 	gpTamed := gainquant.Tame(gpHatQ14, &e.oldExc)
@@ -631,13 +633,23 @@ func (e *Encoder) fcbStep(
 		e.gb2 = gbBits
 	}
 
+	// 12b. Reconstruct the chosen quantized g_c in the native
+	// (mant Q14, exp) representation that mirrors gain.Decoder.Decode
+	// bit-for-bit (REF-1 §2 / IMPL-3 step C). The §A.3.10 commits below
+	// then derive a non-saturating int32 Q12 value from (mant, exp) for
+	// the swMemErr / oldExc accumulator multiplies — eliminating the
+	// pre-IMPL-3 int16 collapse in `gcHatQ12` that biased the encoder
+	// excitation envelope versus the decoder reconstruction.
+	_, gcMantQ14, gcExp := gainquant.Reconstruct(&e.pastQuaEn, &c, gaPhys, gbPhys)
+	gcQ12Wide := mantExpToQ12(gcMantQ14, gcExp)
+
 	// 13. §A.3.10 eq. A.10 commit: swMemErr ← x − ĝp·y − ĝc·z.
 	// Q-format: ĝp Q14 × y Q0 = Q14 (>>14 → Q0); ĝc Q12 × z Q12 = Q24
 	// (>>24 → Q0). z is the filtered FCB excitation in Q12 per
 	// FilterCode (CB-5) — the trailing >>12 reconciles to Q0 sample.
 	for n := 30; n < N; n++ {
 		gpY := (int32(gpHatQ14) * int32(y[n])) >> 14
-		gcZ := (int32(gcHatQ12) * int32(z[n])) >> 12
+		gcZ := int32((int64(gcQ12Wide) * int64(z[n])) >> 12)
 		e.swMemErr[n-30] = fixed.Saturate(int32(x[n]) - gpY - gcZ)
 	}
 
@@ -651,16 +663,14 @@ func (e *Encoder) fcbStep(
 	base := len(e.oldExc) - N
 	for n := 0; n < N; n++ {
 		gpV := (int32(gpHatQ14) * int32(v[n])) >> 14
-		gcC := (int32(gcHatQ12) * int32(c[n])) >> 13
+		gcC := int32((int64(gcQ12Wide) * int64(c[n])) >> 13)
 		e.oldExc[base+n] = fixed.Saturate(gpV + gcC)
 	}
 
-	// 15. GQ-3 part B: pastQuaEn FIFO advance with γ̂_c (Q13).
-	// γ̂_c = gcHatQ12 / gpcPredQ12 in Q13 form: SearchConjugate
-	// returns ĝc = (γ̂_GA + γ̂_GB)·g'c at Q12; recover the Q13 γ̂
-	// sum by inverting the multiplication so UpdatePastQuaEn can
-	// take 20·log10(γ̂_c).
-	gammaCQ13 := recoverGammaCQ13(gcHatQ12, gpcPredQ12)
+	// 15. GQ-3 part B: pastQuaEn FIFO advance with γ̂_c (Q13). The
+	// chosen γ̂_c is now returned directly by SearchConjugate (sum of
+	// GBK1[ga][1] + GBK2[gb][1]); no inversion of the saturated ĝc is
+	// required (replaces the pre-IMPL-3 recoverGammaCQ13 helper).
 	gainquant.UpdatePastQuaEn(&e.pastQuaEn, gammaCQ13)
 
 	// 16. Carry forward.
@@ -668,21 +678,36 @@ func (e *Encoder) fcbStep(
 	e.prevTaming = taming
 }
 
-// recoverGammaCQ13 inverts the SearchConjugate forward map
-// ĝc Q12 = (γ̂_GA + γ̂_GB) Q13 · g'c Q12 >> 13 to recover γ̂_c Q13
-// for the past-energy update of §3.9.1 eq. 72. When g'c is zero
-// (cold-start zero-energy guard) γ̂_c is undefined and we return 0
-// so UpdatePastQuaEn re-seeds the head slot with PastErrorsDefault.
-func recoverGammaCQ13(gcHatQ12, gpcPredQ12 int16) int16 {
-	if gpcPredQ12 <= 0 {
+// mantExpToQ12 converts the native (mantissa Q14, exponent int8) g_c
+// representation into a NON-saturated int32 Q12 value suitable for the
+// §A.3.10 commit accumulators. Mirrors the decoder-side path used by
+// synth.BuildExcitation: gc·c(n) at Q(14+exp+13)>>(15) = Q(12+exp);
+// here we reduce to the sub-plan §3 chosen Q12 sample envelope.
+//
+// Math:
+//
+//	gcQ12 = (mant << 14) >> (14 - exp + 2)   for the canonical case
+//	       = mant << exp / 4                (because mant is Q14, target Q12)
+//	→ if exp ≥ 2:   mant << (exp - 2)
+//	  if exp <  2:  mant >> (2 - exp)
+//
+// All shifts kept in int64 to absorb the rare exp ≥ 8 codebook entries
+// (γ̂_c·g'c can run up to ≈160 ⇒ Q12 ≈ 655 360, fits in 20 bits) without
+// the pre-IMPL-3 int16 saturation that biased the §A.3.10 commit.
+func mantExpToQ12(mantQ14 int16, exp int8) int32 {
+	if mantQ14 == 0 {
 		return 0
 	}
-	num := int32(gcHatQ12) << 13
-	q := num / int32(gpcPredQ12)
-	if q > 32767 {
-		q = 32767
-	} else if q < 0 {
-		q = 0
+	shift := int(exp) - 2
+	if shift >= 0 {
+		v := int64(mantQ14) << uint(shift)
+		if v > 0x7FFFFFFF {
+			return 0x7FFFFFFF
+		}
+		if v < -0x80000000 {
+			return -0x80000000
+		}
+		return int32(v)
 	}
-	return int16(q)
+	return int32(int64(mantQ14) >> uint(-shift))
 }

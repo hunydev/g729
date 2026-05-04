@@ -9,17 +9,22 @@ import (
 // dequantize composes the codebook entry pair into (ĝp Q14, ĝc Q12)
 // for a given physical (ga, gb) pair and predicted g'c (Q12), per
 // §3.9 eq. (73)-(74). Used by the round-trip / bound assertions.
-func dequantize(ga, gb uint8, gpcPredQ12 int16) (gpQ14, gcQ12 int16) {
+//
+// IMPL-3: gcQ12 is held as int32 to match the unsaturated form
+// SearchConjugate now uses internally (γ̂_c · g'c can exceed int16
+// in practice; see PredictedGcQ12 docstring).
+func dequantize(ga, gb uint8, gpcPredQ12 int32) (gpQ14 int16, gcQ12 int32) {
 	gpQ14 = tables.GainGBK1[ga][0] + tables.GainGBK2[gb][0]
 	gammaCQ13 := int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1])
-	prod := (gammaCQ13 * int32(gpcPredQ12)) >> 13
-	if prod > 32767 {
-		prod = 32767
-	} else if prod < -32768 {
-		prod = -32768
-	}
-	gcQ12 = int16(prod)
+	gcQ12 = (gammaCQ13 * gpcPredQ12) >> 13
 	return
+}
+
+// gcFromGamma reconstructs ĝc Q12 (int32, unsaturated) from the
+// (gammaCQ13, g'c Q12) pair returned by SearchConjugate, mirroring
+// the encoder's downstream dequant before the §A.3.10 commit.
+func gcFromGamma(gammaCQ13 int16, gpcPredQ12 int32) int32 {
+	return (int32(gammaCQ13) * gpcPredQ12) >> 13
 }
 
 // TestSearchConjugate_ZeroInputsReturnsValidIndices pins the §3.9.2
@@ -29,7 +34,7 @@ func dequantize(ga, gb uint8, gpcPredQ12 int16) (gpQ14, gcQ12 int16) {
 // codebook-summed entry, without panicking.
 func TestSearchConjugate_ZeroInputsReturnsValidIndices(t *testing.T) {
 	var x, y, z [40]int16
-	ga, gb, gp, gc := SearchConjugate(&x, &y, &z, 4096)
+	ga, gb, gp, gamma := SearchConjugate(&x, &y, &z, 4096)
 	if ga >= 8 {
 		t.Fatalf("ga = %d, want < 8", ga)
 	}
@@ -37,6 +42,7 @@ func TestSearchConjugate_ZeroInputsReturnsValidIndices(t *testing.T) {
 		t.Fatalf("gb = %d, want < 16", gb)
 	}
 	wantGp, wantGc := dequantize(ga, gb, 4096)
+	gc := gcFromGamma(gamma, 4096)
 	if gp != wantGp {
 		t.Fatalf("gp = %d, want %d (codebook-derived)", gp, wantGp)
 	}
@@ -56,7 +62,7 @@ func TestSearchConjugate_ZeroInputsReturnsValidIndices(t *testing.T) {
 // fixed-point shifts in x[i] = (ĝ·amp) >> Q are exact (no rounding).
 func TestSearchConjugate_RoundTripCodebookEntry(t *testing.T) {
 	const targetGA, targetGB uint8 = 4, 7
-	const gpcPred int16 = 4096 // 1.0 in Q12
+	const gpcPred int32 = 4096 // 1.0 in Q12
 	wantGp, wantGc := dequantize(targetGA, targetGB, gpcPred)
 
 	var x, y, z [40]int16
@@ -64,9 +70,10 @@ func TestSearchConjugate_RoundTripCodebookEntry(t *testing.T) {
 	y[0] = amp
 	z[1] = amp
 	x[0] = int16((int32(wantGp) * int32(amp)) >> 14)
-	x[1] = int16((int32(wantGc) * int32(amp)) >> 12)
+	x[1] = int16((wantGc * int32(amp)) >> 12)
 
-	ga, gb, gp, gc := SearchConjugate(&x, &y, &z, gpcPred)
+	ga, gb, gp, gamma := SearchConjugate(&x, &y, &z, gpcPred)
+	gc := gcFromGamma(gamma, gpcPred)
 	if ga != targetGA || gb != targetGB {
 		t.Fatalf("indices: got (%d,%d) want (%d,%d); gp=%d gc=%d", ga, gb, targetGA, targetGB, gp, gc)
 	}
@@ -88,7 +95,8 @@ func TestSearchConjugate_PurePitchOptimumNearOne(t *testing.T) {
 		y[i] = 1000
 		x[i] = 1000
 	}
-	ga, gb, gp, gc := SearchConjugate(&x, &y, &z, 4096)
+	ga, gb, gp, gamma := SearchConjugate(&x, &y, &z, 4096)
+	gc := gcFromGamma(gamma, 4096)
 	if ga >= 8 || gb >= 16 {
 		t.Fatalf("indices out of range: (%d,%d)", ga, gb)
 	}
@@ -118,7 +126,8 @@ func TestSearchConjugate_PureInnovationGcAccurate(t *testing.T) {
 		z[i] = 1000
 		x[i] = 1000
 	}
-	ga, gb, _, gc := SearchConjugate(&x, &y, &z, 4096)
+	ga, gb, _, gamma := SearchConjugate(&x, &y, &z, 4096)
+	gc := gcFromGamma(gamma, 4096)
 	if ga >= 8 || gb >= 16 {
 		t.Fatalf("indices out of range: (%d,%d)", ga, gb)
 	}
@@ -184,7 +193,7 @@ func TestSearchConjugate_PureFunction(t *testing.T) {
 // match the search's returned (gp, gc) bit-for-bit.
 func TestSearchConjugate_DecoderRoundTrip(t *testing.T) {
 	const targetGA, targetGB uint8 = 4, 7
-	const gpcPred int16 = 4096
+	const gpcPred int32 = 4096
 	wantGp, wantGc := dequantize(targetGA, targetGB, gpcPred)
 
 	var x, y, z [40]int16
@@ -192,9 +201,10 @@ func TestSearchConjugate_DecoderRoundTrip(t *testing.T) {
 	y[0] = amp
 	z[1] = amp
 	x[0] = int16((int32(wantGp) * int32(amp)) >> 14)
-	x[1] = int16((int32(wantGc) * int32(amp)) >> 12)
+	x[1] = int16((wantGc * int32(amp)) >> 12)
 
-	ga, gb, gp, gc := SearchConjugate(&x, &y, &z, gpcPred)
+	ga, gb, gp, gamma := SearchConjugate(&x, &y, &z, gpcPred)
+	gc := gcFromGamma(gamma, gpcPred)
 
 	transmittedGA := tables.GainMap1[ga]
 	transmittedGB := tables.GainMap2[gb]
@@ -208,7 +218,7 @@ func TestSearchConjugate_DecoderRoundTrip(t *testing.T) {
 	}
 	gpDecoded := tables.GainGBK1[physGA][0] + tables.GainGBK2[physGB][0]
 	gammaDecoded := int32(tables.GainGBK1[physGA][1]) + int32(tables.GainGBK2[physGB][1])
-	gcDecoded := int16((gammaDecoded * int32(gpcPred)) >> 13)
+	gcDecoded := (gammaDecoded * gpcPred) >> 13
 	if gpDecoded != gp {
 		t.Fatalf("decoder gp = %d, encoder gp = %d", gpDecoded, gp)
 	}

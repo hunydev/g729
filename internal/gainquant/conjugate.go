@@ -14,7 +14,10 @@ import (
 //   - x  : target signal x(n) per §3.6                    (Q0)
 //   - y  : filtered adaptive-codebook vector per eq. (44) (Q0)
 //   - z  : filtered fixed-codebook vector per eq. (64)    (Q0)
-//   - gpcPredQ12 : predicted fixed-codebook gain g'c per eq. (71), Q12.
+//   - gpcPredQ12 : predicted fixed-codebook gain g'c per eq. (71), Q12,
+//     held NON-saturated as int32 (IMPL-3 representation change — see
+//     PredictedGcQ12 docstring; the §3.9.2 cost search must evaluate
+//     the spec eq. (74) value, not an int16-clipped surrogate).
 //
 // Outputs:
 //
@@ -22,8 +25,11 @@ import (
 //     applies the §3.9.3 forward map (GainMap1) to obtain the
 //     transmitted bit pattern.
 //   - gb : *physical* GBK2 entry index (0..15); see GainMap2.
-//   - gpQ14 : ĝp = GBK1[ga][0] + GBK2[gb][0] per eq. (73), Q14.
-//   - gcQ12 : ĝc = (GBK1[ga][1] + GBK2[gb][1])·g'c per eq. (74), Q12.
+//   - gpQ14     : ĝp = GBK1[ga][0] + GBK2[gb][0] per eq. (73), Q14.
+//   - gammaCQ13 : γ̂_c = GBK1[ga][1] + GBK2[gb][1] per eq. (74), Q13.
+//     The caller (encoder) feeds this into DequantGc together with
+//     log2GcPredQ10 to obtain the native (gcMantQ14, gcExp) g_c
+//     representation that mirrors gain.Decoder.Decode bit-for-bit.
 //
 // Algorithm (§3.9.2 lines 1382–1407):
 //  1. Compute the inner products A = ⟨y,y⟩, B = ⟨z,z⟩, C = ⟨y,z⟩,
@@ -52,7 +58,7 @@ import (
 //
 // I4 (zero allocation): all scratch buffers are fixed-size local
 // arrays.
-func SearchConjugate(x, y, z *[40]int16, gpcPredQ12 int16) (ga, gb uint8, gpQ14, gcQ12 int16) {
+func SearchConjugate(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
 	// 1. Correlations (int64, exact: 40 · (2^15)² < 2^36).
 	var A, B, C, D, F int64
 	for i := 0; i < 40; i++ {
@@ -190,13 +196,7 @@ func SearchConjugate(x, y, z *[40]int16, gpcPredQ12 int16) (ga, gb uint8, gpQ14,
 	}
 
 	gpQ14 = int16(bestGp) // sum ≤ 22215, fits Word16
-	gcFull := (bestGam * int32(gpcPredQ12)) >> 13
-	if gcFull > 32767 {
-		gcFull = 32767
-	} else if gcFull < -32768 {
-		gcFull = -32768
-	}
-	gcQ12 = int16(gcFull)
+	gammaCQ13 = int16(bestGam)
 	ga = bestGA
 	gb = bestGB
 	return

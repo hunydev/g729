@@ -2,14 +2,19 @@ package gain
 
 // SCHEDULED FOR REMOVAL: Phase 3a INT-1.
 //
-// After IMPL-2 (this commit), no consumer of LegacyGcQ12FromMantExp
-// remains in internal/synth (BuildExcitation/Synthesize now take
-// (gcMantQ14, gcExp) directly per REF-1 §2). The remaining callers
-// are diagnostic test files in internal/decoder that emit
-// gcQ12-formatted log lines for cross-comparison with historic
-// numbers; they do not feed the production excitation path.
+// After IMPL-3 (this commit), no production consumer of
+// LegacyGcQ12FromMantExp remains. IMPL-2 removed the synth-side use
+// (BuildExcitation/Synthesize take (gcMantQ14, gcExp) natively per
+// REF-1 §2); IMPL-3 removes the encoder-side use (encoder.go fcbStep
+// now derives a non-saturating int32 Q12 directly from (mant, exp) for
+// its §A.3.10 commit accumulators — see encoder.go mantExpToQ12 — and
+// internal/gainquant.SearchConjugate returns γ̂_c Q13 instead of the
+// pre-IMPL-3 saturated ĝc Q12). The remaining callers are diagnostic
+// test files in internal/decoder that emit gcQ12-formatted log lines
+// for cross-comparison with historic numbers; they do not feed any
+// production path.
 //
-// Remaining call sites at IMPL-2 landing:
+// Remaining call sites at IMPL-3 landing:
 //   - internal/decoder/decode_test.go (logging)
 //   - internal/decoder/diagnostic_singlepulse_test.go (logging)
 //   - internal/decoder/diagnostic_multipulse_test.go (logging)
@@ -19,6 +24,9 @@ package gain
 //   - internal/decoder/stagef_sext_diagnostic_test.go (logging)
 //   - internal/decoder/stagef_fnonprelim_xsplit_diagnostic_test.go
 //     (constant comparison)
+//
+// INT-1 will excise these probes (replacing them with (mant, exp)
+// readouts) and delete this helper.
 //
 // LegacyGcQ12FromMantExp converts the new (mantissa Q14, exponent int8)
 // g_c representation back to the legacy single Q12 int16 form with
