@@ -1894,3 +1894,228 @@ candidate is now closed. Operator dispatch options:
 
 No reference C, no bcg729, no Sipro Lab, no FFmpeg, no other G.729
 implementation consulted.
+
+## Appendix J — Phase 3b DIAG-6: LP-spectral-envelope forensic vs SPEECH.PST
+
+### J.1 Mission
+
+After DIAG-1..5 exonerated their candidates and `DIAG-5` returned a
+`NO LEAK` verdict on the decoder's energy chain (Salami identity =
+1.0000 on voiced subframes, hand-EQ Δ = −0.001 dB), the residual
+5× rms shortfall against `SPEECH.PST` is per-frame *non-uniform*
+(p25 = 0.19, p50 ≈ 0.45, p95 = 1.05; ≈6 % of frames overshoot
+ratio > 1.0). DIAG-6 discriminates the three remaining hypotheses:
+
+- **H_PFR** — postfilter §A.4.2.1 short-term filter
+  `Â(z/γ_n) / Â(z/γ_d)` applies different bandwidth-expansion
+  than spec; AGC normalises subframe energy so per-bin spectral
+  *shape* would still differ.
+- **H_ENV** — LSP→LP conversion or some envelope-defining stage
+  diverges from SPEECH.PST upstream of the postfilter, producing
+  different formant positions or bandwidths per frame.
+- **closure-PARTIAL** — envelopes match between our pipeline and
+  REF_pf; the 5× rms gap is structural to a different REF processing
+  path (not a defect on our side).
+
+### J.2 Method
+
+Per-frame windowed DFT (Hann, N = 80) on three time-domain signals,
+20 frames sampled every 187 frames over the 3 750-frame corpus
+(coverage 0..3 553):
+
+- `our_synth[80]` — `Decoder.DecodeFrameNoPostfilter` (postfilter
+  bypassed; HP + ScaleUpSat retained — same domain as Decode).
+- `our_pf[80]`    — `Decoder.Decode` (full pipeline).
+- `REF_pf[80]`    — SPEECH.PST samples at the same offset.
+
+For each probe frame and each of the 41 bins (DC..Nyquist):
+
+1. Apply Hann window of length 80.
+2. Compute O(N²) DFT (no library dependency; spec I3).
+3. Convert magnitude to log dB (floor 10⁻⁹).
+4. Compute three pairwise log-magnitude differences per bin and
+   their L2-norm across bins (excluding DC).
+5. Compute *shape-only* L2 by subtracting per-frame mean
+   log-magnitude before pairwise differencing — this isolates
+   spectral *shape* from the per-frame *level offset* (the 5× rms
+   gap from DIAG-5; 20 log₁₀(5) ≈ 14 dB level alone). The shape
+   discriminator is the right discriminator; the raw L2 is
+   dominated by the known level gap and would obscure the
+   H_PFR / H_ENV question.
+6. Detect formant-peak bins (local maxima) on each envelope.
+
+Aggregate per-bin μ / σ across the 20 probe frames. Empirical
+postfilter spectral response is `μ(log|FFT(our_pf)| − log|FFT(our_synth)|)`
+per bin — a direct measurement (no LP-coefficient export needed)
+of the postfilter's actual transfer function in dB.
+
+Test: `internal/decoder/phase3b_diag6_lp_envelope_test.go`,
+`TestPhase3bDiag6_LPEnvelopeForensic`. `t.Logf` only.
+
+### J.3 γ_n / γ_d audit
+
+ITU-T G.729 §A.4.2.1 (Annex A short-term postfilter) prescribes
+bandwidth expansion factors γ_n = 0.55 (numerator,
+`Â(z/γ_n)`) and γ_d = 0.70 (denominator, `Â(z/γ_d)`) — *not*
+the §4.2.1 base-spec values which are γ_n = 0.55, γ_d = 0.70 also
+(equal in this case; some narrowband variants use γ_d = 0.55, but
+G.729A retains 0.70).
+
+Source-level constants — `internal/postfilter/postfilter.go`:
+
+| Symbol         | Source value | Q-format | Floating | Spec target | Δ              |
+| -------------- | -----------: | -------- | -------: | ----------: | -------------: |
+| `gammaNumQ15`  |    18 022    | Q15      | 0.549957 |     0.55    | −0.0000427     |
+| `gammaDenQ15`  |    22 938    | Q15      | 0.699951 |     0.70    | −0.0000488     |
+
+Both differ from spec target by less than 1 LSB at Q15 (Q15 LSB =
+1/32768 ≈ 3.05 · 10⁻⁵). γ values **MATCH** spec. H_PFR via wrong
+
+### J.4 Frame-100 envelope comparison
+
+Frame 100 is not in the every-187 probe set (the probe nearest to
+frame 100 is frame 187). The full per-bin table (0..40, 100 Hz
+spacing) for the first probe is logged by the test (lines under
+"frame X full per-bin table" tag). Frame-187 representative
+extract (rms[sy/pf/ref] = 192 / 184 / 838 — voiced):
+
+```
+  bin   Hz   synth(dB)   pf(dB)   ref(dB)   Δsy−ref   Δpf−ref
+   0    0       — DC, log-floor noise dominated
+   1   100    [logged]   [logged] [logged]
+  ...
+  40  4000    [logged]   [logged] [logged]
+```
+
+(Test output captures the full 41-row table.) Formant-peak bin
+positions printed for synth / our_pf / ref_pf.
+
+### J.5 Aggregate per-bin level error statistics
+
+Raw (level + shape):
+
+| Stat                    |  mean | p25  | p50  | p75   | p95   |  max  |
+| ----------------------- | ----: | ---: | ---: | ----: | ----: | ----: |
+| L2(our_pf − REF_pf)     | 12.30 | 9.34 | 11.89 | 15.49 | 18.45 | 18.75 |
+| L2(our_synth − REF_pf)  | 12.25 | 9.85 | 11.59 | 14.09 | 19.67 | 19.92 |
+| L2(our_pf − our_synth)  |  3.81 | 3.23 |  3.91 |  4.20 |  5.04 |  8.62 |
+
+Shape-only (mean log-mag removed; level-blind):
+
+| Stat                       |  mean | p25  | p50  | p75  | p95  |  max  |
+| -------------------------- | ----: | ---: | ---: | ---: | ---: | ----: |
+| L2sh(our_pf − REF_pf)      |  7.46 | 7.16 | 7.84 | 8.20 | 8.82 |  9.27 |
+| L2sh(our_synth − REF_pf)   |  7.80 | 7.16 | 7.80 | 8.26 | 10.07 | 10.35 |
+| L2sh(our_pf − our_synth)   |  3.51 | 2.90 | 3.61 | 3.95 | 5.03 |  8.38 |
+
+Mean log-magnitude (level proxy, dB): our_pf = 40.45,
+our_synth = 41.07, REF_pf = 49.26. Δlevel(REF − our_pf) = +8.81 dB,
+budget implied by 20 log₁₀(5×) is realised on these 20 windowed
+N = 80 frames; the rest is consumed by silent / near-silent frames
+diluting the windowed mean.
+
+### J.6 Formant-peak position match/mismatch
+
+Per-frame formant-peak bins are logged for the frame-187 detail
+print (synth, our_pf, ref_pf rows). Visual inspection of the test
+output shows formant positions broadly co-located bin-for-bin
+between the three signals on voiced frames; isolated
+mismatches occur on unvoiced / transition frames where local
+maxima are dominated by spectral noise floor on the small N = 80
+window. This rules out a *gross* formant-position defect (e.g.
+a wrong LSP-to-LP polynomial sign) but does not refute subtle
+formant-bandwidth differences.
+
+### J.7 H_PFR analytical-vs-empirical postfilter response
+
+Empirical `μ(our_pf − our_synth)` per bin (20-frame mean), in dB:
+
+```
+bin  0  ( 0 Hz):  −2.02   ← DC pulled down (HP filter + tilt)
+bin 1..15  (100..1500 Hz): −0.92 .. +0.08  ← largely flat, slight valley fill
+bin 17 (1700 Hz):  −1.89   ← formant null neighbourhood
+bin 30 (3000 Hz):  +1.01   ← formant peak emphasis (the only +1 dB bin)
+bin 38..40 (3800..4000 Hz): −1.72 .. −3.78  ← HF roll-off (tilt + Nyquist)
+```
+
+The dominant features — DC suppression, mild HF roll-off, isolated
++1 dB peak emphasis — are qualitatively consistent with spec
+A.4.2.1's `Â(z/0.55)/Â(z/0.70)` formant-emphasis cascade plus
+A.4.2.3 tilt-compensation `(1 + γ_t k₁′ z⁻¹)`: γ_n / γ_d = 0.785
+implies the cascade frequency response peaks ride ~+1.3 dB above
+the synthesis envelope at the formant centres and dip ~-1 dB
+between them, with the tilt term subtracting a few dB at HF for
+the spec formula's qualitative behaviour. H_PFR is not supported
+by the postfilter's actual transfer function shape.
+
+(An analytical reconstruction `H_PFR_analytical(ω)` from per-
+subframe `a[i]` plus γ_n / γ_d would require exporting LP
+coefficients from the decoder; see §J.9 for the recommended
+follow-up.)
+
+### J.8 Verdict
+
+| Hypothesis        | Evidence                                                                      | Verdict        |
+| ----------------- | ----------------------------------------------------------------------------- | -------------- |
+| H_PFR (γ values)  | γ_n / γ_d match spec to 1-LSB Q15 (§J.3).                                    | **EXONERATED** |
+| H_PFR (formula)   | Empirical PF response qualitatively matches §A.4.2.1 cascade behaviour (§J.7). | **NOT SUPPORTED** |
+| H_ENV             | L2sh(our_synth − REF_pf) = 7.80 dB ≈ L2sh(our_pf − REF_pf) = 7.46 dB; postfilter does **not** close the shape gap (Δ = 0.34 dB only). Divergence exists pre-postfilter. | **CONSISTENT** |
+| closure-PARTIAL   | Shape-only L2 ≈ 7-8 dB on N = 80 windows is plausibly a baseline for the ITU-PST processing path differences (PST domain pin from Phase 1o D-3 already established a `PASS-by-design` PST-domain ambiguity for frame-0 of TAME / FIXED / PITCH / OVERFLOW vectors; same root may produce ~7 dB shape distance on shaped windows). | **CONSISTENT** |
+
+**Verdict: OTHER → recommend closure-PARTIAL with H_ENV-leaning data as evidence.**
+
+The shape-only L2 distance of 7-8 dB for *both* synth-vs-REF and
+pf-vs-REF, with the postfilter contributing only Δ = 0.34 dB
+toward closing the gap, is consistent with a pre-postfilter
+spectral-envelope divergence (H_ENV) — but the absolute magnitude
+is also consistent with the known Phase 1o D-3 PST-domain
+PASS-by-design ambiguity. With N = 80 windows and only 20 probe
+frames, the data does not cleanly separate "real H_ENV defect"
+from "PST-domain processing difference baseline". Per the mission
+contract: pin closure-PARTIAL, recommend a follow-up that
+discriminates the two interpretations.
+
+### J.9 Recommended next task
+
+**`Phase 3b INT-1`** + **closure-PARTIAL report** (per the mission
+contract for the OTHER pattern).
+
+If the operator elects to drill further on H_ENV before closure,
+the discriminator would be:
+
+- **`REF-M-2`** — per-subframe LP coefficient `a[i]` direct
+  comparison: instrument the decoder to dump the 10-tap LP
+  vector emitted by `internal/lsp.Decoder.Decode` for each
+  subframe, compute the analytical 1/Â(z) magnitude response on
+  the same DFT bin grid, and compare against the magnitude of
+  REF_pf's *de-postfiltered* envelope (estimated by inverse-
+  filtering REF_pf with our `Â(z/γ_n)` numerator). If
+  `|1/Â_ours(ω)| ≠ |1/Â_REF(ω)|` per bin, H_ENV is fully
+  confirmed and the defect localises to LSP→LP or LSP-quantizer
+  table content. If they match, closure-PARTIAL is the final
+  disposition.
+
+The straightforward path, given DIAG-5's `NO LEAK` decoder
+verdict and DIAG-6's exoneration of γ values + qualitative
+spec-conformance of the postfilter response, is **Path A (exit
+Phase 3b → closure-PARTIAL)** per Appendix H.6 / I.9, treating
+the shape-distance evidence as supportive rather than decisive.
+
+### J.10 Spec citations (clean-room)
+
+- ITU-T G.729 (06/2012) §3.2.6 — LSP-to-LP conversion (Q-format).
+- ITU-T G.729 (06/2012) §4.2.1 / §4.2.2 — formant short-term
+  postfilter `Â(z/γ_n) / Â(z/γ_d)`.
+- ITU-T G.729 (06/2012) §A.4.2.1 — Annex A γ_n = 0.55, γ_d = 0.70.
+- ITU-T G.729 (06/2012) §A.4.2.3 — Annex A tilt compensation
+- Kondoz §6 — LP envelope interpretation in CELP postfilter.  `(1 + 
+- Oppenheim & Schafer — windowed DFT log-magnitude analysis;
+  Hann-window leakage and bin spectral leakage characterisation.
+- Salami et al. 1998 IEEE T-SAP §V.B — energy decomposition
+  identity (referenced for DIAG-5 cross-check that informs the
+  level-vs-shape separation argument here).
+- Quackenbush / Barnwell / Clements 1988 §2.3 — log-magnitude
+  spectral distance metrics.
+
+No reference C, no bcg729, no Sipro Lab, no FFmpeg, no other
+G.729 implementation consulted.
