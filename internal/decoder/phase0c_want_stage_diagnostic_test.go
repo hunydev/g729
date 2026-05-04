@@ -218,7 +218,8 @@ func TestDiagnostic_Phase0c2WantStageTrace(t *testing.T) {
 		var c [subframeLen]int16
 		fcb.Decode(fcb.Indices{Positions: sf.C, Signs: sf.S}, sf.tInt, betaQ14, &c)
 
-		gpQ14, gcQ12 := gnDec.Decode(gain.Indices{GA: sf.GA, GB: sf.GB}, &c)
+		gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gnDec.Decode(gain.Indices{GA: sf.GA, GB: sf.GB}, &c)
+		gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 
 		var u [subframeLen]int16
 		synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)

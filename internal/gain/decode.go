@@ -30,17 +30,20 @@ const (
 // Decode decodes one subframe's gains from idx and the fixed codebook
 // vector c per ITU-T G.729 §3.9 / §4.1.6.
 //
-// Returns (gpQ14, gcQ12):
+// Returns (gpQ14, gcMantQ14, gcExp) per REF-1
+// (docs/superpowers/plans/2026-05-04-phase3a-gcrep-design.md §2):
 //
-//   - gpQ14: pitch gain g_p in Q14 (range [0, ~1.2]).
-//   - gcQ12: fixed-codebook gain g_c in Q12 (chosen here so that typical
-//     gain magnitudes in (0, 8) map to a non-zero int16; Phase 1g will
-//     rescale at the excitation handoff).
+//   - gpQ14:     pitch gain g_p in Q14 (range [0, ~1.2]).
+//   - gcMantQ14: g_c mantissa in Q14, value in [16384, 32767]
+//     representing [1.0, 2.0). 0 only on the zero-energy guard path.
+//   - gcExp:     binary exponent (int8). Linear g_c = gcMantQ14 ·
+//     2^(gcExp - 14). Typical corpus range [-15, +9].
 //
 // Side effect: the 4-tap MA predictor FIFO is shifted and the new entry
 // (current log-correction error U(m) = 20·log10(γ̂_c) Q10) is inserted
-// at index 0.
-func (d *Decoder) Decode(idx Indices, c *[40]int16) (gpQ14, gcQ12 int16) {
+// at index 0. U(m) is computed from γ̂_c alone per the spec and is
+// independent of the (mantissa, exp) representation choice.
+func (d *Decoder) Decode(idx Indices, c *[40]int16) (gpQ14, gcMantQ14 int16, gcExp int8) {
 	if !d.initialized {
 		for i := range d.pastErrors {
 			d.pastErrors[i] = pastErrorsDefault
@@ -61,7 +64,8 @@ func (d *Decoder) Decode(idx Indices, c *[40]int16) (gpQ14, gcQ12 int16) {
 	if ecEnergy <= 0 {
 		gp, _ := decodeVQ(idx)
 		gpQ14 = gp
-		gcQ12 = 0
+		gcMantQ14 = 0
+		gcExp = 0
 		d.pastErrors[3] = d.pastErrors[2]
 		d.pastErrors[2] = d.pastErrors[1]
 		d.pastErrors[1] = d.pastErrors[0]
@@ -85,25 +89,41 @@ func (d *Decoder) Decode(idx Indices, c *[40]int16) (gpQ14, gcQ12 int16) {
 	logGainDbQ10 := fixed.Sub(predicted, ecBarDbQ10)
 	log2GcQ10 := (int32(logGainDbQ10)*invDbScaleQ15 + (1 << 14)) >> 15
 
-	// 4. g_c0 = 2^log2GcQ10 in a Q14 scaling (offset input by +14·1024 so
-	//    pow2Fixed's Q0 output absorbs the 2^14 factor).
-	gc0Q14 := pow2Fixed(fixed.Word32(log2GcQ10) + 14*1024)
+	// 4. Decode γ̂_c (Q13) and fold its log2 contribution INTO the
+	//    log2 exponent BEFORE the pow2 split. This preserves the spec's
+	//    natural mantissa+exponent decomposition and lets us return the
+	//    full dynamic range without an int16 collapse on g_c.
+	//
+	//    log2(γ̂_c) at Q10  =  log2Fixed(γ̂_c) − 13·1024   (γ̂_c is Q13)
+	//    γ̂_c == 0 short-circuits to mant=0, exp=0; predictor U(m) below
+	//    falls back to the −14 dB default, mirroring the historical
+	//    behavior of the legacy code path.
 	gp, gammaC := decodeVQ(idx)
 	gpQ14 = gp
 
-	// 5. g_c = γ̂_c · g_c0. γ̂_c is Q13, gc0 is Q14 → product Q27. Shift
-	//    to Q12 (>> 15) and saturate to int16.
-	prod := int32(gammaC) * int32(gc0Q14) >> 15
-	if prod > 32767 {
-		prod = 32767
-	} else if prod < -32768 {
-		prod = -32768
+	if gammaC <= 0 {
+		gcMantQ14 = 0
+		gcExp = 0
+	} else {
+		gammaLog2Q10 := int32(log2Fixed(fixed.Word32(gammaC))) - 13*1024
+		log2GcWithGammaQ10 := log2GcQ10 + gammaLog2Q10
+		intPart := log2GcWithGammaQ10 >> 10
+		frac := log2GcWithGammaQ10 - (intPart << 10)
+		gcMantQ14 = pow2FracQ14(frac)
+		switch {
+		case intPart > 127:
+			gcExp = 127
+		case intPart < -128:
+			gcExp = -128
+		default:
+			gcExp = int8(intPart)
+		}
 	}
-	gcQ12 = int16(prod)
 
-	// 6. Update MA predictor FIFO with U(m) = 20·log10(γ̂_c) Q10.
+	// 5. Update MA predictor FIFO with U(m) = 20·log10(γ̂_c) Q10.
 	//    γ̂_c is Q13 so log2(γ̂_c) - 13 gives the value's log2. Multiply
-	//    by 20·log10(2) to convert to dB.
+	//    by 20·log10(2) to convert to dB. (Unchanged from the pre-REF-1
+	//    flow; computed from γ̂_c alone per spec.)
 	var uCurrent int16
 	if gammaC > 0 {
 		gammaLog2Q10 := log2Fixed(fixed.Word32(gammaC)) - 13*1024

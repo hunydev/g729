@@ -33,11 +33,7 @@ func pow2Fixed(x fixed.Word32) fixed.Word32 {
 	intPart := int32(x) >> 10
 	frac := int32(x) - (intPart << 10)
 
-	idx := frac >> 5
-	a := frac & 0x1F
-	t0 := int32(tables.Pow2Table[idx])
-	t1 := int32(tables.Pow2Table[idx+1])
-	fracQ14 := t0 + ((t1-t0)*a)>>5
+	fracQ14 := int32(pow2FracQ14(frac))
 
 	// fracQ14 represents 2^(frac/1024) · 2^14, so result = fracQ14 · 2^(intPart-14).
 	shift := intPart - 14
@@ -62,4 +58,20 @@ func pow2Fixed(x fixed.Word32) fixed.Word32 {
 // Q0 Word32.
 func Pow2Fixed(x fixed.Word32) fixed.Word32 {
 	return pow2Fixed(x)
+}
+
+// pow2FracQ14 returns 2^(frac/1024) at Q14 — i.e. an int16 in
+// [16384, 32767] representing a value in [1.0, 2.0). `frac` MUST be in
+// [0, 1024); callers obtain it as the low 10 bits of a Q10 exponent.
+//
+// This is the table lookup + 5-bit linear interpolation that was
+// previously inlined in pow2Fixed; both pow2Fixed and Decode (mantissa
+// path) now share it so the Pow2Table semantics are pinned in one
+// place.
+func pow2FracQ14(frac int32) int16 {
+	idx := frac >> 5
+	a := frac & 0x1F
+	t0 := int32(tables.Pow2Table[idx])
+	t1 := int32(tables.Pow2Table[idx+1])
+	return int16(t0 + ((t1-t0)*a)>>5)
 }

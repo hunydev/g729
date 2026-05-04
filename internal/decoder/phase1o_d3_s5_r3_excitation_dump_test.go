@@ -187,7 +187,8 @@ func TestPhase1o_D3_S5_R3_ExcitationDump(t *testing.T) {
 	var c [subframeLen]int16
 	fcb.Decode(fcb.Indices{Positions: uint16(f.C1), Signs: uint8(f.S1)}, tInt1, betaQ14, &c)
 
-	gpQ14, gcQ12 := d.gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := d.gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 
 	var u [subframeLen]int16
 	synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)

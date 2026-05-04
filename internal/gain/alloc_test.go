@@ -9,7 +9,7 @@ func TestNoAllocationInDecode(t *testing.T) {
 	idx := Indices{GA: 3, GB: 7}
 
 	allocs := testing.AllocsPerRun(128, func() {
-		_, _ = d.Decode(idx, &c)
+		_, _, _ = d.Decode(idx, &c)
 	})
 	if allocs != 0 {
 		t.Fatalf("Decode allocated %.2f times per call; want 0", allocs)

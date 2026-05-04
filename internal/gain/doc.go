@@ -16,7 +16,7 @@
 //	    initial state (pastErrors is populated lazily on the
 //	    first Decode call with the spec's −14 dB Q10 default).
 //
-//	Decoder.Decode(idx, c) → (gpQ14, gcQ12 int16)
+//	Decoder.Decode(idx, c) → (gpQ14, gcMantQ14 int16, gcExp int8)
 //	    Per ITU-T G.729 §3.9 / §4.1.6: compute E_c from c, form
 //	    the MA-predicted log gain, look up the two-stage VQ,
 //	    assemble g_c = γ̂_c · 10^((Ê − Ē_c)/20), and update the

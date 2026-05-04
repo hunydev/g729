@@ -85,7 +85,8 @@ func TestDiagnostic_SinglePulseChain(t *testing.T) {
 
 	// === Boundary ⑩-⑪ gain.Decode + BuildExcitation ===
 	var gd gain.Decoder
-	gpQ14, gcQ12 := gd.Decode(gain.Indices{GA: 3, GB: 7}, &c)
+	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gd.Decode(gain.Indices{GA: 3, GB: 7}, &c)
+	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 	gcTrue := float64(gcQ12) / 4096.0
 	t.Logf("[⑩ gain] gpQ14=%d gcQ12=%d (true gc=%.4f)",
 		gpQ14, gcQ12, gcTrue)

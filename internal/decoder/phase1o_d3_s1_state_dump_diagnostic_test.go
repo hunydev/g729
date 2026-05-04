@@ -244,7 +244,8 @@ func recomputeUVector(d *Decoder, sfA *[lpcOrder + 1]int16,
 	var c [subframeLen]int16
 	fcb.Decode(fcb.Indices{Positions: C, Signs: S}, tInt, betaQ14, &c)
 	gnCopy := d.gn // value copy of gain.Decoder
-	gp, gcQ12 := gnCopy.Decode(gain.Indices{GA: GA, GB: GB}, &c)
+	gp, gcMant_gcQ12, gcExp_gcQ12 := gnCopy.Decode(gain.Indices{GA: GA, GB: GB}, &c)
+	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 	synth.BuildExcitation(gp, gcQ12, &v, &c, &u)
 	return u, gp
 }
@@ -269,7 +270,8 @@ func decodeOneSubframe(t *testing.T, d *Decoder,
 	var c [subframeLen]int16
 	fcb.Decode(fcb.Indices{Positions: C, Signs: S}, tInt, betaQ14, &c)
 
-	gpQ14, gcQ12 := d.gn.Decode(gain.Indices{GA: GA, GB: GB}, &c)
+	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := d.gn.Decode(gain.Indices{GA: GA, GB: GB}, &c)
+	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 
 	var u [subframeLen]int16
 	synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)

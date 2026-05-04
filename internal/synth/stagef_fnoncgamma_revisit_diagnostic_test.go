@@ -78,7 +78,8 @@ func TestDiagnostic_FnonCgammaRevisit2SynthIIRMemoryTrace(t *testing.T) {
 	fcb.Decode(fcb.Indices{Positions: f.C1, Signs: uint8(f.S1)}, tInt, betaQ14, &c)
 	var gn gain.Decoder
 	gn.Reset()
-	gpQ14, gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 	var u [40]int16
 	BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
 
@@ -247,7 +248,8 @@ func TestDiagnostic_FnonCgammaRevisit2YMagnitudePerturbationTrace(t *testing.T) 
 	fcb.Decode(fcb.Indices{Positions: f.C1, Signs: uint8(f.S1)}, tInt, betaQ14, &c)
 	var gn gain.Decoder
 	gn.Reset()
-	gpQ14, gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 	var u [40]int16
 	BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
 

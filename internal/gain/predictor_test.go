@@ -59,7 +59,7 @@ d.initialized = true
 
 var c [40]int16
 c[0] = 8192
-_, _ = d.Decode(Indices{GA: 0, GB: 0}, &c)
+_, _, _ = d.Decode(Indices{GA: 0, GB: 0}, &c)
 
 if d.pastErrors[1] != pastErrorsDefault {
 t.Errorf("pastErrors[1] after 1 subframe = %d; want %d (= pastErrorsDefault)",

@@ -78,7 +78,8 @@ func TestDiagnostic_FnonPrelimXExcitationSubterms(t *testing.T) {
 
 	var gn gain.Decoder
 	gn.Reset()
-	gpQ14, gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 
 	// (2) Production composite excitation u[0..39].
 	var u [subframeLen]int16
@@ -214,7 +215,8 @@ func decodeFnonProdU(t *testing.T, framePacked []byte) [subframeLen]int16 {
 	fcb.Decode(fcb.Indices{Positions: f.C1, Signs: uint8(f.S1)}, tInt, betaQ14, &c)
 	var gn gain.Decoder
 	gn.Reset()
-	gpQ14, gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 	var u [subframeLen]int16
 	synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
 	return u
@@ -398,7 +400,8 @@ var c [subframeLen]int16
 fcb.Decode(fcb.Indices{Positions: f.C1, Signs: uint8(f.S1)}, tInt, betaQ14, &c)
 var gn gain.Decoder
 gn.Reset()
-gpQ14, gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 var u [subframeLen]int16
 synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
 

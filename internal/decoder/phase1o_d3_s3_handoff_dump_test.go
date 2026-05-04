@@ -195,7 +195,8 @@ func TestPhase1o_D3_S3_HandoffDump(t *testing.T) {
 		var c [subframeLen]int16
 		fcb.Decode(fcb.Indices{Positions: C, Signs: S}, tInt, betaQ14, &c)
 
-		gpQ14, gcQ12 := d.gn.Decode(gain.Indices{GA: GA, GB: GB}, &c)
+		gpQ14, gcMant_gcQ12, gcExp_gcQ12 := d.gn.Decode(gain.Indices{GA: GA, GB: GB}, &c)
+		gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 		t.Logf("gpQ14=%d gcQ12=%d betaQ14=%d", gpQ14, gcQ12, betaQ14)
 		t.Logf("v[0..7]=%v", v[:8])
 		t.Logf("c[0..7]=%v", c[:8])

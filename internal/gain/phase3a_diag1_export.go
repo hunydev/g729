@@ -21,7 +21,13 @@ import (
 //   - GammaCQ13        γ̂_c at Q13 from the conjugate-structure VQ
 //   - ProdUnsat        γ̂_c · g_c0 ≫ 15  at Q12, int32 WITHOUT clamp
 //   - GpQ14Final       g_p Q14 (post-VQ; matches Decode return)
-//   - GcQ12Final       g_c Q12 saturated to int16 (matches Decode return)
+//   - GcQ12Final       g_c Q12 saturated to int16, derived from
+//     (GcMantQ14, GcExp) via LegacyGcQ12FromMantExp. Kept for back-
+//     compat with phase3a_diag1_gc_taps numbers.
+//   - GcMantQ14        g_c mantissa Q14 ∈ [16384, 32767] (or 0 on
+//     zero-energy guard). Matches Decode's new return per REF-1 §2.
+//   - GcExp            g_c binary exponent (int8). Linear g_c =
+//     GcMantQ14 · 2^(GcExp - 14).
 //   - ZeroEnergyGuard  true when the Σc²==0 short-circuit fired
 type GainDecodeFullTaps struct {
 	Predicted       int16
@@ -33,6 +39,8 @@ type GainDecodeFullTaps struct {
 	ProdUnsat       int32
 	GpQ14Final      int16
 	GcQ12Final      int16
+	GcMantQ14       int16
+	GcExp           int8
 	ZeroEnergyGuard bool
 }
 
@@ -103,6 +111,8 @@ func (d *Decoder) DecodeWithFullTaps(idx Indices, c *[40]int16) GainDecodeFullTa
 		out.GammaCQ13 = gammaC
 		out.GpQ14Final = gp
 		out.GcQ12Final = 0
+		out.GcMantQ14 = 0
+		out.GcExp = 0
 		d.pastErrors[3] = d.pastErrors[2]
 		d.pastErrors[2] = d.pastErrors[1]
 		d.pastErrors[1] = d.pastErrors[0]
@@ -153,6 +163,28 @@ func (d *Decoder) DecodeWithFullTaps(idx Indices, c *[40]int16) GainDecodeFullTa
 		prod = -32768
 	}
 	out.GcQ12Final = int16(prod)
+
+	// New (mantissa, exponent) representation per REF-1 §2; mirror the
+	// production Decode flow so out.GcMantQ14/GcExp are bit-for-bit
+	// identical to what Decode returns on the same predictor state.
+	if gammaC <= 0 {
+		out.GcMantQ14 = 0
+		out.GcExp = 0
+	} else {
+		gammaLog2Q10 := int32(log2Fixed(fixed.Word32(gammaC))) - 13*1024
+		log2GcWithGammaQ10 := log2GcQ10 + gammaLog2Q10
+		intPart := log2GcWithGammaQ10 >> 10
+		frac := log2GcWithGammaQ10 - (intPart << 10)
+		out.GcMantQ14 = pow2FracQ14(frac)
+		switch {
+		case intPart > 127:
+			out.GcExp = 127
+		case intPart < -128:
+			out.GcExp = -128
+		default:
+			out.GcExp = int8(intPart)
+		}
+	}
 
 	var uCurrent int16
 	if gammaC > 0 {

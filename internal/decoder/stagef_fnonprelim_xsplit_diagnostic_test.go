@@ -337,7 +337,8 @@ func TestDiagnostic_FnonPrelimXSplit2GainGcTrace(t *testing.T) {
 	//          — spec eq. (65) g_c = γ̂·g_c'. zero-state Decoder; first
 	//          call seeds pastErrors with pastErrorsDefault internally.
 	var gn gain.Decoder
-	gpQ14Prod, gcQ12Prod := gn.Decode(gain.Indices{GA: ga, GB: gb}, &c)
+	gpQ14Prod, gcMant_gcQ12Prod, gcExp_gcQ12Prod := gn.Decode(gain.Indices{GA: ga, GB: gb}, &c)
+	gcQ12Prod := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12Prod, gcExp_gcQ12Prod)
 
 	// X-fcb verdict cross-ref (F-non-prelim Task 1 §2 raw measurement).
 	const xFcbGcQ12 int16 = +4153

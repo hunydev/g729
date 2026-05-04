@@ -11,7 +11,8 @@ func TestDecode_ProducesGainsAndUpdatesState(t *testing.T) {
 	c[5] = 8192
 	idx := Indices{GA: 3, GB: 7}
 
-	gp, gc := d.Decode(idx, &c)
+	gp, mant, exp := d.Decode(idx, &c)
+	gc := LegacyGcQ12FromMantExp(mant, exp)
 
 	if gp <= 0 || gp > 20000 {
 		t.Errorf("g_p = %d, out of plausible Q14 range [1, 20000]", gp)
@@ -32,9 +33,9 @@ func TestDecode_TwoSubframesStatePropagation(t *testing.T) {
 	var c [40]int16
 	c[0] = 8192
 
-	_, _ = d.Decode(Indices{GA: 0, GB: 0}, &c)
+	_, _, _ = d.Decode(Indices{GA: 0, GB: 0}, &c)
 	before := d.pastErrors
-	_, _ = d.Decode(Indices{GA: 0, GB: 0}, &c)
+	_, _, _ = d.Decode(Indices{GA: 0, GB: 0}, &c)
 	after := d.pastErrors
 
 	if after[0] != before[0] {
@@ -54,13 +55,15 @@ func TestDecode_ResetRestoresZeroValueDeterminism(t *testing.T) {
 	idx := Indices{GA: 2, GB: 5}
 
 	var d1 Decoder
-	gp1, gc1 := d1.Decode(idx, &c)
+	gp1, gc1Mant, gc1Exp := d1.Decode(idx, &c)
+	gc1 := LegacyGcQ12FromMantExp(gc1Mant, gc1Exp)
 
 	var d2 Decoder
-	_, _ = d2.Decode(idx, &c)
-	_, _ = d2.Decode(idx, &c)
+	_, _, _ = d2.Decode(idx, &c)
+	_, _, _ = d2.Decode(idx, &c)
 	d2.Reset()
-	gp2, gc2 := d2.Decode(idx, &c)
+	gp2, gc2Mant, gc2Exp := d2.Decode(idx, &c)
+	gc2 := LegacyGcQ12FromMantExp(gc2Mant, gc2Exp)
 
 	if gp1 != gp2 || gc1 != gc2 {
 		t.Errorf("after Reset, outputs differ: (%d, %d) vs (%d, %d)", gp1, gc1, gp2, gc2)

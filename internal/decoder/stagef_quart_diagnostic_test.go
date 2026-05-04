@@ -184,7 +184,8 @@ func decodeFquartSf0(t *testing.T, f *bitstream.Frame, ga, gb uint8) fquartBound
 	var c [subframeLen]int16
 	fcb.Decode(fcb.Indices{Positions: f.C1, Signs: uint8(f.S1)}, tInt1, betaQ14, &c)
 
-	gpQ14, gcQ12 := d.gn.Decode(gain.Indices{GA: ga, GB: gb}, &c)
+	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := d.gn.Decode(gain.Indices{GA: ga, GB: gb}, &c)
+	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
 
 	var u [subframeLen]int16
 	synth.BuildExcitation(gpQ14, gcQ12, &v, &c, &u)
@@ -474,8 +475,8 @@ return out
 // confirming that sf1's gc/gp match (which depends on the sf0 FIFO
 // update being equal).
 func productionGainProbe(idx gain.Indices, c *[40]int16, d *gain.Decoder) (int16, int16) {
-gp, gc := d.Decode(idx, c)
-return gp, gc
+	gp, mant, exp := d.Decode(idx, c)
+	return gp, gain.LegacyGcQ12FromMantExp(mant, exp)
 }
 
 // TestDiagnostic_FquartGainReferenceCrossCheck: Stage F-quart-3 진단.

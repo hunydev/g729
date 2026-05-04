@@ -258,8 +258,9 @@ func TestDiagnostic_Phase1lHp2EdgeTrace(t *testing.T) {
 				fcb.Decode(fcb.Indices{Positions: C, Signs: S},
 					tInt, betaQ14, &c40)
 
-				gpQ14, gcQ12 := d.gn.Decode(
+				gpQ14, gcMant, gcExp := d.gn.Decode(
 					gain.Indices{GA: GA, GB: GB}, &c40)
+				gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant, gcExp)
 
 				var u40 [subframeLen]int16
 				synth.BuildExcitation(gpQ14, gcQ12, &v40, &c40, &u40)
