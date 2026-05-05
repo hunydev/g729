@@ -758,6 +758,76 @@ func TestOracleHCenter_MergeTopOpenLoopHandoff(t *testing.T) {
 	t.Logf("wrote %s with %d rows", outPath, len(rows))
 }
 
+func TestOracleHCenter_RefreshTopOpenLoopArtifactGot(t *testing.T) {
+	if os.Getenv("G729_REFRESH_ORACLE_GOT") != "1" {
+		t.Skip("set G729_REFRESH_ORACLE_GOT=1 after production T_op changes")
+	}
+
+	const (
+		oraclePath      = "testdata/oracle/pitch_top_open_loop.csv"
+		inPath          = "testdata/itu/G729_Release3/g729AnnexA/test_vectors/PITCH.IN"
+		samplesPerFrame = 80
+		bytesPerInFrame = 2 * samplesPerFrame
+		totalFrames     = 1835
+	)
+
+	rows, err := parseOracleFile(oraclePath)
+	if err != nil {
+		t.Fatalf("parse %s: %v", oraclePath, err)
+	}
+	oracleByFrame := map[int]oracleRow{}
+	for _, row := range rows {
+		if row.Vector == "PITCH" && row.Field == "top_open_loop" {
+			oracleByFrame[row.Frame] = row
+		}
+	}
+	if len(oracleByFrame) != totalFrames {
+		t.Fatalf("oracle rows=%d, want %d", len(oracleByFrame), totalFrames)
+	}
+
+	inData, err := os.ReadFile(inPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", inPath, err)
+	}
+	enc := NewEncoder()
+	var pcm [samplesPerFrame]int16
+	refreshed := make([]oracleRow, 0, totalFrames)
+	for f := 0; f < totalFrames; f++ {
+		base := f * bytesPerInFrame
+		for i := 0; i < samplesPerFrame; i++ {
+			pcm[i] = int16(binary.LittleEndian.Uint16(inData[base+2*i : base+2*i+2]))
+		}
+		if _, err := enc.lpcStep(pcm[:]); err != nil {
+			t.Fatalf("frame %d: lpcStep: %v", f, err)
+		}
+		got := int(enc.openloopStep())
+		row, ok := oracleByFrame[f]
+		if !ok {
+			t.Fatalf("missing oracle row for frame %d", f)
+		}
+		row.Got = got
+		row.Delta = got - row.Expected
+		row.Notes = "mismatch"
+		if row.Expected < 20 || row.Expected > 143 || row.Got < 20 || row.Got > 143 {
+			row.Notes = "range_fail"
+		} else if row.Delta == 0 {
+			row.Notes = "range_ok"
+		}
+		if err := validateOracleRow(row); err != nil {
+			t.Fatalf("frame %d refreshed row: %v", f, err)
+		}
+		refreshed = append(refreshed, row)
+	}
+	out := writeOracleRowsCSV(refreshed)
+	if _, err := parseOracleCSV(strings.NewReader(out)); err != nil {
+		t.Fatalf("validate refreshed CSV: %v", err)
+	}
+	if err := os.WriteFile(oraclePath, []byte(out), 0o644); err != nil {
+		t.Fatalf("write %s: %v", oraclePath, err)
+	}
+	t.Logf("refreshed %s with %d rows", oraclePath, len(refreshed))
+}
+
 type openLoopRangeDiag struct {
 	lag int
 	r   fixed.Word32
@@ -768,6 +838,18 @@ type openLoopFrameDiag struct {
 	range1 openLoopRangeDiag
 	range2 openLoopRangeDiag
 	range3 openLoopRangeDiag
+}
+
+type openLoopRangeDiag64 struct {
+	lag int
+	r   int64
+	e   int64
+}
+
+type openLoopFrameDiag64 struct {
+	range1 openLoopRangeDiag64
+	range2 openLoopRangeDiag64
+	range3 openLoopRangeDiag64
 }
 
 func diagnoseOpenLoopFrame(e *Encoder) openLoopFrameDiag {
@@ -789,6 +871,28 @@ func diagnoseOpenLoopFrame(e *Encoder) openLoopFrameDiag {
 		range1: oraclePickBest(&wsp, 20, 39),
 		range2: oraclePickBest(&wsp, 40, 79),
 		range3: oraclePickBest(&wsp, 80, 143),
+	}
+}
+
+func diagnoseOpenLoopFrame64(e *Encoder) openLoopFrameDiag64 {
+	s := (*[FrameSamples]int16)(e.oldSpeech[160:240])
+
+	var aw, aPrime [11]int16
+	oracleGammaWeightLP(&e.aQ12Latest, &aw)
+	oracleCombineWith07(&aw, &aPrime)
+
+	var residual, freshSw [80]int16
+	oracleLPResidual(s, &e.aQ12Latest, &e.lpResidualMem, &residual)
+	oracleLowpassWeightedSpeech(&residual, &aPrime, &e.swMem, &freshSw)
+
+	var wsp [223]int16
+	copy(wsp[:143], e.oldWspeech[:])
+	copy(wsp[143:], freshSw[:])
+
+	return openLoopFrameDiag64{
+		range1: oraclePickBest64(&wsp, 20, 39),
+		range2: oraclePickBest64(&wsp, 40, 79),
+		range3: oraclePickBest64(&wsp, 80, 143),
 	}
 }
 
@@ -924,6 +1028,355 @@ func oracleCompareNormalized(r1In, e1, r2In, e2 fixed.Word32) bool {
 	r1 >>= s
 	r2 >>= s
 	return r1*r1*int64(e2) >= r2*r2*int64(e1)
+}
+
+func oraclePickBest64(wsp *[223]int16, kMin, kMax int) openLoopRangeDiag64 {
+	if kMin == 80 && kMax == 143 {
+		return oraclePickBestEvenWithRefinement64(wsp)
+	}
+	best := openLoopRangeDiag64{lag: kMax, r: oracleCorrelateAt64(wsp, kMax), e: oracleEnergy64(wsp, kMax)}
+	for k := kMax - 1; k >= kMin; k-- {
+		cand := openLoopRangeDiag64{lag: k, r: oracleCorrelateAt64(wsp, k), e: oracleEnergy64(wsp, k)}
+		if oracleCompareNormalized64(cand.r, cand.e, best.r, best.e) {
+			best = cand
+		}
+	}
+	return best
+}
+
+func oraclePickBestEvenWithRefinement64(wsp *[223]int16) openLoopRangeDiag64 {
+	best := openLoopRangeDiag64{lag: 142, r: oracleCorrelateAt64(wsp, 142), e: oracleEnergy64(wsp, 142)}
+	for k := 140; k >= 80; k -= 2 {
+		cand := openLoopRangeDiag64{lag: k, r: oracleCorrelateAt64(wsp, k), e: oracleEnergy64(wsp, k)}
+		if oracleCompareNormalized64(cand.r, cand.e, best.r, best.e) {
+			best = cand
+		}
+	}
+	bestEven := best.lag
+	hi := bestEven + 1
+	if hi > 143 {
+		hi = 143
+	}
+	lo := bestEven - 1
+	if lo < 80 {
+		lo = 80
+	}
+	best = openLoopRangeDiag64{lag: hi, r: oracleCorrelateAt64(wsp, hi), e: oracleEnergy64(wsp, hi)}
+	for k := hi - 1; k >= lo; k-- {
+		cand := openLoopRangeDiag64{lag: k, r: oracleCorrelateAt64(wsp, k), e: oracleEnergy64(wsp, k)}
+		if oracleCompareNormalized64(cand.r, cand.e, best.r, best.e) {
+			best = cand
+		}
+	}
+	return best
+}
+
+func oracleCorrelateAt64(wsp *[223]int16, k int) int64 {
+	var acc int64
+	for n := 0; n < 40; n++ {
+		acc += 2 * int64(wsp[143+2*n]) * int64(wsp[143+2*n-k])
+	}
+	return acc
+}
+
+func oracleEnergy64(wsp *[223]int16, k int) int64 {
+	var acc int64
+	for n := 0; n < 40; n++ {
+		s := int64(wsp[143+2*n-k])
+		acc += s * s
+	}
+	return acc
+}
+
+func oracleCompareNormalized64(r1, e1, r2, e2 int64) bool {
+	score1Zero := e1 <= 0 || r1 <= 0
+	score2Zero := e2 <= 0 || r2 <= 0
+	if score1Zero && score2Zero {
+		return true
+	}
+	if score1Zero {
+		return false
+	}
+	if score2Zero {
+		return true
+	}
+	return (float64(r1)*float64(r1))/float64(e1) >= (float64(r2)*float64(r2))/float64(e2)
+}
+
+func oracleMergeDiag(d openLoopFrameDiag) int {
+	best := d.range1
+	if oracleShouldOverride(d.range2, best) {
+		best = d.range2
+	}
+	if oracleShouldOverride(d.range3, best) {
+		best = d.range3
+	}
+	return best.lag
+}
+
+func oracleMergeNoHighDiag(d openLoopFrameDiag) int {
+	best := d.range1
+	if oracleShouldOverride(d.range2, best) {
+		best = d.range2
+	}
+	return best.lag
+}
+
+func oracleShouldOverride(h, op openLoopRangeDiag) bool {
+	if oracleIsNearSubmultiple(h.lag, op.lag) {
+		return oracleLiftedStrictGreater(h.r, h.e, op.r, op.e)
+	}
+	return !oracleCompareNormalized(op.r, op.e, h.r, h.e)
+}
+
+func oracleIsNearSubmultiple(higher, lower int) bool {
+	if lower <= 0 {
+		return false
+	}
+	for k := 2; k <= 7; k++ {
+		d := higher - k*lower
+		if d < 0 {
+			d = -d
+		}
+		if d <= 2 {
+			return true
+		}
+		if k*lower > higher+2 {
+			return false
+		}
+	}
+	return false
+}
+
+func oracleLiftedStrictGreater(rH, eH, rOp, eOp fixed.Word32) bool {
+	if eH <= 0 || rH <= 0 {
+		return false
+	}
+	if eOp <= 0 || rOp <= 0 {
+		return true
+	}
+	rh := int64(rH)
+	ro := int64(rOp)
+	maxR := rh
+	if ro > maxR {
+		maxR = ro
+	}
+	var s uint
+	if l := bits.Len64(uint64(maxR)); l > 13 {
+		s = uint(l - 13)
+	}
+	rh >>= s
+	ro >>= s
+	return rh*rh*int64(eOp) > ro*ro*int64(eH)*2
+}
+
+func oracleMergeDiag64(d openLoopFrameDiag64) int {
+	best := d.range1
+	if oracleShouldOverride64(d.range2, best) {
+		best = d.range2
+	}
+	if oracleShouldOverride64(d.range3, best) {
+		best = d.range3
+	}
+	return best.lag
+}
+
+func oracleMergeDiag64WithMargin(d openLoopFrameDiag64, margin float64) int {
+	best := d.range1
+	if oracleShouldOverride64WithMargin(d.range2, best, margin) {
+		best = d.range2
+	}
+	if oracleShouldOverride64WithMargin(d.range3, best, margin) {
+		best = d.range3
+	}
+	return best.lag
+}
+
+func oracleShouldOverride64(h, op openLoopRangeDiag64) bool {
+	return oracleShouldOverride64WithMargin(h, op, 1.0)
+}
+
+func oracleShouldOverride64WithMargin(h, op openLoopRangeDiag64, margin float64) bool {
+	if oracleIsNearSubmultiple(h.lag, op.lag) {
+		if h.e <= 0 || h.r <= 0 {
+			return false
+		}
+		if op.e <= 0 || op.r <= 0 {
+			return true
+		}
+		return (float64(h.r)*float64(h.r))/float64(h.e) >
+			2*(float64(op.r)*float64(op.r))/float64(op.e)
+	}
+	if h.e <= 0 || h.r <= 0 {
+		return false
+	}
+	if op.e <= 0 || op.r <= 0 {
+		return true
+	}
+	return (float64(h.r)*float64(h.r))/float64(h.e) >
+		margin*(float64(op.r)*float64(op.r))/float64(op.e)
+}
+
+type oracleVariantStats struct {
+	total    int
+	exact    int
+	w10      int
+	lowTotal int
+	lowExact int
+	lowW10   int
+}
+
+func (s *oracleVariantStats) add(expected, got int) {
+	s.total++
+	d := got - expected
+	abs := d
+	if abs < 0 {
+		abs = -abs
+	}
+	if abs == 0 {
+		s.exact++
+	}
+	if abs <= 10 {
+		s.w10++
+	}
+	if expected >= 20 && expected <= 39 {
+		s.lowTotal++
+		if abs == 0 {
+			s.lowExact++
+		}
+		if abs <= 10 {
+			s.lowW10++
+		}
+	}
+}
+
+func TestOracleHCenter_OpenLoopVariantSweep(t *testing.T) {
+	const (
+		oraclePath      = "testdata/oracle/pitch_top_open_loop.csv"
+		inPath          = "testdata/itu/G729_Release3/g729AnnexA/test_vectors/PITCH.IN"
+		samplesPerFrame = 80
+		bytesPerInFrame = 2 * samplesPerFrame
+		totalFrames     = 1835
+	)
+
+	rows, err := parseOracleFile(oraclePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			t.Skip("no PITCH/top_open_loop oracle artifact present")
+		}
+		t.Fatalf("parse %s: %v", oraclePath, err)
+	}
+	oracleByFrame := map[int]oracleRow{}
+	for _, row := range rows {
+		if row.Vector == "PITCH" && row.Field == "top_open_loop" {
+			oracleByFrame[row.Frame] = row
+		}
+	}
+	inData, err := os.ReadFile(inPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", inPath, err)
+	}
+
+	stats := map[string]*oracleVariantStats{
+		"production-wide":  {},
+		"legacy-saturated": {},
+		"float-wide":       {},
+		"no-high-range":    {},
+	}
+	enc := NewEncoder()
+	var pcm [samplesPerFrame]int16
+	for f := 0; f < totalFrames; f++ {
+		base := f * bytesPerInFrame
+		for i := 0; i < samplesPerFrame; i++ {
+			pcm[i] = int16(binary.LittleEndian.Uint16(inData[base+2*i : base+2*i+2]))
+		}
+		if _, err := enc.lpcStep(pcm[:]); err != nil {
+			t.Fatalf("frame %d: lpcStep: %v", f, err)
+		}
+		diag := diagnoseOpenLoopFrame(enc)
+		diag64 := diagnoseOpenLoopFrame64(enc)
+		got := int(enc.openloopStep())
+		row, ok := oracleByFrame[f]
+		if !ok {
+			continue
+		}
+		if got != row.Got {
+			t.Fatalf("frame %d artifact got=%d but encoder got=%d", f, row.Got, got)
+		}
+		stats["production-wide"].add(row.Expected, got)
+		stats["legacy-saturated"].add(row.Expected, oracleMergeDiag(diag))
+		stats["float-wide"].add(row.Expected, oracleMergeDiag64(diag64))
+		stats["no-high-range"].add(row.Expected, oracleMergeNoHighDiag(diag))
+	}
+	for _, name := range []string{"production-wide", "legacy-saturated", "float-wide", "no-high-range"} {
+		st := stats[name]
+		t.Logf("%s: exact %d/%d %.2f%% ±10 %d %.2f%% | expected20..39 exact %d/%d %.2f%% ±10 %d %.2f%%",
+			name,
+			st.exact, st.total, 100*float64(st.exact)/float64(st.total),
+			st.w10, 100*float64(st.w10)/float64(st.total),
+			st.lowExact, st.lowTotal, 100*float64(st.lowExact)/float64(st.lowTotal),
+			st.lowW10, 100*float64(st.lowW10)/float64(st.lowTotal))
+	}
+}
+
+func TestOracleHCenter_HigherRangeMarginSweep(t *testing.T) {
+	const (
+		oraclePath      = "testdata/oracle/pitch_top_open_loop.csv"
+		inPath          = "testdata/itu/G729_Release3/g729AnnexA/test_vectors/PITCH.IN"
+		samplesPerFrame = 80
+		bytesPerInFrame = 2 * samplesPerFrame
+		totalFrames     = 1835
+	)
+
+	rows, err := parseOracleFile(oraclePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			t.Skip("no PITCH/top_open_loop oracle artifact present")
+		}
+		t.Fatalf("parse %s: %v", oraclePath, err)
+	}
+	oracleByFrame := map[int]oracleRow{}
+	for _, row := range rows {
+		if row.Vector == "PITCH" && row.Field == "top_open_loop" {
+			oracleByFrame[row.Frame] = row
+		}
+	}
+	inData, err := os.ReadFile(inPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", inPath, err)
+	}
+
+	margins := []float64{1.0, 1.02, 1.05, 1.08, 1.10, 1.15, 1.20, 1.30, 1.50, 2.0}
+	stats := make([]oracleVariantStats, len(margins))
+	enc := NewEncoder()
+	var pcm [samplesPerFrame]int16
+	for f := 0; f < totalFrames; f++ {
+		base := f * bytesPerInFrame
+		for i := 0; i < samplesPerFrame; i++ {
+			pcm[i] = int16(binary.LittleEndian.Uint16(inData[base+2*i : base+2*i+2]))
+		}
+		if _, err := enc.lpcStep(pcm[:]); err != nil {
+			t.Fatalf("frame %d: lpcStep: %v", f, err)
+		}
+		diag64 := diagnoseOpenLoopFrame64(enc)
+		_ = enc.openloopStep()
+		row, ok := oracleByFrame[f]
+		if !ok {
+			continue
+		}
+		for i, margin := range margins {
+			stats[i].add(row.Expected, oracleMergeDiag64WithMargin(diag64, margin))
+		}
+	}
+	for i, margin := range margins {
+		st := stats[i]
+		t.Logf("non-submultiple margin %.2f: exact %d/%d %.2f%% ±10 %d %.2f%% | expected20..39 exact %d/%d %.2f%% ±10 %d %.2f%%",
+			margin,
+			st.exact, st.total, 100*float64(st.exact)/float64(st.total),
+			st.w10, 100*float64(st.w10)/float64(st.total),
+			st.lowExact, st.lowTotal, 100*float64(st.lowExact)/float64(st.lowTotal),
+			st.lowW10, 100*float64(st.lowW10)/float64(st.lowTotal))
+	}
 }
 
 func TestOracleHCenter_LowRangeMismatchRangeWinners(t *testing.T) {
