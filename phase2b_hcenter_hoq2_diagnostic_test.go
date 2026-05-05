@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/exedev/g729/internal/pitch/openloop"
@@ -90,4 +91,63 @@ func TestPhase2bHCenter_HOQ2QuantizedDiagnostic(t *testing.T) {
 		t.Logf("H-OQ2 %s: %d/1835 plausibility %.2f%%", variant, hits, 100*float64(hits)/1835)
 		logHCenterHistogram(t, variant, hist)
 	}
+}
+
+func TestPhase2bHCenter_WriteMeasurementArtifacts(t *testing.T) {
+	if os.Getenv("G729_WRITE_HCENTER_LOGS") != "1" {
+		t.Skip("set G729_WRITE_HCENTER_LOGS=1 to refresh H-CENTER measurement artifacts")
+	}
+
+	const (
+		inPath           = "testdata/itu/G729_Release3/g729AnnexA/test_vectors/PITCH.IN"
+		bitPath          = "testdata/itu/G729_Release3/g729AnnexA/test_vectors/PITCH.BIT"
+		outPath          = "testdata/phase2b/hcenter_top_vs_t1.csv"
+		samplesPerFrame  = 80
+		bytesPerInFrame  = 2 * samplesPerFrame
+		bytesPerBitFrame = 164
+		totalFrames      = 1835
+	)
+
+	inData, err := os.ReadFile(inPath)
+	if err != nil {
+		t.Fatalf("read PITCH.IN: %v", err)
+	}
+	bitData, err := os.ReadFile(bitPath)
+	if err != nil {
+		t.Fatalf("read PITCH.BIT: %v", err)
+	}
+
+	enc := NewEncoder()
+	var pcm [samplesPerFrame]int16
+	var b strings.Builder
+	b.WriteString("frame,t_op,int_t1,delta,plausible\n")
+	hits := 0
+	hist := map[int]int{}
+	for f := 0; f < totalFrames; f++ {
+		base := f * bytesPerInFrame
+		for i := 0; i < samplesPerFrame; i++ {
+			pcm[i] = int16(binary.LittleEndian.Uint16(inData[base+2*i : base+2*i+2]))
+		}
+		if _, err := enc.lpcStep(pcm[:]); err != nil {
+			t.Fatalf("frame %d: lpcStep: %v", f, err)
+		}
+		top := enc.openloopStep()
+		bitFrame := bitData[f*bytesPerBitFrame : (f+1)*bytesPerBitFrame]
+		intT1 := decodeP1ToIntegerLag(extractP1FromG192(bitFrame))
+		delta := intT1 - int(top)
+		plausible := intT1 >= int(top)-5 && intT1 <= int(top)+4
+		if plausible {
+			hits++
+		}
+		hist[delta]++
+		b.WriteString(fmt.Sprintf("%d,%d,%d,%d,%t\n", f, top, intT1, delta, plausible))
+	}
+	if err := os.MkdirAll("testdata/phase2b", 0o755); err != nil {
+		t.Fatalf("mkdir testdata/phase2b: %v", err)
+	}
+	if err := os.WriteFile(outPath, []byte(b.String()), 0o644); err != nil {
+		t.Fatalf("write %s: %v", outPath, err)
+	}
+	t.Logf("wrote %s: %d/1835 plausibility %.2f%%", outPath, hits, 100*float64(hits)/1835)
+	logHCenterHistogram(t, "artifact", hist)
 }

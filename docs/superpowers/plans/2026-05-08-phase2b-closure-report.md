@@ -241,4 +241,8 @@ The Phase 2c plan should explicitly carry the H-OQ2 / H-PHASE LIVE-DEFERRED entr
 
 ---
 
+---
+
+**Footer amendment 2026-05-05:** H-CENTER re-entry completed under a fresh 5-slot budget. Outcome: **SURRENDER**; plausibility remains pinned at 990/1835 = 53.95% after H-OQ2, H-PHASE, and H-NEW probes. Report: `docs/superpowers/plans/2026-05-05-phase2b-h-center-recovery-report.md`.
+
 — end of Phase 2b closure report —
