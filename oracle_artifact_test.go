@@ -2,17 +2,21 @@ package g729
 
 import (
 	"bufio"
+	"encoding/binary"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math/bits"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/exedev/g729/internal/fixed"
 )
 
 type oracleRow struct {
@@ -331,6 +335,66 @@ func logOracleSummary(t *testing.T, label string, rows []oracleRow) {
 	}
 }
 
+type oracleRangeStats struct {
+	total int
+	exact int
+	w1    int
+	w2    int
+	w5    int
+	w10   int
+}
+
+func logTopOpenLoopRangeStats(t *testing.T, label string, rows []oracleRow) {
+	t.Helper()
+	stats := map[string]*oracleRangeStats{}
+	for _, row := range rows {
+		if row.Field != "top_open_loop" {
+			continue
+		}
+		name := pitchRangeName(row.Expected)
+		st := stats[name]
+		if st == nil {
+			st = &oracleRangeStats{}
+			stats[name] = st
+		}
+		st.total++
+		abs := row.Delta
+		if abs < 0 {
+			abs = -abs
+		}
+		if abs == 0 {
+			st.exact++
+		}
+		if abs <= 1 {
+			st.w1++
+		}
+		if abs <= 2 {
+			st.w2++
+		}
+		if abs <= 5 {
+			st.w5++
+		}
+		if abs <= 10 {
+			st.w10++
+		}
+	}
+	names := make([]string, 0, len(stats))
+	for name := range stats {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		st := stats[name]
+		t.Logf("%s expected range %s: exact %d/%d %.2f%% ±1 %d %.2f%% ±2 %d %.2f%% ±5 %d %.2f%% ±10 %d %.2f%%",
+			label, name,
+			st.exact, st.total, 100*float64(st.exact)/float64(st.total),
+			st.w1, 100*float64(st.w1)/float64(st.total),
+			st.w2, 100*float64(st.w2)/float64(st.total),
+			st.w5, 100*float64(st.w5)/float64(st.total),
+			st.w10, 100*float64(st.w10)/float64(st.total))
+	}
+}
+
 func TestOracleArtifacts_ParserAndSummaryFixtures(t *testing.T) {
 	const fixture = `vector,frame,subframe,field,expected,got,delta,notes
 PITCH,0,-1,top_open_loop,74,74,0,range_ok
@@ -406,6 +470,7 @@ func TestOracleHCenter_TopOpenLoopOptionalDiagnostic(t *testing.T) {
 		t.Skip("no PITCH/top_open_loop oracle rows present")
 	}
 	logOracleSummary(t, "PITCH top_open_loop", hcenter)
+	logTopOpenLoopRangeStats(t, "PITCH top_open_loop", hcenter)
 }
 
 func TestOracleHCenter_WriteTopOpenLoopHandoff(t *testing.T) {
@@ -691,4 +756,237 @@ func TestOracleHCenter_MergeTopOpenLoopHandoff(t *testing.T) {
 		t.Fatalf("write %s: %v", outPath, err)
 	}
 	t.Logf("wrote %s with %d rows", outPath, len(rows))
+}
+
+type openLoopRangeDiag struct {
+	lag int
+	r   fixed.Word32
+	e   fixed.Word32
+}
+
+type openLoopFrameDiag struct {
+	range1 openLoopRangeDiag
+	range2 openLoopRangeDiag
+	range3 openLoopRangeDiag
+}
+
+func diagnoseOpenLoopFrame(e *Encoder) openLoopFrameDiag {
+	s := (*[FrameSamples]int16)(e.oldSpeech[160:240])
+
+	var aw, aPrime [11]int16
+	oracleGammaWeightLP(&e.aQ12Latest, &aw)
+	oracleCombineWith07(&aw, &aPrime)
+
+	var residual, freshSw [80]int16
+	oracleLPResidual(s, &e.aQ12Latest, &e.lpResidualMem, &residual)
+	oracleLowpassWeightedSpeech(&residual, &aPrime, &e.swMem, &freshSw)
+
+	var wsp [223]int16
+	copy(wsp[:143], e.oldWspeech[:])
+	copy(wsp[143:], freshSw[:])
+
+	return openLoopFrameDiag{
+		range1: oraclePickBest(&wsp, 20, 39),
+		range2: oraclePickBest(&wsp, 40, 79),
+		range3: oraclePickBest(&wsp, 80, 143),
+	}
+}
+
+func oracleGammaWeightLP(a, out *[11]int16) {
+	gammaPow := [11]int16{32767, 24576, 18432, 13824, 10368, 7776, 5832, 4374, 3281, 2460, 1845}
+	out[0] = a[0]
+	for i := 1; i <= 10; i++ {
+		out[i] = fixed.Mult(a[i], gammaPow[i])
+	}
+}
+
+func oracleCombineWith07(aw, out *[11]int16) {
+	const gamma07Q15 int16 = 22938
+	out[0] = aw[0]
+	out[1] = fixed.Saturate(int32(aw[1]) - int32(gamma07Q15))
+	for i := 2; i <= 10; i++ {
+		out[i] = aw[i] - fixed.MultR(gamma07Q15, aw[i-1])
+	}
+}
+
+func oracleLPResidual(s *[80]int16, aHat *[11]int16, mem *[10]int16, r *[80]int16) {
+	for n := 0; n < 80; n++ {
+		sum := int32(s[n])
+		for i := 1; i <= 10; i++ {
+			var sni int16
+			if n-i >= 0 {
+				sni = s[n-i]
+			} else {
+				sni = mem[10+n-i]
+			}
+			sum += int32(fixed.Mult(aHat[i], sni))
+		}
+		r[n] = fixed.Saturate(sum)
+	}
+}
+
+func oracleLowpassWeightedSpeech(r *[80]int16, aPrime *[11]int16, mem *[10]int16, sw *[80]int16) {
+	for n := 0; n < 80; n++ {
+		var sumProd int32
+		for i := 1; i <= 10; i++ {
+			var swni int16
+			if n-i >= 0 {
+				swni = sw[n-i]
+			} else {
+				swni = mem[10+n-i]
+			}
+			sumProd += int32(fixed.Mult(aPrime[i], swni))
+		}
+		sw[n] = fixed.Saturate(int32(r[n]) - sumProd)
+	}
+}
+
+func oraclePickBest(wsp *[223]int16, kMin, kMax int) openLoopRangeDiag {
+	if kMin == 80 && kMax == 143 {
+		return oraclePickBestEvenWithRefinement(wsp)
+	}
+	best := openLoopRangeDiag{lag: kMax, r: oracleCorrelateAt(wsp, kMax), e: oracleEnergy(wsp, kMax)}
+	for k := kMax - 1; k >= kMin; k-- {
+		cand := openLoopRangeDiag{lag: k, r: oracleCorrelateAt(wsp, k), e: oracleEnergy(wsp, k)}
+		if oracleCompareNormalized(cand.r, cand.e, best.r, best.e) {
+			best = cand
+		}
+	}
+	return best
+}
+
+func oraclePickBestEvenWithRefinement(wsp *[223]int16) openLoopRangeDiag {
+	best := openLoopRangeDiag{lag: 142, r: oracleCorrelateAt(wsp, 142), e: oracleEnergy(wsp, 142)}
+	for k := 140; k >= 80; k -= 2 {
+		cand := openLoopRangeDiag{lag: k, r: oracleCorrelateAt(wsp, k), e: oracleEnergy(wsp, k)}
+		if oracleCompareNormalized(cand.r, cand.e, best.r, best.e) {
+			best = cand
+		}
+	}
+	bestEven := best.lag
+	hi := bestEven + 1
+	if hi > 143 {
+		hi = 143
+	}
+	lo := bestEven - 1
+	if lo < 80 {
+		lo = 80
+	}
+	best = openLoopRangeDiag{lag: hi, r: oracleCorrelateAt(wsp, hi), e: oracleEnergy(wsp, hi)}
+	for k := hi - 1; k >= lo; k-- {
+		cand := openLoopRangeDiag{lag: k, r: oracleCorrelateAt(wsp, k), e: oracleEnergy(wsp, k)}
+		if oracleCompareNormalized(cand.r, cand.e, best.r, best.e) {
+			best = cand
+		}
+	}
+	return best
+}
+
+func oracleCorrelateAt(wsp *[223]int16, k int) fixed.Word32 {
+	var acc fixed.Word32
+	for n := 0; n < 40; n++ {
+		acc = fixed.LMac(acc, wsp[143+2*n], wsp[143+2*n-k])
+	}
+	return acc
+}
+
+func oracleEnergy(wsp *[223]int16, k int) fixed.Word32 {
+	var acc fixed.Word32
+	for n := 0; n < 40; n++ {
+		s := fixed.Word32(wsp[143+2*n-k])
+		acc = fixed.LAdd(acc, s*s)
+	}
+	return acc
+}
+
+func oracleCompareNormalized(r1In, e1, r2In, e2 fixed.Word32) bool {
+	score1Zero := e1 <= 0 || r1In <= 0
+	score2Zero := e2 <= 0 || r2In <= 0
+	if score1Zero && score2Zero {
+		return true
+	}
+	if score1Zero {
+		return false
+	}
+	if score2Zero {
+		return true
+	}
+	r1 := int64(r1In)
+	r2 := int64(r2In)
+	maxR := r1
+	if r2 > maxR {
+		maxR = r2
+	}
+	var s uint
+	if l := bits.Len64(uint64(maxR)); l > 15 {
+		s = uint(l - 15)
+	}
+	r1 >>= s
+	r2 >>= s
+	return r1*r1*int64(e2) >= r2*r2*int64(e1)
+}
+
+func TestOracleHCenter_LowRangeMismatchRangeWinners(t *testing.T) {
+	const (
+		oraclePath      = "testdata/oracle/pitch_top_open_loop.csv"
+		inPath          = "testdata/itu/G729_Release3/g729AnnexA/test_vectors/PITCH.IN"
+		samplesPerFrame = 80
+		bytesPerInFrame = 2 * samplesPerFrame
+		totalFrames     = 1835
+	)
+
+	rows, err := parseOracleFile(oraclePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			t.Skip("no PITCH/top_open_loop oracle artifact present")
+		}
+		t.Fatalf("parse %s: %v", oraclePath, err)
+	}
+	oracleByFrame := map[int]oracleRow{}
+	for _, row := range rows {
+		if row.Vector == "PITCH" && row.Field == "top_open_loop" {
+			oracleByFrame[row.Frame] = row
+		}
+	}
+	if len(oracleByFrame) == 0 {
+		t.Skip("no PITCH/top_open_loop rows present")
+	}
+
+	inData, err := os.ReadFile(inPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", inPath, err)
+	}
+	enc := NewEncoder()
+	var pcm [samplesPerFrame]int16
+	logged := 0
+	for f := 0; f < totalFrames; f++ {
+		base := f * bytesPerInFrame
+		for i := 0; i < samplesPerFrame; i++ {
+			pcm[i] = int16(binary.LittleEndian.Uint16(inData[base+2*i : base+2*i+2]))
+		}
+		if _, err := enc.lpcStep(pcm[:]); err != nil {
+			t.Fatalf("frame %d: lpcStep: %v", f, err)
+		}
+		diag := diagnoseOpenLoopFrame(enc)
+		got := enc.openloopStep()
+
+		row, ok := oracleByFrame[f]
+		if !ok {
+			continue
+		}
+		if int(got) != row.Got {
+			t.Fatalf("frame %d artifact got=%d but encoder got=%d", f, row.Got, got)
+		}
+		if row.Expected >= 20 && row.Expected <= 39 && row.Got >= 80 && row.Got <= 143 && logged < 16 {
+			t.Logf("low-range long-delay mismatch frame=%d expected=%d got=%d delta=%+d r1=(lag=%d r=%d e=%d) r2=(lag=%d r=%d e=%d) r3=(lag=%d r=%d e=%d)",
+				f, row.Expected, row.Got, row.Delta,
+				diag.range1.lag, diag.range1.r, diag.range1.e,
+				diag.range2.lag, diag.range2.r, diag.range2.e,
+				diag.range3.lag, diag.range3.r, diag.range3.e)
+			logged++
+		}
+	}
+	if logged == 0 {
+		t.Skip("no expected 20..39 / got 80..143 mismatches found")
+	}
 }
