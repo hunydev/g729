@@ -4,6 +4,8 @@ This directory is for optional verifier artifacts. The main test suite must pass
 
 Artifacts may be CSV (`*.csv`) or JSONL (`*.jsonl`). They must contain only numeric scalar comparisons and controlled notes.
 
+Files under `testdata/oracle/handoff/` are verifier handoff material, not oracle artifacts. They are ignored by the optional artifact validator until a verifier produces a completed `.csv` or `.jsonl` file directly under `testdata/oracle/`.
+
 ## CSV Schema
 
 Required header:
@@ -53,3 +55,9 @@ PITCH,0,-1,top_open_loop,74,74,0,range_ok
 ```
 
 `expected` is the verifier-provided raw open-loop pitch. `got` is this implementation's `T_op`. The optional H-CENTER diagnostic reports exact, `±1`, `±2`, `±5`, and `±10` rates plus a delta histogram.
+
+To refresh the handoff files for an external verifier:
+
+```sh
+G729_WRITE_ORACLE_HANDOFF=1 go test -run TestOracleHCenter_WriteTopOpenLoopHandoff -v
+```

@@ -20,6 +20,7 @@ Build a clean-room validation model that separates implementation work from exte
 | Unsafe artifact rejection tests | `TestOracleArtifacts_RejectUnsafeFixtures` |
 | Optional diagnostic consumer | `logOracleSummary` + `TestOracleArtifacts_ValidateOptionalFiles` |
 | H-CENTER raw `T_op` integration hook | `TestOracleHCenter_TopOpenLoopOptionalDiagnostic` |
+| H-CENTER verifier handoff package | `testdata/oracle/handoff/` + `TestOracleHCenter_WriteTopOpenLoopHandoff` |
 
 No production encoder/decoder code was changed.
 
@@ -80,6 +81,12 @@ PITCH,0,-1,top_open_loop,74,74,0,range_ok
 
 When such rows are present, `TestOracleHCenter_TopOpenLoopOptionalDiagnostic` reports exact/window rates and range clusters. This lets a verifier provide raw `T_op` numbers without exposing how those numbers were produced.
 
+Handoff files for the verifier are generated under:
+
+`testdata/oracle/handoff/`
+
+They include this implementation's `top_open_loop` values and an expected-value template. They are intentionally not oracle artifacts and are ignored by the validator until a completed artifact is placed directly under `testdata/oracle/`.
+
 ## 6. Verification Gates
 
 Focused oracle gate:
@@ -119,10 +126,11 @@ The new test surface is diagnostic-only and optional. Production behavior and ho
 To use the verifier model:
 
 1. Run the external verifier outside this implementation workspace.
-2. Export only numeric rows matching `testdata/oracle/README.md`.
-3. Place the artifact under `testdata/oracle/`.
-4. Run `go test -run TestOracleArtifacts_ValidateOptionalFiles -v`.
-5. If validation passes, run the relevant optional diagnostic, for example `TestOracleHCenter_TopOpenLoopOptionalDiagnostic`.
-6. Use only the numeric summary to form new clean-room hypotheses.
+2. Use `testdata/oracle/handoff/pitch_top_open_loop_got.csv` and `pitch_top_open_loop_expected_template.csv` if the target is H-CENTER.
+3. Export only numeric rows matching `testdata/oracle/README.md`.
+4. Place the completed artifact under `testdata/oracle/`.
+5. Run `go test -run TestOracleArtifacts_ValidateOptionalFiles -v`.
+6. If validation passes, run the relevant optional diagnostic, for example `TestOracleHCenter_TopOpenLoopOptionalDiagnostic`.
+7. Use only the numeric summary to form new clean-room hypotheses.
 
 — end of clean-room verifier model closure report —

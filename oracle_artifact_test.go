@@ -407,3 +407,94 @@ func TestOracleHCenter_TopOpenLoopOptionalDiagnostic(t *testing.T) {
 	}
 	logOracleSummary(t, "PITCH top_open_loop", hcenter)
 }
+
+func TestOracleHCenter_WriteTopOpenLoopHandoff(t *testing.T) {
+	if os.Getenv("G729_WRITE_ORACLE_HANDOFF") != "1" {
+		t.Skip("set G729_WRITE_ORACLE_HANDOFF=1 to refresh verifier handoff files")
+	}
+
+	const (
+		inPath       = "testdata/phase2b/hcenter_top_vs_t1.csv"
+		outDir       = "testdata/oracle/handoff"
+		gotPath      = outDir + "/pitch_top_open_loop_got.csv"
+		templatePath = outDir + "/pitch_top_open_loop_expected_template.csv"
+		readmePath   = outDir + "/README.md"
+	)
+
+	in, err := os.Open(inPath)
+	if err != nil {
+		t.Fatalf("open %s: %v", inPath, err)
+	}
+	defer in.Close()
+
+	cr := csv.NewReader(in)
+	records, err := cr.ReadAll()
+	if err != nil {
+		t.Fatalf("read %s: %v", inPath, err)
+	}
+	if len(records) < 2 {
+		t.Fatalf("%s has %d rows, want header plus data", inPath, len(records))
+	}
+	wantHeader := []string{"frame", "t_op", "int_t1", "delta", "plausible"}
+	if len(records[0]) != len(wantHeader) {
+		t.Fatalf("%s header width=%d, want %d", inPath, len(records[0]), len(wantHeader))
+	}
+	for i := range wantHeader {
+		if records[0][i] != wantHeader[i] {
+			t.Fatalf("%s header[%d]=%q, want %q", inPath, i, records[0][i], wantHeader[i])
+		}
+	}
+
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", outDir, err)
+	}
+
+	var got, tmpl strings.Builder
+	got.WriteString("vector,frame,subframe,field,got\n")
+	tmpl.WriteString("frame,expected_top_open_loop\n")
+	for i, rec := range records[1:] {
+		if len(rec) != len(wantHeader) {
+			t.Fatalf("%s row %d width=%d, want %d", inPath, i+2, len(rec), len(wantHeader))
+		}
+		frame, err := strconv.Atoi(rec[0])
+		if err != nil {
+			t.Fatalf("%s row %d frame: %v", inPath, i+2, err)
+		}
+		top, err := strconv.Atoi(rec[1])
+		if err != nil {
+			t.Fatalf("%s row %d t_op: %v", inPath, i+2, err)
+		}
+		got.WriteString(fmt.Sprintf("PITCH,%d,-1,top_open_loop,%d\n", frame, top))
+		tmpl.WriteString(fmt.Sprintf("%d,\n", frame))
+	}
+	if err := os.WriteFile(gotPath, []byte(got.String()), 0o644); err != nil {
+		t.Fatalf("write %s: %v", gotPath, err)
+	}
+	if err := os.WriteFile(templatePath, []byte(tmpl.String()), 0o644); err != nil {
+		t.Fatalf("write %s: %v", templatePath, err)
+	}
+	const readme = `# H-CENTER Oracle Handoff
+
+These files are not oracle artifacts and are intentionally ignored by the optional oracle validator because they live in a subdirectory.
+
+- ` + "`pitch_top_open_loop_got.csv`" + `: this implementation's frame-level open-loop ` + "`T_op`" + ` values.
+- ` + "`pitch_top_open_loop_expected_template.csv`" + `: verifier-owned template for raw oracle ` + "`T_op`" + ` values.
+
+Verifier workflow:
+
+1. Fill ` + "`expected_top_open_loop`" + ` for every frame in the template.
+2. Produce a clean-room oracle artifact at ` + "`testdata/oracle/pitch_top_open_loop.csv`" + ` with:
+
+   ` + "```csv" + `
+   vector,frame,subframe,field,expected,got,delta,notes
+   PITCH,0,-1,top_open_loop,<expected>,<got>,<got-expected>,mismatch
+   ` + "```" + `
+
+3. Use only controlled notes: ` + "`mismatch`" + `, ` + "`out_of_window`" + `, ` + "`range_ok`" + `, ` + "`range_fail`" + `, or ` + "`unknown`" + `.
+4. Do not include implementation details, code names, source locations, or explanations for oracle internals.
+`
+	if err := os.WriteFile(readmePath, []byte(readme), 0o644); err != nil {
+		t.Fatalf("write %s: %v", readmePath, err)
+	}
+	t.Logf("wrote %s, %s, %s", gotPath, templatePath, readmePath)
+}
