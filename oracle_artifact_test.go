@@ -498,3 +498,197 @@ Verifier workflow:
 	}
 	t.Logf("wrote %s, %s, %s", gotPath, templatePath, readmePath)
 }
+
+func mergeTopOpenLoopArtifact(gotCSV, expectedCSV io.Reader) ([]oracleRow, error) {
+	gotReader := csv.NewReader(gotCSV)
+	gotRecords, err := gotReader.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+	if len(gotRecords) < 2 {
+		return nil, errors.New("got CSV has no data rows")
+	}
+	gotHeader := []string{"vector", "frame", "subframe", "field", "got"}
+	if err := validateCSVHeader(gotRecords[0], gotHeader); err != nil {
+		return nil, fmt.Errorf("got CSV: %w", err)
+	}
+
+	expectedReader := csv.NewReader(expectedCSV)
+	expectedRecords, err := expectedReader.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+	if len(expectedRecords) < 2 {
+		return nil, errors.New("expected CSV has no data rows")
+	}
+	expectedHeader := []string{"frame", "expected_top_open_loop"}
+	if err := validateCSVHeader(expectedRecords[0], expectedHeader); err != nil {
+		return nil, fmt.Errorf("expected CSV: %w", err)
+	}
+
+	expectedByFrame := make(map[int]int, len(expectedRecords)-1)
+	for i, rec := range expectedRecords[1:] {
+		if len(rec) != len(expectedHeader) {
+			return nil, fmt.Errorf("expected CSV row %d has %d fields, want %d", i+2, len(rec), len(expectedHeader))
+		}
+		frame, err := strconv.Atoi(rec[0])
+		if err != nil {
+			return nil, fmt.Errorf("expected CSV row %d frame: %w", i+2, err)
+		}
+		if strings.TrimSpace(rec[1]) == "" {
+			return nil, fmt.Errorf("expected CSV row %d frame %d has blank expected_top_open_loop", i+2, frame)
+		}
+		expected, err := strconv.Atoi(rec[1])
+		if err != nil {
+			return nil, fmt.Errorf("expected CSV row %d expected_top_open_loop: %w", i+2, err)
+		}
+		if _, dup := expectedByFrame[frame]; dup {
+			return nil, fmt.Errorf("expected CSV duplicate frame %d", frame)
+		}
+		expectedByFrame[frame] = expected
+	}
+
+	rows := make([]oracleRow, 0, len(gotRecords)-1)
+	seenGot := map[int]bool{}
+	for i, rec := range gotRecords[1:] {
+		if len(rec) != len(gotHeader) {
+			return nil, fmt.Errorf("got CSV row %d has %d fields, want %d", i+2, len(rec), len(gotHeader))
+		}
+		frame, err := strconv.Atoi(rec[1])
+		if err != nil {
+			return nil, fmt.Errorf("got CSV row %d frame: %w", i+2, err)
+		}
+		if seenGot[frame] {
+			return nil, fmt.Errorf("got CSV duplicate frame %d", frame)
+		}
+		seenGot[frame] = true
+		expected, ok := expectedByFrame[frame]
+		if !ok {
+			return nil, fmt.Errorf("missing expected row for frame %d", frame)
+		}
+		subframe, err := strconv.Atoi(rec[2])
+		if err != nil {
+			return nil, fmt.Errorf("got CSV row %d subframe: %w", i+2, err)
+		}
+		got, err := strconv.Atoi(rec[4])
+		if err != nil {
+			return nil, fmt.Errorf("got CSV row %d got: %w", i+2, err)
+		}
+		row := oracleRow{
+			Vector:   rec[0],
+			Frame:    frame,
+			Subframe: subframe,
+			Field:    rec[3],
+			Expected: expected,
+			Got:      got,
+			Delta:    got - expected,
+			Notes:    "mismatch",
+		}
+		if expected < 20 || expected > 143 || got < 20 || got > 143 {
+			row.Notes = "range_fail"
+		} else if row.Delta == 0 {
+			row.Notes = "range_ok"
+		}
+		if err := validateOracleRow(row); err != nil {
+			return nil, fmt.Errorf("merged frame %d: %w", frame, err)
+		}
+		rows = append(rows, row)
+	}
+	if len(rows) != len(expectedByFrame) {
+		return nil, fmt.Errorf("row count mismatch: got rows=%d expected rows=%d", len(rows), len(expectedByFrame))
+	}
+	return rows, nil
+}
+
+func validateCSVHeader(got, want []string) error {
+	if len(got) != len(want) {
+		return fmt.Errorf("header has %d fields, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			return fmt.Errorf("header[%d]=%q, want %q", i, got[i], want[i])
+		}
+	}
+	return nil
+}
+
+func writeOracleRowsCSV(rows []oracleRow) string {
+	var b strings.Builder
+	b.WriteString("vector,frame,subframe,field,expected,got,delta,notes\n")
+	for _, row := range rows {
+		b.WriteString(fmt.Sprintf("%s,%d,%d,%s,%d,%d,%d,%s\n",
+			row.Vector, row.Frame, row.Subframe, row.Field,
+			row.Expected, row.Got, row.Delta, row.Notes))
+	}
+	return b.String()
+}
+
+func TestOracleHCenter_MergeTopOpenLoopHandoffFixtures(t *testing.T) {
+	const got = `vector,frame,subframe,field,got
+PITCH,0,-1,top_open_loop,74
+PITCH,1,-1,top_open_loop,85
+`
+	const expected = `frame,expected_top_open_loop
+0,74
+1,82
+`
+	rows, err := mergeTopOpenLoopArtifact(strings.NewReader(got), strings.NewReader(expected))
+	if err != nil {
+		t.Fatalf("mergeTopOpenLoopArtifact: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("rows=%d, want 2", len(rows))
+	}
+	if rows[0].Notes != "range_ok" || rows[0].Delta != 0 {
+		t.Fatalf("row0 notes=%s delta=%d, want range_ok/0", rows[0].Notes, rows[0].Delta)
+	}
+	if rows[1].Notes != "mismatch" || rows[1].Delta != 3 {
+		t.Fatalf("row1 notes=%s delta=%d, want mismatch/+3", rows[1].Notes, rows[1].Delta)
+	}
+	if _, err := parseOracleCSV(strings.NewReader(writeOracleRowsCSV(rows))); err != nil {
+		t.Fatalf("merged CSV does not validate as oracle artifact: %v", err)
+	}
+
+	const blankExpected = `frame,expected_top_open_loop
+0,
+`
+	if _, err := mergeTopOpenLoopArtifact(strings.NewReader(got), strings.NewReader(blankExpected)); err == nil {
+		t.Fatal("mergeTopOpenLoopArtifact accepted blank expected value")
+	}
+}
+
+func TestOracleHCenter_MergeTopOpenLoopHandoff(t *testing.T) {
+	if os.Getenv("G729_MERGE_ORACLE_HANDOFF") != "1" {
+		t.Skip("set G729_MERGE_ORACLE_HANDOFF=1 after verifier fills the expected template")
+	}
+
+	const (
+		gotPath      = "testdata/oracle/handoff/pitch_top_open_loop_got.csv"
+		expectedPath = "testdata/oracle/handoff/pitch_top_open_loop_expected_template.csv"
+		outPath      = "testdata/oracle/pitch_top_open_loop.csv"
+	)
+
+	gotData, err := os.ReadFile(gotPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", gotPath, err)
+	}
+	expectedData, err := os.ReadFile(expectedPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", expectedPath, err)
+	}
+	rows, err := mergeTopOpenLoopArtifact(strings.NewReader(string(gotData)), strings.NewReader(string(expectedData)))
+	if err != nil {
+		t.Fatalf("merge handoff: %v", err)
+	}
+	out := writeOracleRowsCSV(rows)
+	if err := validateOracleRawText(outPath, []byte(out)); err != nil {
+		t.Fatalf("validate merged raw text: %v", err)
+	}
+	if _, err := parseOracleCSV(strings.NewReader(out)); err != nil {
+		t.Fatalf("validate merged CSV: %v", err)
+	}
+	if err := os.WriteFile(outPath, []byte(out), 0o644); err != nil {
+		t.Fatalf("write %s: %v", outPath, err)
+	}
+	t.Logf("wrote %s with %d rows", outPath, len(rows))
+}

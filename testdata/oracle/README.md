@@ -61,3 +61,9 @@ To refresh the handoff files for an external verifier:
 ```sh
 G729_WRITE_ORACLE_HANDOFF=1 go test -run TestOracleHCenter_WriteTopOpenLoopHandoff -v
 ```
+
+After the verifier fills `testdata/oracle/handoff/pitch_top_open_loop_expected_template.csv`, merge it into a validator-ready artifact:
+
+```sh
+G729_MERGE_ORACLE_HANDOFF=1 go test -run TestOracleHCenter_MergeTopOpenLoopHandoff -v
+```

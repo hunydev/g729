@@ -21,6 +21,7 @@ Build a clean-room validation model that separates implementation work from exte
 | Optional diagnostic consumer | `logOracleSummary` + `TestOracleArtifacts_ValidateOptionalFiles` |
 | H-CENTER raw `T_op` integration hook | `TestOracleHCenter_TopOpenLoopOptionalDiagnostic` |
 | H-CENTER verifier handoff package | `testdata/oracle/handoff/` + `TestOracleHCenter_WriteTopOpenLoopHandoff` |
+| H-CENTER handoff merge gate | `TestOracleHCenter_MergeTopOpenLoopHandoff` |
 
 No production encoder/decoder code was changed.
 
@@ -87,6 +88,14 @@ Handoff files for the verifier are generated under:
 
 They include this implementation's `top_open_loop` values and an expected-value template. They are intentionally not oracle artifacts and are ignored by the validator until a completed artifact is placed directly under `testdata/oracle/`.
 
+After the verifier fills the expected template, the implementation worker runs:
+
+```sh
+G729_MERGE_ORACLE_HANDOFF=1 go test -run TestOracleHCenter_MergeTopOpenLoopHandoff -v
+```
+
+The merge refuses blank expected values, checks row alignment, computes `delta = got - expected`, assigns controlled notes, validates the generated CSV with the same oracle parser, and writes `testdata/oracle/pitch_top_open_loop.csv`.
+
 ## 6. Verification Gates
 
 Focused oracle gate:
@@ -95,7 +104,7 @@ Focused oracle gate:
 env GOCACHE=/tmp/go-build go test -run 'TestOracleArtifacts|TestOracleHCenter' -v
 ```
 
-Result: PASS, with optional artifact tests skipped because no `.csv` or `.jsonl` oracle artifact is currently present.
+Result: PASS, with optional artifact tests skipped because no completed `.csv` or `.jsonl` oracle artifact is currently present. Handoff merge fixture tests pass; the real merge test is env-gated until the verifier fills expected values.
 
 Full gates:
 
@@ -127,8 +136,8 @@ To use the verifier model:
 
 1. Run the external verifier outside this implementation workspace.
 2. Use `testdata/oracle/handoff/pitch_top_open_loop_got.csv` and `pitch_top_open_loop_expected_template.csv` if the target is H-CENTER.
-3. Export only numeric rows matching `testdata/oracle/README.md`.
-4. Place the completed artifact under `testdata/oracle/`.
+3. Fill only numeric expected values in the template.
+4. Run `G729_MERGE_ORACLE_HANDOFF=1 go test -run TestOracleHCenter_MergeTopOpenLoopHandoff -v`.
 5. Run `go test -run TestOracleArtifacts_ValidateOptionalFiles -v`.
 6. If validation passes, run the relevant optional diagnostic, for example `TestOracleHCenter_TopOpenLoopOptionalDiagnostic`.
 7. Use only the numeric summary to form new clean-room hypotheses.
