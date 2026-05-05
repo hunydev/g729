@@ -136,4 +136,20 @@ The tested hypotheses cover the remaining prompt-named H-CENTER surfaces:
 
 The remaining Δ distribution is not explained by the allowed §A.3.3/§A.3.4 ambiguities. Further progress would require evidence outside the allowed clean-room set, reopening upstream LPC/LSP vector quantization quality, or changing the validation target itself. Under the stated constraints, the correct action is to preserve the production pin and document the failed recovery.
 
+## 7. Validation-gate redefinition addendum
+
+Follow-up measurement: `PITCH.BIT` P1 is the ITU closed-loop first-subframe lag `T1`, not raw open-loop `T_op`. Therefore a strict interpretation of the original plausibility gate is only a consistency proxy.
+
+Recomputed over `testdata/phase2b/hcenter_top_vs_t1.csv`:
+
+| Gate definition | Hits | Rate |
+| --- | ---: | ---: |
+| Original `int(T1) ∈ [T_op-5, T_op+4]` | 990/1835 | 53.95% |
+| Symmetric `|int(T1)-T_op| <= 10` | 1064/1835 | 57.98% |
+| Window-overlap proxy from P1-only possible `T_op` sets (`Δ ∈ [-10,+8]`) | 1055/1835 | 57.49% |
+| Symmetric `|Δ| <= 35` | 1288/1835 | 70.19% |
+| Symmetric `|Δ| <= 58` | 1470/1835 | 80.11% |
+
+Conclusion: redefining the gate to `±10` does **not** make the 53.95% pin appear as 80%. A P1-only inferred `T_op` is not unique; the interval-overlap proxy is also ~57%. Reaching 80% requires widening the gate to about `±58`, which is too broad to be evidence that the open-loop centre is correct.
+
 — end of Phase 2b H-CENTER recovery report —
