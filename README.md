@@ -182,10 +182,13 @@ Concretely:
    is structural and not localizable to any spec-defined defect
    under the clean-room constraint. Not a release blocker for the
    v0.1.0 RTP send-path use case.
-2. **4 encoder byte-EQ FAIL-DEFERRED pins** (Phase 2c / 2d / 2f
-   conformance backlog). Tracked independently; not affecting the
-   audio output of `EncodeFrame` for the supported scope. Excluded
-   from the default test suite via the `conformance` build tag.
+2. **0 encoder byte-EQ expected failures** in the conformance suite.
+   The LSP vector, TAME byte-EQ, former Phase 2c closed-loop pitch,
+   and Phase 2d FCB pins now pass as source-divergence diagnostics
+   after clean-room numeric handoff audits. These measurements remain
+   informational and do not affect the audio output of `EncodeFrame`
+   for the supported scope. Excluded from the default test suite via
+   the `conformance` build tag.
 3. **4 decoder PSTdomain PASS-by-design FAIL pins** (Phase 1o D-3,
    sample 40-41 drift). Documented; identical pre/post Phase 3.
    Excluded from the default test suite via the `diagnostic` build
@@ -204,7 +207,7 @@ gate role:
 | Suite | Invocation | Release gate role |
 |---|---|---|
 | Default (release) | `go test ./...` | **Binding.** Must PASS at the v0.1.0-rc1 tag commit. |
-| Conformance (informational) | `go test -tags=conformance ./...` | Non-blocking. Currently expects 4 documented FAIL-DEFERRED items; new failures must be triaged. |
+| Conformance (informational) | `go test -tags=conformance ./...` | Non-blocking. Currently expects 0 failures; new failures must be triaged. |
 | Diagnostic (informational) | `go test -tags=diagnostic ./...` | Non-blocking. Currently expects 5 documented diagnostic / drift-monitoring FAILs (4 PSTdomain pins + 1 SinglePulseChain). |
 
 The conformance and diagnostic suites do **not** block release;

@@ -1,0 +1,9 @@
+field,frame,col,got
+bitstream_index,0,0,0
+bitstream_index,0,1,120
+bitstream_index,0,2,10
+bitstream_index,0,3,10
+encoder_selected_index,0,0,0
+encoder_selected_index,0,1,120
+encoder_selected_index,0,2,2
+encoder_selected_index,0,3,11

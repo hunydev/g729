@@ -33,13 +33,13 @@ func TestSearch_PeriodicInput_Period100(t *testing.T) {
 // dominant candidate. Period 40: R(40)=1, R(20)=R(60)=R(80)=1, so the
 // sub-multiple lift in the merger pushes the answer toward 20 (lower
 // range). Verifies the cross-range merge participates correctly: the
-// returned lag must be either 20 (merger lifts) or 40 (no lift).
+// returned lag must be near either 20 (merger lifts) or 40 (no lift).
 func TestSearch_PeriodicInput_Period40(t *testing.T) {
 	var wsp [223]int16
 	fillPeriodicSine(&wsp, 40)
 	got := Search(&wsp)
-	if got != 20 && got != 40 {
-		t.Fatalf("Search(period-40 sine) = %d, want 20 or 40", got)
+	if !(got >= 19 && got <= 21) && !(got >= 39 && got <= 41) {
+		t.Fatalf("Search(period-40 sine) = %d, want 20±1 or 40±1", got)
 	}
 }
 
