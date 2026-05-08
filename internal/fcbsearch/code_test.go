@@ -3,8 +3,8 @@ package fcbsearch_test
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/fcbsearch"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/fcbsearch"
 )
 
 // CB-4 RED tests for §3.8 eq. 45 + 46 + 47 (G729E.txt lines 1201–1241):
@@ -41,6 +41,43 @@ func TestBuildCode_PulsesNoEnhancement(t *testing.T) {
 	want[23] = +pAmp
 	if c != want {
 		t.Fatalf("c mismatch (T=40, no enhancement)\n got=%v\nwant=%v", c, want)
+	}
+}
+
+func TestBuildSparseCode_PulsesOnly(t *testing.T) {
+	positions := [4]int8{0, 6, 12, 23}
+	var signs [40]int16
+	signs[0] = +1
+	signs[6] = -1
+	signs[12] = +1
+	signs[23] = +1
+
+	var c [40]int16
+	fcbsearch.BuildSparseCode(&positions, &signs, &c)
+
+	want := [40]int16{}
+	want[0] = +pAmp
+	want[6] = -pAmp
+	want[12] = +pAmp
+	want[23] = +pAmp
+	if c != want {
+		t.Fatalf("sparse c mismatch\n got=%v\nwant=%v", c, want)
+	}
+}
+
+func TestBuildCode_MatchesSparseWhenEnhancementBypassed(t *testing.T) {
+	positions := [4]int8{0, 6, 12, 23}
+	var signs [40]int16
+	signs[0] = +1
+	signs[6] = -1
+	signs[12] = +1
+	signs[23] = +1
+
+	var sparse, enhanced [40]int16
+	fcbsearch.BuildSparseCode(&positions, &signs, &sparse)
+	fcbsearch.BuildCode(&positions, &signs, 40, 8192, &enhanced)
+	if enhanced != sparse {
+		t.Fatalf("T=40 BuildCode should equal sparse code\n enhanced=%v\n sparse=%v", enhanced, sparse)
 	}
 }
 

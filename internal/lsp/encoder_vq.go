@@ -1,8 +1,8 @@
 package lsp
 
 import (
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // searchL1 returns the index L1 ∈ [0,128) of the row of

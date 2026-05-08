@@ -122,47 +122,47 @@ Issue (b): postfilter polarity inverts vs ITU after sample ~4 (positive growing 
 ## Benchmark numbers (verbatim)
 
 ```
-pkg: github.com/exedev/g729/internal/bitstream
+pkg: github.com/hunydev/g729/internal/bitstream
 BenchmarkPack-2                         16597558    73.19 ns/op    0 B/op    0 allocs/op
 BenchmarkUnpack-2                       13466240    94.92 ns/op    0 B/op    0 allocs/op
 BenchmarkParity-2                      305563650     4.091 ns/op   0 B/op    0 allocs/op
 BenchmarkWriteG192Frame-2                8812879   136.4 ns/op     0 B/op    0 allocs/op
 BenchmarkReadG192Frame-2                13505864    82.94 ns/op    0 B/op    0 allocs/op
 
-pkg: github.com/exedev/g729/internal/decoder
+pkg: github.com/hunydev/g729/internal/decoder
 BenchmarkDecode-2                         141694  8188 ns/op       0 B/op    0 allocs/op
 
-pkg: github.com/exedev/g729/internal/fcb
+pkg: github.com/hunydev/g729/internal/fcb
 BenchmarkDecode_NoEnhancement-2         92451838    12.43 ns/op    0 B/op    0 allocs/op
 BenchmarkDecode_WithEnhancement-2       29690956    40.20 ns/op    0 B/op    0 allocs/op
 BenchmarkDecode_ShortLagEnhancement-2   12219460    98.73 ns/op    0 B/op    0 allocs/op
 
-pkg: github.com/exedev/g729/internal/fixed
+pkg: github.com/hunydev/g729/internal/fixed
 BenchmarkAdd-2                        1000000000     0.2718 ns/op  0 B/op    0 allocs/op
 BenchmarkLMult-2                      1000000000     0.2760 ns/op  0 B/op    0 allocs/op
 BenchmarkLMac-2                       1000000000     0.5420 ns/op  0 B/op    0 allocs/op
 BenchmarkDivS-2                        250310362     4.804 ns/op   0 B/op    0 allocs/op
 BenchmarkNormL-2                       222296134     4.939 ns/op   0 B/op    0 allocs/op
 
-pkg: github.com/exedev/g729/internal/gain
+pkg: github.com/hunydev/g729/internal/gain
 BenchmarkDecode-2                       11310500   107.8 ns/op     0 B/op    0 allocs/op
 
-pkg: github.com/exedev/g729/internal/lsp
+pkg: github.com/hunydev/g729/internal/lsp
 BenchmarkDecode-2                        2212838   585.6 ns/op     0 B/op    0 allocs/op
 
-pkg: github.com/exedev/g729/internal/pcm
+pkg: github.com/hunydev/g729/internal/pcm
 BenchmarkPreProcessor_ProcessFrame-2     2188850   544.9 ns/op     0 B/op    0 allocs/op
 BenchmarkScaleUpSat_Frame-2              6568983   154.9 ns/op     0 B/op    0 allocs/op
 
-pkg: github.com/exedev/g729/internal/pitch
+pkg: github.com/hunydev/g729/internal/pitch
 BenchmarkAdaptiveCodebookIntegerDelay-2 56246008    21.53 ns/op    0 B/op    0 allocs/op
 BenchmarkAdaptiveCodebookFractional-2     882507  1369 ns/op       0 B/op    0 allocs/op
 BenchmarkAdaptiveCodebookShortPitch-2   48635054    26.63 ns/op    0 B/op    0 allocs/op
 
-pkg: github.com/exedev/g729/internal/postfilter
+pkg: github.com/hunydev/g729/internal/postfilter
 BenchmarkFilter-2                         615931  2028 ns/op       0 B/op    0 allocs/op
 
-pkg: github.com/exedev/g729/internal/synth
+pkg: github.com/hunydev/g729/internal/synth
 BenchmarkBuildExcitation-2               5610141   211.5 ns/op     0 B/op    0 allocs/op
 BenchmarkSynthesize-2                    1819344   654.0 ns/op     0 B/op    0 allocs/op
 BenchmarkFilterSubframe-2                2575471   506.5 ns/op     0 B/op    0 allocs/op

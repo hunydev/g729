@@ -1,6 +1,6 @@
 package closedloop
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // SubframeLen is the §A.3.5 / §A.3.7 subframe length in samples.
 const SubframeLen = 40

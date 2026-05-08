@@ -82,6 +82,15 @@ func TestOracleHandoff_LSPStructuralIntegrity(t *testing.T) {
 			keyColumns:     4,
 			rows:           8962,
 		},
+		{
+			name:           "encoder closedloop stage",
+			expectedPath:   filepath.Join("testdata", "oracle", "handoff", "encoder_closedloop_stage_expected_template.csv"),
+			gotPath:        filepath.Join("testdata", "oracle", "handoff", "encoder_closedloop_stage_got.csv"),
+			expectedHeader: []string{"field", "frame", "sub", "index", "lag", "frac", "expected"},
+			gotHeader:      []string{"field", "frame", "sub", "index", "lag", "frac", "got"},
+			keyColumns:     6,
+			rows:           100848,
+		},
 	}
 
 	for _, tc := range cases {
@@ -190,6 +199,8 @@ func TestOracleHandoff_LSPManifestMatchesCurrentFiles(t *testing.T) {
 		"`pitch_closedloop_search_got.csv` | `field,frame,sub,index,lag,frac,got` | 3192",
 		"`tame_gain_taming_expected_template.csv` | `field,frame,sub,index,expected` | 8962",
 		"`tame_gain_taming_got.csv` | `field,frame,sub,index,got` | 8962",
+		"`encoder_closedloop_stage_expected_template.csv` | `field,frame,sub,index,lag,frac,expected` | 100848",
+		"`encoder_closedloop_stage_got.csv` | `field,frame,sub,index,lag,frac,got` | 100848",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("manifest missing row/header entry %q", want)

@@ -84,9 +84,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/postfilter"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/postfilter"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 // TestDiagnostic_FourPulseCanonicalChain feeds the canonical ITU 4-pulse
@@ -404,13 +404,13 @@ import (
 	"math"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/lsp"
-	"github.com/exedev/g729/internal/pitch"
-	"github.com/exedev/g729/internal/postfilter"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/postfilter"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 // TestDiagnostic_ALGTHMFrame0SF0Replay parses the actual ALGTHM.BIT

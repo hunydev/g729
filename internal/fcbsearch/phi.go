@@ -34,21 +34,21 @@ package fcbsearch
 // I3 / I4: pure (writes only through phi), zero allocation.
 func PhiPrime(h, signs *[SubframeLen]int16, phi *[SubframeLen][SubframeLen]int32) {
 	for i := 0; i < SubframeLen; i++ {
-		var diag int32
+		var diag int64
 		for n := i; n < SubframeLen; n++ {
-			t := int32(h[n-i])
+			t := int64(h[n-i])
 			diag += t * t
 		}
-		phi[i][i] = diag >> 1 // eq. 57: 0.5·φ(i,i); sign² = 1
+		phi[i][i] = saturateInt64ToInt32(diag >> 1) // eq. 57: 0.5·φ(i,i); sign² = 1
 		for j := i + 1; j < SubframeLen; j++ {
-			var sum int32
+			var sum int64
 			for n := j; n < SubframeLen; n++ {
-				sum += int32(h[n-i]) * int32(h[n-j])
+				sum += int64(h[n-i]) * int64(h[n-j])
 			}
-			s := int32(signs[i]) * int32(signs[j]) // ±1 per eq. 56
+			s := int64(signs[i]) * int64(signs[j]) // ±1 per eq. 56
 			v := sum * s
-			phi[i][j] = v
-			phi[j][i] = v
+			phi[i][j] = saturateInt64ToInt32(v)
+			phi[j][i] = saturateInt64ToInt32(v)
 		}
 	}
 }

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/bitstream"
 )
 
 // TestPhase3RoundTripQuality_SPEECH measures three SNR profiles to isolate

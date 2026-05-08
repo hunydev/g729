@@ -3,7 +3,7 @@ package closedloop
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/fixed"
 )
 
 // refineExcLen mirrors fracTestExcLen / testExcLen used by the

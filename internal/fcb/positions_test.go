@@ -19,14 +19,14 @@ func TestDecodePositions_AllMax(t *testing.T) {
 }
 
 func TestDecodePositions_Jx0SelectsLowerHalfOfTrack3(t *testing.T) {
-	got := decodePositions(uint16(5))
+	got := decodePositions(uint16(5 << 10))
 	if got[3] != 28 {
 		t.Fatalf("pos[3] = %d, want 28 (track 3a for jx=0, i3=5)", got[3])
 	}
 }
 
 func TestDecodePositions_Jx1SelectsUpperHalfOfTrack3(t *testing.T) {
-	got := decodePositions(uint16(5 | (1 << 3)))
+	got := decodePositions(uint16((5 << 10) | (1 << 9)))
 	if got[3] != 29 {
 		t.Fatalf("pos[3] = %d, want 29 (track 3b for jx=1, i3=5)", got[3])
 	}
@@ -59,7 +59,7 @@ func TestDecodePositions_TrackMembershipExhaustive(t *testing.T) {
 		if !contains(track2, got[2]) {
 			t.Errorf("code=0x%04x: pos[2]=%d not in track 2", code, got[2])
 		}
-		jx := (code >> 3) & 1
+		jx := (code >> 9) & 1
 		if jx == 0 {
 			if !contains(track3a, got[3]) {
 				t.Errorf("code=0x%04x jx=0: pos[3]=%d not in track 3a", code, got[3])

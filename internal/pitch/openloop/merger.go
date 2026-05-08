@@ -3,7 +3,7 @@ package openloop
 import (
 	"math/bits"
 
-	"github.com/exedev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/fixed"
 )
 
 // OQ-1 binding constants — RE-PINNED at Phase 2b INT-1 closure

@@ -11,7 +11,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/bitstream"
 )
 
 // TestPhase2fTAME1_ByteEQ is the Phase 2f TAME-1 byte-EQ diagnostic.

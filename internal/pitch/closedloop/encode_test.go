@@ -3,7 +3,7 @@ package closedloop
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/pitch"
 )
 
 // ENC-1 unit tests for P1/P0/P2 packing per ITU-T G.729 §3.7.2
@@ -11,10 +11,9 @@ import (
 // 1505–1523) as the canonical decoder inverse used for round-trip
 // validation.
 
-// TestEncodeP1_RoundTripFractional sweeps all (intLag, frac) pairs in
-// the §3.7.2 fractional region intLag ∈ [20, 85], frac ∈ {-1, 0, 1}
-// plus the lower edge intLag=19 with frac=1 (P1=0, the smallest
-// codepoint reachable by the §4.1.3 inverse), and asserts the
+// TestEncodeP1_RoundTripFractional sweeps representable (intLag, frac)
+// pairs in the fractional region plus the lower edge intLag=19 with frac=1
+// (P1=0, the smallest codepoint reachable by the inverse), and asserts the
 // decoder pitch.DecodeDelaySubframe1 inverts EncodeP1 byte-exactly.
 func TestEncodeP1_RoundTripFractional(t *testing.T) {
 	cases := []struct {
@@ -34,6 +33,17 @@ func TestEncodeP1_RoundTripFractional(t *testing.T) {
 			t.Errorf("EncodeP1(%d,%d)=%d → decode=(%d,%d), want (%d,%d)",
 				c.intLag, c.frac, p1, gotInt, gotFrac, c.intLag, c.frac)
 		}
+	}
+}
+
+func TestEncodeP1_UpperFractionalEdgeIsUnrepresentable(t *testing.T) {
+	p1 := EncodeP1(85, +1)
+	if p1 != 197 {
+		t.Fatalf("EncodeP1(85,+1)=%d, want 197; P1=198 decodes as (86,0)", p1)
+	}
+	gotInt, gotFrac := pitch.DecodeDelaySubframe1(p1)
+	if gotInt != 85 || gotFrac != 0 {
+		t.Fatalf("EncodeP1(85,+1) normalized decode=(%d,%d), want (85,0)", gotInt, gotFrac)
 	}
 }
 

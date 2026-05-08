@@ -36,16 +36,16 @@ func TestPlacePulses_AllNegative(t *testing.T) {
 	}
 }
 
-func TestPlacePulses_MixedSignsMSBFirst(t *testing.T) {
+func TestPlacePulses_MixedSignsLSBFirst(t *testing.T) {
 	var c [40]int16
 	positions := [4]int{10, 15, 20, 25}
 	placePulses(positions, 0b1010, &c)
 
 	want := map[int]int16{
-		10: +PulseAmplitude,
-		15: -PulseAmplitude,
-		20: +PulseAmplitude,
-		25: -PulseAmplitude,
+		10: -PulseAmplitude,
+		15: +PulseAmplitude,
+		20: -PulseAmplitude,
+		25: +PulseAmplitude,
 	}
 	for p, w := range want {
 		if c[p] != w {

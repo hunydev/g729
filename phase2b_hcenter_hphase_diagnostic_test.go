@@ -30,9 +30,9 @@ func TestPhase2bHCenter_HPhaseBoundaryAlignment(t *testing.T) {
 				t.Fatalf("frame %d swMem[%d]=%d, want oldWspeech[%d]=%d",
 					f, i, got, 133+i, want)
 			}
-			if got, want := enc.lpResidualMem[i], enc.oldSpeech[230+i]; got != want {
+			if got, want := enc.lpResidualMem[i], enc.oldSpeech[190+i]; got != want {
 				t.Fatalf("frame %d lpResidualMem[%d]=%d, want oldSpeech[%d]=%d",
-					f, i, got, 230+i, want)
+					f, i, got, 190+i, want)
 			}
 		}
 	}

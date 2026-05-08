@@ -101,7 +101,7 @@ F-sept task 3건:
 === RUN   TestDiagnostic_FseptSynthIIRTrace_Sf0Sample0to7
 --- PASS: TestDiagnostic_FseptSynthIIRTrace_Sf0Sample0to7 (0.00s)
 PASS
-ok  	github.com/exedev/g729/internal/decoder	0.002s
+ok  	github.com/hunydev/g729/internal/decoder	0.002s
 ```
 
 회귀 게이트 4건:

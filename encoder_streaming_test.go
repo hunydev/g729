@@ -2,6 +2,7 @@ package g729
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"testing"
 )
@@ -170,6 +171,41 @@ func TestStreamingEncoder_MultipleWritesAccumulate(t *testing.T) {
 	}
 	if !bytes.Equal(buf.Bytes(), want) {
 		t.Fatalf("multi-write stream differs from reference\n got=% x\nwant=% x", buf.Bytes(), want)
+	}
+}
+
+func TestStreamingEncoder_ResetPreservesSinkAndClearsTail(t *testing.T) {
+	var buf bytes.Buffer
+	se := NewStreamingEncoder(&buf)
+
+	if n, err := se.Write(makeRamp(17)); err != nil || n != 17 {
+		t.Fatalf("partial Write before Reset: n=%d err=%v", n, err)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("partial Write emitted %d bytes, want 0", buf.Len())
+	}
+
+	se.Reset()
+	frame := makeRamp(FrameSamples)
+	want := encodeFramesReference(t, frame)
+	if n, err := se.Write(frame); err != nil || n != len(frame) {
+		t.Fatalf("Write after Reset: n=%d err=%v", n, err)
+	}
+	if err := se.Flush(); err != nil {
+		t.Fatalf("Flush after Reset: %v", err)
+	}
+	if !bytes.Equal(buf.Bytes(), want) {
+		t.Fatalf("Reset did not clear streaming tail or preserve sink\n got=% x\nwant=% x", buf.Bytes(), want)
+	}
+}
+
+func TestStreamingEncoder_NoSinkErrors(t *testing.T) {
+	e := NewEncoder()
+	if n, err := e.Write(makeRamp(FrameSamples)); n != 0 || !errors.Is(err, ErrNoStreamSink) {
+		t.Fatalf("Write without sink: n=%d err=%v", n, err)
+	}
+	if err := e.Flush(); !errors.Is(err, ErrNoStreamSink) {
+		t.Fatalf("Flush without sink: err=%v", err)
 	}
 }
 

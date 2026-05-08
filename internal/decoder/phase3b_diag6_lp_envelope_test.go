@@ -10,7 +10,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/bitstream"
 )
 
 // TestPhase3bDiag6_LPEnvelopeForensic is the Phase 3b DIAG-6 LP-spectral-

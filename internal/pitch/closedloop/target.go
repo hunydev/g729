@@ -1,6 +1,6 @@
 package closedloop
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // TargetSignal computes the 40-sample adaptive-codebook target
 // signal x(n) per ITU-T G.729 Annex A §A.3.6 (G729E.txt lines
@@ -30,11 +30,9 @@ import "github.com/exedev/g729/internal/fixed"
 // produces x(n) one sample at a time. Past output samples
 // x(n − i) for i > n resolve to swMem[10 + n − i], which holds
 // the trailing 10 samples of the previous subframe's x(n) (or
-// zero on cold-start). This mirrors lpResidual / lowpassWeightedSpeech
-// in the openloop sibling package; the per-tap product is formed
-// with fixed.Mult ((aw·xprev)>>15 with truncation toward −∞ for
-// negative numerators) and the running difference saturates to
-// Word16 to land x(n) back in the same Q-format as r(n).
+// zero on cold-start). This mirrors the synthesis-filter Q12
+// convention: accumulate products with LMult / LMsu, shift left by 3,
+// then Round so aw[0] = 4096 behaves as an exact unity coefficient.
 //
 // Q-format. r and x are int16 in the same scale (Q0 in the encoder
 // pipeline; the absolute scale is irrelevant to TargetSignal — it
@@ -65,7 +63,7 @@ func TargetSignal(aHatQ12 *[11]int16, residual *[SubframeLen]int16, swMem *[10]i
 	}
 
 	for n := 0; n < SubframeLen; n++ {
-		var sumProd int32
+		acc := fixed.LMult(residual[n], aw[0])
 		for i := 1; i <= 10; i++ {
 			var xni int16
 			if n-i >= 0 {
@@ -73,8 +71,8 @@ func TargetSignal(aHatQ12 *[11]int16, residual *[SubframeLen]int16, swMem *[10]i
 			} else {
 				xni = swMem[10+n-i]
 			}
-			sumProd += int32(fixed.Mult(aw[i], xni))
+			acc = fixed.LMsu(acc, aw[i], xni)
 		}
-		x[n] = fixed.Saturate(int32(residual[n]) - sumProd)
+		x[n] = fixed.Round(fixed.LShl(acc, 3))
 	}
 }

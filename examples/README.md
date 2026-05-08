@@ -1,6 +1,6 @@
 # Examples
 
-Minimal example programs for `github.com/exedev/g729`. Each example
+Minimal example programs for `github.com/hunydev/g729`. Each example
 uses only this module's public API and the Go standard library — no
 external G.729 implementation source is consulted (clean-room I1
 constraint).
@@ -13,6 +13,7 @@ constraint).
 | `decode_g729/` | Packed 10-byte G.729 frames from stdin → raw int16 LE 8 kHz mono PCM to stdout |
 | `streaming_encode/` | Same as `encode_pcm` but uses `NewStreamingEncoder` + `Write` + `Flush` (handles non-frame-aligned chunks) |
 | `rtp_packetize/` | Illustrative RTP payload packetization (`-ptime=10` or `-ptime=20`); emits hex-dump lines (no real RTP header generation) |
+| `../cmd/g729rtpcheck/` | Black-box raw payload / Ethernet IPv4 UDP RTP pcap validator for payload type 18 captures |
 
 ## Running
 
@@ -31,12 +32,16 @@ go run ./examples/streaming_encode < input.pcm > output.g729
 # Illustrative RTP packetization (ptime=10 or ptime=20):
 go run ./examples/rtp_packetize -ptime=10 < output.g729
 go run ./examples/rtp_packetize -ptime=20 < output.g729
+
+# Validate raw payload bytes or an RTP pcap:
+go run ./cmd/g729rtpcheck -mode=payload -ptime=10 -in output.g729
+go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -in capture.pcap
 ```
 
 Build all example binaries:
 
 ```sh
-go build ./examples/...
+go build ./examples/... ./cmd/g729rtpcheck
 ```
 
 ## SDP examples for RTP integration

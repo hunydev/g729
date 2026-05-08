@@ -1,8 +1,8 @@
 package lsp
 
 import (
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // applyPredictorWithMemory mirrors Decoder.applyPredictor's arithmetic

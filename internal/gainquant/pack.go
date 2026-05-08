@@ -1,6 +1,6 @@
 package gainquant
 
-import "github.com/exedev/g729/internal/tables"
+import "github.com/hunydev/g729/internal/tables"
 
 // PackGains applies the §3.9.3 forward index permutation that converts
 // the physical conjugate-codebook indices (ga, gb) returned by

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/bitstream"
 )
 
 // readG192Frames loads a G.192 bitstream file (ITU Annex A .bit format)

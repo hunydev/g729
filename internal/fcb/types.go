@@ -5,8 +5,8 @@ package fcb
 // pulse-position code (C1 or C2 from bitstream.Frame). Signs carries
 // the 4-bit sign code (S1 or S2 from bitstream.Frame).
 type Indices struct {
-	Positions uint16 // 13 bits — packed as i0|i1|i2|jx|i3 MSB-first
-	Signs     uint8  //  4 bits — packed as s0|s1|s2|s3 MSB-first
+	Positions uint16 // 13 bits — eq. (62): C=i0+8*i1+64*i2+512*(2*i3+jx)
+	Signs     uint8  //  4 bits — eq. (61): S=s0+2*s1+4*s2+8*s3
 }
 
 // PulseAmplitude is the unit-pulse magnitude used for the ACELP

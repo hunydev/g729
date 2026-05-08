@@ -3,19 +3,22 @@ package g729
 import (
 	"errors"
 	"io"
+	"math"
 
-	"github.com/exedev/g729/internal/acelp"
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/fcbsearch"
-	"github.com/exedev/g729/internal/filter"
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/gainquant"
-	"github.com/exedev/g729/internal/lpc"
-	"github.com/exedev/g729/internal/lsp"
-	"github.com/exedev/g729/internal/pcm"
-	"github.com/exedev/g729/internal/pitch/closedloop"
-	"github.com/exedev/g729/internal/pitch/openloop"
+	"github.com/hunydev/g729/internal/acelp"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcbsearch"
+	"github.com/hunydev/g729/internal/filter"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/gainquant"
+	"github.com/hunydev/g729/internal/lpc"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/pcm"
+	pitchcore "github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/pitch/closedloop"
+	"github.com/hunydev/g729/internal/pitch/openloop"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 // Encoder holds G.729 Annex A encoder state for one logical stream.
@@ -180,10 +183,13 @@ func NewEncoder() *Encoder {
 	return e
 }
 
-// Reset returns the Encoder to initial state. Equivalent to using a fresh
-// NewEncoder, but reuses the existing memory.
+// Reset returns the Encoder codec state to initial state and clears any
+// buffered streaming tail. It reuses the existing memory and preserves the
+// streaming sink configured by NewStreamingEncoder, if any.
 func (e *Encoder) Reset() {
+	sink := e.streamSink
 	*e = Encoder{}
+	e.streamSink = sink
 	lsp.InitFreqPrev(&e.freqPrev)
 	lsp.InitLSPOld(&e.lspOld)
 	for i := range e.pastQuaEn {
@@ -334,10 +340,11 @@ func (e *Encoder) lpcStep(pcm []int16) (lsp.Indices, error) {
 }
 
 // openloopStep runs the §A.3.3 weighted-speech construction and the
-// §A.3.4 open-loop pitch search on the most recently analyzed frame.
-// It must be called after lpcStep on the same frame: lpcStep populates
-// e.aQ12Latest and writes the pre-processed PCM into e.oldSpeech[160:240],
-// both of which openloopStep consumes.
+// §A.3.4 open-loop pitch search on the current 80-sample analysis
+// frame. It must be called after lpcStep on the same frame: lpcStep
+// populates e.aQ12Latest and writes the newest 80 pre-processed PCM
+// samples into e.oldSpeech[160:240]. The encoded speech frame is
+// e.oldSpeech[120:200]; e.oldSpeech[200:240] is the 5 ms lookahead.
 //
 // State advanced per call:
 //
@@ -351,8 +358,8 @@ func (e *Encoder) lpcStep(pcm []int16) (lsp.Indices, error) {
 // zero allocation. The 80-sample current-frame view is taken via a
 // pointer-to-array reslice over e.oldSpeech, avoiding a stack copy.
 func (e *Encoder) openloopStep() int16 {
-	s := (*[FrameSamples]int16)(e.oldSpeech[160:240])
-	e.tOp = openloop.Step(&e.aQ12Latest, s, &e.lpResidualMem, &e.swMem, &e.oldWspeech)
+	s := (*[FrameSamples]int16)(e.oldSpeech[120:200])
+	e.tOp = openloop.StepSplit(&e.aHatSF1, &e.aHatSF2, s, &e.lpResidualMem, &e.swMem, &e.oldWspeech)
 	return e.tOp
 }
 
@@ -370,7 +377,7 @@ func (e *Encoder) openloopStep() int16 {
 // is responsible for advancing mem at subframe boundaries.
 func lpResidualSubframe(s *[40]int16, aHat *[lpc.LPCOrder + 1]int16, mem *[10]int16, r *[40]int16) {
 	for n := 0; n < 40; n++ {
-		sum := int32(s[n])
+		acc := fixed.LMult(s[n], aHat[0])
 		for i := 1; i <= 10; i++ {
 			var sni int16
 			if n-i >= 0 {
@@ -378,9 +385,9 @@ func lpResidualSubframe(s *[40]int16, aHat *[lpc.LPCOrder + 1]int16, mem *[10]in
 			} else {
 				sni = mem[10+n-i]
 			}
-			sum += int32(fixed.Mult(aHat[i], sni))
+			acc = fixed.LMac(acc, aHat[i], sni)
 		}
-		r[n] = fixed.Saturate(sum)
+		r[n] = fixed.Round(fixed.LShl(acc, 3))
 	}
 }
 
@@ -406,10 +413,14 @@ func lpResidualSubframe(s *[40]int16, aHat *[lpc.LPCOrder + 1]int16, mem *[10]in
 //     closedloop.BackwardFilter).
 //  5. intLag = closedloop.SearchInteger(xb, exc, centre, sub)
 //     where centre = tOp for sub=0 and intT1 for sub=1.
-//  6. frac = closedloop.RefineFraction(xb, exc, intLag, intLag<85)
-//     per §A.3.7 lines 2169–2170 (fractions only when intLag<85).
-//  7. v(n) = closedloop.AdaptiveVector(exc, intLag, frac) (§3.7.1
-//     eq. 40).
+//  6. refinedFrac = closedloop.RefineFraction(xb, exc, intLag, allowFrac)
+//     per §A.3.7 lines 2169–2170. T1 uses fractions only when
+//     intLag<85; T2 is always fraction-capable by the P2 codebook.
+//     The selected fraction is both transmitted and used by the
+//     analysis-by-synthesis path so encoder state stays aligned with the
+//     receiver's reconstructed adaptive-codebook vector.
+//  7. v(n) = closedloop.AdaptiveVector(exc, intLag, transmittedFrac)
+//     (§3.7.1 eq. 40).
 //  8. (gp, y) = closedloop.GpAndY(x, v, h) (§3.7.3 eq. 43, 44).
 //  9. P1/P0 (sub=0) or P2 (sub=1) packed via closedloop.EncodeP*
 //     per §3.7.2.
@@ -450,7 +461,11 @@ func (e *Encoder) closedloopStep(sub int) (intLag int16, frac int8) {
 		aHat = &e.aHatSF2
 	}
 
-	sStart := 160 + 40*sub
+	// The closed-loop target is evaluated one subframe deeper in the
+	// speech history than the open-loop pitch frame. Black-box FFmpeg
+	// localization shows this restores the encoder/decoder waveform
+	// alignment while retaining the existing LP/open-loop analysis path.
+	sStart := 80 + 40*sub
 	sFrame := (*[40]int16)(e.oldSpeech[sStart : sStart+40])
 
 	var r, x, h, xb, v, y [closedloop.SubframeLen]int16
@@ -475,22 +490,28 @@ func (e *Encoder) closedloopStep(sub int) (intLag int16, frac int8) {
 		e.oldExc[len(e.oldExc)-closedloop.PitchMaxInt:])
 	copy(excSearch[closedloop.PitchMaxInt:], r[:])
 	excSlice := excSearch[:]
-	intLag, _ = closedloop.SearchInteger(&xb, excSlice, centre, sub)
-	frac = closedloop.RefineFraction(&xb, excSlice, intLag, intLag < 85)
+	intLag = e.searchPitchNormalizedAdaptive(&x, &h, excSlice, centre, sub)
+	refinedFrac := e.refinePitchNormalizedAdaptive(&x, &h, excSlice, intLag, sub == 1 || intLag < 85)
 
-	closedloop.AdaptiveVector(excSlice, intLag, frac, &v)
+	// Keep bitstream packing, local synthesis, gain search, FCB search,
+	// and excitation-state commit on the same selected fractional delay.
+	// Diverging here lets the encoder search against a state the receiver
+	// will never reconstruct.
+	transmittedFrac := refinedFrac
+	frac = transmittedFrac
+	e.adaptiveVectorForSynthesis(excSlice, intLag, transmittedFrac, &v)
 	gp := closedloop.GpAndY(&x, &v, &h, &y)
 
 	if sub == 0 {
 		e.intT1 = intLag
-		e.frac1 = frac
-		e.p1 = closedloop.EncodeP1(intLag, frac)
+		e.frac1 = transmittedFrac
+		e.p1 = closedloop.EncodeP1(intLag, transmittedFrac)
 		e.p0 = closedloop.EncodeP0(e.p1)
 	} else {
 		tmin, _ := closedloop.Subframe2Window(e.intT1)
 		e.intT2 = intLag
-		e.frac2 = frac
-		e.p2 = closedloop.EncodeP2(intLag, frac, tmin)
+		e.frac2 = transmittedFrac
+		e.p2 = closedloop.EncodeP2(intLag, transmittedFrac, tmin)
 	}
 
 	// §A.3.10 eq. A.9 / A.10 commit and FCB + gain quantization
@@ -505,6 +526,96 @@ func (e *Encoder) closedloopStep(sub int) (intLag int16, frac int8) {
 	copy(e.lpResidualMemQ[:], sFrame[30:40])
 
 	return intLag, frac
+}
+
+func (e *Encoder) searchPitchNormalizedAdaptive(
+	x, h *[closedloop.SubframeLen]int16,
+	exc []int16,
+	centre int16,
+	sub int,
+) int16 {
+	kMin, kMax := closedLoopPitchSearchRange(centre, sub)
+	bestLag := int16(kMin)
+	bestScore := math.Inf(-1)
+	for k := kMin; k <= kMax; k++ {
+		score := e.normalizedAdaptivePitchScore(x, h, exc, int16(k), 0)
+		if score > bestScore {
+			bestScore = score
+			bestLag = int16(k)
+		}
+	}
+	return bestLag
+}
+
+func (e *Encoder) refinePitchNormalizedAdaptive(
+	x, h *[closedloop.SubframeLen]int16,
+	exc []int16,
+	intLag int16,
+	allowFrac bool,
+) int8 {
+	if !allowFrac {
+		return 0
+	}
+	bestFrac := int8(-1)
+	bestScore := e.normalizedAdaptivePitchScore(x, h, exc, intLag, -1)
+	for _, frac := range [2]int8{0, 1} {
+		score := e.normalizedAdaptivePitchScore(x, h, exc, intLag, frac)
+		if score > bestScore {
+			bestScore = score
+			bestFrac = frac
+		}
+	}
+	return bestFrac
+}
+
+func (e *Encoder) normalizedAdaptivePitchScore(
+	x, h *[closedloop.SubframeLen]int16,
+	exc []int16,
+	intLag int16,
+	frac int8,
+) float64 {
+	var v, y [closedloop.SubframeLen]int16
+	e.adaptiveVectorForSynthesis(exc, intLag, frac, &v)
+	closedloop.GpAndY(x, &v, h, &y)
+	var corr, energy float64
+	for n := 0; n < closedloop.SubframeLen; n++ {
+		yn := float64(y[n])
+		corr += float64(x[n]) * yn
+		energy += yn * yn
+	}
+	if corr <= 0 || energy <= 0 {
+		return math.Inf(-1)
+	}
+	return (corr * corr) / energy
+}
+
+func (e *Encoder) adaptiveVectorForSynthesis(
+	exc []int16,
+	intLag int16,
+	frac int8,
+	v *[closedloop.SubframeLen]int16,
+) {
+	if intLag < closedloop.SubframeLen {
+		pitchcore.AdaptiveCodebook(int(intLag), int(frac), e.oldExc[:], v)
+		return
+	}
+	closedloop.AdaptiveVector(exc, intLag, frac, v)
+}
+
+func closedLoopPitchSearchRange(centre int16, sub int) (kMin, kMax int) {
+	if sub == 0 {
+		kMin = int(centre) - 3
+		if kMin < closedloop.PitchMinInt {
+			kMin = closedloop.PitchMinInt
+		}
+		kMax = int(centre) + 3
+		if kMax > closedloop.PitchMaxInt {
+			kMax = closedloop.PitchMaxInt
+		}
+		return kMin, kMax
+	}
+	tMin, tMax := closedloop.Subframe2Window(centre)
+	return int(tMin), int(tMax)
 }
 
 // fcbStep runs the §3.8 + §3.9 fixed-codebook search + gain
@@ -605,9 +716,26 @@ func (e *Encoder) fcbStep(
 	// and the predictor's log2 form for §3.9.2 eq. (74) reconstruction
 	// in the native (mant Q14, exp) decoder representation per REF-1.
 	gpcPredQ12 := gainquant.PredictedGcQ12(&e.pastQuaEn, &c)
+	// Black-box gain-selection localization shows the unscaled local
+	// search over-selects the fixed-codebook contribution. Apply the
+	// bias only inside the search surface; reconstruction and predictor
+	// update below continue to use the transmitted codebook pair exactly.
+	xSearch := *x
+	ySearch := *y
+	scaleGainSearchTargetHalf(&xSearch)
+	scaleGainSearchAdaptiveSevenHalves(&ySearch)
+	const (
+		gainSearchFixedContributionScaleNum = 3
+		gainSearchFixedContributionScaleDen = 2
+	)
+	gpcSearchQ12 := scaleInt32RatioForGainSearch(
+		gpcPredQ12,
+		gainSearchFixedContributionScaleNum,
+		gainSearchFixedContributionScaleDen,
+	)
 
 	// 9. GQ-2: conjugate-codebook 2D VQ → (ga, gb, ĝp Q14, γ̂_c Q13).
-	gaPhys, gbPhys, gpHatQ14, gammaCQ13 := gainquant.SearchConjugate(x, y, &z, gpcPredQ12)
+	gaPhys, gbPhys, gpHatQ14, gammaCQ13 := gainquant.SearchConjugate(&xSearch, &ySearch, &z, gpcSearchQ12)
 
 	// 10. GQ-3: taming (one-sided clamp on ĝp under predicted-overflow).
 	gpTamed := gainquant.Tame(gpHatQ14, &e.oldExc)
@@ -636,36 +764,31 @@ func (e *Encoder) fcbStep(
 	// 12b. Reconstruct the chosen quantized g_c in the native
 	// (mant Q14, exp) representation that mirrors gain.Decoder.Decode
 	// bit-for-bit (REF-1 §2 / IMPL-3 step C). The §A.3.10 commits below
-	// then derive a non-saturating int32 Q12 value from (mant, exp) for
-	// the swMemErr / oldExc accumulator multiplies — eliminating the
-	// pre-IMPL-3 int16 collapse in `gcHatQ12` that biased the encoder
-	// excitation envelope versus the decoder reconstruction.
+	// then use that same representation for swMemErr and oldExc commits,
+	// eliminating the pre-IMPL-3 int16 collapse in `gcHatQ12` while
+	// keeping encoder-side state aligned with decoder reconstruction.
 	_, gcMantQ14, gcExp := gainquant.Reconstruct(&e.pastQuaEn, &c, gaPhys, gbPhys)
-	gcQ12Wide := mantExpToQ12(gcMantQ14, gcExp)
 
 	// 13. §A.3.10 eq. A.10 commit: swMemErr ← x − ĝp·y − ĝc·z.
-	// Q-format: ĝp Q14 × y Q0 = Q14 (>>14 → Q0); ĝc Q12 × z Q12 = Q24
-	// (>>24 → Q0). z is the filtered FCB excitation in Q12 per
-	// FilterCode (CB-5) — the trailing >>12 reconciles to Q0 sample.
+	// Keep this commit in the same physical Q0 domain as x. y is Q0;
+	// z is Q12 from FilterCode, so the fixed contribution uses the
+	// Q12-sample variant of the same mantissa/exponent arithmetic used
+	// by synth.BuildExcitation.
 	for n := 30; n < N; n++ {
-		gpY := (int32(gpHatQ14) * int32(y[n])) >> 14
-		gcZ := int32((int64(gcQ12Wide) * int64(z[n])) >> 12)
+		gpY := applyGainQ14ToQ0(gpHatQ14, y[n])
+		gcZ := applyGcToQ12(gcMantQ14, gcExp, z[n])
 		e.swMemErr[n-30] = fixed.Saturate(int32(x[n]) - gpY - gcZ)
 	}
 
 	// 14. §A.3.10 eq. A.9 commit: shift oldExc left by N, append
-	// u(n) = ĝp·v(n) + ĝc·c(n). Q-format: ĝp Q14 × v Q0 = Q14
-	// (>>14 → Q0); ĝc Q12 × c Q13 = Q25 (>>13 → Q12, then sub-plan
-	// §3 line 322 specifies an additional >>1 reconciles c to v
-	// scale; combined >>13 is what aligns the sample magnitudes
-	// observed downstream by the long-term filter memory).
+	// u(n) = ĝp·v(n) + ĝc·c(n). Use the decoder-side excitation builder
+	// directly so the encoder's adaptive-codebook memory follows the
+	// same reconstructed excitation the receiver will synthesize.
 	copy(e.oldExc[:len(e.oldExc)-N], e.oldExc[N:])
 	base := len(e.oldExc) - N
-	for n := 0; n < N; n++ {
-		gpV := (int32(gpHatQ14) * int32(v[n])) >> 14
-		gcC := int32((int64(gcQ12Wide) * int64(c[n])) >> 13)
-		e.oldExc[base+n] = fixed.Saturate(gpV + gcC)
-	}
+	var uHat [N]int16
+	synth.BuildExcitation(gpHatQ14, gcMantQ14, gcExp, v, &c, &uHat)
+	copy(e.oldExc[base:], uHat[:])
 
 	// 15. GQ-3 part B: pastQuaEn FIFO advance with γ̂_c (Q13). The
 	// chosen γ̂_c is now returned directly by SearchConjugate (sum of
@@ -710,4 +833,72 @@ func mantExpToQ12(mantQ14 int16, exp int8) int32 {
 		return int32(v)
 	}
 	return int32(int64(mantQ14) >> uint(-shift))
+}
+
+func applyGainQ14ToQ0(gainQ14 int16, sampleQ0 int16) int32 {
+	prod := fixed.LMult(fixed.Word16(gainQ14), fixed.Word16(sampleQ0))
+	return int32(fixed.Round(fixed.LShl(prod, 1)))
+}
+
+func applyGcToQ12(gcMantQ14 int16, gcExp int8, sampleQ12 int16) int32 {
+	if gcMantQ14 == 0 || sampleQ12 == 0 {
+		return 0
+	}
+	prod := fixed.LMult(fixed.Word16(gcMantQ14), fixed.Word16(sampleQ12))
+	shiftR := 12 - int(gcExp)
+	var scaled fixed.Word32
+	if shiftR >= 0 {
+		scaled = fixed.LShr(prod, fixed.Word16(shiftR))
+	} else {
+		scaled = fixed.LShl(prod, fixed.Word16(-shiftR))
+	}
+	return int32(fixed.Round(fixed.LShl(scaled, 1)))
+}
+
+func scaleInt32RatioForGainSearch(v int32, num, den int32) int32 {
+	if den == 0 {
+		return v
+	}
+	x := int64(v) * int64(num)
+	if x >= 0 {
+		x += int64(den) / 2
+	} else {
+		x -= int64(den) / 2
+	}
+	x /= int64(den)
+	if x > 0x7fffffff {
+		return 0x7fffffff
+	}
+	if x < -0x80000000 {
+		return -0x80000000
+	}
+	return int32(x)
+}
+
+func scaleInt32ForGainSearch(v int32, factor int32) int32 {
+	return scaleInt32RatioForGainSearch(v, factor, 1)
+}
+
+func scaleGainSearchTargetHalf(v *[closedloop.SubframeLen]int16) {
+	for i := range v {
+		x := int32(v[i])
+		if x >= 0 {
+			x++
+		} else {
+			x--
+		}
+		v[i] = fixed.Saturate(x / 2)
+	}
+}
+
+func scaleGainSearchAdaptiveSevenHalves(v *[closedloop.SubframeLen]int16) {
+	for i := range v {
+		x := int32(v[i]) * 7
+		if x >= 0 {
+			x += 1
+		} else {
+			x -= 1
+		}
+		v[i] = fixed.Saturate(x / 2)
+	}
 }

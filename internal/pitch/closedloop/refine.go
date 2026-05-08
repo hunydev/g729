@@ -1,6 +1,6 @@
 package closedloop
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // RefineFraction selects the 1/3-sample fractional pitch lag offset
 // that maximises the §A.3.7 numerator-only criterion
@@ -20,18 +20,14 @@ import "github.com/exedev/g729/internal/fixed"
 //	u_kt(n) = Interpolate3(exc, intLag − n, frac)
 //
 // per ITU-T G.729 §3.7.1 eq. (40) instantiated for §A.3.7 eq. A.8
-// (G729E.txt lines 1162, 2178). The Interpolate3 (intLag − n, frac)
-// mapping is the algebraic identity v(n) = u(−(intLag − n) + frac/3)
-// = u(n − intLag + frac/3), which is exactly the eq. A.8 sample at
-// subframe position n.
+// (G729E.txt lines 1162, 2178). Interpolate3 treats frac as part of
+// the transmitted pitch delay, so Interpolate3(intLag − n, frac)
+// evaluates u(n − (intLag + frac/3)), the eq. A.8 sample at subframe
+// position n.
 //
-// allowFrac gates whether ±1/3 are evaluated. Per §A.3.7 G729E.txt
-// lines 2169–2170: "For the determination of T2 and T1 if the
-// optimum integer delay is less than 85, the fractions around the
-// optimum integer delay have to be tested." Equivalently, the
-// adaptive-codebook delay is integer-only when intLag ∈ [85, 143];
-// in that branch the caller passes allowFrac = false and
-// RefineFraction short-circuits to frac = 0 with no FIR work.
+// allowFrac gates whether ±1/3 are evaluated. The encoder passes true
+// for T2, whose P2 codebook is always fractional, and for T1 only when
+// intLag < 85; otherwise T1 is integer-only in [85,143].
 //
 // Tie-break. When two or more RN(t) values coincide (notably the
 // xb ≡ 0 degenerate case), the implementation favours the lowest

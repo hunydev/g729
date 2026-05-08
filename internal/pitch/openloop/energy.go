@@ -3,7 +3,7 @@ package openloop
 import (
 	"math/bits"
 
-	"github.com/exedev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/fixed"
 )
 
 // energy computes the eq. A.5 denominator (G729E.txt §A.3.4 lines

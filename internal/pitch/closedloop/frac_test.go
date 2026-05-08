@@ -3,8 +3,8 @@ package closedloop
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // fracTestExcLen is the past-excitation buffer length used in the
@@ -12,10 +12,10 @@ import (
 const fracTestExcLen = 256
 
 // TestInterpolate3_FracZeroIsIntegerCopy: when frac = 0 the
-// fractional-delay primitive must return the past-excitation sample
-// at integer delay intLag, i.e. u[len(u) − intLag], with no FIR
-// computation (the spec equation (40) center tap b30(0) = 1.0 is
-// implicit and the integer path is a direct copy).
+// fractional-delay primitive must return the past-excitation sample at integer
+// delay intLag, i.e. u[len(u) − intLag], with no FIR computation. The stored
+// b30(0) interpolation coefficient is deliberately not used for this exact
+// integer-delay helper path.
 //
 // Spec: ITU-T G.729 §3.7.1 eq. (40), G729E.txt line 1162.
 func TestInterpolate3_FracZeroIsIntegerCopy(t *testing.T) {
@@ -33,45 +33,42 @@ func TestInterpolate3_FracZeroIsIntegerCopy(t *testing.T) {
 	}
 }
 
-// TestInterpolate3_FracPositiveImpulse: with a single-sample impulse
-// placed exactly at u[N − intLag] and frac = +1, eq. (40) collapses
-// to one term b30(t + 3·0)·u(−intLag) with t = 1, where in the
-// internal/tables.PitchInterpFIR storage convention (shared with the
-// decoder, see internal/tables/pitch_interp.go) b30(1) lives at
-// PitchInterpFIR[1] = 25207.
+// TestInterpolate3_FracPositiveImpulse: frac = +1 means a pitch delay
+// intLag + 1/3, so Interpolate3 evaluates u(−intLag − 1/3). With a
+// single-sample impulse at u(−intLag − 1), eq. (40) collapses to the
+// b30(2) tap.
 //
 // The asserted golden value is computed from the same fixed-point
 // primitives the production code uses (LMult doubles the Q15·Q14
 // product into Q30; Round adds 0x8000 and extracts the high half):
 //
 //	val   = 1 << 14
-//	want  = Round(LMult(b30(1), val)) = 12604
+//	want  = Round(LMult(b30(2), val)) = 7351
 //
 // Spec: §3.7.1 eq. (40), G729E.txt line 1162.
 func TestInterpolate3_FracPositiveImpulse(t *testing.T) {
 	const intLag = int16(40)
 	var u [fracTestExcLen]int16
-	u[fracTestExcLen-SubframeLen-int(intLag)] = 1 << 14
+	u[fracTestExcLen-SubframeLen-int(intLag)-1] = 1 << 14
 
 	got := Interpolate3(u[:], intLag, +1)
-	want := fixed.Round(fixed.LMult(tables.PitchInterpFIR[1], 1<<14))
+	want := fixed.Round(fixed.LMult(tables.PitchInterpFIR[2], 1<<14))
 	if got != want {
 		t.Errorf("Interpolate3 impulse frac=+1 at offset 0: got %d, want %d",
 			got, want)
 	}
 	// Pin the literal too — guards against silent table drift.
-	if want != 12604 {
-		t.Fatalf("b30(1) tap drift: Round(LMult(fir[1], 2^14))=%d, want 12604", want)
+	if want != 7351 {
+		t.Fatalf("b30(2) tap drift: Round(LMult(fir[2], 2^14))=%d, want 7351", want)
 	}
 }
 
-// TestInterpolate3_FracNegativeImpulse: frac = −1 maps to (k =
-// intLag − 1, t = 2) per eq. (40). With an impulse placed at
-// u[N − intLag] = u[N − (k+1)], only the backward-sum term i = 1
-// contributes through the tap b30(t + 3·1) = b30(5), stored at
-// PitchInterpFIR[5] = −5850.
+// TestInterpolate3_FracNegativeImpulse: frac = −1 means a pitch delay
+// intLag − 1/3, so Interpolate3 evaluates u(−intLag + 1/3). With an
+// impulse placed at u(−intLag), only the backward-sum i=0 term
+// contributes through b30(1).
 //
-//	want = Round(LMult(b30(5), val)) = −2925
+//	want = Round(LMult(b30(1), val)) = 12604
 //
 // Spec: §3.7.1 eq. (40), G729E.txt line 1162.
 func TestInterpolate3_FracNegativeImpulse(t *testing.T) {
@@ -80,65 +77,32 @@ func TestInterpolate3_FracNegativeImpulse(t *testing.T) {
 	u[fracTestExcLen-SubframeLen-int(intLag)] = 1 << 14
 
 	got := Interpolate3(u[:], intLag, -1)
-	want := fixed.Round(fixed.LMult(tables.PitchInterpFIR[5], 1<<14))
+	want := fixed.Round(fixed.LMult(tables.PitchInterpFIR[1], 1<<14))
 	if got != want {
 		t.Errorf("Interpolate3 impulse frac=-1: got %d, want %d", got, want)
 	}
-	if want != -2925 {
-		t.Fatalf("b30(5) tap drift: Round(LMult(fir[5], 2^14))=%d, want -2925", want)
+	if want != 12604 {
+		t.Fatalf("b30(1) tap drift: Round(LMult(fir[1], 2^14))=%d, want 12604", want)
 	}
 }
 
-// TestInterpolate3_PalindromeSymmetry: b30 is even-symmetric around
-// its center tap, so eq. (40) admits a closed-form symmetry between
-// the +1/3 and −1/3 fractional positions. Algebraically, swapping
-// the two half-sums in eq. (40) and reversing the input sequence
-// yields:
-//
-//	Interpolate3(u, K, +1) == Interpolate3(reverse(u), N − K + 3, −1)
-//
-// where N = len(u). For a palindrome (reverse(u) == u) this becomes
-//
-//	Interpolate3(u, K, +1) == Interpolate3(u, N − K + 3, −1)
-//
-// which is the property the spec's symmetric-kernel construction
-// guarantees and which the test exercises.
-//
-// Spec: §3.7.1 eq. (40), G729E.txt lines 1162–1167 (b30 symmetry
-// statement: "truncated at ±29 and padded with zeros at ±30").
-func TestInterpolate3_PalindromeSymmetry(t *testing.T) {
-	const N = fracTestExcLen
-	var u [N]int16
-	// Symmetric ramp around the midpoint.
-	for i := 0; i < N/2; i++ {
-		v := int16(((i * 37) & 0x3FFF) - 0x2000) // bounded pseudo-random
-		u[i] = v
-		u[N-1-i] = v
+// TestInterpolate3_FractionDelayDirection uses a monotonic ramp to pin the
+// sign convention: frac=-1 is a smaller pitch delay than the integer case, so
+// it reads a later source point and must be larger than frac=0; frac=+1 is a
+// larger pitch delay, so it reads an earlier source point and must be smaller.
+func TestInterpolate3_FractionDelayDirection(t *testing.T) {
+	var u [fracTestExcLen]int16
+	for i := range u {
+		u[i] = int16(i*100 - 20000)
 	}
 
-	for _, K := range []int{40, 60, 100} {
-		// New buffer convention: base = (N − SubframeLen) − K.
-		// The symmetry K ↔ K' satisfies (N − SubframeLen) − K' =
-		// ((N − SubframeLen) − K) + 3 ⇒ K' = K − 3 by canceling
-		// the anchor shift. But that places K' < K which would be
-		// degenerate; the well-defined symmetry that actually holds
-		// is the original derivation written in absolute buffer
-		// indices: with base+ = anchor − K and base− = anchor − K',
-		// we need base− = (N − 1) − (base+ + something)... — more
-		// simply, re-derive: the +1/−1 sample sums swap under index
-		// reflection i → (N − 1) − i, which sends position p →
-		// (N − 1) − p. So base+ and base− are mirror images iff
-		// base− = (N − 1) − base+ − 3, hence
-		// K' = anchor − ((N − 1) − (anchor − K) − 3) =
-		//      2·anchor − N + 1 + 3 − K = 2·(N−SubframeLen) − N + 4 − K =
-		//      N − 2·SubframeLen + 4 − K.
-		mirrorK := int16(N - 2*SubframeLen + 3 - K)
-		gotPlus := Interpolate3(u[:], int16(K), +1)
-		gotMinus := Interpolate3(u[:], mirrorK, -1)
-		if gotPlus != gotMinus {
-			t.Errorf("symmetry break: Interpolate3(palindrome, K=%d, +1) = %d, "+
-				"Interpolate3(palindrome, mirrorK=%d, -1) = %d",
-				K, gotPlus, mirrorK, gotMinus)
+	for _, K := range []int16{40, 60, 100} {
+		neg := Interpolate3(u[:], K, -1)
+		zero := Interpolate3(u[:], K, 0)
+		pos := Interpolate3(u[:], K, +1)
+		if !(neg > zero && zero > pos) {
+			t.Fatalf("K=%d: got frac(-1,0,+1)=(%d,%d,%d), want descending delay direction neg > zero > pos",
+				K, neg, zero, pos)
 		}
 	}
 }

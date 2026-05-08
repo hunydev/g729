@@ -46,24 +46,27 @@
 // no shared mutable state across instances; multiple instances can run
 // concurrently on different goroutines.
 //
+// Reset returns codec state to the initial stream state. On streaming
+// encoders, Reset also clears any buffered PCM tail while preserving the
+// sink passed to NewStreamingEncoder.
+//
 // # SDP / RTP packetization
 //
 // The codec produces and consumes RTP-suitable 10-byte payloads. RTP
 // header construction belongs to the caller. SDP must advertise
 // "annexb=no" because Annex B (SID / CNG / DTX) is not implemented.
-// See README.md and examples/ for ptime=10 and ptime=20 SDP fragments
-// and an illustrative payload bundler.
+// See README.md, examples/, and cmd/g729rtpcheck for ptime=10 and
+// ptime=20 SDP fragments, payload bundling, and black-box RTP capture
+// validation.
 //
 // # Conformance scope
 //
-// This codec is shipped under a spec-compliance binding criterion:
-// the decoder is verified spec-correct against ITU-T G.729 (06/2012)
-// + Annex A across seven independent diagnostic axes (see
-// docs/superpowers/plans/2026-05-04-phase3-final-closure-report.md).
-// It does not claim ITU byte-exact conformance against the ITU
-// SPEECH.PST reference, and it does not implement Annex B,
-// G.729.1, G.729D, or G.729E. See README.md "Known limitations"
-// for the canonical disclosure.
+// The outbound encoder/RTP send path is black-box gated against FFmpeg
+// executable decode for G729/8000 annexb=no speech frames. This module
+// does not claim ITU byte-exact conformance, ITU certification, or
+// high-quality inbound decode of arbitrary external G.729 payloads. It
+// does not implement Annex B, G.729.1, G.729D, or G.729E. See README.md
+// "Known limitations" for the canonical disclosure.
 //
 // # Clean-room declaration
 //

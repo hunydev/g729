@@ -600,10 +600,10 @@ Expected: FAIL with "undefined: NewEncoder" / "undefined: Encoder".
 package g729
 
 import (
-    "github.com/exedev/g729/internal/acelp"
-    "github.com/exedev/g729/internal/lpc"
-    "github.com/exedev/g729/internal/filter"
-    "github.com/exedev/g729/internal/pcm"
+    "github.com/hunydev/g729/internal/acelp"
+    "github.com/hunydev/g729/internal/lpc"
+    "github.com/hunydev/g729/internal/filter"
+    "github.com/hunydev/g729/internal/pcm"
 )
 
 // Encoder holds G.729 Annex A encoder state for one logical stream.
@@ -751,7 +751,7 @@ Expected: FAIL with "undefined: NewDecoder".
 package g729
 
 import (
-    "github.com/exedev/g729/internal/decoder"
+    "github.com/hunydev/g729/internal/decoder"
 )
 
 // Decoder holds G.729 Annex A decoder state for one logical stream.

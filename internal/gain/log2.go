@@ -1,8 +1,8 @@
 package gain
 
 import (
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // log2Fixed returns log2(x) in Q10 for x > 0; returns 0 for x <= 0.

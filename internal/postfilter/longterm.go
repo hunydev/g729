@@ -17,6 +17,11 @@ func (pf *Postfilter) refinePitch(r *[subframeLen]int16, tInt int) int {
 	// in the signature so callers express the data dependency.
 
 	bestT := tInt
+	if bestT < minT {
+		bestT = minT
+	} else if bestT > maxT {
+		bestT = maxT
+	}
 	var bestRsq, bestE int64 = 0, 1
 
 	for k := -1; k <= 1; k++ {
@@ -103,7 +108,10 @@ func clamp64(v, lo, hi int64) int64 {
 // per ITU-T G.729 §A.4.2.2.
 func (pf *Postfilter) applyLongTerm(r *[subframeLen]int16, T int, rOut *[subframeLen]int16) {
 	g0, g1 := pf.computeLongTermGain(r, T)
+	pf.applyLongTermWithGains(T, g0, g1, rOut)
+}
 
+func (pf *Postfilter) applyLongTermWithGains(T int, g0, g1 int16, rOut *[subframeLen]int16) {
 	for n := 0; n < subframeLen; n++ {
 		p0 := int32(g0) * int32(pf.pastResidual[pitchMax+n])
 		p1 := int32(g1) * int32(pf.pastResidual[pitchMax+n-T])

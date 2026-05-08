@@ -3,7 +3,7 @@ package decoder
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/fixed"
 )
 
 // TestPhase1o_D3_S4_R1_SynthRoundingBoundary — Phase 1o D-3 S-4 R-1

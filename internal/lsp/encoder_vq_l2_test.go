@@ -3,7 +3,7 @@ package lsp
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // Phase 2a-VQ-3 step 1: failing test for searchL2.

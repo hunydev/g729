@@ -16,7 +16,8 @@ var ErrNoStreamSink = errors.New("g729: encoder has no streaming sink (use NewSt
 // Plan §6 Task API-2 + design spec §4.3. Buffers up to FrameSamples-1
 // samples between calls; emits one frame per FrameSamples-sample
 // boundary. Flush zero-pads any trailing partial frame per
-// OQ-FLUSH-PAD (plan §10 = zero-pad with 0x0000 silence).
+// OQ-FLUSH-PAD (plan §10 = zero-pad with 0x0000 silence). Reset clears
+// codec state and any buffered tail but keeps this sink attached.
 func NewStreamingEncoder(w io.Writer) *Encoder {
 	e := NewEncoder()
 	e.streamSink = w

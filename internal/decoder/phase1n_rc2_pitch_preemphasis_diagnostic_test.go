@@ -16,9 +16,9 @@ package decoder
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/pitch"
 )
 
 // TestDiagnostic_Phase1nRc2PitchPreemphasisALGTHM: Phase 1n Stage R-C-empirical

@@ -1,13 +1,12 @@
 package decoder
 
 import (
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/lsp"
-	"github.com/exedev/g729/internal/pcm"
-	"github.com/exedev/g729/internal/pitch"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 // Phase3DiagSubframeTaps records the per-subframe intermediate signals
@@ -18,12 +17,13 @@ type Phase3DiagSubframeTaps struct {
 	TFrac int
 	GpQ14 int16
 	GcQ12 int16
-	V     [40]int16 // adaptive codebook vector  (Q0)
-	C     [40]int16 // fixed codebook vector     (Q13)
-	U     [40]int16 // total excitation          (Q0, after BuildExcitation)
-	S     [40]int16 // post 1/Â(z)               (Q0, pre-postfilter)
-	SPf   [40]int16 // post postfilter           (Q0)
-	HpOut [40]int16 // post HP filter            (Q0, pre ScaleUpSat ×2)
+	A     [lpcOrder + 1]int16 // synthesis LP coefficients (Q12)
+	V     [40]int16           // adaptive codebook vector  (Q0)
+	C     [40]int16           // fixed codebook vector     (Q13)
+	U     [40]int16           // total excitation          (Q0, after BuildExcitation)
+	S     [40]int16           // post 1/Â(z)               (Q0, pre-postfilter)
+	SPf   [40]int16           // post postfilter           (Q0)
+	HpOut [40]int16           // post HP filter            (Q0, pre final output scaling)
 
 	// GainTaps captures the unsaturated 32-bit gain-decoder
 	// intermediates (Phase 3a DIAG-1). Test-only; populated by
@@ -33,7 +33,7 @@ type Phase3DiagSubframeTaps struct {
 	GainTaps gain.GainDecodeFullTaps
 }
 
-// Phase3DiagFrameTaps groups the two subframes and the post-ScaleUpSat
+// Phase3DiagFrameTaps groups the two subframes and the post-output-scale
 // final 80-sample frame, plus the unpacked transmitted indices.
 type Phase3DiagFrameTaps struct {
 	Frame  bitstream.Frame
@@ -72,7 +72,7 @@ func (d *Decoder) DecodeWithTaps(packed []byte) (Phase3DiagFrameTaps, error) {
 		f.C2, uint8(f.S2), uint8(f.GA2), uint8(f.GB2),
 		taps.Output[subframeLen:frameSamples], &taps.Sub[1])
 
-	pcm.ScaleUpSat(taps.Output[:frameSamples], taps.Output[:frameSamples])
+	scaleDecoderOutput(taps.Output[:frameSamples])
 	return taps, nil
 }
 
@@ -85,10 +85,11 @@ func (d *Decoder) decodeSubframeWithTaps(
 ) {
 	taps.TInt = tInt
 	taps.TFrac = tFrac
+	taps.A = *sfA
 
 	betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
 
-	pitch.AdaptiveCodebook(tInt, tFrac, d.pastExc[:], &taps.V)
+	decodeAdaptiveCodebook(tInt, tFrac, d.pastExc[:], &taps.V)
 
 	fcb.Decode(fcb.Indices{Positions: C, Signs: S}, tInt, betaQ14, &taps.C)
 

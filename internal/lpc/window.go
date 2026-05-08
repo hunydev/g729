@@ -1,6 +1,6 @@
 package lpc
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // windowSpeech applies the §3.2.1 eq. 4 product
 // s'(n) = w_lp(n)·s(n) for n ∈ [0, 239] using the Q15 LUT in

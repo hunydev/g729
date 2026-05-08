@@ -17,7 +17,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/bitstream"
 )
 
 // TestDiagnostic_Phase0c3CrossVectorPattern — Phase 0c-3 (P0c-3) cross-

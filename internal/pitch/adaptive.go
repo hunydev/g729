@@ -1,8 +1,8 @@
 package pitch
 
 import (
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // Linter is the one-sided length of the 1/3-sample pitch
@@ -17,12 +17,13 @@ const Linter = 10
 //	v(n) = Σ_{i=0..9} u(n − k − i)·b30(t + 3i)
 //	     + Σ_{i=0..9} u(n − k + 1 + i)·b30(3 − t + 3i)
 //
-// where (k, t) is derived from (tInt, tFrac) such that the effective
-// fractional delay is tInt + tFrac/3:
+// where t ∈ {0,1,2} interpolates the source sample u(n-k+t/3).  The
+// decoded pitch delay is T = tInt + tFrac/3, and v(n)=u(n-T), so
+// (k,t) is derived as:
 //
 //	tFrac =  0:  k = tInt,     t = 0   (handled by direct copy)
-//	tFrac = +1:  k = tInt,     t = 1
-//	tFrac = -1:  k = tInt − 1, t = 2
+//	tFrac = -1:  k = tInt,     t = 1
+//	tFrac = +1:  k = tInt + 1, t = 2
 //
 // pastExc convention:
 //
@@ -71,11 +72,11 @@ func AdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[40]int16) {
 // case is the caller's fast path).
 func firInterpolate(tInt, tFrac int, pastExc []int16, v *[40]int16, start, end int) {
 	var k, posPhase, negPhase int
-	if tFrac == 1 {
+	if tFrac < 0 {
 		k = tInt
 		posPhase, negPhase = 1, 2
 	} else {
-		k = tInt - 1
+		k = tInt + 1
 		posPhase, negPhase = 2, 1
 	}
 

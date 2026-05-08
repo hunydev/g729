@@ -3,7 +3,7 @@ package g729
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/pitch/closedloop"
+	"github.com/hunydev/g729/internal/pitch/closedloop"
 )
 
 // Phase 2d INT-2 zero-allocation gates pin I4 on the new fcbStep

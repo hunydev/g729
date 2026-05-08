@@ -3,7 +3,7 @@ package fcbsearch_test
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fcbsearch"
+	"github.com/hunydev/g729/internal/fcbsearch"
 )
 
 // ENC-1 RED tests for §3.8.2 eq. 61/62 fixed-codebook bit packing.
@@ -11,18 +11,17 @@ import (
 // Eq. 61 (G729E.txt §3.8.2) defines the 4-bit sign field S where the
 // pulse signs are read out of signs[positions[i]] in the §3.8.1
 // decomposition convention (sign ∈ {−1, +1}). The decoder side is
-// fcb.placePulses (internal/fcb/signs.go): bit (3-i) = 1 → +pulse,
-// bit (3-i) = 0 → −pulse. This file pins encoder PackS to match the
-// decoder so round-trip holds — that contract is what §6 of the
-// Phase 2d sub-plan calls out as "round-trip vs §4.1.4".
+// fcb.placePulses (internal/fcb/signs.go): bit i = 1 → +pulse,
+// bit i = 0 → -pulse. This file pins encoder PackS to match §3.8.2
+// eq. (61) and the decoder so round-trip holds.
 //
 // Eq. 62 defines the 13-bit position code C with the layout:
 //
-//	bits 12..10 = i0     pos[0] = 5·i0          (track 0)
-//	bits  9.. 7 = i1     pos[1] = 5·i1 + 1      (track 1)
-//	bits  6.. 4 = i2     pos[2] = 5·i2 + 2      (track 2)
-//	bit       3 = jx     track-3 half selector
-//	bits  2.. 0 = i3     pos[3] = 5·i3 + 3 + jx (track 3a/3b)
+//	bits  2..0  = i0     pos[0] = 5*i0          (track 0)
+//	bits  5..3  = i1     pos[1] = 5*i1 + 1      (track 1)
+//	bits  8..6  = i2     pos[2] = 5*i2 + 2      (track 2)
+//	bit      9  = jx     track-3 half selector
+//	bits 12..10 = i3     pos[3] = 5*i3 + 3 + jx (track 3a/3b)
 //
 // jx convention (matches decoder's decodePositions in
 // internal/fcb/positions.go): pos[3] ∈ {3,8,13,18,23,28,33,38} → jx=0;
@@ -31,11 +30,11 @@ import (
 // unpackC mirrors fcb.decodePositions on int8 outputs (test-only
 // helper kept local to avoid exporting decoder internals).
 func unpackC(code uint16) [4]int8 {
-	i0 := int8((code >> 10) & 0x07)
-	i1 := int8((code >> 7) & 0x07)
-	i2 := int8((code >> 4) & 0x07)
-	jx := int8((code >> 3) & 0x01)
-	i3 := int8(code & 0x07)
+	i0 := int8(code & 0x07)
+	i1 := int8((code >> 3) & 0x07)
+	i2 := int8((code >> 6) & 0x07)
+	jx := int8((code >> 9) & 0x01)
+	i3 := int8((code >> 10) & 0x07)
 	return [4]int8{
 		5 * i0,
 		5*i1 + 1,
@@ -67,7 +66,7 @@ func TestPackC_Track3SplitJx0(t *testing.T) {
 	for _, p3 := range []int8{3, 8, 13, 18, 23, 28, 33, 38} {
 		positions := [4]int8{0, 1, 2, p3}
 		code := fcbsearch.PackC(&positions)
-		if (code>>3)&1 != 0 {
+		if (code>>9)&1 != 0 {
 			t.Errorf("pos[3]=%d: jx bit set in 0x%04x, want 0", p3, code)
 		}
 	}
@@ -78,7 +77,7 @@ func TestPackC_Track3SplitJx1(t *testing.T) {
 	for _, p3 := range []int8{4, 9, 14, 19, 24, 29, 34, 39} {
 		positions := [4]int8{0, 1, 2, p3}
 		code := fcbsearch.PackC(&positions)
-		if (code>>3)&1 != 1 {
+		if (code>>9)&1 != 1 {
 			t.Errorf("pos[3]=%d: jx bit clear in 0x%04x, want 1", p3, code)
 		}
 	}
@@ -95,7 +94,7 @@ func TestPackC_NoAlloc(t *testing.T) {
 
 // PackS round-trip: build signs[40] with chosen polarity at the four
 // pulse positions, pack, then verify each bit matches the decoder
-// convention: bit (3-i) = 1 ↔ signs[positions[i]] > 0.
+// convention: bit i = 1 ↔ signs[positions[i]] > 0.
 func TestPackS_RoundTripAllCombos(t *testing.T) {
 	positions := [4]int8{5, 11, 22, 38}
 	for mask := 0; mask < 16; mask++ {
@@ -104,7 +103,7 @@ func TestPackS_RoundTripAllCombos(t *testing.T) {
 			signs[n] = +1 // benign default at non-pulse indices
 		}
 		for i := 0; i < 4; i++ {
-			if (mask>>(3-uint(i)))&1 == 1 {
+			if (mask>>uint(i))&1 == 1 {
 				signs[positions[i]] = +1
 			} else {
 				signs[positions[i]] = -1
@@ -114,10 +113,10 @@ func TestPackS_RoundTripAllCombos(t *testing.T) {
 		if got != uint8(mask) {
 			t.Fatalf("mask=0x%X: PackS = 0x%X, want 0x%X", mask, got, mask)
 		}
-		// Decoder-side equivalence: each bit (3-i) must reflect the sign
+		// Decoder-side equivalence: each bit i must reflect the sign
 		// at signs[positions[i]] per fcb.placePulses contract.
 		for i := 0; i < 4; i++ {
-			bit := (got >> (3 - uint(i))) & 1
+			bit := (got >> uint(i)) & 1
 			pos := positions[i]
 			if signs[pos] > 0 && bit != 1 {
 				t.Errorf("mask=0x%X i=%d: bit=%d, want 1 (signs[%d]=+1)", mask, i, bit, pos)

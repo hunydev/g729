@@ -1,6 +1,6 @@
 package openloop
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // lpResidual computes the LP residual r(n) per §A.3.3 eq. A.3
 // (G729E.txt line 2080):
@@ -11,18 +11,14 @@ import "github.com/exedev/g729/internal/fixed"
 // s(−10..−1) so that s(n − i) for n < i resolves to mem[10 + n − i].
 //
 // Q-format. s and r are int16 Q0; â is Q12 with the leading 1.0 at
-// â[0] (= 4096) excluded from the i ≥ 1 sum. The per-tap product is
-// formed with fixed.Mult, which performs (â_i·s(n−i))>>15 with
-// saturation. The exact shift convention §A.3.3 line 2080 leaves
-// implicit ("r(n) = s(n) + Σ â_i s(n−i)" with no scale factor); the
-// fixed.Mult choice mirrors WS-1's gammaWeightLP product convention
-// and is the default reading. Any rescaling required for INT-1
-// plausibility is the OQ-2 escalation slot.
+// â[0] (= 4096). Products use the same LMult / LShl(3) / Round scaling
+// as the synthesis filter so a Q12 coefficient of 4096 behaves as
+// exact unity.
 //
 // I3 / I4: pure (writes only through r), zero allocation.
 func lpResidual(s *[80]int16, aHat *[11]int16, mem *[10]int16, r *[80]int16) {
 	for n := 0; n < 80; n++ {
-		sum := int32(s[n])
+		acc := fixed.LMult(s[n], aHat[0])
 		for i := 1; i <= 10; i++ {
 			var sni int16
 			if n-i >= 0 {
@@ -30,9 +26,25 @@ func lpResidual(s *[80]int16, aHat *[11]int16, mem *[10]int16, r *[80]int16) {
 			} else {
 				sni = mem[10+n-i]
 			}
-			sum += int32(fixed.Mult(aHat[i], sni))
+			acc = fixed.LMac(acc, aHat[i], sni)
 		}
-		r[n] = fixed.Saturate(sum)
+		r[n] = fixed.Round(fixed.LShl(acc, 3))
+	}
+}
+
+func lpResidualSubframe(s *[40]int16, aHat *[11]int16, mem *[10]int16, r *[40]int16) {
+	for n := 0; n < 40; n++ {
+		acc := fixed.LMult(s[n], aHat[0])
+		for i := 1; i <= 10; i++ {
+			var sni int16
+			if n-i >= 0 {
+				sni = s[n-i]
+			} else {
+				sni = mem[10+n-i]
+			}
+			acc = fixed.LMac(acc, aHat[i], sni)
+		}
+		r[n] = fixed.Round(fixed.LShl(acc, 3))
 	}
 }
 
@@ -48,13 +60,12 @@ func lpResidual(s *[80]int16, aHat *[11]int16, mem *[10]int16, r *[80]int16) {
 // scaling baked into combineWith07.
 //
 // Q-format. r, sw int16 Q0; aPrime Q12 (with the WS-1 hybrid tap-1
-// convention). Per-tap product via fixed.Mult; the same Q-format
-// caveat documented on lpResidual applies.
+// convention). Products use the same Q12 scaling as lpResidual.
 //
 // I3 / I4: pure (writes only through sw), zero allocation.
 func lowpassWeightedSpeech(r *[80]int16, aPrime *[11]int16, mem *[10]int16, sw *[80]int16) {
 	for n := 0; n < 80; n++ {
-		var sumProd int32
+		acc := fixed.LMult(r[n], aPrime[0])
 		for i := 1; i <= 10; i++ {
 			var swni int16
 			if n-i >= 0 {
@@ -62,9 +73,25 @@ func lowpassWeightedSpeech(r *[80]int16, aPrime *[11]int16, mem *[10]int16, sw *
 			} else {
 				swni = mem[10+n-i]
 			}
-			sumProd += int32(fixed.Mult(aPrime[i], swni))
+			acc = fixed.LMsu(acc, aPrime[i], swni)
 		}
-		sw[n] = fixed.Saturate(int32(r[n]) - sumProd)
+		sw[n] = fixed.Round(fixed.LShl(acc, 3))
+	}
+}
+
+func lowpassWeightedSpeechSubframe(r *[40]int16, aPrime *[11]int16, mem *[10]int16, sw *[40]int16) {
+	for n := 0; n < 40; n++ {
+		acc := fixed.LMult(r[n], aPrime[0])
+		for i := 1; i <= 10; i++ {
+			var swni int16
+			if n-i >= 0 {
+				swni = sw[n-i]
+			} else {
+				swni = mem[10+n-i]
+			}
+			acc = fixed.LMsu(acc, aPrime[i], swni)
+		}
+		sw[n] = fixed.Round(fixed.LShl(acc, 3))
 	}
 }
 

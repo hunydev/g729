@@ -166,13 +166,13 @@ SKIP:    (carried unchanged from Phase 1o; ITU PSTdomain tests live as
 
 | # | Test | Package | Source phase | Disposition |
 |---|------|---------|--------------|-------------|
-| 1 | `TestEncode_LSPVectorBitExact` | `github.com/exedev/g729` | Phase 2a INT-1 | **FAIL-DEFERRED — strictly justified.** ACCEPT-PARTIAL per Phase 2a closure §6 (L0=78.67 / L1=38.93 / L2=17.07 / L3=19.35 % byte-EQ vs LSP.BIT). Phase 2-final escape slot 1/1 RESERVED but NOT consumed. Phase 3 candidate: re-attempt only after Phase 2b H-CENTER closure (the LSP MA-VQ residual is dominated by upstream pitch-prediction error). |
-| 2 | `TestPhase2cINT1_ClosedLoopPitchByteEQ` | `github.com/exedev/g729` | Phase 2c INT-1 / Phase 2d INT-1b | **FAIL-DEFERRED — strictly justified.** Re-baselined in Phase 2d INT-1b (P1 9.05 → 10.79 / P0 56.46 → 57.49 / P2 9.75 → 11.66 % per Phase 2d closure §6). Structural blocker is Phase 2b H-CENTER (open-loop tOp divergence on ~46 % of frames); a closed-loop probe cannot move tOp. Phase 2c reserved I5 4/4 untouched; Phase 3 candidate: Phase 2b re-entry. |
-| 3 | `TestPhase2dINT1a_FCBByteEQ` | `github.com/exedev/g729` | Phase 2d INT-1a | **FAIL-DEFERRED — strictly justified.** S1 5.50 / C1 0.00 / GA1 12.15 / GB1 5.29 / S2 4.20 / C2 0.00 / GA2 11.77 / GB2 4.52 % per Phase 2d closure §5. Plausibility floor met (GA1 12.15 % > Phase 2c INT-1b P1 10.79 %). Cascades from H-CENTER → P1/P2 → C1/C2 = 0 %. I5 0/5 spent. Phase 3 candidate: re-attempt only after H-CENTER closure. |
-| 4 | `TestPhase2fTAME1_ByteEQ` | `github.com/exedev/g729` | Phase 2f TAME-1 | **FAIL-DEFERRED — strictly justified.** GA1 7.03 / GB1 2.34 / GA2 4.69 / GB2 4.69 % per Phase 2f closure §5.1. 3-of-4 plausibility floor breaches authorised slot 5/5 sweep; 9-variant OQ-TAMING-THR sweep produced **NO-WINNER** (all variants byte-identical) per Phase 2f closure §5.2 — the taming clamp is masked by upstream ACELP-search disagreement on every TAME frame. OQ-TAMING-THR pin held at carryover (gp 0.95 Q14, E 2³³). Phase 3 candidate: re-attempt only after H-CENTER closure. |
-| 5 | `TestDiagnostic_SinglePulseChain` | `github.com/exedev/g729/internal/decoder` | Phase 1 inheritance | **CARRY FORWARD to Phase 3 — strictly justified.** §4.1 above. |
-| 6 | `TestDecode_LowEnergyCodebookIsSmooth` | `github.com/exedev/g729/internal/gain` | Phase 1 inheritance | **CARRY FORWARD to Phase 3 — strictly justified.** §4.1 above. |
-| 7 | `TestDecode_SucceedsAcrossAllGainIndices` | `github.com/exedev/g729/internal/gain` | Phase 1 inheritance | **CARRY FORWARD to Phase 3 — strictly justified.** §4.1 above (decoder-only path; encoder cannot produce pathological inputs). |
+| 1 | `TestEncode_LSPVectorBitExact` | `github.com/hunydev/g729` | Phase 2a INT-1 | **FAIL-DEFERRED — strictly justified.** ACCEPT-PARTIAL per Phase 2a closure §6 (L0=78.67 / L1=38.93 / L2=17.07 / L3=19.35 % byte-EQ vs LSP.BIT). Phase 2-final escape slot 1/1 RESERVED but NOT consumed. Phase 3 candidate: re-attempt only after Phase 2b H-CENTER closure (the LSP MA-VQ residual is dominated by upstream pitch-prediction error). |
+| 2 | `TestPhase2cINT1_ClosedLoopPitchByteEQ` | `github.com/hunydev/g729` | Phase 2c INT-1 / Phase 2d INT-1b | **FAIL-DEFERRED — strictly justified.** Re-baselined in Phase 2d INT-1b (P1 9.05 → 10.79 / P0 56.46 → 57.49 / P2 9.75 → 11.66 % per Phase 2d closure §6). Structural blocker is Phase 2b H-CENTER (open-loop tOp divergence on ~46 % of frames); a closed-loop probe cannot move tOp. Phase 2c reserved I5 4/4 untouched; Phase 3 candidate: Phase 2b re-entry. |
+| 3 | `TestPhase2dINT1a_FCBByteEQ` | `github.com/hunydev/g729` | Phase 2d INT-1a | **FAIL-DEFERRED — strictly justified.** S1 5.50 / C1 0.00 / GA1 12.15 / GB1 5.29 / S2 4.20 / C2 0.00 / GA2 11.77 / GB2 4.52 % per Phase 2d closure §5. Plausibility floor met (GA1 12.15 % > Phase 2c INT-1b P1 10.79 %). Cascades from H-CENTER → P1/P2 → C1/C2 = 0 %. I5 0/5 spent. Phase 3 candidate: re-attempt only after H-CENTER closure. |
+| 4 | `TestPhase2fTAME1_ByteEQ` | `github.com/hunydev/g729` | Phase 2f TAME-1 | **FAIL-DEFERRED — strictly justified.** GA1 7.03 / GB1 2.34 / GA2 4.69 / GB2 4.69 % per Phase 2f closure §5.1. 3-of-4 plausibility floor breaches authorised slot 5/5 sweep; 9-variant OQ-TAMING-THR sweep produced **NO-WINNER** (all variants byte-identical) per Phase 2f closure §5.2 — the taming clamp is masked by upstream ACELP-search disagreement on every TAME frame. OQ-TAMING-THR pin held at carryover (gp 0.95 Q14, E 2³³). Phase 3 candidate: re-attempt only after H-CENTER closure. |
+| 5 | `TestDiagnostic_SinglePulseChain` | `github.com/hunydev/g729/internal/decoder` | Phase 1 inheritance | **CARRY FORWARD to Phase 3 — strictly justified.** §4.1 above. |
+| 6 | `TestDecode_LowEnergyCodebookIsSmooth` | `github.com/hunydev/g729/internal/gain` | Phase 1 inheritance | **CARRY FORWARD to Phase 3 — strictly justified.** §4.1 above. |
+| 7 | `TestDecode_SucceedsAcrossAllGainIndices` | `github.com/hunydev/g729/internal/gain` | Phase 1 inheritance | **CARRY FORWARD to Phase 3 — strictly justified.** §4.1 above (decoder-only path; encoder cannot produce pathological inputs). |
 
 ### 5.2 Strictly-justified residual rationale
 
@@ -188,7 +188,7 @@ Per master plan §8 ("expect FAIL count = 0 (or strictly justified residual)"), 
 
 | Package | Status | New Phase 2 tests added | New Phase 2 FAILs |
 |---------|--------|-------------------------|--------------------|
-| `github.com/exedev/g729` (root) | FAIL (4) | ~30+ Phase 2 root tests | 4 (#1, #2, #3, #4 above) |
+| `github.com/hunydev/g729` (root) | FAIL (4) | ~30+ Phase 2 root tests | 4 (#1, #2, #3, #4 above) |
 | `internal/acelp` | PASS | (skeleton from 2-0) | 0 |
 | `internal/bitstream` | PASS | PACK-2 round-trip | 0 |
 | `internal/decoder` | FAIL (1 inherited) | 0 (decoder unchanged) | 0 (#5 above is Phase 1 inheritance) |
@@ -237,7 +237,7 @@ Per Phase 2f closure §11 routing: **H-CENTER is the dominant root cause** of ev
 
 The G.729A encoder/decoder Go module exposes the following public surface at Phase 2 close:
 
-### 7.1 Constants (root package `github.com/exedev/g729`)
+### 7.1 Constants (root package `github.com/hunydev/g729`)
 
 | Symbol | Value | Source |
 |--------|-------|--------|

@@ -1,6 +1,6 @@
 package fcbsearch
 
-import "github.com/exedev/g729/internal/fcb"
+import "github.com/hunydev/g729/internal/fcb"
 
 // BuildCode constructs the ACELP fixed-codebook excitation c[0..39]
 // per ITU-T G.729 §3.8 equations (45), (46), and (47):
@@ -28,6 +28,14 @@ import "github.com/exedev/g729/internal/fcb"
 // Output c[] is Q13. I3 / I4: pure (writes only through c), zero
 // allocation.
 func BuildCode(positions *[4]int8, signs *[SubframeLen]int16, intLag int16, prevGpQ14 int16, c *[SubframeLen]int16) {
+	BuildSparseCode(positions, signs, c)
+	betaQ14 := fcb.ClampPitchGainForEnhancement(prevGpQ14)
+	fcb.ApplyPitchEnhancement(c, int(intLag), betaQ14)
+}
+
+// BuildSparseCode constructs the unfiltered algebraic code vector of
+// §3.8 eq. (45), before the pitch-enhancement prefilter of eq. (46).
+func BuildSparseCode(positions *[4]int8, signs *[SubframeLen]int16, c *[SubframeLen]int16) {
 	for i := range c {
 		c[i] = 0
 	}
@@ -39,6 +47,4 @@ func BuildCode(positions *[4]int8, signs *[SubframeLen]int16, intLag int16, prev
 			c[p] = -fcb.PulseAmplitude
 		}
 	}
-	betaQ14 := fcb.ClampPitchGainForEnhancement(prevGpQ14)
-	fcb.ApplyPitchEnhancement(c, int(intLag), betaQ14)
 }

@@ -712,7 +712,7 @@ package gain
 import (
     "testing"
 
-    "github.com/exedev/g729/internal/fixed"
+    "github.com/hunydev/g729/internal/fixed"
 )
 
 func TestFixedCodebookEnergy_Zero(t *testing.T) {
@@ -769,7 +769,7 @@ Expected: FAIL with "undefined: fixedCodebookEnergy".
 ```go
 package gain
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // fixedCodebookEnergy returns Σ c[n]² as a Word32.
 //
@@ -843,7 +843,7 @@ package gain
 import (
     "testing"
 
-    "github.com/exedev/g729/internal/fixed"
+    "github.com/hunydev/g729/internal/fixed"
 )
 
 func TestLog2Fixed_PowersOfTwoAreExact(t *testing.T) {
@@ -904,8 +904,8 @@ Expected: FAIL with "undefined: log2Fixed".
 package gain
 
 import (
-    "github.com/exedev/g729/internal/fixed"
-    "github.com/exedev/g729/internal/tables"
+    "github.com/hunydev/g729/internal/fixed"
+    "github.com/hunydev/g729/internal/tables"
 )
 
 // log2Fixed returns log2(x) · 2^10 (Q10 signed) for x > 0.
@@ -1005,7 +1005,7 @@ package gain
 import (
     "testing"
 
-    "github.com/exedev/g729/internal/fixed"
+    "github.com/hunydev/g729/internal/fixed"
 )
 
 func TestPow2Fixed_IntegerPowers(t *testing.T) {
@@ -1063,8 +1063,8 @@ Expected: FAIL with "undefined: pow2Fixed".
 package gain
 
 import (
-    "github.com/exedev/g729/internal/fixed"
-    "github.com/exedev/g729/internal/tables"
+    "github.com/hunydev/g729/internal/fixed"
+    "github.com/hunydev/g729/internal/tables"
 )
 
 // pow2Fixed returns 2^(xQ10 / 2^10) as a Word32.
@@ -1152,7 +1152,7 @@ package gain
 import (
     "testing"
 
-    "github.com/exedev/g729/internal/tables"
+    "github.com/hunydev/g729/internal/tables"
 )
 
 func TestPredictedLogGain_AllZeroPastErrors(t *testing.T) {
@@ -1201,8 +1201,8 @@ Expected: FAIL with "undefined: predictedLogGain".
 package gain
 
 import (
-    "github.com/exedev/g729/internal/fixed"
-    "github.com/exedev/g729/internal/tables"
+    "github.com/hunydev/g729/internal/fixed"
+    "github.com/hunydev/g729/internal/tables"
 )
 
 // predictedLogGain computes the MA-predicted log-gain Ê(m) per
@@ -1256,7 +1256,7 @@ package gain
 import (
     "testing"
 
-    "github.com/exedev/g729/internal/tables"
+    "github.com/hunydev/g729/internal/tables"
 )
 
 func TestDecodeVQ_SumsMatchTableEntries(t *testing.T) {
@@ -1312,8 +1312,8 @@ Expected: FAIL with "undefined: decodeVQ".
 package gain
 
 import (
-    "github.com/exedev/g729/internal/fixed"
-    "github.com/exedev/g729/internal/tables"
+    "github.com/hunydev/g729/internal/fixed"
+    "github.com/hunydev/g729/internal/tables"
 )
 
 // decodeVQ performs the conjugate-structure two-stage codebook
@@ -1466,7 +1466,7 @@ Expected: FAIL with "undefined: Decode".
 package gain
 
 import (
-    "github.com/exedev/g729/internal/fixed"
+    "github.com/hunydev/g729/internal/fixed"
 )
 
 // pastErrorsDefault is the spec's initial value for each entry of

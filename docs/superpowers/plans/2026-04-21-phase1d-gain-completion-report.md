@@ -129,7 +129,7 @@ Per §3.9, `U(m) = E(m) − Ẽ(m)` (eq. 70) is mathematically equivalent to `U(
 ```
 goos: linux
 goarch: amd64
-pkg: github.com/exedev/g729/internal/gain
+pkg: github.com/hunydev/g729/internal/gain
 cpu: AMD EPYC 9554P 64-Core Processor
 BenchmarkDecode-2   11000624   108.8 ns/op   0 B/op   0 allocs/op
 ```

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/bitstream"
 )
 
 // TestDiagnostic_Phase1mCe2PositionSignVerbatim — Phase 1m F-Cγ-elsewhere

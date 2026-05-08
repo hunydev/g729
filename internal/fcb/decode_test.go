@@ -22,10 +22,10 @@ func TestDecode_MixedSignsNoEnhancement(t *testing.T) {
 	Decode(idx, 40, 0, &c)
 
 	want := map[int]int16{
-		5:  +PulseAmplitude,
-		11: -PulseAmplitude,
-		17: -PulseAmplitude,
-		24: +PulseAmplitude,
+		20: +PulseAmplitude,
+		36: -PulseAmplitude,
+		22: -PulseAmplitude,
+		8:  +PulseAmplitude,
 	}
 	for p, w := range want {
 		if c[p] != w {
@@ -40,7 +40,7 @@ func TestDecode_MixedSignsNoEnhancement(t *testing.T) {
 }
 
 func TestDecode_AppliesEnhancementAfterPulses(t *testing.T) {
-	idx := Indices{Positions: 0, Signs: 0x08}
+	idx := Indices{Positions: 0, Signs: 0x01}
 	var c [40]int16
 	Decode(idx, 20, 8192, &c)
 

@@ -95,7 +95,7 @@ $ go test ./internal/decoder/ -run 'TestDecode_Frame0Sample0_MatchesALGTHM|TestD
 --- PASS: TestDiagnostic_FquartGainReferenceCrossCheck
 --- PASS: TestDiagnostic_FsextPostfilterChain_Sf0Sample5to7
 PASS
-ok  	github.com/exedev/g729/internal/decoder	0.004s
+ok  	github.com/hunydev/g729/internal/decoder	0.004s
 ```
 
 4 게이트 모두 PASS — F-sept-1 진입 baseline 확정.

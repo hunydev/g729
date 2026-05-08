@@ -112,17 +112,17 @@ f99a1e1 test(gain): lock MA-predictor init value + FIFO-shift semantics per §3.
 ### `go test -race ./...`
 
 ```
-ok  	github.com/exedev/g729/internal/bitstream
-ok  	github.com/exedev/g729/internal/decoder         1.024s
-ok  	github.com/exedev/g729/internal/fcb
-ok  	github.com/exedev/g729/internal/fixed
-ok  	github.com/exedev/g729/internal/gain            1.008s
-ok  	github.com/exedev/g729/internal/lsp
-ok  	github.com/exedev/g729/internal/pcm
-ok  	github.com/exedev/g729/internal/pitch
-ok  	github.com/exedev/g729/internal/postfilter
-ok  	github.com/exedev/g729/internal/synth
-ok  	github.com/exedev/g729/internal/tables
+ok  	github.com/hunydev/g729/internal/bitstream
+ok  	github.com/hunydev/g729/internal/decoder         1.024s
+ok  	github.com/hunydev/g729/internal/fcb
+ok  	github.com/hunydev/g729/internal/fixed
+ok  	github.com/hunydev/g729/internal/gain            1.008s
+ok  	github.com/hunydev/g729/internal/lsp
+ok  	github.com/hunydev/g729/internal/pcm
+ok  	github.com/hunydev/g729/internal/pitch
+ok  	github.com/hunydev/g729/internal/postfilter
+ok  	github.com/hunydev/g729/internal/synth
+ok  	github.com/hunydev/g729/internal/tables
 ```
 
 전체 PASS — **단, ITU 7개 벡터 비트-정확 테스트는 Phase 1h에서 추가된 `t.Skip`이 그대로 유지됨** (회귀 없음, 추가도 없음).

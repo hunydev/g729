@@ -1,7 +1,5 @@
 package closedloop
 
-import "github.com/exedev/g729/internal/fixed"
-
 // GpUpperQ14 is the Q14 representation of the §3.7.3 eq. 43 upper
 // bound 1.2 on the adaptive-codebook gain Gp:
 //
@@ -45,11 +43,11 @@ const GpUpperQ14 int16 = 19661
 // I3 / I4: pure (writes only through y), zero allocation.
 func GpAndY(x, v, h, y *[SubframeLen]int16) (gp int16) {
 	for n := 0; n < SubframeLen; n++ {
-		var acc int32
+		var acc int64
 		for i := 0; i <= n; i++ {
-			acc += int32(v[i]) * int32(h[n-i])
+			acc += int64(v[i]) * int64(h[n-i])
 		}
-		y[n] = fixed.Saturate(acc >> 12)
+		y[n] = saturateInt64ToInt16(roundShift64(acc, 12))
 	}
 
 	var num, den int64
@@ -67,4 +65,36 @@ func GpAndY(x, v, h, y *[SubframeLen]int16) (gp int16) {
 		return GpUpperQ14
 	}
 	return int16((num << 14) / den)
+}
+
+func roundShift(v int32, shift uint) int32 {
+	if shift == 0 {
+		return v
+	}
+	add := int32(1 << (shift - 1))
+	if v >= 0 {
+		return (v + add) >> shift
+	}
+	return -(((-v) + add) >> shift)
+}
+
+func roundShift64(v int64, shift uint) int64 {
+	if shift == 0 {
+		return v
+	}
+	add := int64(1 << (shift - 1))
+	if v >= 0 {
+		return (v + add) >> shift
+	}
+	return -(((-v) + add) >> shift)
+}
+
+func saturateInt64ToInt16(v int64) int16 {
+	if v > 32767 {
+		return 32767
+	}
+	if v < -32768 {
+		return -32768
+	}
+	return int16(v)
 }

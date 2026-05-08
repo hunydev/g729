@@ -1,6 +1,6 @@
 package lpc
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // lagWindow holds the §3.2.1 eq. 6 60 Hz bandwidth-expansion
 // coefficients in Q15:

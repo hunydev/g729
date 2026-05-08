@@ -3,14 +3,14 @@ package decoder
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/lsp"
-	"github.com/exedev/g729/internal/pcm"
-	"github.com/exedev/g729/internal/pitch"
-	"github.com/exedev/g729/internal/postfilter"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/postfilter"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 // TestPhase1o_D3_S3_HandoffDump replays TAME frame 0 with the H-1 seed
@@ -196,19 +196,19 @@ func TestPhase1o_D3_S3_HandoffDump(t *testing.T) {
 		betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
 
 		var v [subframeLen]int16
-		pitch.AdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v)
+		decodeAdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v)
 
 		var c [subframeLen]int16
 		fcb.Decode(fcb.Indices{Positions: C, Signs: S}, tInt, betaQ14, &c)
 
-		gpQ14, gcMant_gcQ12, gcExp_gcQ12 := d.gn.Decode(gain.Indices{GA: GA, GB: GB}, &c)
-		gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
-		t.Logf("gpQ14=%d gcQ12=%d betaQ14=%d", gpQ14, gcQ12, betaQ14)
+		gpQ14, gcMantQ14, gcExp := d.gn.Decode(gain.Indices{GA: GA, GB: GB}, &c)
+		t.Logf("gpQ14=%d gcMantQ14=%d gcExp=%d gcLinear=%.6f betaQ14=%d",
+			gpQ14, gcMantQ14, gcExp, gainLinearFromMantExp(gcMantQ14, gcExp), betaQ14)
 		t.Logf("v[0..7]=%v", v[:8])
 		t.Logf("c[0..7]=%v", c[:8])
 
 		var u [subframeLen]int16
-		synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
+		synth.BuildExcitation(gpQ14, gcMantQ14, gcExp, &v, &c, &u)
 		t.Logf("u[0..7]=%v", u[:8])
 
 		var s [subframeLen]int16

@@ -3,7 +3,7 @@ package lsp_test
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/lsp"
 )
 
 // TestLSPToLPExported pins the QA-1 contract: lsp.LSPToLP must be a

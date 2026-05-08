@@ -1,8 +1,8 @@
 package lsp
 
 import (
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // combineResidual builds the 10-element Q13 residual LSF vector for

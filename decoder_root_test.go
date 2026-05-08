@@ -38,3 +38,39 @@ func TestDecoder_DecodeFrame_AcceptsValidShape(t *testing.T) {
 		t.Fatalf("unexpected error on zero frame: %v", err)
 	}
 }
+
+func TestDecoder_DecodeFrameEnhanced_AcceptsValidShape(t *testing.T) {
+	d := NewDecoder()
+	var (
+		bits [FrameBytes]byte
+		out  [FrameSamples]int16
+	)
+	if err := d.DecodeFrameEnhanced(bits[:], out[:]); err != nil {
+		t.Fatalf("unexpected error on zero frame: %v", err)
+	}
+}
+
+func TestDecoder_ResetRestoresFreshFrameOutput(t *testing.T) {
+	var bits [FrameBytes]byte
+	for i := range bits {
+		bits[i] = byte(i*17 + 3)
+	}
+
+	d := NewDecoder()
+	var got, want, scratch [FrameSamples]int16
+	if err := d.DecodeFrame(bits[:], scratch[:]); err != nil {
+		t.Fatalf("warmup DecodeFrame: %v", err)
+	}
+	d.Reset()
+	if err := d.DecodeFrame(bits[:], got[:]); err != nil {
+		t.Fatalf("DecodeFrame after Reset: %v", err)
+	}
+
+	fresh := NewDecoder()
+	if err := fresh.DecodeFrame(bits[:], want[:]); err != nil {
+		t.Fatalf("fresh DecodeFrame: %v", err)
+	}
+	if got != want {
+		t.Fatal("Reset output differs from fresh decoder")
+	}
+}

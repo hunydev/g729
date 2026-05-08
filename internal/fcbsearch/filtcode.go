@@ -1,7 +1,5 @@
 package fcbsearch
 
-import "github.com/exedev/g729/internal/fixed"
-
 // FilterCode computes the filtered fixed-codebook excitation z[0..39]
 // per ITU-T G.729 §3.9 eq. 64 (G729E.txt §3.9, line ~1340):
 //
@@ -29,10 +27,42 @@ import "github.com/exedev/g729/internal/fixed"
 // I3 / I4: pure (writes only through z), zero allocation.
 func FilterCode(c, h, z *[SubframeLen]int16) {
 	for n := 0; n < SubframeLen; n++ {
-		var acc int32
+		var acc int64
 		for i := 0; i <= n; i++ {
-			acc += int32(c[i]) * int32(h[n-i])
+			acc += int64(c[i]) * int64(h[n-i])
 		}
-		z[n] = fixed.Saturate(acc >> 13)
+		z[n] = saturateInt64ToInt16(roundShift64(acc, 13))
 	}
+}
+
+func roundShift(v int32, shift uint) int32 {
+	if shift == 0 {
+		return v
+	}
+	add := int32(1 << (shift - 1))
+	if v >= 0 {
+		return (v + add) >> shift
+	}
+	return -(((-v) + add) >> shift)
+}
+
+func roundShift64(v int64, shift uint) int64 {
+	if shift == 0 {
+		return v
+	}
+	add := int64(1 << (shift - 1))
+	if v >= 0 {
+		return (v + add) >> shift
+	}
+	return -(((-v) + add) >> shift)
+}
+
+func saturateInt64ToInt16(v int64) int16 {
+	if v > 32767 {
+		return 32767
+	}
+	if v < -32768 {
+		return -32768
+	}
+	return int16(v)
 }

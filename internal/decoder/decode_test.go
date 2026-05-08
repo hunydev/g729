@@ -3,13 +3,13 @@ package decoder
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/lsp"
-	"github.com/exedev/g729/internal/pcm"
-	"github.com/exedev/g729/internal/pitch"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 func TestDecoderZeroValueIsUsable(t *testing.T) {
@@ -110,6 +110,28 @@ func TestDecode_BadFlagAcceptedButIgnored(t *testing.T) {
 	_ = d2.Decode(packed[:], true, out2[:])
 	if out1 != out2 {
 		t.Fatal("Phase 1g must ignore the bad flag; Phase 1h will add concealment")
+	}
+}
+
+func TestScaleDecoderOutputAppliesSpecDouble(t *testing.T) {
+	out := []int16{1000, -1000, 20000, -20000}
+	scaleDecoderOutput(out)
+	want := []int16{2000, -2000, 32767, -32768}
+	for i := range want {
+		if out[i] != want[i] {
+			t.Fatalf("out[%d] = %d, want %d", i, out[i], want[i])
+		}
+	}
+}
+
+func TestScaleDecoderOutputForEnvelopeRecoveryPreservesLegacyBoost(t *testing.T) {
+	out := []int16{1000, -1000, 9000, -9000}
+	scaleDecoderOutputForEnvelopeRecovery(out)
+	want := []int16{4000, -4000, 32767, -32768}
+	for i := range want {
+		if out[i] != want[i] {
+			t.Fatalf("out[%d] = %d, want %d", i, out[i], want[i])
+		}
 	}
 }
 
@@ -287,17 +309,17 @@ func TestFrame0StageByStage(t *testing.T) {
 	var d Decoder
 	for _, sf := range stages {
 		var v [subframeLen]int16
-		pitch.AdaptiveCodebook(sf.tInt, sf.tFrac, d.pastExc[:], &v)
+		decodeAdaptiveCodebook(sf.tInt, sf.tFrac, d.pastExc[:], &v)
 
 		betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
 		var c [subframeLen]int16
 		fcb.Decode(fcb.Indices{Positions: sf.C, Signs: sf.S}, sf.tInt, betaQ14, &c)
 
-		gpQ14, gcMant_gcQ12, gcExp_gcQ12 := d.gn.Decode(gain.Indices{GA: sf.GA, GB: sf.GB}, &c)
-		gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
+		gpQ14, gcMantQ14, gcExp := d.gn.Decode(gain.Indices{GA: sf.GA, GB: sf.GB}, &c)
+		gcLinear := gainLinearFromMantExp(gcMantQ14, gcExp)
 
 		var u [subframeLen]int16
-		synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
+		synth.BuildExcitation(gpQ14, gcMantQ14, gcExp, &v, &c, &u)
 
 		var s [subframeLen]int16
 		sfACopy := sf.sfA
@@ -314,7 +336,8 @@ func TestFrame0StageByStage(t *testing.T) {
 
 		t.Logf("%s v[]: peak=%d rms²=%d", sf.name, peak(v[:]), sumSq(v[:]))
 		t.Logf("%s c[]: peak=%d rms²=%d", sf.name, peak(c[:]), sumSq(c[:]))
-		t.Logf("%s (gp Q14, gc Q12) = (%d, %d)", sf.name, gpQ14, gcQ12)
+		t.Logf("%s (gp Q14, gc mant/exp/linear) = (%d, %d, %d, %.6f)",
+			sf.name, gpQ14, gcMantQ14, gcExp, gcLinear)
 		t.Logf("%s u[]: peak=%d rms²=%d", sf.name, peak(u[:]), sumSq(u[:]))
 		t.Logf("%s s[]: peak=%d rms²=%d", sf.name, peak(s[:]), sumSq(s[:]))
 		t.Logf("%s sPf[]: peak=%d rms²=%d", sf.name, peak(sPf[:]), sumSq(sPf[:]))
@@ -322,8 +345,8 @@ func TestFrame0StageByStage(t *testing.T) {
 		t.Logf("%s scaled[]: peak=%d rms²=%d", sf.name, peak(scaled[:]), sumSq(scaled[:]))
 
 		if sf.GA != 0 && sf.GB != 0 {
-			if gcQ12 == 32767 || gcQ12 == -32768 {
-				t.Logf("DIAGNOSTIC %s: gcQ12 saturated (%d) — non-zero-energy input drove gain VQ to extremum (open issue, see completion report)", sf.name, gcQ12)
+			if gcMantQ14 == 0 {
+				t.Logf("DIAGNOSTIC %s: gc mantissa is zero on non-zero gain indices — inspect fixed-codebook energy path", sf.name)
 			}
 		}
 		if peak(s[:]) == 32767 {

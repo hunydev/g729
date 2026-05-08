@@ -21,7 +21,7 @@ import "testing"
 // This test asserts the CURRENT PRODUCTION OUTPUT for ALGTHM frame 0
 // sub-frame 0, samples 5..7, namely:
 //
-//	got = [+2, +2, +2]   (post-pcm.ScaleUpSat ×2, decoder.Decode result)
+//	got = [+2, +2, +2]   (post decoder output gain recovery)
 //	     ≡ [+1, +1, +1]  (pre-scale, synth/postfilter/HP output)
 //
 // as the LEGITIMATE SPEC-CONFORMANT output. The ITU `.pst`
@@ -202,7 +202,7 @@ func TestDecode_AlgthmFrame0Sf0Sample5to7_KnownPSTDomainDifference(t *testing.T)
 		t.Fatalf("Decode frame 0: %v", err)
 	}
 
-	// Production output post-pcm.ScaleUpSat ×2 for samples 5..7
+	// Production output post decoder output gain recovery for samples 5..7
 	// (≡ [+1,+1,+1] pre-scale). Pinned as the legitimate
 	// spec-conformant value per the 30-refutation evidence ledger
 	// in the docstring above.
@@ -246,7 +246,7 @@ func TestDecode_AlgthmFrame0Sf0Sample5to7_KnownPSTDomainDifference(t *testing.T)
 	// `go test -v` carries it into CI artefacts as a permanent
 	// record of the disposition.
 	t.Logf("Phase 1o D-1b known PST-domain difference: "+
-		"production got=%v (post-ScaleUpSat ×2; ≡ [+1 +1 +1] "+
+		"production got=%v (post decoder output gain recovery; ≡ [+1 +1 +1] "+
 		"pre-scale), PST want=%v. Δ documented as PST-file domain "+
 		"ambiguity, NOT an algorithmic defect. See docstring for "+
 		"30-refutation ledger and reactivation triggers.",

@@ -3,7 +3,7 @@ package fcbsearch_test
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fcbsearch"
+	"github.com/hunydev/g729/internal/fcbsearch"
 )
 
 // CB-3 RED tests for §3.8.1 sign decomposition (G729E.txt lines 1296–1300):

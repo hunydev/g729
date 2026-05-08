@@ -3,8 +3,8 @@ package closedloop
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // adaptiveExcLen mirrors fracTestExcLen / refineExcLen used by the
@@ -15,12 +15,9 @@ const adaptiveExcLen = 256
 
 // TestAdaptiveVector_FracZeroIsIntegerCopy: when frac = 0 the
 // adaptive-codebook vector v(n) reduces to a direct read of the
-// past-excitation buffer at integer delay intLag — no FIR work,
-// no attenuation by b30(0). Per ITU-T G.729 §3.7.1 eq. (40)
-// (G729E.txt line 1162), the centre tap of the b30 FIR is the
-// implicit unity tap; cf. the AdaptiveCodebook decoder reference
-// (internal/pitch/adaptive.go) and Interpolate3 (frac.go) which
-// document the same fast path.
+// past-excitation buffer at integer delay intLag — no FIR work and no
+// attenuation by the stored b30(0) interpolation coefficient. This mirrors
+// Interpolate3's exact integer-delay helper path.
 //
 // Buffer convention (shared with SearchInteger / Interpolate3):
 // u(0) is anchored at exc[len(exc) − SubframeLen]; for integer
@@ -126,18 +123,18 @@ func TestAdaptiveVector_LPResidualBoundary(t *testing.T) {
 
 // TestAdaptiveVector_FracPositiveImpulse: golden cross-check using
 // a single-sample impulse and the same fixed-point primitives the
-// production code uses. With u(−intLag) = 1<<14 and frac = +1, the
-// output sample at n = 0 collapses to b30(1)·u(−intLag), giving
-// Round(LMult(PitchInterpFIR[1], 1<<14)) per §3.7.1 eq. (40).
+// production code uses. With frac = +1 the transmitted pitch delay is
+// intLag + 1/3, so v(0) evaluates u(−intLag − 1/3). An impulse at
+// u(−intLag−1) therefore contributes through b30(2).
 func TestAdaptiveVector_FracPositiveImpulse(t *testing.T) {
 	const intLag int16 = 40
 	var exc [adaptiveExcLen]int16
-	exc[adaptiveExcLen-SubframeLen-int(intLag)] = 1 << 14
+	exc[adaptiveExcLen-SubframeLen-int(intLag)-1] = 1 << 14
 
 	var v [SubframeLen]int16
 	AdaptiveVector(exc[:], intLag, +1, &v)
 
-	want := fixed.Round(fixed.LMult(tables.PitchInterpFIR[1], 1<<14))
+	want := fixed.Round(fixed.LMult(tables.PitchInterpFIR[2], 1<<14))
 	if v[0] != want {
 		t.Fatalf("impulse frac=+1 v[0]: got %d want %d", v[0], want)
 	}

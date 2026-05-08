@@ -276,7 +276,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/exedev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/fixed"
 )
 
 // TestQFormatContract_FixedCodebookEnergyIsQ26 — fixedCodebookEnergy
@@ -458,7 +458,7 @@ package synth
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/fixed"
 )
 
 // TestQFormatContract_BuildExcitationPitchTermIsQ15 — for a unit
@@ -727,10 +727,10 @@ import (
 	"math"
 	"testing"
 
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/postfilter"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/postfilter"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 // TestDiagnostic_SinglePulseChain feeds a controlled single-pulse

@@ -1,8 +1,8 @@
 package closedloop
 
 import (
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // linter is the one-sided length of the 1/3-sample b30 interpolation
@@ -16,11 +16,13 @@ const linter = 10
 //	v(0) = Σ_{i=0..9} u(−k − i)·b30(t + 3i)
 //	     + Σ_{i=0..9} u(−k + 1 + i)·b30(3 − t + 3i)
 //
-// where (k, t) is derived from (intLag, frac):
+// where t ∈ {0,1,2} interpolates the source sample u(−k+t/3). The
+// pitch delay is intLag + frac/3 and the adaptive vector needs
+// u(−(intLag+frac/3)), so (k,t) is derived from (intLag, frac):
 //
 //	frac =  0 → integer copy: returns u(−intLag) directly.
-//	frac = +1 → k = intLag,     t = 1.
-//	frac = −1 → k = intLag − 1, t = 2.
+//	frac = −1 → k = intLag,     t = 1.
+//	frac = +1 → k = intLag + 1, t = 2.
 //
 // Buffer convention: u(0) is anchored at u[len(u) − SubframeLen],
 // so u(−1) = u[len(u) − SubframeLen − 1] and u(−d) maps to
@@ -54,17 +56,17 @@ func Interpolate3(u []int16, intLag int16, frac int8) int16 {
 	N := len(u)
 	anchor := N - SubframeLen
 	if frac == 0 {
-		// Center tap b30(0) = 1.0 ⇒ direct copy. The b30 table omits
-		// this implicit unity tap.
+		// Exact integer delay is a direct copy; it does not use the
+		// stored b30(0) interpolation coefficient.
 		return u[anchor-int(intLag)]
 	}
 
 	var k, posPhase, negPhase int
-	if frac > 0 {
+	if frac < 0 {
 		k = int(intLag)
 		posPhase, negPhase = 1, 2
 	} else {
-		k = int(intLag) - 1
+		k = int(intLag) + 1
 		posPhase, negPhase = 2, 1
 	}
 

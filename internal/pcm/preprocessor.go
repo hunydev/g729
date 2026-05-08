@@ -1,6 +1,6 @@
 package pcm
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // FrameLength is the number of PCM samples in one G.729 frame
 // (10 ms at 8 kHz).

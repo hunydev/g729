@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/exedev/g729/internal/lpc"
-	"github.com/exedev/g729/internal/pcm"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/lpc"
+	"github.com/hunydev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // TestINT1D1ClosedForm — Phase 2a-INT-1-d1 (diagnostic 1) closed-form

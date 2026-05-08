@@ -26,6 +26,9 @@ identify the current files after numeric `expected` cells were filled.
 | `PITCH_CLOSEDLOOP_VERIFIER_PROMPT.md` | n/a | n/a | `0d5de5773dc4b23b31079e2b254e08a02eaea056174a460158fd05129ac1dd01` |
 | `pitch_closedloop_search_expected_template.csv` | `field,frame,sub,index,lag,frac,expected` | 3192 | `5a4b28ab4c51728c107e5cc278362a67e9f7f5a0b27d9a3bef8d2367bb31d202` |
 | `pitch_closedloop_search_got.csv` | `field,frame,sub,index,lag,frac,got` | 3192 | `086a22e02010f9f9eb1292d89f4b58a06d6969061d7119385dd90c630eb314ea` |
+| `ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md` | n/a | n/a | `25504a04222d53794b6a262e2c56601148e2e312551a6344db3346bc816417b3` |
+| `encoder_closedloop_stage_expected_template.csv` | `field,frame,sub,index,lag,frac,expected` | 100848 | `d597acf9a6040a0380dd009e8c5669905aba5ecc7222b4756c13372d4c8aace4` |
+| `encoder_closedloop_stage_got.csv` | `field,frame,sub,index,lag,frac,got` | 100848 | `859bb985aad0cbd4bc18e7f65429d79d176a07e4ec16477a6f982eb407f28b3b` |
 | `TAME_GAIN_TAMING_VERIFIER_PROMPT.md` | n/a | n/a | `7a31b94f0edc9249f1de0e6522e10f136ef42c060262fbdee8d9e6f5e588d3e0` |
 | `tame_gain_taming_expected_template.csv` | `field,frame,sub,index,expected` | 8962 | `4b31d19b4fb910e579ccfd78babe80337798c8a6c9a3b90d29c54bd06b18fc2a` |
 | `tame_gain_taming_got.csv` | `field,frame,sub,index,got` | 8962 | `53927db37826977a1f0e6a2421f4ccb7a0a569998bae8461c479a6260c0af298` |

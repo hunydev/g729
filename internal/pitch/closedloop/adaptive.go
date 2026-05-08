@@ -11,12 +11,11 @@ package closedloop
 // exc[len(exc) − SubframeLen] and u(−1) = exc[len(exc) − SubframeLen
 // − 1]; the trailing SubframeLen samples hold the LP-residual
 // extension u(0..39) for the short-pitch case (§A.3.7 line 2161).
-// For frac = 0 the equation degenerates to a direct integer copy
-// v(n) = exc[len(exc) − SubframeLen − intLag + n] (b30(0) = 1.0 is
-// the implicit centre tap of the FIR, see frac.go). For frac = ±1
-// the 1/3-sample b30 FIR is applied via the shared Interpolate3
-// primitive using the same algebraic mapping documented in
-// RefineFraction (refine.go):
+// For frac = 0 this helper uses a direct integer copy
+// v(n) = exc[len(exc) − SubframeLen − intLag + n]. For frac = ±1 the
+// 1/3-sample b30 FIR is applied via the shared Interpolate3 primitive
+// using the same delay-sign mapping documented in RefineFraction
+// (refine.go):
 //
 //	v(n) = Interpolate3(exc, intLag − n, frac)
 //

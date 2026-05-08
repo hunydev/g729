@@ -88,20 +88,20 @@ Step 1 명령어 + 결과:
 전체 `go test ./internal/...` 출력 (요약):
 
 ```
-ok    github.com/exedev/g729/internal/bitstream  (cached)
-FAIL  github.com/exedev/g729/internal/decoder    0.014s
+ok    github.com/hunydev/g729/internal/bitstream  (cached)
+FAIL  github.com/hunydev/g729/internal/decoder    0.014s
        --- FAIL: TestDiagnostic_SinglePulseChain (plan-허용 baseline)
-ok    github.com/exedev/g729/internal/fcb        (cached)
-ok    github.com/exedev/g729/internal/fixed      (cached)
-FAIL  github.com/exedev/g729/internal/gain       0.002s
+ok    github.com/hunydev/g729/internal/fcb        (cached)
+ok    github.com/hunydev/g729/internal/fixed      (cached)
+FAIL  github.com/hunydev/g729/internal/gain       0.002s
        --- FAIL: TestDecode_LowEnergyCodebookIsSmooth (plan-허용)
        --- FAIL: TestDecode_SucceedsAcrossAllGainIndices (plan-허용)
-ok    github.com/exedev/g729/internal/lsp        (cached)
-ok    github.com/exedev/g729/internal/pcm        (cached)
-ok    github.com/exedev/g729/internal/pitch      (cached)
-ok    github.com/exedev/g729/internal/postfilter (cached)
-ok    github.com/exedev/g729/internal/synth      (cached)
-ok    github.com/exedev/g729/internal/tables     (cached)
+ok    github.com/hunydev/g729/internal/lsp        (cached)
+ok    github.com/hunydev/g729/internal/pcm        (cached)
+ok    github.com/hunydev/g729/internal/pitch      (cached)
+ok    github.com/hunydev/g729/internal/postfilter (cached)
+ok    github.com/hunydev/g729/internal/synth      (cached)
+ok    github.com/hunydev/g729/internal/tables     (cached)
 ```
 
 `go vet ./...` → 출력 없음 (clean).

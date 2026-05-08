@@ -272,6 +272,38 @@ Pitch closed-loop search workflow:
    G729_COMPARE_PITCH_CLOSEDLOOP_SEARCH_HANDOFF=1 G729_REQUIRE_COMPLETE_PITCH_CLOSEDLOOP_SEARCH_HANDOFF=1 G729_REQUIRE_EXACT_PITCH_CLOSEDLOOP_SEARCH_HANDOFF=1 go test -run TestOracleHandoff_ComparePitchClosedLoopSearchInputHandoff -v
    ```
 
+Encoder closed-loop stage workflow:
+
+1. Refresh the SPEECH frame subset template:
+
+   ```sh
+   G729_WRITE_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 go test -run TestOracleHandoff_WriteEncoderClosedLoopStageHandoff -v
+   ```
+
+2. Ask the verifier to fill `expected` in
+   `encoder_closedloop_stage_expected_template.csv` using
+   `ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md`.
+3. Compare only numeric scalar values keyed by:
+
+   ```csv
+   field,frame,sub,index,lag,frac
+   ```
+
+4. `index=-1` means scalar/not applicable. For `phi`,
+   `index = i*40 + j`.
+5. After the verifier fills numeric `expected` cells, compare locally:
+
+   ```sh
+   G729_COMPARE_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 go test -run TestOracleHandoff_CompareEncoderClosedLoopStageHandoff -v
+   ```
+
+   For a complete exact verdict, require every cell to be filled and
+   fail on any mismatch:
+
+   ```sh
+   G729_COMPARE_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 G729_REQUIRE_COMPLETE_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 G729_REQUIRE_EXACT_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 go test -run TestOracleHandoff_CompareEncoderClosedLoopStageHandoff -v
+   ```
+
 TAME gain/taming workflow:
 
 1. Refresh the all-frame TAME gain/taming template:

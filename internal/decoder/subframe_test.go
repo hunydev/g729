@@ -1,6 +1,10 @@
 package decoder
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/hunydev/g729/internal/pitch"
+)
 
 func TestDecodeSubframe_ZeroGainProducesZero(t *testing.T) {
 	var d Decoder
@@ -61,5 +65,38 @@ func TestDecodeSubframe_TwoCallsDiffer(t *testing.T) {
 	d.decodeSubframe(&sfA, 40, 0, 0x1FFF, 0xF, 7, 15, out2[:])
 	if out1 == out2 {
 		t.Fatal("two back-to-back calls produced identical output — state did not advance")
+	}
+}
+
+func TestDecodeAdaptiveCodebookHonorsFractionalDelay(t *testing.T) {
+	var pastExc [pastExcLen]int16
+	for i := range pastExc {
+		pastExc[i] = int16((i*73)%2000 - 1000)
+	}
+
+	var got, want, integerOnly [subframeLen]int16
+	decodeAdaptiveCodebook(60, 1, pastExc[:], &got)
+	pitch.AdaptiveCodebook(60, 1, pastExc[:], &want)
+	pitch.AdaptiveCodebook(60, 0, pastExc[:], &integerOnly)
+
+	if got != want {
+		t.Fatal("strict ACB wrapper must preserve fractional pitch delay")
+	}
+	if got == integerOnly {
+		t.Fatal("fractional pitch delay collapsed to integer-only ACB")
+	}
+}
+
+func TestDecodeAdaptiveCodebookIntegerLagOnlyIsExplicitFallback(t *testing.T) {
+	var pastExc [pastExcLen]int16
+	for i := range pastExc {
+		pastExc[i] = int16((i*97)%3000 - 1500)
+	}
+
+	var got, want [subframeLen]int16
+	decodeAdaptiveCodebookIntegerLagOnly(60, pastExc[:], &got)
+	pitch.AdaptiveCodebook(60, 0, pastExc[:], &want)
+	if got != want {
+		t.Fatal("integer-lag-only ACB fallback diverged from tFrac=0 ACB")
 	}
 }

@@ -9,9 +9,9 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // TestPhase3bDiag5_AmplitudeBudget is the Phase 3b DIAG-5 amplitude-leak

@@ -8,8 +8,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/lsp"
 )
 
 // TestPhase3bDiag2_LPInterpolationTrajectory drives SPEECH.BIT through

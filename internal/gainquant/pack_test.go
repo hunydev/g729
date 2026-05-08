@@ -3,8 +3,8 @@ package gainquant_test
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/gainquant"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/gainquant"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // ENC-1 RED for §3.9.3 forward index mapping. SearchConjugate (GQ-2)

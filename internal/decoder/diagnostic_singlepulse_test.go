@@ -20,9 +20,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/postfilter"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/postfilter"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 // TestDiagnostic_SinglePulseChain feeds a controlled single-pulse
@@ -88,17 +88,16 @@ func TestDiagnostic_SinglePulseChain(t *testing.T) {
 
 	// === Boundary ⑩-⑪ gain.Decode + BuildExcitation ===
 	var gd gain.Decoder
-	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gd.Decode(gain.Indices{GA: 3, GB: 7}, &c)
-	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
-	gcTrue := float64(gcQ12) / 4096.0
-	t.Logf("[⑩ gain] gpQ14=%d gcQ12=%d (true gc=%.4f)",
-		gpQ14, gcQ12, gcTrue)
+	gpQ14, gcMantQ14, gcExp := gd.Decode(gain.Indices{GA: 3, GB: 7}, &c)
+	gcTrue := gainLinearFromMantExp(gcMantQ14, gcExp)
+	t.Logf("[⑩ gain] gpQ14=%d gcMantQ14=%d gcExp=%d (true gc=%.4f)",
+		gpQ14, gcMantQ14, gcExp, gcTrue)
 	t.Logf("[⑩ gain] spec g'_c=%.4f → gc bounded by [0, ~22] for γ̂_max≈2",
 		expectedGcPrime)
 
 	var v, u [40]int16
-	synth.BuildExcitation(0, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
-	t.Logf("[⑪ u] u[0]=%d (= round(gcQ12/4096) = round(%.4f) = expect %d)",
+	synth.BuildExcitation(0, gcMantQ14, gcExp, &v, &c, &u)
+	t.Logf("[⑪ u] u[0]=%d (= round(gc) = round(%.4f) = expect %d)",
 		u[0], gcTrue, int(math.Round(gcTrue)))
 
 	// === Boundary ⑫ synth.Filter ===
@@ -116,7 +115,7 @@ func TestDiagnostic_SinglePulseChain(t *testing.T) {
 	t.Logf("[⑬ sPf] sPf[0..7]=%v", sPf[:8])
 
 	t.Logf("=== boundaries logged: ① fcb energy ② accumulator " +
-		"⑩ gcQ12 ⑪ u[0] ⑫ s[0] ⑬ sPf[0..7] ===")
+		"⑩ gc mant/exp ⑪ u[0] ⑫ s[0] ⑬ sPf[0..7] ===")
 	t.Logf("Boundaries ③-⑨ (gain log-domain intermediates) are " +
 		"package-private to internal/gain; Task 3's gain Q-format " +
 		"contract tests cover them. Cross-reference those test " +
@@ -126,7 +125,7 @@ func TestDiagnostic_SinglePulseChain(t *testing.T) {
 	//
 	// Observed in Task 6: with a single +Q13 pulse at position 0,
 	// idx={GA:3,GB:7}, gpQ14=0 — all five quantitative boundaries
-	// (① fcb energy, ⑩ gcQ12 in-bound, ⑪ u[0]=round(gc), ⑫ s[0]=u[0])
+	// (① fcb energy, ⑩ gc in-bound, ⑪ u[0]=round(gc), ⑫ s[0]=u[0])
 	// land on their spec-aligned values. The 14 dB ALGTHM frame 0
 	// sf2 saturation is therefore NOT reproduced by this single-pulse
 	// stimulus. These permanent assertions guard the harness against
@@ -151,16 +150,12 @@ func TestDiagnostic_SinglePulseChain(t *testing.T) {
 			s[0], u[0])
 	}
 
-	// Boundary ⑩ Stage F trigger — gcQ12 true magnitude must be within
+	// Boundary ⑩ Stage F trigger — true g_c magnitude must be within
 	// [0, expectedGcPrime · γ̂_max] where γ̂_max ≈ 2.
 	maxExpectedGc := expectedGcPrime * 2.0
 	if gcTrue < 0 || gcTrue > maxExpectedGc+0.5 {
 		t.Errorf("BOUNDARY ⑩ gain: gcTrue=%.4f exceeds spec bound [0, %.4f]; "+
 			"this is the Stage F target (14 dB suspect at gain log-domain math)",
 			gcTrue, maxExpectedGc)
-	} else if gcQ12 == 32767 || gcQ12 == -32768 {
-		t.Errorf("BOUNDARY ⑩ gain: gcQ12 saturated (%d); 14 dB suspect at "+
-			"gain log-domain math — review §3.9.1 ecBar/predicted/logGain chain",
-			gcQ12)
 	}
 }

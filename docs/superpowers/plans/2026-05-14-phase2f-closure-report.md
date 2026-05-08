@@ -317,50 +317,50 @@ I4 / I6 obligations met; perf budget non-blocking.
 
 | Package | Status |
 |---------|--------|
-| `github.com/exedev/g729` | **FAIL** (`TestEncode_LSPVectorBitExact`, `TestPhase2cINT1_ClosedLoopPitchByteEQ`, `TestPhase2dINT1a_FCBByteEQ`, `TestPhase2fTAME1_ByteEQ`) |
-| `github.com/exedev/g729/internal/acelp` | PASS |
-| `github.com/exedev/g729/internal/bitstream` | PASS |
-| `github.com/exedev/g729/internal/decoder` | **FAIL** (`TestDiagnostic_SinglePulseChain`) |
-| `github.com/exedev/g729/internal/fcb` | PASS |
-| `github.com/exedev/g729/internal/fcbsearch` | PASS |
-| `github.com/exedev/g729/internal/filter` | PASS |
-| `github.com/exedev/g729/internal/fixed` | PASS |
-| `github.com/exedev/g729/internal/gain` | **FAIL** (`TestDecode_LowEnergyCodebookIsSmooth`, `TestDecode_SucceedsAcrossAllGainIndices`) |
-| `github.com/exedev/g729/internal/gainquant` | PASS |
-| `github.com/exedev/g729/internal/lpc` | PASS |
-| `github.com/exedev/g729/internal/lsp` | PASS |
-| `github.com/exedev/g729/internal/pcm` | PASS |
-| `github.com/exedev/g729/internal/pitch` | PASS |
-| `github.com/exedev/g729/internal/pitch/closedloop` | PASS |
-| `github.com/exedev/g729/internal/pitch/openloop` | PASS |
-| `github.com/exedev/g729/internal/postfilter` | PASS |
-| `github.com/exedev/g729/internal/synth` | PASS |
-| `github.com/exedev/g729/internal/tables` | PASS |
+| `github.com/hunydev/g729` | **FAIL** (`TestEncode_LSPVectorBitExact`, `TestPhase2cINT1_ClosedLoopPitchByteEQ`, `TestPhase2dINT1a_FCBByteEQ`, `TestPhase2fTAME1_ByteEQ`) |
+| `github.com/hunydev/g729/internal/acelp` | PASS |
+| `github.com/hunydev/g729/internal/bitstream` | PASS |
+| `github.com/hunydev/g729/internal/decoder` | **FAIL** (`TestDiagnostic_SinglePulseChain`) |
+| `github.com/hunydev/g729/internal/fcb` | PASS |
+| `github.com/hunydev/g729/internal/fcbsearch` | PASS |
+| `github.com/hunydev/g729/internal/filter` | PASS |
+| `github.com/hunydev/g729/internal/fixed` | PASS |
+| `github.com/hunydev/g729/internal/gain` | **FAIL** (`TestDecode_LowEnergyCodebookIsSmooth`, `TestDecode_SucceedsAcrossAllGainIndices`) |
+| `github.com/hunydev/g729/internal/gainquant` | PASS |
+| `github.com/hunydev/g729/internal/lpc` | PASS |
+| `github.com/hunydev/g729/internal/lsp` | PASS |
+| `github.com/hunydev/g729/internal/pcm` | PASS |
+| `github.com/hunydev/g729/internal/pitch` | PASS |
+| `github.com/hunydev/g729/internal/pitch/closedloop` | PASS |
+| `github.com/hunydev/g729/internal/pitch/openloop` | PASS |
+| `github.com/hunydev/g729/internal/postfilter` | PASS |
+| `github.com/hunydev/g729/internal/synth` | PASS |
+| `github.com/hunydev/g729/internal/tables` | PASS |
 
 **Total baseline at Phase 2f closure: 7 FAILs (6 inherited from Phase 2a/2c/2d/decoder/gain + 1 new Phase 2f TAME-1 FAIL-DEFERRED).** Inherited FAIL cohort:
 
 | Test | Package | Source phase |
 |------|---------|--------------|
-| `TestEncode_LSPVectorBitExact` | `github.com/exedev/g729` | Phase 2a INT-1 ACCEPT-PARTIAL |
-| `TestPhase2cINT1_ClosedLoopPitchByteEQ` | `github.com/exedev/g729` | Phase 2c INT-1 FAIL-DEFERRED (re-baselined Phase 2d INT-1b) |
-| `TestPhase2dINT1a_FCBByteEQ` | `github.com/exedev/g729` | Phase 2d INT-1a FAIL-DEFERRED |
-| `TestDiagnostic_SinglePulseChain` | `github.com/exedev/g729/internal/decoder` | Phase 1 inheritance |
-| `TestDecode_LowEnergyCodebookIsSmooth` | `github.com/exedev/g729/internal/gain` | Phase 1 inheritance |
-| `TestDecode_SucceedsAcrossAllGainIndices` | `github.com/exedev/g729/internal/gain` | Phase 1 inheritance |
+| `TestEncode_LSPVectorBitExact` | `github.com/hunydev/g729` | Phase 2a INT-1 ACCEPT-PARTIAL |
+| `TestPhase2cINT1_ClosedLoopPitchByteEQ` | `github.com/hunydev/g729` | Phase 2c INT-1 FAIL-DEFERRED (re-baselined Phase 2d INT-1b) |
+| `TestPhase2dINT1a_FCBByteEQ` | `github.com/hunydev/g729` | Phase 2d INT-1a FAIL-DEFERRED |
+| `TestDiagnostic_SinglePulseChain` | `github.com/hunydev/g729/internal/decoder` | Phase 1 inheritance |
+| `TestDecode_LowEnergyCodebookIsSmooth` | `github.com/hunydev/g729/internal/gain` | Phase 1 inheritance |
+| `TestDecode_SucceedsAcrossAllGainIndices` | `github.com/hunydev/g729/internal/gain` | Phase 1 inheritance |
 
 Phase 2f adds **one new FAIL-DEFERRED** test:
 
 | Test | Package | Disposition |
 |------|---------|-------------|
-| `TestPhase2fTAME1_ByteEQ` | `github.com/exedev/g729` | FAIL-DEFERRED — 3-of-4 plausibility floor breaches (GA1 7.03 / GB1 2.34 / GA2 4.69 < Phase 2d INT-1a baselines); slot 5/5 sweep NO-WINNER; routes upstream to Phase 2c P1/P2 + Phase 2d S/C structural blocker. |
+| `TestPhase2fTAME1_ByteEQ` | `github.com/hunydev/g729` | FAIL-DEFERRED — 3-of-4 plausibility floor breaches (GA1 7.03 / GB1 2.34 / GA2 4.69 < Phase 2d INT-1a baselines); slot 5/5 sweep NO-WINNER; routes upstream to Phase 2c P1/P2 + Phase 2d S/C structural blocker. |
 
 Phase 2f authored harnesses that **PASS** (informational t.Logf only, no t.Errorf):
 
 | Test | Package | Disposition |
 |------|---------|-------------|
-| `TestPhase2fTAME1_Slot5_OQTamingThrSweep` | `github.com/exedev/g729` | NO-WINNER (informational sweep table) |
-| `TestPhase2fINT1_PerVectorByteEQ` (6 subtests: PITCH/ALGTHM/SPEECH/FIXED/LSP/TEST) | `github.com/exedev/g729` | All 6 FAIL-DEFERRED but informational (no t.Errorf) per **I-2f-5** routing |
-| `TestPhase2fINT2_*` (alloc + bench) | `github.com/exedev/g729` | All PASS |
+| `TestPhase2fTAME1_Slot5_OQTamingThrSweep` | `github.com/hunydev/g729` | NO-WINNER (informational sweep table) |
+| `TestPhase2fINT1_PerVectorByteEQ` (6 subtests: PITCH/ALGTHM/SPEECH/FIXED/LSP/TEST) | `github.com/hunydev/g729` | All 6 FAIL-DEFERRED but informational (no t.Errorf) per **I-2f-5** routing |
+| `TestPhase2fINT2_*` (alloc + bench) | `github.com/hunydev/g729` | All PASS |
 
 `go vet ./...` ✅ clean. `go build ./...` ✅ clean.
 

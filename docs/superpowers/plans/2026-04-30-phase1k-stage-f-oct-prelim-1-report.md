@@ -89,7 +89,7 @@ E4: README 인용은 *format 정의* (16-bit Intel PC byte order + 파일 크기
 | 7 | `TestDiagnostic_FseptSynthIIRTrace_Sf0Sample0to7` | PASS |
 | 8 | `go vet ./...` | 무출력 |
 
-집계 실행 (`go test ./internal/decoder/ -run '게이트1\|...\|게이트7'`): `ok github.com/exedev/g729/internal/decoder 0.007s`.
+집계 실행 (`go test ./internal/decoder/ -run '게이트1\|...\|게이트7'`): `ok github.com/hunydev/g729/internal/decoder 0.007s`.
 
 ### 2.2 게이트 9 (비-contract diagnostic 3건 FAIL plan-허용)
 

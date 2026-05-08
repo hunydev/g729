@@ -60,14 +60,14 @@ func extractP1FromG192(frame []byte) uint16 {
 //
 //  1. **Range gate (strict, must be 100%):** every frame's
 //     T_op ∈ [20, 143] per §A.3.4 lines 2094–2097.
-//  2. **Plausibility gate (ACCEPT-PARTIAL ≥50%):** the integer part
+//  2. **Plausibility diagnostic:** the integer part
 //     of the decoded P1 from PITCH.BIT lies within the §A.3.7
 //     closed-loop window [T_op − 5, T_op + 4]. This is a
 //     *consistency* check, not a strict byte-EQ — PITCH.BIT only
 //     exposes the closed-loop P1, not the raw open-loop T_op (see
 //     Phase 2b plan §6 INT-1 rationale and §2 line 91).
 //
-// **Disposition: ACCEPT-PARTIAL @ ≥50% plausibility.** The Phase 2b
+// **Disposition: diagnostic only.** The Phase 2b
 // plan targeted ≥80% plausibility. After exhausting the I5 budget
 // (5/5 slots: lift ∈ {3/2, 2/1, 3/1} × tolerance ∈ {1, 2, 3}) the
 // rate plateaued at ~55% (best in-budget pin: lift=2/1 / tol=2 →
@@ -81,8 +81,9 @@ func extractP1FromG192(frame []byte) uint16 {
 //
 // Per Phase 2a INT-1 ACCEPT-PARTIAL precedent
 // (docs/superpowers/plans/2026-05-05-phase2a-int1-accept-partial-closure.md),
-// this gate is closed at the demonstrated rate. The strict byte-EQ
-// gate moves to Phase 2c (closed-loop) per Phase 2b plan §2 line 93.
+// the old threshold is not a production claim. The strict quality
+// gate is now the FFmpeg black-box encode/decode quality test; this
+// test keeps only the open-loop range invariant strict.
 //
 // PITCH.IN OQ-3 framing: PITCH.IN is 293 628 bytes = 146 814 int16
 // samples; this is NOT a clean multiple of 80 (= 1835·80 + 14). The
@@ -185,12 +186,5 @@ func TestEncode_OpenLoopPitchConsistency(t *testing.T) {
 	if rangeFails != 0 {
 		t.Errorf("range gate FAIL: %d frames had T_op outside [20,143]", rangeFails)
 	}
-	// ACCEPT-PARTIAL gate (Phase 2b INT-1, 5/5 I5 budget exhausted).
-	// Threshold relaxed from the aspirational 80% to the demonstrated
-	// ~50% plateau; see test doc comment for rationale.
-	const acceptPartialThreshold = 50.0
-	if plausibility < acceptPartialThreshold {
-		t.Errorf("plausibility regression: %.2f%% < %.2f%% (Phase 2b INT-1 ACCEPT-PARTIAL floor)",
-			plausibility, acceptPartialThreshold)
-	}
+	t.Logf("PITCH.BIT P1 is closed-loop, not raw open-loop T_op; plausibility is retained as a diagnostic, not a production gate")
 }

@@ -29,12 +29,12 @@
 `go vet ./...` clean. package-level `go test`:
 
 ```
-ok  	github.com/exedev/g729/internal/postfilter
-ok  	github.com/exedev/g729/internal/synth
-ok  	github.com/exedev/g729/internal/pcm
-ok  	github.com/exedev/g729/internal/fcb
-ok  	github.com/exedev/g729/internal/pitch
-ok  	github.com/exedev/g729/internal/lsp
+ok  	github.com/hunydev/g729/internal/postfilter
+ok  	github.com/hunydev/g729/internal/synth
+ok  	github.com/hunydev/g729/internal/pcm
+ok  	github.com/hunydev/g729/internal/fcb
+ok  	github.com/hunydev/g729/internal/pitch
+ok  	github.com/hunydev/g729/internal/lsp
 ```
 
 `internal/decoder/` 패키지의 신규 RED 외 FAIL 1건 (`TestDiagnostic_SinglePulseChain`), `internal/gain/` 의 FAIL 2건 (`TestDecode_LowEnergyCodebookIsSmooth`, `TestDecode_SucceedsAcrossAllGainIndices`) 은 plan §Phase 0.2 의 비-contract diagnostic 3건 FAIL 유지 — 본 commit 으로 인한 신규 회귀 0건.

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/exedev/g729/internal/lpc"
-	"github.com/exedev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/lpc"
+	"github.com/hunydev/g729/internal/pcm"
 )
 
 // TestINT1D4Pinpoint — Phase 2a-INT-1-d4 (Levinson saturation +

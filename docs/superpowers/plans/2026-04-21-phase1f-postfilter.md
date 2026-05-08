@@ -371,7 +371,7 @@ Write to `internal/postfilter/bandwidth.go`:
 ```go
 package postfilter
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // expandBandwidth computes a_scaled[i] = γ^i · a[i] for i ∈ [0, 10]
 // per ITU-T G.729 §3.10.1 / §A.4.2.1.
@@ -569,7 +569,7 @@ Write to `internal/postfilter/residual.go`:
 ```go
 package postfilter
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // computeResidual applies the bandwidth-expanded FIR
 //   r(n) = Σ_{i=0..10} aNum[i] · s(n−i)
@@ -1125,7 +1125,7 @@ Write to `internal/postfilter/shortterm.go`:
 ```go
 package postfilter
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // applyShortTerm runs the short-term postfilter IIR
 //   s_st(n) = r'(n) − Σ_{i=1..10} aDen[i] · s_st(n−i)

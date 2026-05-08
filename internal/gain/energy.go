@@ -1,6 +1,6 @@
 package gain
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // fixedCodebookEnergy returns the inner sum Σ c[n]² as a non-negative
 // Word32.

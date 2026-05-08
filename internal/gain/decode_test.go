@@ -12,13 +12,15 @@ func TestDecode_ProducesGainsAndUpdatesState(t *testing.T) {
 	idx := Indices{GA: 3, GB: 7}
 
 	gp, mant, exp := d.Decode(idx, &c)
-	gc := LegacyGcQ12FromMantExp(mant, exp)
 
 	if gp <= 0 || gp > 20000 {
 		t.Errorf("g_p = %d, out of plausible Q14 range [1, 20000]", gp)
 	}
-	if gc <= 0 {
-		t.Errorf("g_c = %d, want positive", gc)
+	if mant <= 0 {
+		t.Errorf("g_c mantissa = %d, want positive", mant)
+	}
+	if linear := float64(mant) * math.Exp2(float64(exp)-14.0); linear <= 0 {
+		t.Errorf("g_c linear = %g from (mant=%d, exp=%d), want positive", linear, mant, exp)
 	}
 	if !d.initialized {
 		t.Errorf("initialized = false after Decode, want true")
@@ -56,17 +58,16 @@ func TestDecode_ResetRestoresZeroValueDeterminism(t *testing.T) {
 
 	var d1 Decoder
 	gp1, gc1Mant, gc1Exp := d1.Decode(idx, &c)
-	gc1 := LegacyGcQ12FromMantExp(gc1Mant, gc1Exp)
 
 	var d2 Decoder
 	_, _, _ = d2.Decode(idx, &c)
 	_, _, _ = d2.Decode(idx, &c)
 	d2.Reset()
 	gp2, gc2Mant, gc2Exp := d2.Decode(idx, &c)
-	gc2 := LegacyGcQ12FromMantExp(gc2Mant, gc2Exp)
 
-	if gp1 != gp2 || gc1 != gc2 {
-		t.Errorf("after Reset, outputs differ: (%d, %d) vs (%d, %d)", gp1, gc1, gp2, gc2)
+	if gp1 != gp2 || gc1Mant != gc2Mant || gc1Exp != gc2Exp {
+		t.Errorf("after Reset, outputs differ: (%d, %d, %d) vs (%d, %d, %d)",
+			gp1, gc1Mant, gc1Exp, gp2, gc2Mant, gc2Exp)
 	}
 }
 

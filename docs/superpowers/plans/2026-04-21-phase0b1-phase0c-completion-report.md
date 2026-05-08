@@ -52,10 +52,10 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 ### 2.1 `go test ./... -race`
 
 ```
-?   	github.com/exedev/g729	[no test files]
-ok  	github.com/exedev/g729/internal/bitstream	1.036s
-ok  	github.com/exedev/g729/internal/fixed	(cached)
-ok  	github.com/exedev/g729/internal/pcm	(cached)
+?   	github.com/hunydev/g729	[no test files]
+ok  	github.com/hunydev/g729/internal/bitstream	1.036s
+ok  	github.com/hunydev/g729/internal/fixed	(cached)
+ok  	github.com/hunydev/g729/internal/pcm	(cached)
 ```
 
 전 패키지 PASS.

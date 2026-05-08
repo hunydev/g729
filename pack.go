@@ -1,6 +1,6 @@
 package g729
 
-import "github.com/exedev/g729/internal/bitstream"
+import "github.com/hunydev/g729/internal/bitstream"
 
 // buildBitstreamFrame composes the 15 per-frame G.729 transmission
 // indices currently held on the Encoder into out.

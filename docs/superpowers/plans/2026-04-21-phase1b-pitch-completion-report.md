@@ -32,12 +32,12 @@ All commits include `Co-authored-by: Copilot <223556219+Copilot@users.noreply.gi
 ### `go test -race ./...`
 
 ```
-ok  github.com/exedev/g729/internal/bitstream
-ok  github.com/exedev/g729/internal/fixed
-ok  github.com/exedev/g729/internal/lsp
-ok  github.com/exedev/g729/internal/pcm
-ok  github.com/exedev/g729/internal/pitch       1.014s
-ok  github.com/exedev/g729/internal/tables      1.009s
+ok  github.com/hunydev/g729/internal/bitstream
+ok  github.com/hunydev/g729/internal/fixed
+ok  github.com/hunydev/g729/internal/lsp
+ok  github.com/hunydev/g729/internal/pcm
+ok  github.com/hunydev/g729/internal/pitch       1.014s
+ok  github.com/hunydev/g729/internal/tables      1.009s
 ```
 
 ### `go vet ./internal/pitch/... ./internal/tables/...`

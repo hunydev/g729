@@ -189,16 +189,16 @@ On branch main
 nothing to commit, working tree clean
 
 $ go test -race ./...
-ok  github.com/exedev/g729/internal/decoder    (cached)
-ok  github.com/exedev/g729/internal/fcb        (cached)
-ok  github.com/exedev/g729/internal/fixed      (cached)
-ok  github.com/exedev/g729/internal/gain       (cached)
-ok  github.com/exedev/g729/internal/lsp        (cached)
-ok  github.com/exedev/g729/internal/pcm        (cached)
-ok  github.com/exedev/g729/internal/pitch      (cached)
-ok  github.com/exedev/g729/internal/postfilter (cached)
-ok  github.com/exedev/g729/internal/synth      (cached)
-ok  github.com/exedev/g729/internal/tables     (cached)
+ok  github.com/hunydev/g729/internal/decoder    (cached)
+ok  github.com/hunydev/g729/internal/fcb        (cached)
+ok  github.com/hunydev/g729/internal/fixed      (cached)
+ok  github.com/hunydev/g729/internal/gain       (cached)
+ok  github.com/hunydev/g729/internal/lsp        (cached)
+ok  github.com/hunydev/g729/internal/pcm        (cached)
+ok  github.com/hunydev/g729/internal/pitch      (cached)
+ok  github.com/hunydev/g729/internal/postfilter (cached)
+ok  github.com/hunydev/g729/internal/synth      (cached)
+ok  github.com/hunydev/g729/internal/tables     (cached)
 ```
 
 세션 진입 직전과 동일한 상태로 복원됨.

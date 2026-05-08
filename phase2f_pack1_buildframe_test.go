@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/bitstream"
 )
 
 // TestPhase2fPACK1_BuildBitstreamFrame_FieldCopy asserts that

@@ -3,7 +3,7 @@ package gain
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/fixed"
 )
 
 func approxEqualPow(t *testing.T, name string, got, want, tol fixed.Word32) {

@@ -1,6 +1,6 @@
 package lsp
 
-import "github.com/exedev/g729/internal/tables"
+import "github.com/hunydev/g729/internal/tables"
 
 // LSF → LSP conversion per ITU-T G.729 §3.2.5: q_i = cos(ω_i).
 //

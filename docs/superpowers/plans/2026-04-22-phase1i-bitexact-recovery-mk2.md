@@ -799,7 +799,7 @@ Replace `internal/synth/filter.go` with:
 ```go
 package synth
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // filterSubframe applies 1/A(z) to u, producing s, with the ITU §3.10
 // two-pass saturation-recovery strategy.

@@ -64,7 +64,7 @@ $ go test -v -run "TestALGTHMFrame0SF0_AzStability|TestLSPToLPLeadingCoefficient
     stability_test.go:105: A(z) minimum-phase confirmed; reflection coefficients all |k|<1. Stage F branch = synth.Filter (LP synthesis IIR primitives).
 --- PASS: TestALGTHMFrame0SF0_AzStability (0.00s)
 PASS
-ok  	github.com/exedev/g729/internal/lsp	0.002s
+ok  	github.com/hunydev/g729/internal/lsp	0.002s
 ```
 
 **판정**: 모든 |k_m| < 1 → §3.2.6 minimum-phase 회복. Stage F partial §2.3에서 측정된 값(`k_10 = −0.008057`, `k_1 = −0.595293` 등)과 정확히 일치. **P fix 정상 적용 확인.**
@@ -94,7 +94,7 @@ $ go test -v -run TestDiagnostic_FbisStageBoundaries_Sample0Trace ./internal/dec
     stagef_bis_diagnostic_test.go:98:   hpFilter → ScaleUpSat: 2.000
 --- PASS: TestDiagnostic_FbisStageBoundaries_Sample0Trace (0.00s)
 PASS
-ok  	github.com/exedev/g729/internal/decoder	0.003s
+ok  	github.com/hunydev/g729/internal/decoder	0.003s
 ```
 
 ### 3.1 Stage-by-stage Δ 표 (sample 0; PST want = 2)
@@ -138,21 +138,21 @@ PST want 0..3 = `[2 4 3 3]`, hpFilter 0..3 = `[2 2 3 3]`, ScaleUpSat 0..3 = `[4 
 ### 4.1 verbatim 결과 발췌
 
 ```
-?   	github.com/exedev/g729	[no test files]
-ok  	github.com/exedev/g729/internal/bitstream	(cached)
+?   	github.com/hunydev/g729	[no test files]
+ok  	github.com/hunydev/g729/internal/bitstream	(cached)
 --- FAIL: TestDecode_Frame0Sample0_MatchesALGTHM (0.00s)
     frame0_regression_test.go:23: frame 0 sample 0: got=4 want=2 (Δ=2)
 FAIL
-FAIL	github.com/exedev/g729/internal/decoder	0.023s
-ok  	github.com/exedev/g729/internal/fcb	(cached)
-ok  	github.com/exedev/g729/internal/fixed	(cached)
-ok  	github.com/exedev/g729/internal/gain	(cached)
-ok  	github.com/exedev/g729/internal/lsp	1.009s
-ok  	github.com/exedev/g729/internal/pcm	(cached)
-ok  	github.com/exedev/g729/internal/pitch	(cached)
-ok  	github.com/exedev/g729/internal/postfilter	(cached)
-ok  	github.com/exedev/g729/internal/synth	(cached)
-ok  	github.com/exedev/g729/internal/tables	(cached)
+FAIL	github.com/hunydev/g729/internal/decoder	0.023s
+ok  	github.com/hunydev/g729/internal/fcb	(cached)
+ok  	github.com/hunydev/g729/internal/fixed	(cached)
+ok  	github.com/hunydev/g729/internal/gain	(cached)
+ok  	github.com/hunydev/g729/internal/lsp	1.009s
+ok  	github.com/hunydev/g729/internal/pcm	(cached)
+ok  	github.com/hunydev/g729/internal/pitch	(cached)
+ok  	github.com/hunydev/g729/internal/postfilter	(cached)
+ok  	github.com/hunydev/g729/internal/synth	(cached)
+ok  	github.com/hunydev/g729/internal/tables	(cached)
 FAIL
 ```
 

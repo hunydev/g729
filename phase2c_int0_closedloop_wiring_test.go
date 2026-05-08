@@ -3,7 +3,7 @@ package g729
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/pitch/closedloop"
+	"github.com/hunydev/g729/internal/pitch/closedloop"
 )
 
 // drivePeriodicFrame fills pcm with a mildly-periodic non-trivial

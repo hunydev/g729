@@ -2,13 +2,13 @@
 
 Pure-Go G.729A-compatible 8 kbps speech codec for MRCP / TTS RTP send paths.
 
-**Status: v0.1.0-rc preparation — clean-room, MIT-licensed.**
+**Status: v0.1.0-rc1 — clean-room, MIT-licensed.**
 
 ---
 
 ## Project summary
 
-`github.com/exedev/g729` is an independent, clean-room, pure-Go
+`github.com/hunydev/g729` is an independent, clean-room, pure-Go
 implementation of the ITU-T G.729 Annex A 8 kbps CS-ACELP speech
 codec, intended primarily as a server-side encoder/decoder for
 RTP payload type 18 (`G729/8000`) inside MRCP / TTS / VoIP
@@ -32,12 +32,13 @@ deployment stack.
 
 | Capability | v0.1.0 status |
 |---|---|
-| `G729/8000` RTP payload type 18 | **Supported** |
+| `G729/8000` RTP payload type 18 | **Outbound RTP send path supported; strict decoder sample-gated, broad interop not certified** |
 | 10 ms frame: 80 int16 samples ↔ 10 packed bytes | **Supported** |
 | `ptime=10` (one frame per RTP packet) | **Supported** |
 | `ptime=20` (two frames per RTP packet) | **Supported** (caller bundles two encoder outputs) |
 | `annexb=no` SDP advertisement | **Required** |
 | Single-stream `Encoder` / `Decoder` | **Supported** |
+| Opt-in `DecodeFrameEnhanced` listening aid | **Experimental; not a conformance claim** |
 | Streaming `Encoder.Write` / `Encoder.Flush` | **Supported** |
 | Hot-path 0-allocation steady state | **Verified** |
 | ITU reference byte-exact conformance | **Not claimed** (see Known limitations) |
@@ -52,7 +53,7 @@ deployment stack.
 ## Installation
 
 ```sh
-go get github.com/exedev/g729
+go get github.com/hunydev/g729
 ```
 
 Module is pure Go (stdlib only). Go 1.22 or newer.
@@ -67,7 +68,7 @@ Minimal frame-at-a-time encode + decode:
 package main
 
 import (
-    "github.com/exedev/g729"
+    "github.com/hunydev/g729"
 )
 
 func main() {
@@ -95,11 +96,15 @@ See [`examples/`](examples/) for fuller programs:
 - `examples/decode_g729` — G.729 frames → raw PCM int16 LE 8 kHz mono
 - `examples/streaming_encode` — `NewStreamingEncoder` + `Write` + `Flush`
 - `examples/rtp_packetize` — illustrative RTP payload packetization
+- `cmd/g729rtpcheck` — raw payload / Ethernet IPv4 UDP RTP pcap validator
 
 Each `Encoder` and each `Decoder` is **single-threaded**. Concurrent
 calls on the same instance are a data race; one instance per stream.
 
 `EncodeFrame` and `DecodeFrame` are zero-allocation in steady state.
+`DecodeFrameEnhanced` is available as an opt-in, non-strict local
+listening aid. It is not used by the default decoder and is not an ITU
+conformance claim.
 
 ---
 
@@ -117,7 +122,16 @@ hands them to two consecutive `DecodeFrame` calls.
 This module does not implement RTP framing itself — the caller
 owns RTP header / sequence-number / timestamp generation. See
 `examples/rtp_packetize/main.go` for an illustrative payload
-builder.
+builder and `cmd/g729rtpcheck` for black-box validation of raw
+payload streams or Ethernet/IPv4/UDP/RTP pcap captures.
+
+```sh
+# Validate raw one-frame-per-packet payload bytes.
+go run ./cmd/g729rtpcheck -mode=payload -ptime=10 -in output.g729
+
+# Validate payload type 18 packets in a pcap and check RTP continuity.
+go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -in capture.pcap
+```
 
 ---
 
@@ -151,64 +165,156 @@ behaviour in v0.1.0.
 
 ## MRCP / TTS integration note
 
-The codec's intended deployment target is the server-side audio
-egress path of MRCP-driven TTS and IVR systems: the TTS engine
-produces 8 kHz int16 PCM; this module produces RTP-suitable 10-byte
-G.729 frames; the MRCP/SIP framework wraps them in RTP packets and
-sends them to the SIP endpoint.
+The codec's intended deployment target is the server-side audio egress
+path of MRCP-driven TTS and IVR systems: the TTS engine produces 8 kHz
+int16 PCM; this module produces RTP-shaped 10-byte G.729 frames; the
+MRCP/SIP framework wraps them in RTP packets and sends them to the SIP
+endpoint.
 
 Decoder side is provided for inbound audio (e.g. ASR ingress),
-loopback testing, and tooling. The decoder is verified
-spec-correct against ITU-T G.729 (06/2012) + Annex A across seven
-independent diagnostic axes (see Phase 3-final closure report),
-but does not byte-match the ITU `SPEECH.PST` reference — see
-Known limitations.
+loopback testing, and tooling.
+
+Current status: the outbound TTS/RTP send path now passes the binding
+FFmpeg black-box encoder quality gate for `G729/8000 annexb=no`
+payloads. This is not an ITU byte-exact or certification claim. The
+strict local decoder also passes the current FFmpeg black-box regression
+gates for this repository's local encoder payload and the included
+Asterisk-origin `.g729` payload sample. That is enough for current
+tooling and loopback confidence, but it is still not broad
+interoperability certification for every external G.729 sender.
+
+An experimental `DecodeFrameEnhanced` path remains available for listening
+diagnostics. It is non-strict and is not used as evidence for the
+`G729/8000 annexb=no` product claim.
 
 ---
 
 ## Known limitations
 
-This release does not claim ITU byte-exact conformance. The decoder
-is verified spec-correct against ITU-T G.729 (06/2012) + Annex A
-across seven independent diagnostic axes, but does not byte-match
-the ITU PST reference. See
-[Phase 3-final closure report](docs/superpowers/plans/2026-05-04-phase3-final-closure-report.md)
-for full numerical evidence.
+This release does not claim ITU byte-exact or certified G.729
+conformance. The outbound encoder/RTP send path is now black-box gated
+against FFmpeg, and the strict local decoder is black-box gated against
+FFmpeg for the local encoder payload plus a local, non-redistributed
+Asterisk-origin payload sample.
 
 Concretely:
 
-1. **Pipeline B SegSNR ≈ −0.90 dB** vs `SPEECH.PST`. Decoder is
-   spec-correct on seven axes, but the reference vector divergence
-   is structural and not localizable to any spec-defined defect
-   under the clean-room constraint. Not a release blocker for the
-   v0.1.0 RTP send-path use case.
-2. **0 encoder byte-EQ expected failures** in the conformance suite.
+1. **FFmpeg black-box encoder gate passes.** On the ITU SPEECH corpus,
+   `SPEECH.BIT -> ffmpeg` tracks `SPEECH.PST` at about `GlobalSNR=7.04
+   dB`, `SegSNR=4.39 dB`, while `SPEECH.IN -> our encoder -> ffmpeg`
+   currently measures about `GlobalSNR=5.09 dB`, `SegSNR=3.05 dB`.
+   The deltas (`-1.95 dB` global, `-1.34 dB` segmental) pass the
+   required `>= -2.00 dB` gate for outbound encoder quality.
+2. **Local decoder roundtrip gate passes against FFmpeg.** On the local
+   encoder's own SPEECH payload, `our encoder -> local decoder` now tracks
+   `our encoder -> ffmpeg` at about `GlobalSNR=13.78 dB`,
+   `SegSNR=13.99 dB`, and RMS ratio `0.991` local-vs-FFmpeg. The
+   end-to-end source quality is still bounded by the outbound encoder gate,
+   not by ITU byte-exact vector certification.
+3. **Local Asterisk payload decoder gate passes against FFmpeg.**
+   The strict local decoder now tracks FFmpeg on a local, non-redistributed
+   Asterisk-origin `.g729` payload sample at about `GlobalSNR=14.64 dB`,
+   `SegSNR=15.23 dB`, `corr=0.983`, and RMS ratio `0.985`. This is a
+   useful inbound regression gate for MRCP/SIP integration, but it is not a
+   blanket claim that arbitrary external G.729 payloads from every sender
+   have been exhaustively qualified. The non-strict enhanced listening path
+   is currently worse than strict on this gate and is not conformance
+   evidence.
+4. **0 encoder byte-EQ expected failures** in the conformance suite.
    The LSP vector, TAME byte-EQ, former Phase 2c closed-loop pitch,
    and Phase 2d FCB pins now pass as source-divergence diagnostics
    after clean-room numeric handoff audits. These measurements remain
-   informational and do not affect the audio output of `EncodeFrame`
-   for the supported scope. Excluded from the default test suite via
-   the `conformance` build tag.
-3. **4 decoder PSTdomain PASS-by-design FAIL pins** (Phase 1o D-3,
+   informational and are not sufficient to certify audio quality.
+   Excluded from the default test suite via the `conformance` build tag.
+5. **4 decoder PSTdomain PASS-by-design FAIL pins** (Phase 1o D-3,
    sample 40-41 drift). Documented; identical pre/post Phase 3.
    Excluded from the default test suite via the `diagnostic` build
    tag.
-4. **1 `TestDiagnostic_SinglePulseChain`** — diagnostic-only
-   instrumentation log retained for future reference. Excluded from
-   the default test suite via the `diagnostic` build tag.
-5. **`internal/gain/legacy_gcq12.go`** — test-only adapter retained;
-   non-blocking housekeeping item.
+6. **`TestDiagnostic_SinglePulseChain`** is retained as a
+   diagnostic-only instrumentation log and currently PASSes. Excluded
+   from the default test suite via the `diagnostic` build tag.
+
+### FFmpeg black-box quality gate
+
+The quality gate uses FFmpeg only as an external decoder executable;
+no external implementation source is inspected.
+
+```sh
+G729_FFMPEG_BLACKBOX_QUALITY=1 \
+G729_REQUIRE_FFMPEG_BLACKBOX_QUALITY=1 \
+go test -run TestExternalFFmpegBlackboxQuality_SPEECH -count=1 -v
+```
+
+The gate passes when the local encoder decode quality is within 2 dB of
+the `SPEECH.BIT -> ffmpeg` reference path on both global SNR and
+segmental SNR.
+
+The inbound/local decoder Asterisk sample gate is intentionally separate
+from the outbound encoder claim:
+
+```sh
+G729_DECODER_ASTERISK_FFMPEG_QUALITY=1 \
+G729_REQUIRE_DECODER_ASTERISK_FFMPEG_QUALITY=1 \
+go test ./internal/decoder -run TestPhase3rAsteriskFFmpegQualityGate -count=1 -v
+```
+
+At this checkpoint the strict Asterisk sample gate passes. The enhanced
+Asterisk listening gate is non-strict and is not part of the default
+decoder/inbound conformance boundary:
+
+```sh
+G729_DECODER_ASTERISK_FFMPEG_QUALITY=1 \
+G729_REQUIRE_ENHANCED_DECODER_ASTERISK_FFMPEG_QUALITY=1 \
+go test ./internal/decoder -run TestPhase3rAsteriskFFmpegQualityGate -count=1 -v
+```
+
+The local decoder gate for the local encoder stream is also separate
+from the passing outbound encoder claim:
+
+```sh
+G729_FFMPEG_BLACKBOX_QUALITY=1 \
+G729_REQUIRE_LOCAL_DECODER_FFMPEG_QUALITY=1 \
+go test -run TestExternalFFmpegBlackboxLocalDecoderDelta_SPEECH -count=1 -v
+```
+
+At this checkpoint the strict local decoder gate passes. The enhanced
+local listening gate is non-strict and does not change the default decoder
+conformance boundary:
+
+```sh
+G729_FFMPEG_BLACKBOX_QUALITY=1 \
+G729_REQUIRE_ENHANCED_LOCAL_DECODER_FFMPEG_QUALITY=1 \
+go test -run TestExternalFFmpegBlackboxLocalDecoderDelta_SPEECH -count=1 -v
+```
+
+For a user-provided problem sample, run the opt-in external sample
+diagnostic. WAV/MP3 inputs are converted to 8 kHz mono signed 16-bit PCM
+through the local FFmpeg executable; raw `.pcm`, `.raw`, `.sln`,
+`.s16le`, and `.in` files are assumed to already be 8 kHz mono signed
+little-endian int16 PCM.
+
+```sh
+G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav \
+go test -run TestExternalSampleQualityDiagnostic -count=1 -v
+```
+
+This prints `input -> our encoder -> ffmpeg`,
+`input -> our encoder -> local`, and `local decoder vs ffmpeg` on the
+same aligned SNR scale used by the web and release diagnostics.
 
 ### Test suite layout
 
-The repository ships three test layers, each with a distinct release
+The repository ships multiple test layers, each with a distinct release
 gate role:
 
 | Suite | Invocation | Release gate role |
 |---|---|---|
 | Default (release) | `go test ./...` | **Binding.** Must PASS at the v0.1.0-rc1 tag commit. |
+| FFmpeg quality (product) | `G729_FFMPEG_BLACKBOX_QUALITY=1 G729_REQUIRE_FFMPEG_BLACKBOX_QUALITY=1 go test -run TestExternalFFmpegBlackboxQuality_SPEECH -count=1 -v` | **Binding for outbound G.729 encoder support.** Currently PASSes. |
+| Local decoder quality | `G729_FFMPEG_BLACKBOX_QUALITY=1 G729_REQUIRE_LOCAL_DECODER_FFMPEG_QUALITY=1 go test -run TestExternalFFmpegBlackboxLocalDecoderDelta_SPEECH -count=1 -v` | **Binding for strict local decoder regression coverage.** Currently PASSes against FFmpeg on the local encoder SPEECH payload. |
+| Asterisk local decode quality | `G729_DECODER_ASTERISK_FFMPEG_QUALITY=1 G729_REQUIRE_DECODER_ASTERISK_FFMPEG_QUALITY=1 go test ./internal/decoder -run TestPhase3rAsteriskFFmpegQualityGate -count=1 -v` | **Binding when a local non-redistributed Asterisk-origin inbound sample is present.** PASSed during rc1 verification against FFmpeg; not broad sender certification. |
 | Conformance (informational) | `go test -tags=conformance ./...` | Non-blocking. Currently expects 0 failures; new failures must be triaged. |
-| Diagnostic (informational) | `go test -tags=diagnostic ./...` | Non-blocking. Currently expects 5 documented diagnostic / drift-monitoring FAILs (4 PSTdomain pins + 1 SinglePulseChain). |
+| Diagnostic (informational) | `go test -tags=diagnostic ./...` | Non-blocking. Currently expects 5 documented PSTdomain drift-monitoring FAILs. |
 
 The conformance and diagnostic suites do **not** block release;
 their expected-failure inventories are catalogued in
@@ -263,11 +369,12 @@ MIT. See [LICENSE](LICENSE).
 - **Phase 0 / 1 / 2** — encoder/decoder core implementation, completed.
   See `docs/superpowers/plans/2026-05-02-phase2-encoder-plan.md`
   (master plan).
-- **Phase 3 — CLOSED-PARTIAL** at HEAD `56a0ec3`. Decoder spec-correct
-  across seven independent diagnostic axes; ships under spec-compliance
-  binding criterion. See
+- **Phase 3 — CLOSED-PARTIAL**. Encoder and decoder diagnostics were
+  closed enough to proceed to RC packaging, with the current public
+  claim bounded by the FFmpeg black-box outbound encoder gate and the
+  decoder limitations above. See
   [Phase 3-final closure report](docs/superpowers/plans/2026-05-04-phase3-final-closure-report.md).
-- **Phase 4 — ACTIVE**. Release packaging cycle for v0.1.0-rc1. See
+- **Phase 4 — CLOSED**. Release packaging cycle for v0.1.0-rc1. See
   [Phase 4 plan](docs/superpowers/plans/2026-05-04-phase4-v0.1.0-release-packaging-plan.md).
 
 This is a release candidate. The public API (`Encoder`, `Decoder`,

@@ -1,6 +1,6 @@
 package closedloop
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // PitchMinInt and PitchMaxInt are the integer-only adaptive-codebook
 // delay bounds per ITU-T G.729 Annex A §A.3.7 (G729E.txt
@@ -47,11 +47,11 @@ const (
 // I3 / I4: pure (writes only through xb), zero allocation.
 func BackwardFilter(x, h *[SubframeLen]int16, xb *[SubframeLen]int16) {
 	for n := 0; n < SubframeLen; n++ {
-		var acc int32
+		var acc int64
 		for m := n; m < SubframeLen; m++ {
-			acc += int32(x[m]) * int32(h[m-n])
+			acc += int64(x[m]) * int64(h[m-n])
 		}
-		xb[n] = fixed.Saturate(acc >> 12)
+		xb[n] = saturateInt64ToInt16(acc >> 12)
 	}
 }
 
@@ -66,8 +66,8 @@ func BackwardFilter(x, h *[SubframeLen]int16, xb *[SubframeLen]int16) {
 //   - sub = 0 (first subframe): k ∈ [centre − 3, centre + 3]
 //     ∩ [PitchMinInt, PitchMaxInt], where centre is the open-loop
 //     pitch Top (§A.3.7 line 2167: "the search range is limited
-//     around a preselected value"). The ±3 half-width is the CL-1
-//     contract.
+//     around a preselected value"). The ten-lag shape mirrors the
+//     transmitted P1 coding range.
 //
 //   - sub = 1 (second subframe): k ∈ Subframe2Window(centre), where
 //     centre is the integer part of the first-subframe lag T1, per

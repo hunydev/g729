@@ -1,6 +1,6 @@
 package openloop
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // correlateAt returns R(k) for a single lag k of eq. A.4 (G729E.txt
 // §A.3.4 lines 2089-2092):

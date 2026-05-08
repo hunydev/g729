@@ -3,7 +3,7 @@ package gainquant
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/gain"
 )
 
 // TestPredictedGcQ12_ColdStartFourPulses is the GQ-1 RED-part-B golden:

@@ -1,7 +1,5 @@
 package fcbsearch
 
-import "math/bits"
-
 // ACELP track positions per ITU-T G.729 §3.8 Table 7 (G729E.txt around
 // line 1313): four interleaved tracks of 8 positions plus a 16-position
 // fourth track (jx selector). Track-3 ordering is sorted ascending so
@@ -47,11 +45,9 @@ var (
 //
 // Q-format. dAbs is int32 Q12 (CB-3 SignsFromD output); φ′ is int32
 // Q24 (PhiPrime output). C is int64 Q12 (sum of four Q12 values), so
-// C² is int64 Q24 and E is int64 Q24 — the same scale, so the ratio
-// C²/E is dimensionless (Q0). Cross-product comparison C₁²·E₂ vs
-// C₂²·E₁ uses 128-bit unsigned multiplication via math/bits.Mul64 to
-// avoid the int64 overflow that would otherwise occur for worst-case
-// dAbs/φ′ magnitudes (~2⁶² · 2³³ = 2⁹⁵).
+// C²/E is dimensionless (Q0). The selected C is kept unsquared during
+// search because valid large-correlation inputs can exceed int64 before
+// any wider comparison helper gets a chance to run.
 //
 // Tie-break. Iteration order is T0 → T1 → T2 → T3, each track in
 // ascending position order. Updates fire only on strict improvement
@@ -71,7 +67,8 @@ var (
 //
 // On return:
 //   - positions[i] is the absolute pulse position mᵢ ∈ [0, 40) on track i
-//   - sumOut[0] is the best C² in Q24 (int64)
+//   - sumOut[0] is the best C² in Q24 when representable, otherwise
+//     MaxInt64 as a diagnostic saturation marker
 //   - sumOut[1] is the best E in Q24 (int64), with the eq. 57 0.5
 //     factor already absorbed in φ′ — i.e. this is the eq. 59 "E/2".
 func SearchDepthFirst(
@@ -82,7 +79,7 @@ func SearchDepthFirst(
 ) {
 	// Default fallback per §A.3.8.1 zero-Φ guard.
 	bestPos := [4]int8{0, 1, 2, 3}
-	var bestC2, bestE int64
+	var bestC, bestE int64
 	found := false
 
 	for _, m0 := range track0 {
@@ -103,15 +100,14 @@ func SearchDepthFirst(
 					if E <= 0 {
 						continue
 					}
-					C2 := C * C
 					if !found {
 						found = true
-						bestC2, bestE = C2, E
+						bestC, bestE = C, E
 						bestPos = [4]int8{m0, m1, m2, m3}
 						continue
 					}
-					if ratioGreater(C2, E, bestC2, bestE) {
-						bestC2, bestE = C2, E
+					if ratioGreater(C, E, bestC, bestE) {
+						bestC, bestE = C, E
 						bestPos = [4]int8{m0, m1, m2, m3}
 					}
 				}
@@ -120,17 +116,26 @@ func SearchDepthFirst(
 	}
 
 	*positions = bestPos
-	sumOut[0] = bestC2
+	sumOut[0] = squareSaturatingInt64(bestC)
 	sumOut[1] = bestE
 }
 
-// ratioGreater reports whether a/b > c/d for non-negative a, c and
-// positive b, d, using a 128-bit cross-product to stay overflow-safe.
-func ratioGreater(a, b, c, d int64) bool {
-	hi1, lo1 := bits.Mul64(uint64(a), uint64(d))
-	hi2, lo2 := bits.Mul64(uint64(c), uint64(b))
-	if hi1 != hi2 {
-		return hi1 > hi2
+// ratioGreater reports whether c1²/e1 > c2²/e2 for non-negative C
+// values and positive E values. Use float64 only for the ordering step:
+// the previous int64 C*C path could overflow before the ratio comparison,
+// corrupting the pulse search on large-correlation inputs.
+func ratioGreater(c1, e1, c2, e2 int64) bool {
+	return (float64(c1)*float64(c1))/float64(e1) >
+		(float64(c2)*float64(c2))/float64(e2)
+}
+
+func squareSaturatingInt64(v int64) int64 {
+	if v < 0 {
+		v = -v
 	}
-	return lo1 > lo2
+	const maxSqrtInt64 int64 = 3037000499
+	if v > maxSqrtInt64 {
+		return 1<<63 - 1
+	}
+	return v * v
 }

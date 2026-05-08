@@ -1,8 +1,8 @@
 package gain
 
 import (
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // GainDecodeFullTaps captures the unsaturated 32-bit intermediates of
@@ -11,7 +11,8 @@ import (
 //
 // Field Q-formats and references (ITU-T G.729 §3.9 / §4.1.6):
 //
-//   - Predicted        Q10 dB — Ê(m) per eq. (69)
+//   - Predicted        Q10 dB — Ê(m) per eq. (69), int32 to avoid
+//     intermediate Word16 saturation before g_c reconstruction.
 //   - EcBarDbQ10       Q10 dB — E̅_c = 10·log10(Σc²/40) per eq. (66)
 //   - LogGainDbQ10     Q10 dB — Ê(m) − E̅_c, the log-gain target
 //   - Log2GcQ10        Q10 in log2 units — LogGainDbQ10 / (20·log10 2)
@@ -21,18 +22,17 @@ import (
 //   - GammaCQ13        γ̂_c at Q13 from the conjugate-structure VQ
 //   - ProdUnsat        γ̂_c · g_c0 ≫ 15  at Q12, int32 WITHOUT clamp
 //   - GpQ14Final       g_p Q14 (post-VQ; matches Decode return)
-//   - GcQ12Final       g_c Q12 saturated to int16, derived from
-//     (GcMantQ14, GcExp) via LegacyGcQ12FromMantExp. Kept for back-
-//     compat with phase3a_diag1_gc_taps numbers.
+//   - GcQ12Final       g_c Q12 saturated to int16, retained only for
+//     back-compat with phase3a_diag1_gc_taps numbers.
 //   - GcMantQ14        g_c mantissa Q14 ∈ [16384, 32767] (or 0 on
 //     zero-energy guard). Matches Decode's new return per REF-1 §2.
 //   - GcExp            g_c binary exponent (int8). Linear g_c =
 //     GcMantQ14 · 2^(GcExp - 14).
 //   - ZeroEnergyGuard  true when the Σc²==0 short-circuit fired
 type GainDecodeFullTaps struct {
-	Predicted       int16
+	Predicted       int32
 	EcBarDbQ10      int16
-	LogGainDbQ10    int16
+	LogGainDbQ10    int32
 	Log2GcQ10       int32
 	Gc0Q14Unsat     int32
 	GammaCQ13       int16
@@ -128,9 +128,9 @@ func (d *Decoder) DecodeWithFullTaps(idx Indices, c *[40]int16) GainDecodeFullTa
 	ecBarDbQ10 := fixed.Saturate(fixed.Word32(ecDbQ10 - int32(tenLog10_40Q10)))
 	out.EcBarDbQ10 = int16(ecBarDbQ10)
 
-	logGainDbQ10 := fixed.Sub(predicted, ecBarDbQ10)
-	out.LogGainDbQ10 = int16(logGainDbQ10)
-	log2GcQ10 := (int32(logGainDbQ10)*invDbScaleQ15 + (1 << 14)) >> 15
+	logGainDbQ10 := predicted - int32(ecBarDbQ10)
+	out.LogGainDbQ10 = logGainDbQ10
+	log2GcQ10 := (logGainDbQ10*invDbScaleQ15 + (1 << 14)) >> 15
 	out.Log2GcQ10 = log2GcQ10
 
 	gc0Unsat := pow2FixedAsInt32(fixed.Word32(log2GcQ10) + 14*1024)

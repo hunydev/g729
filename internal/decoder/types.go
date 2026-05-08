@@ -1,10 +1,10 @@
 package decoder
 
 import (
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/lsp"
-	"github.com/exedev/g729/internal/postfilter"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/postfilter"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 const (

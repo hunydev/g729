@@ -3,7 +3,7 @@ package gain
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/fixed"
 )
 
 // approxEqual checks |got-want| <= tol.

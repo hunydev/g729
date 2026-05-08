@@ -10,8 +10,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/gainquant"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/gainquant"
 )
 
 // TestPhase2fTAME1_Slot5_OQTamingThrSweep is the Phase 2f TAME-1

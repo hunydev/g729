@@ -11,10 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/gainquant"
-	pitchidx "github.com/exedev/g729/internal/pitch"
-	clpitch "github.com/exedev/g729/internal/pitch/closedloop"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/gainquant"
+	pitchidx "github.com/hunydev/g729/internal/pitch"
+	clpitch "github.com/hunydev/g729/internal/pitch/closedloop"
 )
 
 func TestOracleHandoff_WriteTAMEGainTamingHandoff(t *testing.T) {

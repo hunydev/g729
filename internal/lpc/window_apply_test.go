@@ -3,7 +3,7 @@ package lpc
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/fixed"
 )
 
 // TestWindowSpeech_DCInputMatchesLUT asserts windowSpeech applies the

@@ -3,7 +3,7 @@ package lsp
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // TestLPToLSP_RoundTripCodebookL1 sweeps the 128 entries of

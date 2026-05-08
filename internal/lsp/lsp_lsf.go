@@ -1,6 +1,6 @@
 package lsp
 
-import "github.com/exedev/g729/internal/tables"
+import "github.com/hunydev/g729/internal/tables"
 
 // sinViaCos approximates sin(ω) Q15 from ω in Q13 by phase-shifting
 // the existing cosine LUT through the identity sin(ω) = cos(π/2 − ω).

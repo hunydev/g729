@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // TestINT1D9ReverseEngineerM — d9 §S1 reverse-engineering of the

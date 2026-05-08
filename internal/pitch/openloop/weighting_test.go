@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/exedev/g729/internal/lpc"
+	"github.com/hunydev/g729/internal/lpc"
 )
 
 // TestGammaWeightLP_Identity covers the trivial input where â = 1
@@ -36,11 +36,10 @@ func TestGammaWeightLP_SingleTap(t *testing.T) {
 
 // TestCombineWith07_Identity covers the case where Â(z/γ) = 1: the
 // resulting A'(z) reduces to (1 − 0.7z⁻¹). The leading tap is the
-// Q12 unit 4096 and the z⁻¹ tap is the Q15 representation of -0.7
-// (= -22938) per the plan §6 expected values.
+// Q12 unit 4096 and the z⁻¹ tap is -0.7 in Q12.
 func TestCombineWith07_Identity(t *testing.T) {
 	aw := [11]int16{4096, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-	want := [11]int16{4096, -22938, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	want := [11]int16{4096, -2867, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	var got [11]int16
 	combineWith07(&aw, &got)
 	if got != want {
@@ -51,10 +50,10 @@ func TestCombineWith07_Identity(t *testing.T) {
 // TestCombineWith07_SingleTap verifies the two-tap convolution
 // against a hand-traced expected output. With aw = [4096, -1536, 0,
 // …, 0] (the gammaWeightLP image of [4096, -2048, 0, …, 0]) the
-// expected A'(z) coefficients are [4096, -24474, 1075, 0, …, 0].
+// expected A'(z) coefficients are [4096, -4403, 1075, 0, …, 0].
 func TestCombineWith07_SingleTap(t *testing.T) {
 	aw := [11]int16{4096, -1536, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-	want := [11]int16{4096, -24474, 1075, 0, 0, 0, 0, 0, 0, 0, 0}
+	want := [11]int16{4096, -4403, 1075, 0, 0, 0, 0, 0, 0, 0, 0}
 	var got [11]int16
 	combineWith07(&aw, &got)
 	if got != want {

@@ -124,11 +124,11 @@ divergent symptom recorded inline in the test source.
 $ go test -bench=. -benchmem -run='^$' ./internal/decoder/
 goos: linux
 goarch: amd64
-pkg: github.com/exedev/g729/internal/decoder
+pkg: github.com/hunydev/g729/internal/decoder
 cpu: AMD EPYC 9554P 64-Core Processor
 BenchmarkDecode-2   	  138258	      8778 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	github.com/exedev/g729/internal/decoder	1.307s
+ok  	github.com/hunydev/g729/internal/decoder	1.307s
 ```
 
 `BenchmarkDecode` is **0 allocs/op** as required by the plan.

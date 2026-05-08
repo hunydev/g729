@@ -4,8 +4,8 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/exedev/g729/internal/fcbsearch"
-	"github.com/exedev/g729/internal/pitch/closedloop"
+	"github.com/hunydev/g729/internal/fcbsearch"
+	"github.com/hunydev/g729/internal/pitch/closedloop"
 )
 
 // CB-1 RED tests for §3.8.1 eq. 50 (x'(n) = x − gp·y) and eq. 52
@@ -87,7 +87,7 @@ func TestAdjustedTarget_GpZero(t *testing.T) {
 }
 
 func TestAdjustedTarget_HandDerivation(t *testing.T) {
-	// Verify x'(n) = x(n) − ((gp·y(n)) >> 14) on a randomly seeded vector.
+	// Verify x'(n) = x(n) − round((gp·y(n)) / 2^14) on a seeded vector.
 	const gp = int16(12000) // Q14 ≈ 0.732
 	var x, y [40]int16
 	for n := range x {
@@ -100,7 +100,7 @@ func TestAdjustedTarget_HandDerivation(t *testing.T) {
 
 	for n := range x {
 		prod := int32(gp) * int32(y[n]) // Q14
-		shifted := prod >> 14           // Q0
+		shifted := roundShift(prod, 14) // Q0
 		raw := int32(x[n]) - shifted
 		var want int16
 		switch {
@@ -191,6 +191,17 @@ func TestCorrelationD_GpZeroMatchesBackwardFilter(t *testing.T) {
 			t.Fatalf("n=%d: d>>12=%d (sat %d), xb=%d", n, shifted, want, xb[n])
 		}
 	}
+}
+
+func roundShift(v int32, shift uint) int32 {
+	if shift == 0 {
+		return v
+	}
+	add := int32(1 << (shift - 1))
+	if v >= 0 {
+		return (v + add) >> shift
+	}
+	return -(((-v) + add) >> shift)
 }
 
 func TestAdjustedTarget_NoAlloc(t *testing.T) {

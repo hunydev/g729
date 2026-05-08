@@ -107,9 +107,9 @@ package decoder
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/tables"
-	"github.com/exedev/g729/internal/decoder/itu" // ALGTHM 로더
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/decoder/itu" // ALGTHM 로더
 )
 
 // remapSf0Gain returns a copy of frame's bit-stream payload with sf0

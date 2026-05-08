@@ -47,12 +47,15 @@ func TestQFormatContract_IsqrtQ14ReturnsQ14(t *testing.T) {
 	}
 }
 
-// TestQFormatContract_AGCAlphaIsQ15 — α ≈ 0.99 at Q15 = 32440.
-// ITU-T G.729 §A.4.2.4.
+// TestQFormatContract_AGCAlphaIsQ15 — Annex A α = 0.9 at Q15 = 29491.
+// ITU-T G.729 Annex A §A.4.2.4.
 func TestQFormatContract_AGCAlphaIsQ15(t *testing.T) {
-	const wantQ15 int64 = 32440
-	const want float64 = 0.99
-	gotF := float64(wantQ15) / 32768.0
+	const wantQ15 int64 = 29491
+	const want float64 = 0.9
+	if agcAlphaQ15 != wantQ15 {
+		t.Fatalf("agcAlphaQ15 = %d, want %d", agcAlphaQ15, wantQ15)
+	}
+	gotF := float64(agcAlphaQ15) / 32768.0
 	if gotF < want-0.001 || gotF > want+0.001 {
 		t.Fatalf("alphaQ15 represents %.4f, want %.4f", gotF, want)
 	}

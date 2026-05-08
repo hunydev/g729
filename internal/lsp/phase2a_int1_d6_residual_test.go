@@ -8,10 +8,10 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/lpc"
-	"github.com/exedev/g729/internal/pcm"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/lpc"
+	"github.com/hunydev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // TestINT1D6Residual — Phase 2a-INT-1-d6 cold-start residual + L2/L3

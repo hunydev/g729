@@ -312,7 +312,7 @@ Write to `internal/synth/excitation.go`:
 package synth
 
 import (
-	"github.com/exedev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/fixed"
 )
 
 // BuildExcitation composes the per-subframe excitation
@@ -670,7 +670,7 @@ Write to `internal/synth/filter.go`:
 package synth
 
 import (
-	"github.com/exedev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/fixed"
 )
 
 // filterSubframe applies 1/A(z) to u in-place, producing s.

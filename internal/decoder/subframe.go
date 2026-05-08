@@ -1,14 +1,14 @@
 package decoder
 
 import (
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/pitch"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 // decodeSubframe runs the per-subframe pipeline and writes 40 samples of
-// pre-×2-scaled, post-HP, Q0 PCM to out[0:40].
+// post-HP, pre-final-output-scale Q0 PCM to out[0:40].
 //
 // sfA     — Q12 LP coefficients for this subframe (from lsp.Decoder)
 // tInt    — integer pitch delay (from pitch.DecodeDelaySubframe*)
@@ -28,7 +28,7 @@ func (d *Decoder) decodeSubframe(
 	betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
 
 	var v [subframeLen]int16
-	pitch.AdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v)
+	decodeAdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v)
 
 	var c [subframeLen]int16
 	fcb.Decode(fcb.Indices{Positions: C, Signs: S}, tInt, betaQ14, &c)
@@ -52,4 +52,12 @@ func (d *Decoder) decodeSubframe(
 	copy(d.pastExc[pastExcLen-subframeLen:], u[:])
 
 	d.prevGpQ14 = gpQ14
+}
+
+func decodeAdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[subframeLen]int16) {
+	pitch.AdaptiveCodebook(tInt, tFrac, pastExc, v)
+}
+
+func decodeAdaptiveCodebookIntegerLagOnly(tInt int, pastExc []int16, v *[subframeLen]int16) {
+	pitch.AdaptiveCodebook(tInt, 0, pastExc, v)
 }

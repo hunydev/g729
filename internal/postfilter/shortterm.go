@@ -1,6 +1,6 @@
 package postfilter
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // applyShortTerm runs the short-term postfilter IIR
 //

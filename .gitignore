@@ -3,6 +3,23 @@
 *.out
 /coverage.out
 /bin/
+/g729rtpweb
+
+# Local agent / transfer artifacts
+/codex.tar.gz
+
+# Local decoder-stage dumps / rejected self-oracle placeholders.
+# If an independent verifier later supplies decoder-stage expected files,
+# add them explicitly with `git add -f` after provenance review.
+/testdata/oracle/handoff/decoder_stage_expected.csv
+/testdata/oracle/handoff/decoder_stage_summary.csv
+/testdata/oracle/handoff/decoder_stage_got.csv
+/testdata/oracle/handoff/decoder_stage_got_summary.csv
+
+# Local external audio/payload samples. These may contain user or customer
+# speech and are intentionally not redistributed.
+/testdata/external/*.g729
+/testdata/external/user_quality_input.*
 
 # Editor
 .idea/

@@ -3,7 +3,8 @@ package gainquant
 import (
 	"math/bits"
 
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // SearchConjugate performs the §3.9.2 conjugate-structure two-stage
@@ -13,7 +14,7 @@ import (
 //
 //   - x  : target signal x(n) per §3.6                    (Q0)
 //   - y  : filtered adaptive-codebook vector per eq. (44) (Q0)
-//   - z  : filtered fixed-codebook vector per eq. (64)    (Q0)
+//   - z  : filtered fixed-codebook vector per eq. (64)    (Q12)
 //   - gpcPredQ12 : predicted fixed-codebook gain g'c per eq. (71), Q12,
 //     held NON-saturated as int32 (IMPL-3 representation change — see
 //     PredictedGcQ12 docstring; the §3.9.2 cost search must evaluate
@@ -27,13 +28,15 @@ import (
 //   - gb : *physical* GBK2 entry index (0..15); see GainMap2.
 //   - gpQ14     : ĝp = GBK1[ga][0] + GBK2[gb][0] per eq. (73), Q14.
 //   - gammaCQ13 : γ̂_c = GBK1[ga][1] + GBK2[gb][1] per eq. (74), Q13.
-//     The caller (encoder) feeds this into DequantGc together with
-//     log2GcPredQ10 to obtain the native (gcMantQ14, gcExp) g_c
-//     representation that mirrors gain.Decoder.Decode bit-for-bit.
+//     The caller (encoder) feeds this into DequantGc together with the
+//     encoder-side bounded log2GcPredQ10 to obtain the native
+//     (gcMantQ14, gcExp) g_c representation used for local synthesis commit.
 //
 // Algorithm (§3.9.2 lines 1382–1407):
 //  1. Compute the inner products A = ⟨y,y⟩, B = ⟨z,z⟩, C = ⟨y,z⟩,
-//     D = ⟨x,y⟩, F = ⟨x,z⟩ (all int64, exact for 40 int16² accums).
+//     D = ⟨x,y⟩, F = ⟨x,z⟩ in a common physical-correlation scale.
+//     x and y are Q0; z is Q12, so A and D are promoted by 2^24
+//     and C/F by 2^12 before the shared normalization step.
 //  2. Solve the 2×2 system from ∂E/∂gp = ∂E/∂gc = 0 of eq. (63):
 //     [A C][gp] = [D]   ⇒  det = A·B − C²,
 //     [C B][gc]   [F]      gp_opt = (D·B − F·C) / det,
@@ -59,17 +62,17 @@ import (
 // I4 (zero allocation): all scratch buffers are fixed-size local
 // arrays.
 func SearchConjugate(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
-	// 1. Correlations (int64, exact: 40 · (2^15)² < 2^36).
+	// 1. Correlations in a shared Q24 physical-correlation scale.
 	var A, B, C, D, F int64
 	for i := 0; i < 40; i++ {
 		xi := int64(x[i])
 		yi := int64(y[i])
 		zi := int64(z[i])
-		A += yi * yi
+		A += (yi * yi) << 24
 		B += zi * zi
-		C += yi * zi
-		D += xi * yi
-		F += xi * zi
+		C += (yi * zi) << 12
+		D += (xi * yi) << 24
+		F += (xi * zi) << 12
 	}
 
 	// 2. Normalize so max |corr| ≤ 2^14 — keeps both the optimum-solve
@@ -171,13 +174,13 @@ func SearchConjugate(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14,
 	var bestGam int32
 	for _, gai := range gaCands {
 		gp1 := int64(tables.GainGBK1[gai][0])
-		gam1 := int64(tables.GainGBK1[gai][1])
+		gam1 := int32(tables.GainGBK1[gai][1])
 		for _, gbi := range gbCands {
 			gp2 := int64(tables.GainGBK2[gbi][0])
-			gam2 := int64(tables.GainGBK2[gbi][1])
-			gpQ := gp1 + gp2                       // Q14
-			gam := gam1 + gam2                     // Q13
-			gcQ := (gam * int64(gpcPredQ12)) >> 13 // Q12
+			gam2 := int32(tables.GainGBK2[gbi][1])
+			gpQ := gp1 + gp2                                        // Q14
+			gam := int64(fixed.Saturate(fixed.Word32(gam1 + gam2))) // Q13
+			gcQ := (gam * int64(gpcPredQ12)) >> 13                  // Q12
 
 			cost := gpQ * gpQ * A        // Q28
 			cost += (gcQ * gcQ * B) << 4 // Q24<<4 = Q28
@@ -196,7 +199,7 @@ func SearchConjugate(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14,
 	}
 
 	gpQ14 = int16(bestGp) // sum ≤ 22215, fits Word16
-	gammaCQ13 = int16(bestGam)
+	gammaCQ13 = fixed.Saturate(fixed.Word32(bestGam))
 	ga = bestGA
 	gb = bestGB
 	return

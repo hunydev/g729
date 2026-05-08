@@ -17,14 +17,14 @@ import (
 	"math"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/lsp"
-	"github.com/exedev/g729/internal/pcm"
-	"github.com/exedev/g729/internal/pitch"
-	"github.com/exedev/g729/internal/synth"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // TestDiagnostic_FquartGainImap_Sf0Sample0to7: Stage F-quart-1 진단.
@@ -153,12 +153,14 @@ func TestDiagnostic_FquartGainImap_Sf0Sample0to7(t *testing.T) {
 
 // fquartBoundary holds the four boundary outputs of one decoding branch.
 type fquartBoundary struct {
-	gpQ14 int16
-	gcQ12 int16
-	synth [subframeLen]int16
-	post  [subframeLen]int16
-	hp    [subframeLen]int16
-	pcm   [subframeLen]int16
+	gpQ14     int16
+	gcMantQ14 int16
+	gcExp     int8
+	gcLinear  float64
+	synth     [subframeLen]int16
+	post      [subframeLen]int16
+	hp        [subframeLen]int16
+	pcm       [subframeLen]int16
 }
 
 // decodeFquartSf0 runs frame 0 sf0 through a fresh Decoder instance using
@@ -185,15 +187,16 @@ func decodeFquartSf0(t *testing.T, f *bitstream.Frame, ga, gb uint8) fquartBound
 	var c [subframeLen]int16
 	fcb.Decode(fcb.Indices{Positions: f.C1, Signs: uint8(f.S1)}, tInt1, betaQ14, &c)
 
-	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := d.gn.Decode(gain.Indices{GA: ga, GB: gb}, &c)
-	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
+	gpQ14, gcMantQ14, gcExp := d.gn.Decode(gain.Indices{GA: ga, GB: gb}, &c)
 
 	var u [subframeLen]int16
-	synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
+	synth.BuildExcitation(gpQ14, gcMantQ14, gcExp, &v, &c, &u)
 
 	var out fquartBoundary
 	out.gpQ14 = gpQ14
-	out.gcQ12 = gcQ12
+	out.gcMantQ14 = gcMantQ14
+	out.gcExp = gcExp
+	out.gcLinear = gainLinearFromMantExp(gcMantQ14, gcExp)
 
 	d.syn.Filter(&sfA, &u, &out.synth)
 	d.pst.Filter(&sfA, tInt1, &out.synth, &out.post)
@@ -205,7 +208,8 @@ func decodeFquartSf0(t *testing.T, f *bitstream.Frame, ga, gb uint8) fquartBound
 
 func logBranch(t *testing.T, b fquartBoundary, pstHalf []int16) {
 	t.Helper()
-	t.Logf("  gain VQ output: g_p (Q14) = %d   γ̂_c (Q12) = %d", b.gpQ14, b.gcQ12)
+	t.Logf("  gain VQ output: g_p (Q14) = %d   g_c = mantQ14 %d exp %d linear %.6f",
+		b.gpQ14, b.gcMantQ14, b.gcExp, b.gcLinear)
 	t.Logf("  synth.Filter sf0:")
 	dumpInt16(t, b.synth[:])
 	t.Logf("  postfilter.Filter sf0:")
@@ -473,13 +477,37 @@ func (r *referenceGainState) referenceDecode(ga, gb uint8, c *[40]int16) referen
 // the call on a *second* fresh Decoder and reading the value via a
 // shadow technique: feed the same (idx, c) and observe gp/gc; the FIFO
 // content cannot be observed directly. Therefore this helper returns
-// only (gpQ14, gcQ12) — FIFO comparison is performed indirectly by
+// only the native (gpQ14, gc mantissa/exponent/linear) output — FIFO comparison is performed indirectly by
 // running the reference and production decoders for sf0 then sf1 and
 // confirming that sf1's gc/gp match (which depends on the sf0 FIFO
 // update being equal).
-func productionGainProbe(idx gain.Indices, c *[40]int16, d *gain.Decoder) (int16, int16) {
+type productionGainOutput struct {
+	gpQ14     int16
+	gcMantQ14 int16
+	gcExp     int8
+	gcLinear  float64
+}
+
+func productionGainProbe(idx gain.Indices, c *[40]int16, d *gain.Decoder) productionGainOutput {
 	gp, mant, exp := d.Decode(idx, c)
-	return gp, gain.LegacyGcQ12FromMantExp(mant, exp)
+	return productionGainOutput{
+		gpQ14:     gp,
+		gcMantQ14: mant,
+		gcExp:     exp,
+		gcLinear:  gainLinearFromMantExp(mant, exp),
+	}
+}
+
+func gainLinearClose(got, want float64) bool {
+	const q12Tol = 32.0 / 4096.0
+	if math.IsNaN(got) || math.IsNaN(want) || math.IsInf(got, 0) || math.IsInf(want, 0) {
+		return got == want
+	}
+	tol := q12Tol
+	if rel := math.Abs(want) * 0.005; rel > tol {
+		tol = rel
+	}
+	return math.Abs(got-want) <= tol
 }
 
 // TestDiagnostic_FquartGainReferenceCrossCheck: Stage F-quart-3 진단.
@@ -565,17 +593,18 @@ func runRefCrossCheck(
 	var ref referenceGainState
 
 	// ── sf0 ─────────────────────────────────────────────────────────
-	gpProd0, gcProd0 := productionGainProbe(gain.Indices{GA: ga1, GB: gb1}, c0, &prod)
+	prod0 := productionGainProbe(gain.Indices{GA: ga1, GB: gb1}, c0, &prod)
 	refOut0 := ref.referenceDecode(ga1, gb1, c0)
 
 	t.Logf("[%s] sf0  GA=%d GB=%d", tag, ga1, gb1)
 	t.Logf("[%s] sf0  E̅_c=%9.4f dB   Ê(m)=%9.4f dB   log10(g_c0)·20=%9.4f dB",
 		tag, refOut0.ecBarDb, refOut0.predictedDb, refOut0.logGc0Db)
-	t.Logf("[%s] sf0  PROD: gp_q14=%6d  gc_q12=%6d", tag, gpProd0, gcProd0)
+	t.Logf("[%s] sf0  PROD: gp_q14=%6d  gc_mant_q14=%6d  gc_exp=%4d  gc_linear=%.6f",
+		tag, prod0.gpQ14, prod0.gcMantQ14, prod0.gcExp, prod0.gcLinear)
 	t.Logf("[%s] sf0  REF : gp_q14=%6d  gc_q12=%6d   (gc_true=%.6f)",
 		tag, refOut0.gpQ14, refOut0.gcQ12, refOut0.gcTrue)
-	t.Logf("[%s] sf0  Δgp_q14 = %+d   Δgc_q12 = %+d",
-		tag, int32(gpProd0)-int32(refOut0.gpQ14), int32(gcProd0)-int32(refOut0.gcQ12))
+	t.Logf("[%s] sf0  Δgp_q14 = %+d   Δgc_linear = %+.6f",
+		tag, int32(prod0.gpQ14)-int32(refOut0.gpQ14), prod0.gcLinear-refOut0.gcTrue)
 	t.Logf("[%s] sf0  REF post-update FIFO Q10 = [%d %d %d %d]   U(m)=%.4f dB",
 		tag,
 		refOut0.pastErrorsQ10[0], refOut0.pastErrorsQ10[1],
@@ -585,27 +614,28 @@ func runRefCrossCheck(
 
 	// ── sf1 ─────────────────────────────────────────────────────────
 	// c1 depends on β = clamp(prevGpQ14). Production's prevGpQ14 after
-	// sf0 = gpProd0 (production decoder doesn't actually update prev
+	// sf0 = prod0.gpQ14 (production decoder doesn't actually update prev
 	// here since gain.Decoder doesn't see prev — but the F-quart-1
 	// harness shows gpQ14 is the spec ĝ_p for the just-decoded sf, so
-	// the next subframe's β is clamp(gpProd0)).
+	// the next subframe's beta is clamp(prod0.gpQ14)).
 	var c1 [subframeLen]int16
-	beta2 := fcb.ClampPitchGainForEnhancement(gpProd0)
+	beta2 := fcb.ClampPitchGainForEnhancement(prod0.gpQ14)
 	fcb.Decode(fcb.Indices{Positions: f.C2, Signs: uint8(f.S2)}, tInt2, beta2, &c1)
-	t.Logf("[%s] sf1 fixed-codebook c[] (β derived from PROD sf0 gp=%d):", tag, gpProd0)
+	t.Logf("[%s] sf1 fixed-codebook c[] (β derived from PROD sf0 gp=%d):", tag, prod0.gpQ14)
 	dumpInt16(t, c1[:])
 
-	gpProd1, gcProd1 := productionGainProbe(gain.Indices{GA: ga2, GB: gb2}, &c1, &prod)
+	prod1 := productionGainProbe(gain.Indices{GA: ga2, GB: gb2}, &c1, &prod)
 	refOut1 := ref.referenceDecode(ga2, gb2, &c1)
 
 	t.Logf("[%s] sf1  GA=%d GB=%d", tag, ga2, gb2)
 	t.Logf("[%s] sf1  E̅_c=%9.4f dB   Ê(m)=%9.4f dB   log10(g_c0)·20=%9.4f dB",
 		tag, refOut1.ecBarDb, refOut1.predictedDb, refOut1.logGc0Db)
-	t.Logf("[%s] sf1  PROD: gp_q14=%6d  gc_q12=%6d", tag, gpProd1, gcProd1)
+	t.Logf("[%s] sf1  PROD: gp_q14=%6d  gc_mant_q14=%6d  gc_exp=%4d  gc_linear=%.6f",
+		tag, prod1.gpQ14, prod1.gcMantQ14, prod1.gcExp, prod1.gcLinear)
 	t.Logf("[%s] sf1  REF : gp_q14=%6d  gc_q12=%6d   (gc_true=%.6f)",
 		tag, refOut1.gpQ14, refOut1.gcQ12, refOut1.gcTrue)
-	t.Logf("[%s] sf1  Δgp_q14 = %+d   Δgc_q12 = %+d",
-		tag, int32(gpProd1)-int32(refOut1.gpQ14), int32(gcProd1)-int32(refOut1.gcQ12))
+	t.Logf("[%s] sf1  Δgp_q14 = %+d   Δgc_linear = %+.6f",
+		tag, int32(prod1.gpQ14)-int32(refOut1.gpQ14), prod1.gcLinear-refOut1.gcTrue)
 	t.Logf("[%s] sf1  REF post-update FIFO Q10 = [%d %d %d %d]   U(m)=%.4f dB",
 		tag,
 		refOut1.pastErrorsQ10[0], refOut1.pastErrorsQ10[1],
@@ -614,8 +644,8 @@ func runRefCrossCheck(
 	)
 
 	// ── 분류 요약 ──────────────────────────────────────────────────
-	matchSf0 := (gpProd0 == refOut0.gpQ14) && (gcProd0 == refOut0.gcQ12)
-	matchSf1 := (gpProd1 == refOut1.gpQ14) && (gcProd1 == refOut1.gcQ12)
+	matchSf0 := (prod0.gpQ14 == refOut0.gpQ14) && gainLinearClose(prod0.gcLinear, refOut0.gcTrue)
+	matchSf1 := (prod1.gpQ14 == refOut1.gpQ14) && gainLinearClose(prod1.gcLinear, refOut1.gcTrue)
 	t.Logf("[%s] summary: sf0 prod==ref? %t   sf1 prod==ref? %t   (FIFO 동치성은 sf1 일치로 간접 검증)",
 		tag, matchSf0, matchSf1)
 
@@ -630,20 +660,19 @@ func runRefCrossCheck(
 	// 편차가 ~20 LSB까지 관측된다. ±32 톨러런스는 여전히 본 task가
 	// fix하는 결함은 ÷64 dB / ×8192 스케일 즉 gc_q12 절대 편차 수천
 	// LSB 이상의 defect 를 충분히 검출한다.).
-	const gcTolQ12 = 32
-	if gpProd0 != refOut0.gpQ14 {
-		t.Fatalf("[%s] sf0 gp_q14 mismatch: prod=%d ref=%d", tag, gpProd0, refOut0.gpQ14)
+	if prod0.gpQ14 != refOut0.gpQ14 {
+		t.Fatalf("[%s] sf0 gp_q14 mismatch: prod=%d ref=%d", tag, prod0.gpQ14, refOut0.gpQ14)
 	}
-	if d := int32(gcProd0) - int32(refOut0.gcQ12); d > gcTolQ12 || d < -gcTolQ12 {
-		t.Fatalf("[%s] sf0 gc_q12 mismatch: prod=%d ref=%d (Δ=%+d, tol=±%d)",
-			tag, gcProd0, refOut0.gcQ12, d, gcTolQ12)
+	if !gainLinearClose(prod0.gcLinear, refOut0.gcTrue) {
+		t.Fatalf("[%s] sf0 gc_linear mismatch: prod=%.6f ref=%.6f (Δ=%+.6f)",
+			tag, prod0.gcLinear, refOut0.gcTrue, prod0.gcLinear-refOut0.gcTrue)
 	}
-	if gpProd1 != refOut1.gpQ14 {
-		t.Fatalf("[%s] sf1 gp_q14 mismatch: prod=%d ref=%d", tag, gpProd1, refOut1.gpQ14)
+	if prod1.gpQ14 != refOut1.gpQ14 {
+		t.Fatalf("[%s] sf1 gp_q14 mismatch: prod=%d ref=%d", tag, prod1.gpQ14, refOut1.gpQ14)
 	}
-	if d := int32(gcProd1) - int32(refOut1.gcQ12); d > gcTolQ12 || d < -gcTolQ12 {
-		t.Fatalf("[%s] sf1 gc_q12 mismatch: prod=%d ref=%d (Δ=%+d, tol=±%d)",
-			tag, gcProd1, refOut1.gcQ12, d, gcTolQ12)
+	if !gainLinearClose(prod1.gcLinear, refOut1.gcTrue) {
+		t.Fatalf("[%s] sf1 gc_linear mismatch: prod=%.6f ref=%.6f (Δ=%+.6f)",
+			tag, prod1.gcLinear, refOut1.gcTrue, prod1.gcLinear-refOut1.gcTrue)
 	}
 }
 

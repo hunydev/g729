@@ -1,21 +1,20 @@
 package closedloop
 
-import "github.com/exedev/g729/internal/pitch"
+import "github.com/hunydev/g729/internal/pitch"
 
 // EncodeP1 packs the subframe-1 fractional pitch lag (intLag, frac)
 // into the 8-bit codeword P1 per ITU-T G.729 §3.7.2 eq. (41)
 // (G729E.txt lines 1170–1175):
 //
-//	P1 = 3·(int(T1) − 19) + frac − 1   if T1 ∈ [19,…,85], frac ∈ {-1,0,1}
-//	P1 = (int(T1) − 85) + 197          if T1 ∈ [86,…,143], frac = 0
+//	P1 = 3·(int(T1) − 19) + frac − 1   if P1 < 198 after packing
+//	P1 = (int(T1) − 85) + 197          for the integer-only upper range
 //
-// The fractional branch is taken for intLag ≤ 85 (any frac); the
-// integer branch for intLag ≥ 86. The boundary codepoint P1=198 is
-// owned by the fractional branch (intLag=85, frac=1) per the
-// decoder inverse §4.1.3 (G729E.txt lines 1505–1510), which routes
-// every P1 < 199 through the fractional reconstruction.
+// The decoder inverse owns P1=198 as (86,0), so (85,+1) has no exact
+// codepoint. Normalize that unrepresentable upper fractional edge to the
+// nearest integer codepoint (85,0) instead of silently emitting P1=198 with
+// a different decoded lag.
 func EncodeP1(intLag int16, frac int8) uint8 {
-	if intLag <= 85 {
+	if intLag < 85 || (intLag == 85 && frac <= 0) {
 		return uint8(3*(intLag-19) + int16(frac) - 1)
 	}
 	return uint8(intLag + 112)

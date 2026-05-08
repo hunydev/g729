@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/pcm"
 )
 
 // TestPhase3Diag_SynthesisBypass measures RMS at every stage of the

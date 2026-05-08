@@ -8,9 +8,9 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/pitch"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // TestPhase3bDiag3_AdaptiveCodebookTrajectory drives SPEECH.BIT

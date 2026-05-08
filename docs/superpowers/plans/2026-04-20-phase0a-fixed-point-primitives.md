@@ -72,18 +72,18 @@ Use Conventional Commits style: `feat:`, `test:`, `chore:`, `docs:`. Keep messag
 
 Run in repo root:
 ```bash
-cd /home/exedev/g729 && go mod init github.com/exedev/g729
+cd /home/exedev/g729 && go mod init github.com/hunydev/g729
 ```
 
 Expected: creates `go.mod` with module path and Go directive.
 
-The module path `github.com/exedev/g729` is a placeholder. The project owner can rename later with `go mod edit -module github.com/<owner>/g729` without touching any other file, because no file imports using the full module path yet (all imports so far are within `internal/fixed`).
+The module path `github.com/hunydev/g729` is a placeholder. The project owner can rename later with `go mod edit -module github.com/<owner>/g729` without touching any other file, because no file imports using the full module path yet (all imports so far are within `internal/fixed`).
 
 - [x] **Step 2: Pin the Go version**
 
 Open `go.mod` and ensure the `go` directive is at least `1.22`. If `go mod init` produced an older version, edit it:
 ```
-module github.com/exedev/g729
+module github.com/hunydev/g729
 
 go 1.22
 ```
@@ -281,7 +281,7 @@ package g729
 ```bash
 cd /home/exedev/g729 && go test ./...
 ```
-Expected: `ok  github.com/exedev/g729/internal/fixed`.
+Expected: `ok  github.com/hunydev/g729/internal/fixed`.
 
 - [x] **Step 7: Commit**
 

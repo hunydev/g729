@@ -3,12 +3,12 @@ package postfilter
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/lsp"
-	"github.com/exedev/g729/internal/pitch"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 // TestDiagnostic_FnonCgammaRevisit1PostfilterSubStageTrace — Phase 1k

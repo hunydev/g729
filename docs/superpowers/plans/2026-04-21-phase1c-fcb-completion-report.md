@@ -36,19 +36,19 @@ No test inputs needed adjustment after spec re-reading.
 
 ```
 $ go test -race ./internal/fcb/...
-ok  	github.com/exedev/g729/internal/fcb	1.010s
+ok  	github.com/hunydev/g729/internal/fcb	1.010s
 
 $ go vet ./internal/fcb/...
 (silent)
 
 $ go test -race ./...
-ok  	github.com/exedev/g729/internal/bitstream
-ok  	github.com/exedev/g729/internal/fcb
-ok  	github.com/exedev/g729/internal/fixed
-ok  	github.com/exedev/g729/internal/lsp
-ok  	github.com/exedev/g729/internal/pcm
-ok  	github.com/exedev/g729/internal/pitch
-ok  	github.com/exedev/g729/internal/tables
+ok  	github.com/hunydev/g729/internal/bitstream
+ok  	github.com/hunydev/g729/internal/fcb
+ok  	github.com/hunydev/g729/internal/fixed
+ok  	github.com/hunydev/g729/internal/lsp
+ok  	github.com/hunydev/g729/internal/pcm
+ok  	github.com/hunydev/g729/internal/pitch
+ok  	github.com/hunydev/g729/internal/tables
 ```
 
 All zero-allocation tests pass (`TestNoAllocationInClampPitchGainForEnhancement`, `TestNoAllocationInDecode_NoEnhancement`, `TestNoAllocationInDecode_WithEnhancement`).
@@ -63,7 +63,7 @@ Highlights from the unit suite:
 
 ```
 goarch: amd64
-pkg: github.com/exedev/g729/internal/fcb
+pkg: github.com/hunydev/g729/internal/fcb
 cpu: AMD EPYC 9554P 64-Core Processor
 BenchmarkDecode_NoEnhancement-2          92,699,360   12.48 ns/op   0 B/op   0 allocs/op
 BenchmarkDecode_WithEnhancement-2        28,206,894   40.40 ns/op   0 B/op   0 allocs/op

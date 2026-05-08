@@ -3,7 +3,7 @@ package gain
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 func TestDecodeVQ_SumsMatchTableEntries(t *testing.T) {

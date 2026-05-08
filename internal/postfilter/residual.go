@@ -1,6 +1,6 @@
 package postfilter
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // computeResidual applies the bandwidth-expanded FIR
 //

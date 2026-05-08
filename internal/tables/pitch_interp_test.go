@@ -32,3 +32,12 @@ func TestPitchInterpFIRZeros(t *testing.T) {
 		}
 	}
 }
+
+func TestPitchInterpFIRCenterAndFirstFractionalTapPinned(t *testing.T) {
+	if PitchInterpFIR[0] != 29443 {
+		t.Fatalf("PitchInterpFIR[0]=%d, want stored b30(0)=29443", PitchInterpFIR[0])
+	}
+	if PitchInterpFIR[1] != 25207 {
+		t.Fatalf("PitchInterpFIR[1]=%d, want stored b30(1)=25207", PitchInterpFIR[1])
+	}
+}

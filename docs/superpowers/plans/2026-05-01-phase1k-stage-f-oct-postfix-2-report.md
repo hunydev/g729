@@ -126,9 +126,9 @@ plan Step 3 E3 protocol 의 "Step 4 진입 금지" 의무 준수. 단, working t
 ```
 $ go test ./internal/postfilter/ ./internal/synth/ ./internal/decoder/ \
     -run "TestDecode_Frame0Sample0_MatchesALGTHM|TestDiagnostic_F(quart|sext|sept|octPrelim|OctPrelim5)"
-ok    github.com/exedev/g729/internal/postfilter
-ok    github.com/exedev/g729/internal/synth
-ok    github.com/exedev/g729/internal/decoder
+ok    github.com/hunydev/g729/internal/postfilter
+ok    github.com/hunydev/g729/internal/synth
+ok    github.com/hunydev/g729/internal/decoder
 ```
 
 ---

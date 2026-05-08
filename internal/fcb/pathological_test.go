@@ -8,7 +8,7 @@ import (
 // the specific index that Phase 1g reported as problematic.
 func TestDecodePositions_C6134(t *testing.T) {
 	got := decodePositions(6134)
-	want := [4]int{25, 36, 37, 33}
+	want := [4]int{30, 31, 37, 29}
 	if got != want {
 		t.Fatalf("decodePositions(6134) = %v, want %v", got, want)
 	}
@@ -26,10 +26,10 @@ func TestDecodePositions_C6134(t *testing.T) {
 // samples zero.
 func TestPlacePulses_AllPositive_C6134(t *testing.T) {
 	var c [40]int16
-	placePulses([4]int{25, 36, 37, 33}, 0xF, &c)
+	placePulses([4]int{30, 31, 37, 29}, 0xF, &c)
 	for i, v := range c {
 		switch i {
-		case 25, 33, 36, 37:
+		case 29, 30, 31, 37:
 			if v != PulseAmplitude {
 				t.Errorf("c[%d] = %d, want %d (+PulseAmplitude)", i, v, PulseAmplitude)
 			}

@@ -1,10 +1,10 @@
 package decoder
 
 import (
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/lsp"
-	"github.com/exedev/g729/internal/pcm"
-	"github.com/exedev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/pitch"
 )
 
 // Decode consumes one packed G.729 / Annex A frame and writes one frame of
@@ -18,8 +18,7 @@ import (
 //     The current implementation treats it as a no-op; full concealment
 //     per G.729 §4.4 / §A.4.1 is not yet wired in.
 //   - out must hold at least 80 int16 samples; only out[0:80] is written
-//     (16 kHz-equivalent Q0 samples post-HP-filter, post-×2 amplitude
-//     scaling per §4.2.3).
+//     (Q0 samples post-HP-filter and final amplitude recovery).
 //
 // Errors:
 //   - ErrShortInput  — len(packed) < 10.
@@ -69,7 +68,16 @@ func (d *Decoder) Decode(packed []byte, bad bool, out []int16) error {
 	d.decodeSubframe(&sf1A, tInt1, tFrac1, f.C1, uint8(f.S1), uint8(f.GA1), uint8(f.GB1), out[:subframeLen])
 	d.decodeSubframe(&sf2A, tInt2, tFrac2, f.C2, uint8(f.S2), uint8(f.GA2), uint8(f.GB2), out[subframeLen:frameSamples])
 
-	pcm.ScaleUpSat(out[:frameSamples], out[:frameSamples])
+	scaleDecoderOutput(out[:frameSamples])
 
 	return nil
+}
+
+func scaleDecoderOutput(out []int16) {
+	pcm.ScaleUpSat(out, out)
+}
+
+func scaleDecoderOutputForEnvelopeRecovery(out []int16) {
+	scaleDecoderOutput(out)
+	pcm.ScaleUpSat(out, out)
 }

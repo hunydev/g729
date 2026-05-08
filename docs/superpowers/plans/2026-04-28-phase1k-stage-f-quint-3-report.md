@@ -77,7 +77,7 @@ e0e3367 fix(gain): apply Q26-vs-Q0 correction and preserve int32 in ec dB chain
 === RUN   TestDecode_Frame0Sample0_MatchesALGTHM
 --- PASS: TestDecode_Frame0Sample0_MatchesALGTHM (0.00s)
 PASS
-ok      github.com/exedev/g729/internal/decoder 0.001s
+ok      github.com/hunydev/g729/internal/decoder 0.001s
 ```
 
 **PASS.** F-tris-2 SKIP 상태에서 회복. C1+C2 합산 효과로 production sample 0 PST = 2 = ALGTHM 참조값 일치.

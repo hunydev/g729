@@ -56,20 +56,15 @@ func TestTargetSignal_IdentityFilterImpulseResidual(t *testing.T) {
 // aw[1] = -1536 (Q12) yields:
 //
 //	x[0] = r[0] = 100
-//	x[n] = -aw[1]·x[n-1] / 2^15  ≈ 0.375·x[n-1]    (for n ≥ 1)
+//	x[n] = -aw[1]·x[n-1] / 2^12  ≈ 0.375·x[n-1]    (for n ≥ 1)
 //
-// In Q0 with fixed.Mult truncation:
+// In Q0 with the same Q12 scaling used by the synthesis filter:
 //
-//	x[1] = 0 - Mult(-1536, 100)  = 0 - (-5)  = 5      (Mult truncates)
-//	x[2] = 0 - Mult(-1536, 5)    = 0 - 0     = 0
+//	x[1] ≈ round(0.375·100) = 38
+//	x[2] ≈ round(0.375·38)  = 14
 //
-// (Mult(-1536, 5) = (-1536·5)>>15 = -7680>>15 = 0 by C-style truncation
-// toward zero on a negative numerator; the fixed package's Mult
-// implements ITU mult = (a·b)>>15 with two's-complement arithmetic
-// which floors negatives. Either way the magnitude is < 1 LSB so the
-// chain terminates at x[2] = 0. We assert the leading three samples
-// to pin the recurrence direction without depending on the truncation
-// rounding mode for negligible tails.)
+// We assert the leading samples to pin the recurrence direction and
+// the Q12 coefficient scale.
 //
 // Spec: §A.3.6 filter form; gammaPow[1] = 24576 (γ = 0.75 in Q15).
 func TestTargetSignal_FirstOrderHandTrace(t *testing.T) {
@@ -83,28 +78,18 @@ func TestTargetSignal_FirstOrderHandTrace(t *testing.T) {
 	if x[0] != 100 {
 		t.Fatalf("x[0] = %d, want 100", x[0])
 	}
-	// x[1] = -aw[1]·x[0] >> 15 with aw[1]=-1536 → +(1536·100)>>15 = 4
-	// (153600>>15 = 4). The fixed.Mult on the (a,b) pair (-1536,100)
-	// returns (-153600)>>15 = -5 (arithmetic shift floor); negation
-	// in our recurrence flips it back to +5? Actually we subtract
-	// Mult(aw[i], x[n-i]) from r[n], so x[1] = r[1] - Mult(-1536, 100)
-	//  = 0 - (-5) = 5. Pin this.
-	if x[1] != 5 {
-		t.Fatalf("x[1] = %d, want 5 (subtract floor-negative product)", x[1])
+	if x[1] != 38 {
+		t.Fatalf("x[1] = %d, want 38 (Q12 all-pole product)", x[1])
 	}
-	// x[2] = 0 - Mult(-1536, 5) = 0 - ((-7680)>>15) = 0 - (-1) = 1
-	// (arithmetic right shift of -7680 by 15 = -1 by floor semantics).
-	if x[2] != 1 {
-		t.Fatalf("x[2] = %d, want 1", x[2])
+	if x[2] != 14 {
+		t.Fatalf("x[2] = %d, want 14", x[2])
 	}
-	// Tail stays bounded near zero. With ITU-style fixed.Mult
-	// (arithmetic right shift toward −∞) the chain hovers at a
-	// 1-LSB residual rather than rounding to zero — pin the bound
-	// rather than the exact value to keep the assertion robust to
-	// the well-known floor-shift quirk.
-	for n := 3; n < SubframeLen; n++ {
-		if x[n] < 0 || x[n] > 1 {
-			t.Fatalf("x[%d] = %d, want ∈ {0,1} (tail bound)", n, x[n])
+	if x[3] != 5 {
+		t.Fatalf("x[3] = %d, want 5", x[3])
+	}
+	for n := 6; n < SubframeLen; n++ {
+		if x[n] != 0 {
+			t.Fatalf("x[%d] = %d, want 0 (decayed tail)", n, x[n])
 		}
 	}
 }
@@ -167,13 +152,14 @@ func TestTargetSignal_MemoryContinuity(t *testing.T) {
 		aw[i] = int16((int32(a[i]) * int32(gamma[i])) >> 15)
 	}
 	for n := 0; n < 80; n++ {
-		var sumProd int32
+		acc := int64(r80[n]) * int64(aw[0]) * 2
 		for i := 1; i <= 10; i++ {
 			if n-i >= 0 {
-				sumProd += int32(aw[i]) * int32(hist[n-i]) >> 15
+				acc -= int64(aw[i]) * int64(hist[n-i]) * 2
 			}
 		}
-		v := int32(r80[n]) - sumProd
+		acc <<= 3
+		v := int32((acc + 0x8000) >> 16)
 		if v > 32767 {
 			v = 32767
 		} else if v < -32768 {

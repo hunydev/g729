@@ -36,7 +36,7 @@ Phase 0.4 §6 (hybrid 강요 금지): 본 task 측정으로 Cα 단독 spec 정�
 
 ```
 $ go test ./internal/decoder/ -run TestDecode_Frame0Sample0_MatchesALGTHM -count=1
-ok  	github.com/exedev/g729/internal/decoder	0.001s
+ok  	github.com/hunydev/g729/internal/decoder	0.001s
 
 $ go test ./internal/decoder/ -run TestDecode_AlgthmFrame0Sf0Sample5to7_NegativeOutput -count=1
 --- FAIL: TestDecode_AlgthmFrame0Sf0Sample5to7_NegativeOutput
@@ -46,11 +46,11 @@ $ go test ./internal/decoder/ -run TestDecode_AlgthmFrame0Sf0Sample5to7_Negative
 FAIL    (← 항목 17 의도 RED 잔존; 다음 fix cycle GREEN gate)
 
 $ go test ./internal/decoder/ -run "TestDiagnostic_F(quart|sext|sept|octPrelim|OctPrelim5|OctPostfix2Prelim|nonPrelim)" -count=1
-ok  	github.com/exedev/g729/internal/decoder	0.010s
+ok  	github.com/hunydev/g729/internal/decoder	0.010s
 
 $ go test ./internal/postfilter/ ./internal/synth/ -count=1 -run Contract
-ok  	github.com/exedev/g729/internal/postfilter	0.001s
-ok  	github.com/exedev/g729/internal/synth	0.001s
+ok  	github.com/hunydev/g729/internal/postfilter	0.001s
+ok  	github.com/hunydev/g729/internal/synth	0.001s
 
 $ go vet ./...
 (clean)

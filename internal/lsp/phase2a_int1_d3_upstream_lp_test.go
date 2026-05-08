@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/exedev/g729/internal/lpc"
-	"github.com/exedev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/lpc"
+	"github.com/hunydev/g729/internal/pcm"
 )
 
 // d3FrameSnapshot bundles every per-frame measurement collected by

@@ -3,7 +3,7 @@ package lsp
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // TestLSPToLSFInvertsLSFToLSP verifies that for every Q13 LSF value

@@ -52,6 +52,24 @@ func TestRefinePitch_ClampsAtUpperEdge(t *testing.T) {
 	_ = pf.refinePitch(&r, 143)
 }
 
+func TestRefinePitch_ClampsFallbackAboveUpperEdge(t *testing.T) {
+	var pf Postfilter
+	var r [subframeLen]int16
+
+	bestT := pf.refinePitch(&r, 144)
+	if bestT != 143 {
+		t.Errorf("bestT = %d, want 143 (fallback clamped at upper edge)", bestT)
+	}
+}
+
+func TestFilter_PitchLag144DoesNotPanic(t *testing.T) {
+	var pf Postfilter
+	a := [11]int16{4096}
+	var s, sPf [subframeLen]int16
+
+	pf.Filter(&a, 144, &s, &sPf)
+}
+
 // With g_l = 0 (zero correlation), long-term postfilter is identity.
 func TestApplyLongTerm_ZeroGainIsIdentity(t *testing.T) {
 	var pf Postfilter

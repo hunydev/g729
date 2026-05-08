@@ -1,6 +1,6 @@
 package openloop
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // gamma07Q15 is the Q15 representation of 0.7 (= round(0.7·32768)).
 // It is the |z⁻¹| coefficient of the (1 − 0.7z⁻¹) low-pass factor
@@ -62,21 +62,15 @@ func gammaWeightLP(a, out *[11]int16) {
 // product is order-11; per OQ-2 (default reading) it is truncated
 // to order-10 by dropping the highest-degree tap.
 //
-// Q-format / convolution convention. The first tap aw[0] is the
-// implicit Q12 leading 1.0 (= 4096) of the LP polynomial. The
-// (1 − 0.7z⁻¹) factor's z⁻¹ coefficient is therefore added at
-// out[1] using its Q15 representation directly (-22938) rather than
-// re-scaled through the leading 4096; for higher indices i ≥ 2 the
-// contribution -0.7·aw[i-1] is computed via fixed.Mult (Q15·Q12 →
-// Q12). The dual-mode handling produces the hand-traced expected
-// values pinned by the package tests; a uniform-Q12 reading is
-// reserved for OQ-2 escalation if INT-1 plausibility fails.
+// Q-format / convolution convention. The first tap aw[0] is the Q12
+// leading 1.0 (= 4096) of the LP polynomial, so the z⁻¹ contribution
+// is -0.7·aw[0] in Q12, not the raw Q15 constant. All taps therefore
+// use the same Q15·Q12 → Q12 multiply.
 //
 // I3 / I4: pure (writes only through out), zero allocation.
 func combineWith07(aw, out *[11]int16) {
 	out[0] = aw[0]
-	out[1] = fixed.Saturate(int32(aw[1]) - int32(gamma07Q15))
-	for i := 2; i <= 10; i++ {
+	for i := 1; i <= 10; i++ {
 		out[i] = aw[i] - fixed.MultR(gamma07Q15, aw[i-1])
 	}
 }

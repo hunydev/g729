@@ -251,16 +251,16 @@ Per §A.3.10 eq. A.10 the past-excitation commit is `u(n) = ĝp · v(n) + ĝc ·
 
 | Test | Package | Source phase |
 |------|---------|--------------|
-| `TestEncode_LSPVectorBitExact` | `github.com/exedev/g729` | Phase 2a INT-1 ACCEPT-PARTIAL |
-| `TestDiagnostic_SinglePulseChain` | `github.com/exedev/g729/internal/decoder` | Phase 1 inheritance |
-| `TestDecode_LowEnergyCodebookIsSmooth` | `github.com/exedev/g729/internal/gain` | Phase 1 inheritance |
-| `TestDecode_SucceedsAcrossAllGainIndices` | `github.com/exedev/g729/internal/gain` | Phase 1 inheritance |
+| `TestEncode_LSPVectorBitExact` | `github.com/hunydev/g729` | Phase 2a INT-1 ACCEPT-PARTIAL |
+| `TestDiagnostic_SinglePulseChain` | `github.com/hunydev/g729/internal/decoder` | Phase 1 inheritance |
+| `TestDecode_LowEnergyCodebookIsSmooth` | `github.com/hunydev/g729/internal/gain` | Phase 1 inheritance |
+| `TestDecode_SucceedsAcrossAllGainIndices` | `github.com/hunydev/g729/internal/gain` | Phase 1 inheritance |
 
 Phase 2c adds **one new FAIL-DEFERRED** test:
 
 | Test | Package | Disposition |
 |------|---------|-------------|
-| `TestPhase2cINT1_ClosedLoopPitchByteEQ` | `github.com/exedev/g729` | FAIL-DEFERRED (P1 9.05 % / P0 56.46 % / P2 9.75 %) — re-run post-Phase-2d. |
+| `TestPhase2cINT1_ClosedLoopPitchByteEQ` | `github.com/hunydev/g729` | FAIL-DEFERRED (P1 9.05 % / P0 56.46 % / P2 9.75 %) — re-run post-Phase-2d. |
 
 **Total baseline at Phase 2c closure: 5 FAILs (4 inherited + 1 new INT-1 FAIL-DEFERRED).**
 
@@ -268,23 +268,23 @@ Phase 2c adds **one new FAIL-DEFERRED** test:
 
 | Package | Status |
 |---------|--------|
-| `github.com/exedev/g729` | **FAIL** (`TestEncode_LSPVectorBitExact`, `TestPhase2cINT1_ClosedLoopPitchByteEQ`) |
-| `github.com/exedev/g729/internal/acelp` | PASS |
-| `github.com/exedev/g729/internal/bitstream` | PASS |
-| `github.com/exedev/g729/internal/decoder` | **FAIL** (`TestDiagnostic_SinglePulseChain`) |
-| `github.com/exedev/g729/internal/fcb` | PASS |
-| `github.com/exedev/g729/internal/filter` | PASS |
-| `github.com/exedev/g729/internal/fixed` | PASS |
-| `github.com/exedev/g729/internal/gain` | **FAIL** (`TestDecode_LowEnergyCodebookIsSmooth`, `TestDecode_SucceedsAcrossAllGainIndices`) |
-| `github.com/exedev/g729/internal/lpc` | PASS |
-| `github.com/exedev/g729/internal/lsp` | PASS |
-| `github.com/exedev/g729/internal/pcm` | PASS |
-| `github.com/exedev/g729/internal/pitch` | PASS |
-| `github.com/exedev/g729/internal/pitch/closedloop` | PASS |
-| `github.com/exedev/g729/internal/pitch/openloop` | PASS |
-| `github.com/exedev/g729/internal/postfilter` | PASS |
-| `github.com/exedev/g729/internal/synth` | PASS |
-| `github.com/exedev/g729/internal/tables` | PASS |
+| `github.com/hunydev/g729` | **FAIL** (`TestEncode_LSPVectorBitExact`, `TestPhase2cINT1_ClosedLoopPitchByteEQ`) |
+| `github.com/hunydev/g729/internal/acelp` | PASS |
+| `github.com/hunydev/g729/internal/bitstream` | PASS |
+| `github.com/hunydev/g729/internal/decoder` | **FAIL** (`TestDiagnostic_SinglePulseChain`) |
+| `github.com/hunydev/g729/internal/fcb` | PASS |
+| `github.com/hunydev/g729/internal/filter` | PASS |
+| `github.com/hunydev/g729/internal/fixed` | PASS |
+| `github.com/hunydev/g729/internal/gain` | **FAIL** (`TestDecode_LowEnergyCodebookIsSmooth`, `TestDecode_SucceedsAcrossAllGainIndices`) |
+| `github.com/hunydev/g729/internal/lpc` | PASS |
+| `github.com/hunydev/g729/internal/lsp` | PASS |
+| `github.com/hunydev/g729/internal/pcm` | PASS |
+| `github.com/hunydev/g729/internal/pitch` | PASS |
+| `github.com/hunydev/g729/internal/pitch/closedloop` | PASS |
+| `github.com/hunydev/g729/internal/pitch/openloop` | PASS |
+| `github.com/hunydev/g729/internal/postfilter` | PASS |
+| `github.com/hunydev/g729/internal/synth` | PASS |
+| `github.com/hunydev/g729/internal/tables` | PASS |
 
 `go vet ./...` ✅ clean. `go build ./...` ✅ clean.
 

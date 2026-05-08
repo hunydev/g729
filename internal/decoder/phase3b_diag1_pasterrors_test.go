@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/lsp"
-	"github.com/exedev/g729/internal/pcm"
-	"github.com/exedev/g729/internal/pitch"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 // TestPhase3bDiag1_PastErrorsTrajectory drives SPEECH.BIT through the
@@ -43,7 +43,7 @@ func TestPhase3bDiag1_PastErrorsTrajectory(t *testing.T) {
 
 	type subRecord struct {
 		preTaps   [4]int16
-		predicted int16
+		predicted int32
 		gpIdx     uint8
 		gcIdx     uint8
 		gpQ14     int16

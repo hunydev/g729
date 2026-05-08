@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/exedev/g729/internal/lpc"
-	"github.com/exedev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/lpc"
+	"github.com/hunydev/g729/internal/pcm"
 )
 
 func TestOracleHandoff_WriteLSPFrame0SourceHandoff(t *testing.T) {

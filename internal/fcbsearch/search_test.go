@@ -3,7 +3,7 @@ package fcbsearch_test
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fcbsearch"
+	"github.com/hunydev/g729/internal/fcbsearch"
 )
 
 // CB-2 RED tests for §A.3.8.1 (G729E.txt lines 2185–2188) — depth-first
@@ -138,6 +138,37 @@ func TestSearchDepthFirst_ExhaustiveCrossCheck(t *testing.T) {
 	}
 }
 
+func TestSearchDepthFirst_LargeCorrelationDoesNotOverflowC2(t *testing.T) {
+	// Large valid correlations can push C above sqrt(MaxInt64). The
+	// search must still rank C²/E correctly instead of overflowing
+	// C*C before comparison.
+	var dAbs [40]int32
+	for n := range dAbs {
+		dAbs[n] = 1
+	}
+	dAbs[5] = 1_100_000_000
+	dAbs[6] = 1_100_000_000
+	dAbs[7] = 1_100_000_000
+	dAbs[4] = 1_100_000_000
+
+	var phi [40][40]int32
+	for i := 0; i < 40; i++ {
+		phi[i][i] = 1 << 18
+	}
+
+	var got [4]int8
+	var sums [2]int64
+	fcbsearch.SearchDepthFirst(&dAbs, &phi, &got, &sums)
+
+	want := [4]int8{5, 6, 7, 4}
+	if got != want {
+		t.Fatalf("positions=%v want %v for large-C overflow guard", got, want)
+	}
+	if sums[0] != 1<<63-1 {
+		t.Fatalf("C² diagnostic sum=%d want saturated MaxInt64", sums[0])
+	}
+}
+
 func TestSearchDepthFirst_CB1CB3Trace(t *testing.T) {
 	// End-to-end trace through CB-1 + CB-3 + CB-2: feed a hand-chosen x, y,
 	// gp, h through AdjustedTarget → CorrelationD → SignsFromD →
@@ -226,7 +257,7 @@ func bruteForceACELP(dAbs *[40]int32, phi *[40][40]int32) ([4]int8, int64, int64
 	t3 := []int8{3, 4, 8, 9, 13, 14, 18, 19, 23, 24, 28, 29, 33, 34, 38, 39}
 
 	var best [4]int8
-	var bestC2, bestE int64
+	var bestC, bestE int64
 	first := true
 	for _, m0 := range t0 {
 		for _, m1 := range t1 {
@@ -239,27 +270,25 @@ func bruteForceACELP(dAbs *[40]int32, phi *[40][40]int32) ([4]int8, int64, int64
 						int64(phi[m0][m1]) + int64(phi[m0][m2]) + int64(phi[m0][m3]) +
 						int64(phi[m1][m2]) + int64(phi[m1][m3]) +
 						int64(phi[m2][m3])
-					C2 := C * C
 					if first {
 						first = false
-						bestC2, bestE = C2, E
+						bestC, bestE = C, E
 						best = [4]int8{m0, m1, m2, m3}
 						continue
 					}
-					if ratioGreater(C2, E, bestC2, bestE) {
-						bestC2, bestE = C2, E
+					if ratioGreater(C, E, bestC, bestE) {
+						bestC, bestE = C, E
 						best = [4]int8{m0, m1, m2, m3}
 					}
 				}
 			}
 		}
 	}
-	return best, bestC2, bestE
+	return best, squareSaturatingInt64(bestC), bestE
 }
 
-// ratioGreater reports whether a/b > c/d treating any non-positive
+// ratioGreater reports whether a²/b > c²/d treating any non-positive
 // denominator as the worst possible ratio (so the well-defined side wins).
-// For positive b,d the comparison is exact via 128-bit cross-product.
 func ratioGreater(a, b, c, d int64) bool {
 	if d <= 0 && b <= 0 {
 		return false
@@ -270,33 +299,17 @@ func ratioGreater(a, b, c, d int64) bool {
 	if b <= 0 {
 		return false
 	}
-	// a, c are non-negative (C² ≥ 0). Compare a*d vs c*b in 128-bit.
-	return mul128Greater(uint64(a), uint64(d), uint64(c), uint64(b))
+	return (float64(a)*float64(a))/float64(b) >
+		(float64(c)*float64(c))/float64(d)
 }
 
-func mul128Greater(a, b, c, d uint64) bool {
-	hi1, lo1 := mul128(a, b)
-	hi2, lo2 := mul128(c, d)
-	if hi1 != hi2 {
-		return hi1 > hi2
+func squareSaturatingInt64(v int64) int64 {
+	if v < 0 {
+		v = -v
 	}
-	return lo1 > lo2
-}
-
-// mul128 returns the 128-bit product of two uint64 values as (hi, lo).
-// Pure-Go reference using bit splitting; matches math/bits.Mul64.
-func mul128(x, y uint64) (hi, lo uint64) {
-	const mask = (uint64(1) << 32) - 1
-	x0 := x & mask
-	x1 := x >> 32
-	y0 := y & mask
-	y1 := y >> 32
-	w0 := x0 * y0
-	t := x1*y0 + (w0 >> 32)
-	w1 := t & mask
-	w2 := t >> 32
-	w1 += x0 * y1
-	hi = x1*y1 + w2 + (w1 >> 32)
-	lo = x * y
-	return
+	const maxSqrtInt64 int64 = 3037000499
+	if v > maxSqrtInt64 {
+		return 1<<63 - 1
+	}
+	return v * v
 }

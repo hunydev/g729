@@ -291,7 +291,7 @@ func TestDecode_CanonicalCodebook_GcMatchesSpecMagnitude(t *testing.T) {
 }
 ```
 
-Note: this test requires importing `"github.com/exedev/g729/internal/fixed"`. Add to the existing imports if not already present.
+Note: this test requires importing `"github.com/hunydev/g729/internal/fixed"`. Add to the existing imports if not already present.
 
 - [ ] **Step 3: Run — expect FAIL**
 
@@ -628,7 +628,7 @@ func abs16(x int16) int16 {
 }
 ```
 
-Adjust the import list for `"github.com/exedev/g729/internal/tables"` if not present.
+Adjust the import list for `"github.com/hunydev/g729/internal/tables"` if not present.
 
 - [x] **Step 3: Run and iterate until PASS**
 

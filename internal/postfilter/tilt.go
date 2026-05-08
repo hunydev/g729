@@ -19,11 +19,14 @@ const gammaTiltInactiveQ14 int16 = 3277 // round(0.2·2^14)
 //	r_h(i) = Σ_{n=0..tiltLen-1-i} h(n) · h(n+i),  i ∈ {0, 1}
 //	k_1'  = -r_h(1) / r_h(0)
 //	μ     = γ_t · k_1'
-//
-// γ_t selection follows Annex A's voicing-dependent rule; for Phase 1g
-// we consult pf.agcGainPrev as a proxy for "long-term active" (non-zero)
-// vs "inactive" (zero).
 func (pf *Postfilter) computeTiltMu(aNum, aDen *[lpcOrder + 1]int16) int16 {
+	return pf.computeTiltMuForLongTerm(aNum, aDen, pf.agcGainPrev != 0)
+}
+
+// computeTiltMuForLongTerm selects γ_t from the current long-term
+// postfilter activity. The active branch is used when g_l > 0, reflected by
+// a non-zero long-term coefficient g1 from computeLongTermGain.
+func (pf *Postfilter) computeTiltMuForLongTerm(aNum, aDen *[lpcOrder + 1]int16, longTermActive bool) int16 {
 	// 1. Compute h(n) for n = 0..tiltLen-1.
 	var h [tiltLen]int32
 	for n := 0; n < tiltLen; n++ {
@@ -63,7 +66,7 @@ func (pf *Postfilter) computeTiltMu(aNum, aDen *[lpcOrder + 1]int16) int16 {
 	}
 
 	gammaTQ14 := gammaTiltActiveQ14
-	if pf.agcGainPrev == 0 {
+	if !longTermActive {
 		gammaTQ14 = gammaTiltInactiveQ14
 	}
 

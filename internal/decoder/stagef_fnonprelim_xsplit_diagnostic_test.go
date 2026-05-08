@@ -14,14 +14,16 @@ package decoder
 // §3 D-3.ter for the housekeeping decision rationale.
 
 import (
+	"math"
+	"strconv"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/pitch"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // TestDiagnostic_FnonPrelimXSplit1FcbPulseTrace decomposes the ALGTHM
@@ -264,7 +266,7 @@ func absInt16(v int16) int32 {
 //
 //	gain.decodeVQ                  : entry = GainGBK*[GainImap*[idx]]
 //	gain.predictedLogGain          : Round(LShl(LMac chain, 2)) + Ē Q10
-//	gain.Decoder.Decode            : returns (gpQ14, gcQ12)
+//	gain.Decoder.Decode            : returns (gpQ14, gcMantQ14, gcExp)
 //	gain.pastErrorsDefault = -14336 (Q10) = MIN_GAIN_PRED_DB
 //	tables.GainMAPredictor         = [5571, 4751, 2785, 1556] (Q13)
 //	tables.GainMeanEnergyQ10       = 30720 (Ē = 30 dB Q10)
@@ -340,12 +342,13 @@ func TestDiagnostic_FnonPrelimXSplit2GainGcTrace(t *testing.T) {
 	//          — spec eq. (65) g_c = γ̂·g_c'. zero-state Decoder; first
 	//          call seeds pastErrors with pastErrorsDefault internally.
 	var gn gain.Decoder
-	gpQ14Prod, gcMant_gcQ12Prod, gcExp_gcQ12Prod := gn.Decode(gain.Indices{GA: ga, GB: gb}, &c)
-	gcQ12Prod := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12Prod, gcExp_gcQ12Prod)
+	gpQ14Prod, gcMantQ14Prod, gcExpProd := gn.Decode(gain.Indices{GA: ga, GB: gb}, &c)
+	gcLinearProd := gainLinearFromMantExp(gcMantQ14Prod, gcExpProd)
 
 	// X-fcb verdict cross-ref (F-non-prelim Task 1 §2 raw measurement).
 	const xFcbGcQ12 int16 = +4153
-	gcMatch := gcQ12Prod == xFcbGcQ12
+	xFcbGcLinear := float64(xFcbGcQ12) / 4096.0
+	gcMatch := math.Abs(gcLinearProd-xFcbGcLinear) <= 0.5/4096.0
 	gpComposeMatch := gpQ14Prod == gpSumQ14
 
 	t.Logf("──────── F-non-prelim-X-split-2 Cβ gain g_c sub-stage trace (ALGTHM frame 0 sf0) ────────")
@@ -386,8 +389,8 @@ func TestDiagnostic_FnonPrelimXSplit2GainGcTrace(t *testing.T) {
 		sumSqQ26 += int64(c[n]) * int64(c[n])
 	}
 	t.Logf("[Cβ fcb energy]      Σc² (Q26) = %d   (input to gain.fixedCodebookEnergy → log2 → Ē̄ in eq.(66))", sumSqQ26)
-	t.Logf("[Cβ g_c (Q12)]       gain.Decode → (ĝ_p=%+d Q14, ĝ_c=%+d Q12)   X-fcb verdict +4153 match=%v",
-		gpQ14Prod, gcQ12Prod, gcMatch)
+	t.Logf("[Cβ g_c]             gain.Decode → (ĝ_p=%+d Q14, mant=%+d Q14, exp=%+d, linear=%.6f)   X-fcb verdict %.6f match=%v",
+		gpQ14Prod, gcMantQ14Prod, gcExpProd, gcLinearProd, xFcbGcLinear, gcMatch)
 
 	// ──── (h) ROM cross-ref vs PDF Table (verbatim numeric) ────
 	//          (Tables in tables/gain_gbk*.go are bit-exact from the
@@ -402,9 +405,9 @@ func TestDiagnostic_FnonPrelimXSplit2GainGcTrace(t *testing.T) {
 
 	// ──── (i) Cβ sub-stage 부호 결정성 평가 ────
 	t.Logf("──────── Cβ sub-stage 부호 결정성 평가 ────────")
-	verdict := classifyCbetaSubStage(gammaSumQ13, predictedQ10, gcQ12Prod, gcMatch, gpComposeMatch)
+	verdict := classifyCbetaSubStage(gammaSumQ13, predictedQ10, gcLinearProd, gcMatch, gpComposeMatch)
 	t.Logf("[Cβ 결정] sign-determining sub-stage = %s", verdict)
-	t.Logf("[Cβ verdict] %s", classifyCbetaHypothesis(gammaGaQ13, gammaGbQ13, gammaSumQ13, predictedQ10, gcQ12Prod, gcMatch, gpComposeMatch))
+	t.Logf("[Cβ verdict] %s", classifyCbetaHypothesis(gammaGaQ13, gammaGbQ13, gammaSumQ13, predictedQ10, gcLinearProd, gcMatch, gpComposeMatch))
 }
 
 // classifyCbetaSubStage decides which gain sub-stage determines the
@@ -412,10 +415,10 @@ func TestDiagnostic_FnonPrelimXSplit2GainGcTrace(t *testing.T) {
 // Step 4 의 decision table verbatim against the measured VQ-table /
 // predictor / composition values. Phase 0.4 §1 — measurement-driven
 // only.
-func classifyCbetaSubStage(gammaSumQ13, predictedQ10, gcQ12Prod int16, gcMatch, gpComposeMatch bool) string {
+func classifyCbetaSubStage(gammaSumQ13, predictedQ10 int16, gcLinearProd float64, gcMatch, gpComposeMatch bool) string {
 	gammaPositive := gammaSumQ13 > 0
 	predictedFinite := predictedQ10 > -32000 && predictedQ10 < 32000
-	gcPositive := gcQ12Prod > 0
+	gcPositive := gcLinearProd > 0
 
 	switch {
 	case gcMatch && gpComposeMatch && gammaPositive && predictedFinite && gcPositive:
@@ -425,7 +428,7 @@ func classifyCbetaSubStage(gammaSumQ13, predictedQ10, gcQ12Prod int16, gcMatch, 
 	case gcMatch && gammaPositive && !gcPositive:
 		return "spec-violation (γ̂ sum > 0 yet g_c ≤ 0 — sign loss in γ̂·g_c' composition)"
 	case !gcMatch:
-		return "replication-mismatch (production gain.Decode g_c=" + itoa(int32(gcQ12Prod)) + " ≠ X-fcb verdict +4153 — X-fcb baseline drift; investigate)"
+		return "replication-mismatch (production gain.Decode g_c=" + formatFloat4(gcLinearProd) + " ≠ X-fcb verdict 4153/4096 — X-fcb baseline drift; investigate)"
 	default:
 		return "undetermined (sub-stage values do not fit known pattern)"
 	}
@@ -436,12 +439,12 @@ func classifyCbetaSubStage(gammaSumQ13, predictedQ10, gcQ12Prod int16, gcMatch, 
 // Cβ-refute / Cβ-inconclusive. Phase 0.4 §3 — "둘 다 spec 정합" is a
 // valid outcome (Cβ-refute), routing to Cγ re-entry or Y magnitude
 // follow-up per Task 3 의 결정 트리.
-func classifyCbetaHypothesis(gammaGaQ13, gammaGbQ13, gammaSumQ13, predictedQ10, gcQ12Prod int16, gcMatch, gpComposeMatch bool) string {
+func classifyCbetaHypothesis(gammaGaQ13, gammaGbQ13, gammaSumQ13, predictedQ10 int16, gcLinearProd float64, gcMatch, gpComposeMatch bool) string {
 	gammaGaOk := gammaGaQ13 >= 0
 	gammaGbOk := gammaGbQ13 >= 0
 	gammaPositive := gammaSumQ13 > 0
 	predFinite := predictedQ10 > -32000 && predictedQ10 < 32000
-	gcPositive := gcQ12Prod > 0
+	gcPositive := gcLinearProd > 0
 
 	switch {
 	case gcMatch && gpComposeMatch && gammaGaOk && gammaGbOk && gammaPositive && predFinite && gcPositive:
@@ -463,4 +466,8 @@ func classifyCbetaHypothesis(gammaGaQ13, gammaGbQ13, gammaSumQ13, predictedQ10, 
 	default:
 		return "Cβ-inconclusive (sub-stage 측정 데이터로 단일 sub-source 식별 불가 — Task 3 종합 §3 결정 트리에서 hybrid 평가)"
 	}
+}
+
+func formatFloat4(v float64) string {
+	return strconv.FormatFloat(v, 'f', 4, 64)
 }

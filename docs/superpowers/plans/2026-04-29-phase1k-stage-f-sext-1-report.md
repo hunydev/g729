@@ -66,7 +66,7 @@ $ go test ./internal/decoder/ -run TestDecode_Frame0Sample0_MatchesALGTHM -v
 === RUN   TestDecode_Frame0Sample0_MatchesALGTHM
 --- PASS: TestDecode_Frame0Sample0_MatchesALGTHM (0.00s)
 PASS
-ok  	github.com/exedev/g729/internal/decoder	(cached)
+ok  	github.com/hunydev/g729/internal/decoder	(cached)
 
 $ go test ./internal/decoder/ -run TestDiagnostic_FquartGainReferenceCrossCheck -v
 ... (생략) ...
@@ -107,7 +107,7 @@ $ go test ./internal/decoder/ -run TestDiagnostic_FsextPostfilterChain_Sf0Sample
     stagef_sext_diagnostic_test.go:120: gain VQ: gp_q14=1995 gc_q12=4153   tInt=20 tFrac=0   beta_q14=3277
 --- PASS: TestDiagnostic_FsextPostfilterChain_Sf0Sample5to7 (0.00s)
 PASS
-ok  	github.com/exedev/g729/internal/decoder	0.001s
+ok  	github.com/hunydev/g729/internal/decoder	0.001s
 ```
 
 ### 3.2 sample 5..7 부호 분포 표 (Step 4)

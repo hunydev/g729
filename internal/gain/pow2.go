@@ -1,8 +1,8 @@
 package gain
 
 import (
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // pow2Fixed returns 2^(x/1024) as a Q0 Word32 for x given in Q10.

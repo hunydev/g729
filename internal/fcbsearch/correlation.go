@@ -1,6 +1,6 @@
 package fcbsearch
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // AdjustedTarget computes the second target signal x'(n) of
 // ITU-T G.729 §3.8.1 eq. 50 (G729E.txt lines 1245–1248):
@@ -23,7 +23,7 @@ import "github.com/exedev/g729/internal/fixed"
 func AdjustedTarget(x, y *[SubframeLen]int16, gp int16, xPrime *[SubframeLen]int16) {
 	for n := 0; n < SubframeLen; n++ {
 		prod := int32(gp) * int32(y[n]) // Q14
-		xPrime[n] = fixed.Saturate(int32(x[n]) - (prod >> 14))
+		xPrime[n] = fixed.Saturate(int32(x[n]) - roundShift(prod, 14))
 	}
 }
 
@@ -45,10 +45,20 @@ func AdjustedTarget(x, y *[SubframeLen]int16, gp int16, xPrime *[SubframeLen]int
 // I3 / I4: pure (writes only through d), zero allocation.
 func CorrelationD(xPrime, h *[SubframeLen]int16, d *[SubframeLen]int32) {
 	for n := 0; n < SubframeLen; n++ {
-		var acc int32
+		var acc int64
 		for i := n; i < SubframeLen; i++ {
-			acc += int32(xPrime[i]) * int32(h[i-n])
+			acc += int64(xPrime[i]) * int64(h[i-n])
 		}
-		d[n] = acc
+		d[n] = saturateInt64ToInt32(acc)
 	}
+}
+
+func saturateInt64ToInt32(v int64) int32 {
+	if v > 0x7fffffff {
+		return 0x7fffffff
+	}
+	if v < -0x80000000 {
+		return -0x80000000
+	}
+	return int32(v)
 }

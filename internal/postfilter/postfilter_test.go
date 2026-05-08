@@ -84,9 +84,9 @@ func TestFilter_ZeroLPCIsApproximateIdentity(t *testing.T) {
 		s[i] = int16(500 + i*3)
 	}
 
-	// AGC time constant ≈ 100 samples (α ≈ 0.99), so several hundred
-	// samples (≈ 25+ subframes) are needed before g_pf settles within
-	// 10% of g_target = 1.0.
+	// AGC time constant is short for Annex A (α = 0.9); several subframes
+	// are still enough margin for the full postfilter state to settle near
+	// g_target = 1.0.
 	for k := 0; k < 50; k++ {
 		pf.Filter(&a, 40, &s, &sPf)
 	}

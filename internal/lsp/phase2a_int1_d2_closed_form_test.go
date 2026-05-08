@@ -7,9 +7,9 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/exedev/g729/internal/lpc"
-	"github.com/exedev/g729/internal/pcm"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/lpc"
+	"github.com/hunydev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // TestINT1D2Frame5ClosedForm — Phase 2a-INT-1-d2 (diagnostic 2)

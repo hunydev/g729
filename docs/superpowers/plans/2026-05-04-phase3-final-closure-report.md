@@ -128,7 +128,7 @@ against spec-derived invariants — not on absence of evidence.
 |---|---:|---|
 | Internal subsystem packages (`acelp`, `bitstream`, `fcb`, `fcbsearch`, `filter`, `fixed`, `gain`, `gainquant`, `lpc`, `lsp`, `pcm`, `pitch`, `pitch/closedloop`, `pitch/openloop`, `postfilter`, `synth`, `tables`) | 17 | **all PASS** |
 | `internal/decoder` | 1 | FAIL — 5 documented PASS-by-design / pre-existing pins (see §5.1) |
-| `github.com/exedev/g729` (root) | 1 | FAIL — 4 FAIL-DEFERRED encoder byte-EQ pins (see §5.2) |
+| `github.com/hunydev/g729` (root) | 1 | FAIL — 4 FAIL-DEFERRED encoder byte-EQ pins (see §5.2) |
 
 Total documented failures: **9** — all pre-existing items, **0** new
 regressions introduced by Phase 3a or Phase 3b. Verified by checkout-

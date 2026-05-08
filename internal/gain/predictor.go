@@ -1,8 +1,8 @@
 package gain
 
 import (
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // PredictedLogGain computes the MA-predicted log-gain Ê(m) per
@@ -13,15 +13,30 @@ import (
 // where b_i = tables.GainMAPredictor[i-1] (Q13), Û(m-i) =
 // pastErrors[i-1] (Q10), and E̅ = tables.GainMeanEnergyQ10.
 //
-// Q-format walk: LMac accumulates b_i · Û(m-i) as Q(13+10+1) = Q24.
-// Round(LShl(acc, 2)) shifts to Q26 then takes the high half with
-// rounding, yielding the contribution in Q10. fixed.Add then folds
-// in E̅, the long-term mean energy reference.
+// Q-format walk: the products b_i · Û(m-i) are accumulated at Q24
+// because the fixed-point L_mac form doubles the Q13×Q10 product. The
+// accumulator is then shifted left by 2 and rounded down to Q10. The
+// long-term mean energy reference E̅ is added in int32 so high-energy
+// frames are not collapsed by an intermediate Word16 saturation before
+// g_c reconstruction.
 //
-// The pure free-function form is the GQ-1 export consumed by the
-// encoder-side predictor (internal/gainquant). The decoder method
-// delegates to this implementation.
-func PredictedLogGain(pastErrors *[4]int16) int16 {
+// The pure free-function form is the receiver-side GQ-1 export consumed by
+// the decoder and decoder-equivalence diagnostics. The encoder search/commit
+// surface uses PredictedLogGainSat16 to preserve the legacy bounded VQ search
+// state while receiver-side reconstruction keeps this wider value.
+func PredictedLogGain(pastErrors *[4]int16) int32 {
+	var acc int64
+	for i := 0; i < 4; i++ {
+		acc += int64(2) * int64(tables.GainMAPredictor[i]) * int64(pastErrors[i])
+	}
+	predicted := int32((acc*4 + 0x8000) >> 16)
+	return int32(tables.GainMeanEnergyQ10) + predicted
+}
+
+// PredictedLogGainSat16 returns the legacy Word16-saturated form of
+// the MA predictor. It is kept for the encoder search/commit surface while
+// decoder-side gain reconstruction uses the int32 PredictedLogGain value.
+func PredictedLogGainSat16(pastErrors *[4]int16) int16 {
 	var acc fixed.Word32
 	for i := 0; i < 4; i++ {
 		acc = fixed.LMac(acc, tables.GainMAPredictor[i], fixed.Word16(pastErrors[i]))
@@ -32,6 +47,6 @@ func PredictedLogGain(pastErrors *[4]int16) int16 {
 
 // predictedLogGain is the decoder-bound thin wrapper retained for the
 // existing Decode pipeline. Delegates to PredictedLogGain.
-func (d *Decoder) predictedLogGain() int16 {
+func (d *Decoder) predictedLogGain() int32 {
 	return PredictedLogGain(&d.pastErrors)
 }

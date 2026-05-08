@@ -3,13 +3,13 @@ package gain
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 func TestPredictedLogGain_AllZeroPastErrors(t *testing.T) {
 	var d Decoder
 	got := d.predictedLogGain()
-	if got != tables.GainMeanEnergyQ10 {
+	if got != int32(tables.GainMeanEnergyQ10) {
 		t.Errorf("predictedLogGain(pastErrors=0) = %d, want %d (= E̅)", got, tables.GainMeanEnergyQ10)
 	}
 }

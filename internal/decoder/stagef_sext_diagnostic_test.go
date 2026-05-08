@@ -17,14 +17,14 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/lsp"
-	"github.com/exedev/g729/internal/pcm"
-	"github.com/exedev/g729/internal/pitch"
-	"github.com/exedev/g729/internal/postfilter"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/postfilter"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 // TestDiagnostic_FsextPostfilterChain_Sf0Sample5to7: Stage F-sext-1 진단.
@@ -85,11 +85,11 @@ func TestDiagnostic_FsextPostfilterChain_Sf0Sample5to7(t *testing.T) {
 
 	var gn gain.Decoder
 	gn.Reset()
-	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
-	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
+	gpQ14, gcMantQ14, gcExp := gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+	gcLinear := gainLinearFromMantExp(gcMantQ14, gcExp)
 
 	var u [subframeLen]int16
-	synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
+	synth.BuildExcitation(gpQ14, gcMantQ14, gcExp, &v, &c, &u)
 
 	// 4 chain stage capture
 	var syn synth.Synthesizer
@@ -131,8 +131,8 @@ func TestDiagnostic_FsextPostfilterChain_Sf0Sample5to7(t *testing.T) {
 	t.Logf("PST/2  sample 5 부호 = %s (값 %d)", signOf(pstHalf[5]), pstHalf[5])
 
 	// 보조: gain VQ 출력 (cross-check 용)
-	t.Logf("gain VQ: gp_q14=%d gc_q12=%d   tInt=%d tFrac=%d   beta_q14=%d",
-		gpQ14, gcQ12, tInt, tFrac, betaQ14)
+	t.Logf("gain VQ: gp_q14=%d gc_mant_q14=%d gc_exp=%d gc_linear=%.6f   tInt=%d tFrac=%d   beta_q14=%d",
+		gpQ14, gcMantQ14, gcExp, gcLinear, tInt, tFrac, betaQ14)
 }
 
 // hpFilterStandalone: F-sext 진단용 wrapper. Decoder.hpFilter 와 동일

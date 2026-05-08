@@ -1,13 +1,12 @@
 package decoder
 
 import (
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/lsp"
-	"github.com/exedev/g729/internal/pcm"
-	"github.com/exedev/g729/internal/pitch"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 // DecodeFrameNoPostfilter mirrors Decoder.Decode (decode.go) line-for-line
@@ -51,7 +50,7 @@ func (d *Decoder) DecodeFrameNoPostfilter(packed []byte, out []int16) error {
 	d.decodeSubframeNoPF(&sf1A, tInt1, tFrac1, f.C1, uint8(f.S1), uint8(f.GA1), uint8(f.GB1), out[:subframeLen])
 	d.decodeSubframeNoPF(&sf2A, tInt2, tFrac2, f.C2, uint8(f.S2), uint8(f.GA2), uint8(f.GB2), out[subframeLen:frameSamples])
 
-	pcm.ScaleUpSat(out[:frameSamples], out[:frameSamples])
+	scaleDecoderOutput(out[:frameSamples])
 	return nil
 }
 
@@ -65,7 +64,7 @@ func (d *Decoder) decodeSubframeNoPF(
 	betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
 
 	var v [subframeLen]int16
-	pitch.AdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v)
+	decodeAdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v)
 
 	var c [subframeLen]int16
 	fcb.Decode(fcb.Indices{Positions: C, Signs: S}, tInt, betaQ14, &c)

@@ -17,9 +17,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/postfilter"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/postfilter"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 // TestDiagnostic_FourPulseCanonicalChain feeds the canonical ITU 4-pulse
@@ -69,18 +69,15 @@ func TestDiagnostic_FourPulseCanonicalChain(t *testing.T) {
 
 	// === Boundary ⑩-⑪ gain.Decode + BuildExcitation ===
 	var gd gain.Decoder
-	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := gd.Decode(gain.Indices{GA: 3, GB: 7}, &c)
-	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
-	gcTrue := float64(gcQ12) / 4096.0
-	t.Logf("[⑩ gain] gpQ14=%d gcQ12=%d (true gc=%.4f)",
-		gpQ14, gcQ12, gcTrue)
+	gpQ14, gcMantQ14, gcExp := gd.Decode(gain.Indices{GA: 3, GB: 7}, &c)
+	gcTrue := gainLinearFromMantExp(gcMantQ14, gcExp)
+	t.Logf("[⑩ gain] gpQ14=%d gcMantQ14=%d gcExp=%d (true gc=%.4f)",
+		gpQ14, gcMantQ14, gcExp, gcTrue)
 	t.Logf("[⑩ gain] spec g'_c=%.4f, max bound (γ̂_max≈2) = %.4f",
 		expectedGcPrime, expectedGcPrime*2)
-	t.Logf("[⑩ gain] saturation check: gcQ12 == ±32767/-32768 ? %v",
-		gcQ12 == 32767 || gcQ12 == -32768)
 
 	var v, u [40]int16
-	synth.BuildExcitation(0, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
+	synth.BuildExcitation(0, gcMantQ14, gcExp, &v, &c, &u)
 	t.Logf("[⑪ u] u[5]=%d u[11]=%d u[22]=%d u[33]=%d (other=0 expected)",
 		u[5], u[11], u[22], u[33])
 
@@ -98,7 +95,7 @@ func TestDiagnostic_FourPulseCanonicalChain(t *testing.T) {
 	pf.Filter(&a, 40, &s, &sPf)
 	t.Logf("[⑬ sPf] sPf[0..7]=%v", sPf[:8])
 
-	// === Spec-aligned assertions (Case A — gcQ12 unsaturated, gcTrue
+	// === Spec-aligned assertions (Case A — native gc finite, gcTrue
 	// well within g'_c·γ̂_max bound) ===
 	if sumSqQ26 != 4*(int64(1)<<26) {
 		t.Errorf("BOUNDARY ① fcb energy: Σc²=%d, want %d (= 4·2^26)",
@@ -109,11 +106,6 @@ func TestDiagnostic_FourPulseCanonicalChain(t *testing.T) {
 		t.Errorf("BOUNDARY ⑩ gain: gcTrue=%.4f exceeds spec bound [0, %.4f]; "+
 			"this is the Stage F target (14 dB suspect at gain log-domain math)",
 			gcTrue, maxExpectedGc)
-	}
-	if gcQ12 == 32767 || gcQ12 == -32768 {
-		t.Errorf("BOUNDARY ⑩ gain: gcQ12 saturated (%d); 14 dB suspect at "+
-			"gain log-domain math — review §3.9.1 ecBar/predicted/logGain chain",
-			gcQ12)
 	}
 }
 
@@ -140,16 +132,15 @@ func TestDiagnostic_PitchActivePulseChain(t *testing.T) {
 	const gpQ14 int16 = 8192 // 0.5 in Q14
 
 	var gd gain.Decoder
-	_, gcMant_gcQ12, gcExp_gcQ12 := gd.Decode(gain.Indices{GA: 3, GB: 7}, &c)
-	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
-	gcTrue := float64(gcQ12) / 4096.0
+	_, gcMantQ14, gcExp := gd.Decode(gain.Indices{GA: 3, GB: 7}, &c)
+	gcTrue := gainLinearFromMantExp(gcMantQ14, gcExp)
 
 	t.Logf("=== Pitch-active stimulus (gpQ14=%d ≈ %.4f) ===",
 		gpQ14, float64(gpQ14)/16384.0)
-	t.Logf("[⑩ gain] gcQ12=%d (true gc=%.4f)", gcQ12, gcTrue)
+	t.Logf("[⑩ gain] gcMantQ14=%d gcExp=%d (true gc=%.4f)", gcMantQ14, gcExp, gcTrue)
 
 	var u [40]int16
-	synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
+	synth.BuildExcitation(gpQ14, gcMantQ14, gcExp, &v, &c, &u)
 	t.Logf("[⑪ u] u[0..7]=%v", u[:8])
 	t.Logf("[⑪ u] u[20..27]=%v", u[20:28])
 	t.Logf("[⑪ u] u[32..39]=%v", u[32:40])

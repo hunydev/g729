@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/exedev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/gain"
 )
 
 // TestPhase2dINT0_FcbStepPopulatesAllFields drives the encoder LPC +

@@ -19,8 +19,8 @@ package openloop
 //
 // I3 / I4: pure (reads only wsp) and zero-allocation on every path.
 func Search(wsp *[223]int16) int16 {
-	r3 := pickBestInRangeWide(wsp, 80, 143)
-	r2 := pickBestInRangeWide(wsp, 40, 79)
-	r1 := pickBestInRangeWide(wsp, 20, 39)
-	return mergeThreeRangesWide(r1, r2, r3)
+	lag3, r3, e3 := pickBestInRange(wsp, 80, 143)
+	lag2, r2, e2 := pickBestInRange(wsp, 40, 79)
+	lag1, r1, e1 := pickBestInRange(wsp, 20, 39)
+	return mergeThreeRanges(r1, e1, lag1, r2, e2, lag2, r3, e3, lag3)
 }

@@ -3,13 +3,13 @@ package decoder
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/lsp"
-	"github.com/exedev/g729/internal/pitch"
-	"github.com/exedev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 // TestPhase1o_D3_S5_R3_ExcitationDump — Phase 1o D-3 S-5 R-3 family
@@ -189,18 +189,18 @@ func TestPhase1o_D3_S5_R3_ExcitationDump(t *testing.T) {
 	var c [subframeLen]int16
 	fcb.Decode(fcb.Indices{Positions: uint16(f.C1), Signs: uint8(f.S1)}, tInt1, betaQ14, &c)
 
-	gpQ14, gcMant_gcQ12, gcExp_gcQ12 := d.gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
-	gcQ12 := gain.LegacyGcQ12FromMantExp(gcMant_gcQ12, gcExp_gcQ12)
+	gpQ14, gcMantQ14, gcExp := d.gn.Decode(gain.Indices{GA: uint8(f.GA1), GB: uint8(f.GB1)}, &c)
+	gcLinear := gainLinearFromMantExp(gcMantQ14, gcExp)
 
 	var u [subframeLen]int16
-	synth.BuildExcitation(gpQ14, gcMant_gcQ12, gcExp_gcQ12, &v, &c, &u)
+	synth.BuildExcitation(gpQ14, gcMantQ14, gcExp, &v, &c, &u)
 
 	t.Logf("=== Phase 1o D-3 S-5 R-3 BuildExcitation excitation dump ===")
 	t.Logf("Inputs (TAME frame 0 sf0):")
 	t.Logf("  sf0 LP a[]   (Q12) = %v", sf1A)
 	t.Logf("  tInt         = %d", tInt1)
 	t.Logf("  gpQ14        = %d  (≈ %.4f)", gpQ14, float64(gpQ14)/16384.0)
-	t.Logf("  gcQ12        = %d  (≈ %.4f)", gcQ12, float64(gcQ12)/4096.0)
+	t.Logf("  gc           = mantQ14=%d exp=%d  (≈ %.6f)", gcMantQ14, gcExp, gcLinear)
 	t.Logf("  betaQ14      = %d  (prev-gp clamped to [0.2,0.8])", betaQ14)
 	t.Logf("  v[0..7]      = %v", v[:8])
 	t.Logf("  c[0..7]      = %v", c[:8])
@@ -209,23 +209,21 @@ func TestPhase1o_D3_S5_R3_ExcitationDump(t *testing.T) {
 	// Hand-computed expected per §4.1.6 eq. (75) + G.191 basops.
 	var expected [8]int16
 	for n := 0; n < 8; n++ {
-		lPitch := fixed.LMult(fixed.Word16(gpQ14), fixed.Word16(v[n]))
-		lCode := fixed.LShr(fixed.LMult(fixed.Word16(gcQ12), fixed.Word16(c[n])), 11)
-		lSum := fixed.LAdd(lPitch, lCode)
-		expected[n] = int16(fixed.Round(fixed.LShl(lSum, 1)))
+		expected[n] = excitationSampleFromMantExp(gpQ14, gcMantQ14, gcExp, v[n], c[n])
 	}
 	t.Logf("  u[0..7] hand = %v", expected)
 
 	t.Logf("")
 	t.Logf("Per-sample arithmetic trace (n=0..3, the only non-zero c):")
+	shiftR := 13 - int(gcExp)
 	for n := 0; n < 4; n++ {
-		lc := fixed.LMult(fixed.Word16(gcQ12), fixed.Word16(c[n]))
-		lcSh := fixed.LShr(lc, 11)
-		t.Logf("  n=%d: L_mult(gc=%d, c=%d)=%d  L_shr(_,11)=%d  round(L_shl(_,1))=%d",
-			n, gcQ12, c[n], lc, lcSh, expected[n])
+		lc := fixed.LMult(fixed.Word16(gcMantQ14), fixed.Word16(c[n]))
+		lcSh := excitationCodeQ15FromMantExp(gcMantQ14, gcExp, c[n])
+		t.Logf("  n=%d: L_mult(mant=%d, c=%d)=%d  shiftR=%d  lCode=%d  round(L_shl(_,1))=%d",
+			n, gcMantQ14, c[n], lc, shiftR, lcSh, expected[n])
 	}
-	t.Logf("Real-valued check at n=1: gc·c/(2^25) = %.6f → round = %d",
-		float64(gcQ12)*float64(c[1])/float64(int64(1)<<25),
+	t.Logf("Real-valued check at n=1: gc·(c/2^13) = %.6f → round = %d",
+		gcLinear*float64(c[1])/8192.0,
 		expected[1])
 
 	for n := 0; n < 8; n++ {
@@ -236,28 +234,27 @@ func TestPhase1o_D3_S5_R3_ExcitationDump(t *testing.T) {
 
 	// ---------- R-3a: alternate Q26→Q15 rounding modes ----------
 	t.Logf("")
-	t.Logf("--- R-3a: Q26→Q15 rounding-mode enumeration at n=1 ---")
-	lc1 := fixed.LMult(fixed.Word16(gcQ12), fixed.Word16(c[1]))
-	t.Logf("  L_mult(gc, c[1]) = %d  (low 11 bits = %d)", lc1, int32(lc1)&0x7FF)
+	t.Logf("--- R-3a: code-term rounding-mode enumeration at n=1 ---")
+	lc1 := fixed.LMult(fixed.Word16(gcMantQ14), fixed.Word16(c[1]))
+	t.Logf("  L_mult(mant, c[1]) = %d  shiftR=%d", lc1, shiftR)
 
 	// Mode A: arithmetic floor (production).
-	floorMode := fixed.LShr(lc1, 11)
+	floorMode := excitationCodeQ15FromMantExp(gcMantQ14, gcExp, c[1])
 	uA := int16(fixed.Round(fixed.LShl(floorMode, 1)))
-	t.Logf("  A) L_shr(_,11)            = %d  → u[1] = %d  [PRODUCTION]", floorMode, uA)
+	t.Logf("  A) production shift       = %d  → u[1] = %d  [PRODUCTION]", floorMode, uA)
+	if shiftR > 0 {
+		// Mode B: ITU L_shr_r (round-half-up, +1<<(shiftR-1) when set).
+		roundRMode := fixed.LShrR(lc1, fixed.Word16(shiftR))
+		uB := int16(fixed.Round(fixed.LShl(roundRMode, 1)))
+		t.Logf("  B) L_shr_r(_,shiftR)     = %d  → u[1] = %d", roundRMode, uB)
 
-	// Mode B: ITU L_shr_r (round-half-up, +1<<10 when bit-10 set).
-	roundRMode := fixed.LShrR(lc1, 11)
-	uB := int16(fixed.Round(fixed.LShl(roundRMode, 1)))
-	t.Logf("  B) L_shr_r(_,11)          = %d  → u[1] = %d", roundRMode, uB)
-
-	// Mode C: explicit +0x400 bias then >>11.
-	biasMode := fixed.LShr(fixed.LAdd(lc1, 0x400), 11)
-	uC := int16(fixed.Round(fixed.LShl(biasMode, 1)))
-	t.Logf("  C) (_+0x400)>>11          = %d  → u[1] = %d", biasMode, uC)
-
-	// Mode D: defer the >>11 entirely; do round on Q26 with bias 0x400000.
-	uD := int16(fixed.ExtractH(fixed.LAdd(lc1, fixed.Word32(1)<<25)))
-	t.Logf("  D) extract_h(_ + (1<<25)) = %d  (Q10 result; not Q0 — illustrative only)", uD)
+		// Mode C: explicit half-LSB bias then shift.
+		biasMode := fixed.LShr(fixed.LAdd(lc1, fixed.Word32(1)<<uint(shiftR-1)), fixed.Word16(shiftR))
+		uC := int16(fixed.Round(fixed.LShl(biasMode, 1)))
+		t.Logf("  C) (_+half)>>shiftR      = %d  → u[1] = %d", biasMode, uC)
+	} else {
+		t.Logf("  B/C skipped: gcExp requires a saturating left shift, not a right-shift rounding choice.")
+	}
 
 	t.Logf("  All in-spec rounding modes return u[1]=1 because L_mult is exact mod 2^11.")
 	t.Logf("  R-3a REFUTED: no rounding-mode change can lift u[1] from 1 to 2.")
@@ -266,7 +263,7 @@ func TestPhase1o_D3_S5_R3_ExcitationDump(t *testing.T) {
 	t.Logf("")
 	t.Logf("--- R-3b: gain Q14 application order / saturation ---")
 	t.Logf("  v[n]=0 ⇒ L_mult(gp, 0)=0 regardless of multiplication order.")
-	t.Logf("  L_mult(gc=%d, c=%d)=%d is well within Word32 range (no saturation).", gcQ12, c[1], lc1)
+	t.Logf("  L_mult(mant=%d, c=%d)=%d is well within Word32 range (no saturation).", gcMantQ14, c[1], lc1)
 	t.Logf("  R-3b REFUTED.")
 
 	// ---------- R-3c: FCB innovation construction ----------

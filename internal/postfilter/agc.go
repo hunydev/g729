@@ -1,5 +1,10 @@
 package postfilter
 
+// agcAlphaQ15 is the Annex A adaptive-gain smoothing factor α = 0.9 in
+// Q15. The main G.729 postfilter uses a slower α, but Annex A §A.4.2.4
+// tightens the smoother to track the lower-complexity decoder envelope.
+const agcAlphaQ15 int64 = 29491
+
 // computeAGCTargetGain returns the AGC target gain g_target (Q14) per
 // ITU-T G.729 §A.4.2.4 as √(E(s) / E(sTilt)).
 //
@@ -44,11 +49,9 @@ func isqrtQ14(xQ28 int64) int16 {
 	return int16(guess)
 }
 
-// applyAGC smooths g_target into agcGainPrev (one-pole lowpass, α ≈ 0.99)
+// applyAGC smooths g_target into agcGainPrev (one-pole lowpass, α = 0.9)
 // and scales sTilt to produce sPf per ITU-T G.729 §A.4.2.4.
 func (pf *Postfilter) applyAGC(sTilt *[subframeLen]int16, gTargetQ14 int16, sPf *[subframeLen]int16) {
-	const alphaQ15 int64 = 32440 // ≈ 0.99; ITU-T G.729 §A.4.2.4
-
 	gTargetQ24 := int64(gTargetQ14) << 10
 	if !pf.initialized {
 		pf.agcGainPrev = int32(gTargetQ24)
@@ -57,7 +60,7 @@ func (pf *Postfilter) applyAGC(sTilt *[subframeLen]int16, gTargetQ14 int16, sPf 
 
 	g := int64(pf.agcGainPrev) // Q24
 	for n := 0; n < subframeLen; n++ {
-		g = (alphaQ15*g + (32768-alphaQ15)*gTargetQ24 + (1 << 14)) >> 15
+		g = (agcAlphaQ15*g + (32768-agcAlphaQ15)*gTargetQ24 + (1 << 14)) >> 15
 		// g is Q24, sTilt is Q0 → product Q24; round to Q0.
 		prod := g * int64(sTilt[n])
 		v := (prod + (1 << 23)) >> 24

@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/lpc"
-	"github.com/exedev/g729/internal/pcm"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/lpc"
+	"github.com/hunydev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 func requireLSPExhaustiveDiag(t *testing.T) {

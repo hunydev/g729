@@ -7,8 +7,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/exedev/g729/internal/lsp"
-	"github.com/exedev/g729/internal/pcm"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/pcm"
 )
 
 // TestINT1D8GroundTruth — Phase 2a INT-1 d8 measurement battery.

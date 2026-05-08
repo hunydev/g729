@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // TestDiagnostic_Phase2aInt1_Frame0BoundaryTrace — Phase 2a-INT-1 E9

@@ -3,9 +3,10 @@ package decoder
 import "testing"
 
 // TestDecode_Frame0Sample0_MatchesALGTHM is the Phase 1i regression
-// guard: ALGTHM frame 0 sample 0 must equal the ITU reference's
-// sample 0. ANY change in this phase that regresses this assertion
-// must be rolled back per Phase 1k spec §7.2.
+// guard, re-pinned after the strict decoder output scale was restored to
+// the spec post-HP x2 gain. It
+// keeps the ALGTHM frame-0 sample-0 output deliberate instead of allowing
+// silent drift.
 func TestDecode_Frame0Sample0_MatchesALGTHM(t *testing.T) {
 	bitPath := vectorPath("ALGTHM.BIT")
 	pstPath := vectorPath("ALGTHM.PST")
@@ -19,9 +20,15 @@ func TestDecode_Frame0Sample0_MatchesALGTHM(t *testing.T) {
 	if err := d.Decode(frames[0], bads[0], out[:]); err != nil {
 		t.Fatalf("Decode frame 0: %v", err)
 	}
-	if out[0] != wantFrames[0][0] {
-		t.Errorf("frame 0 sample 0: got=%d want=%d (Δ=%d)",
-			out[0], wantFrames[0][0], int32(out[0])-int32(wantFrames[0][0]))
+	const wantProd int16 = 2
+	const wantPST int16 = 2
+	if wantFrames[0][0] != wantPST {
+		t.Fatalf("ALGTHM.PST frame 0 sample 0 changed: got=%d want=%d",
+			wantFrames[0][0], wantPST)
+	}
+	if out[0] != wantProd {
+		t.Errorf("frame 0 sample 0: got=%d want production pin %d (PST=%d, ΔPST=%d)",
+			out[0], wantProd, wantFrames[0][0], int32(out[0])-int32(wantFrames[0][0]))
 	}
 }
 

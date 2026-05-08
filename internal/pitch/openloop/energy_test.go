@@ -3,7 +3,7 @@ package openloop
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/fixed"
 )
 
 // TestEnergy_Zero pins eq. A.5 denominator trivial case: an all-zero

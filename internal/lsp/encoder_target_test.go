@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // expectedTargetLSF computes the eq. (23) closed form in float64 for

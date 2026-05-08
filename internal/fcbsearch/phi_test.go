@@ -3,7 +3,7 @@ package fcbsearch_test
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fcbsearch"
+	"github.com/hunydev/g729/internal/fcbsearch"
 )
 
 // CB-2 RED tests for §3.8.1 eq. 51 + 56 + 57 (G729E.txt lines 1252–1273).

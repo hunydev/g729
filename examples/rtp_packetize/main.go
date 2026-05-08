@@ -10,7 +10,7 @@
 // the caller's MRCP / SIP framework).
 //
 // Clean-room I1 declaration: this example uses only the public API of
-// github.com/exedev/g729 and the Go standard library. No ITU reference
+// github.com/hunydev/g729 and the Go standard library. No ITU reference
 // C, bcg729, FFmpeg, Sipro, or other G.729 implementation source was
 // consulted.
 //
@@ -34,7 +34,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/exedev/g729"
+	"github.com/hunydev/g729"
 )
 
 func main() {

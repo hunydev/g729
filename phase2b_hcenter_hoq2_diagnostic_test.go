@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/exedev/g729/internal/pitch/openloop"
+	"github.com/hunydev/g729/internal/pitch/openloop"
 )
 
 func measureOpenLoopPlausibility(t *testing.T, variant string) (hits int, hist map[int]int) {

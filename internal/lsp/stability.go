@@ -1,6 +1,6 @@
 package lsp
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // LSF stability constants per ITU-T G.729 §3.2.4 / §4.1.1, expressed
 // in Q13 (π ≈ 25736 in Q13).

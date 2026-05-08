@@ -66,8 +66,7 @@ func TestComputeTiltMu_SinglePoleHalf(t *testing.T) {
 	aNum := [11]int16{4096, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	aDen := [11]int16{4096, -2048, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	var pf Postfilter
-	pf.agcGainPrev = 1 // make γ_t = 0.9 branch active
-	mu := pf.computeTiltMu(&aNum, &aDen)
+	mu := pf.computeTiltMuForLongTerm(&aNum, &aDen, true)
 	const want = -14746
 	if mu < want-8 || mu > want+8 {
 		t.Fatalf("μ = 0.9 · (-0.5) Q15: want %d ± 8, got %d", want, mu)
@@ -78,10 +77,20 @@ func TestComputeTiltMu_SinglePoleMinusHalf(t *testing.T) {
 	aNum := [11]int16{4096, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	aDen := [11]int16{4096, 2048, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	var pf Postfilter
-	pf.agcGainPrev = 1
-	mu := pf.computeTiltMu(&aNum, &aDen)
+	mu := pf.computeTiltMuForLongTerm(&aNum, &aDen, true)
 	const want = 14746
 	if mu < want-8 || mu > want+8 {
 		t.Fatalf("μ = 0.9 · (+0.5) Q15: want %d ± 8, got %d", want, mu)
+	}
+}
+
+func TestComputeTiltMu_InactiveLongTermUsesLowTilt(t *testing.T) {
+	aNum := [11]int16{4096, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	aDen := [11]int16{4096, -2048, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	var pf Postfilter
+	mu := pf.computeTiltMuForLongTerm(&aNum, &aDen, false)
+	const want = -3277
+	if mu < want-8 || mu > want+8 {
+		t.Fatalf("inactive μ = 0.2 · (-0.5) Q15: want %d ± 8, got %d", want, mu)
 	}
 }

@@ -36,12 +36,13 @@ func (pf *Postfilter) Filter(a *[11]int16, tInt int, s *[subframeLen]int16, sPf 
 	T := pf.refinePitch(&r, tInt)
 
 	var rOut [subframeLen]int16
-	pf.applyLongTerm(&r, T, &rOut)
+	g0, g1 := pf.computeLongTermGain(&r, T)
+	pf.applyLongTermWithGains(T, g0, g1, &rOut)
 
 	var sSt [subframeLen]int16
 	pf.applyShortTerm(&aDen, &rOut, &sSt)
 
-	muQ15 := pf.computeTiltMu(&aNum, &aDen)
+	muQ15 := pf.computeTiltMuForLongTerm(&aNum, &aDen, g1 != 0)
 	var sTilt [subframeLen]int16
 	pf.applyTiltWithMu(&sSt, muQ15, &sTilt)
 

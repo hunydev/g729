@@ -1,6 +1,6 @@
 package pcm
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // ScaleUpSat multiplies each sample in in by 2 with int16 saturation
 // and writes the result to out. This is the decoder-side inverse of

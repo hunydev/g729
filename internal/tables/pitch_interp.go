@@ -26,10 +26,11 @@ package tables
 //	For an integer tap offset i ∈ [0, 9] and fractional offset
 //	t ∈ {0, 1, 2} (representing delay-fraction 0, 1/3, 2/3),
 //	the coefficient b30(t + 3i) of the spec equation (40) is
-//	PitchInterpFIR[t + 3*i].  The center tap b30(0) = 1.0
-//	is implicit (the integer-delay path uses a direct copy and
-//	skips the FIR), so PitchInterpFIR[0] holds b30(1), the
-//	first off-center positive-side tap.
+//	PitchInterpFIR[t + 3*i]. PitchInterpFIR[0] is the stored
+//	b30(0) interpolation coefficient, not the exact integer-delay
+//	direct-copy gain. Current pitch helpers treat exact integer delay
+//	as a direct copy and use this table only for nonzero fractional
+//	offsets.
 //
 // Table values are the Q15 integer coefficients from the ITU
 // reference distribution (matching the floating-point comment

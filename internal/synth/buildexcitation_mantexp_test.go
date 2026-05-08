@@ -3,7 +3,7 @@ package synth
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/fixed"
 )
 
 // TestBuildExcitation_MantExp_Cases pins the new (mantissa Q14, exponent

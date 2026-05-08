@@ -1,6 +1,6 @@
 package fcb
 
-import "github.com/exedev/g729/internal/fixed"
+import "github.com/hunydev/g729/internal/fixed"
 
 // Pitch enhancement filter coefficient endpoints (Q14), per ITU-T
 // G.729 §3.8 equation (47): β = ĝ_p^(m-1) bounded by 0.2 ≤ β ≤ 0.8.

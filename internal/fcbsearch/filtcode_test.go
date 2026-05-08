@@ -3,8 +3,8 @@ package fcbsearch_test
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/fcb"
-	"github.com/exedev/g729/internal/fcbsearch"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/fcbsearch"
 )
 
 // CB-5 RED tests for §3.9 eq. 64 (G729E.txt §3.9, line ~1340):

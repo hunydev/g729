@@ -3,8 +3,8 @@ package gainquant
 import (
 	"testing"
 
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // TestUpdatePastQuaEn_FIFOShift pins the §3.9.1 eq. (72) FIFO discipline:

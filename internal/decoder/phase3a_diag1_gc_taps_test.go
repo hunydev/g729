@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/exedev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/bitstream"
 )
 
 // TestPhase3aDiag1_GcUnsaturatedTaps_SPEECH dumps the per-subframe
@@ -42,7 +42,7 @@ func TestPhase3aDiag1_GcUnsaturatedTaps_SPEECH(t *testing.T) {
 		sum      int64
 	}
 	var (
-		predicted       i16stat
+		predicted       i32stat
 		ecBar           i16stat
 		log2Gc          i32stat
 		gc0Unsat        i32stat
@@ -53,10 +53,10 @@ func TestPhase3aDiag1_GcUnsaturatedTaps_SPEECH(t *testing.T) {
 		nSub            int
 		showSubs        = 10
 	)
-	predicted.min, ecBar.min = math.MaxInt16, math.MaxInt16
-	predicted.max, ecBar.max = math.MinInt16, math.MinInt16
-	log2Gc.min, gc0Unsat.min, prodUnsat.min = math.MaxInt32, math.MaxInt32, math.MaxInt32
-	log2Gc.max, gc0Unsat.max, prodUnsat.max = math.MinInt32, math.MinInt32, math.MinInt32
+	ecBar.min = math.MaxInt16
+	ecBar.max = math.MinInt16
+	predicted.min, log2Gc.min, gc0Unsat.min, prodUnsat.min = math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32
+	predicted.max, log2Gc.max, gc0Unsat.max, prodUnsat.max = math.MinInt32, math.MinInt32, math.MinInt32, math.MinInt32
 
 	t.Logf("First %d subframes — gain-decoder unsaturated taps:", showSubs)
 	t.Logf("%5s %3s %8s %8s %8s %12s %12s %8s %8s %8s",

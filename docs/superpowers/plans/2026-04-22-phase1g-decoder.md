@@ -316,10 +316,10 @@ File: `internal/decoder/types.go`
 package decoder
 
 import (
-    "github.com/exedev/g729/internal/gain"
-    "github.com/exedev/g729/internal/lsp"
-    "github.com/exedev/g729/internal/postfilter"
-    "github.com/exedev/g729/internal/synth"
+    "github.com/hunydev/g729/internal/gain"
+    "github.com/hunydev/g729/internal/lsp"
+    "github.com/hunydev/g729/internal/postfilter"
+    "github.com/hunydev/g729/internal/synth"
 )
 
 const (
@@ -1112,10 +1112,10 @@ File: `internal/decoder/subframe.go`
 package decoder
 
 import (
-    "github.com/exedev/g729/internal/fcb"
-    "github.com/exedev/g729/internal/gain"
-    "github.com/exedev/g729/internal/pitch"
-    "github.com/exedev/g729/internal/synth"
+    "github.com/hunydev/g729/internal/fcb"
+    "github.com/hunydev/g729/internal/gain"
+    "github.com/hunydev/g729/internal/pitch"
+    "github.com/hunydev/g729/internal/synth"
 )
 
 // decodeSubframe runs the per-subframe pipeline and writes 40 samples of
@@ -1323,10 +1323,10 @@ Rewrite `internal/decoder/decode.go`:
 package decoder
 
 import (
-    "github.com/exedev/g729/internal/bitstream"
-    "github.com/exedev/g729/internal/lsp"
-    "github.com/exedev/g729/internal/pcm"
-    "github.com/exedev/g729/internal/pitch"
+    "github.com/hunydev/g729/internal/bitstream"
+    "github.com/hunydev/g729/internal/lsp"
+    "github.com/hunydev/g729/internal/pcm"
+    "github.com/hunydev/g729/internal/pitch"
 )
 
 // Decode consumes one packed G.729 frame (10 bytes) and writes 80 PCM
@@ -1532,7 +1532,7 @@ import (
     "path/filepath"
     "testing"
 
-    "github.com/exedev/g729/internal/bitstream"
+    "github.com/hunydev/g729/internal/bitstream"
 )
 
 // readG192Frames loads a G.192 bitstream file (ITU Annex A .bit format)

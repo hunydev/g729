@@ -1,9 +1,9 @@
 package gainquant
 
 import (
-	"github.com/exedev/g729/internal/fixed"
-	"github.com/exedev/g729/internal/gain"
-	"github.com/exedev/g729/internal/tables"
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // Numerical constants derived from physical identities (clean-room from
@@ -33,17 +33,17 @@ const (
 // the mean-removed log-energy of the current fixed-codebook vector c
 // (eq. 66, 10·log10(Σc²/40)).
 //
-// IMPL-3 representation change: the returned value is a NON-saturating
-// int32 at Q12. The DIAG-1 corpus (docs/superpowers/diagnostics/
-// 2026-05-04-decoder-amplitude-localization.md §6) shows the natural
-// magnitude of g'c routinely exceeds the int16 envelope (g_c0·γ̂_c
-// peaks ≈ 159 ⇒ Q12 ≈ 651 264); collapsing to int16 here biases the
-// §3.9.2 search through `gpcPredQ12` and silently distorts the cost
-// landscape. Holding it as int32 lets SearchConjugate evaluate
-// candidates against the spec value rather than a clipped surrogate.
+// ENC-GAIN-SPLIT: this search-surface predictor intentionally uses the
+// legacy Word16-bounded predicted log gain before expanding to g'c Q12.
+// The receiver-side gain reconstruction keeps the wider int32 predictor
+// to avoid decoder amplitude collapse, but applying that wider predictor
+// directly to the §3.9.2 encoder search regresses the FFmpeg black-box
+// encoder gate. Keeping the split explicit prevents decoder robustness
+// fixes from silently changing encoder candidate selection.
 //
-// Composition: gain.PredictedLogGain (eq. 69) + gain.FixedCodebookEnergy
-// + gain.Log2Fixed/gain.Pow2Fixed (eq. 66 / eq. 71).
+// Composition: gain.PredictedLogGainSat16 (eq. 69 bounded form) +
+// gain.FixedCodebookEnergy + gain.Log2Fixed/gain.Pow2Fixed (eq. 66 /
+// eq. 71).
 //
 // Q-format walk:
 //
@@ -61,26 +61,23 @@ const (
 // returning 0 (rather than saturating to int32 extrema) matches the
 // decoder's protective branch in gain.Decode.
 func PredictedGcQ12(pastQuaEn *[4]int16, c *[40]int16) int32 {
-	log2GcQ10, ok := predictedLog2GcQ10(pastQuaEn, c)
+	log2GcQ10, ok := predictedLog2GcQ10Search(pastQuaEn, c)
 	if !ok {
 		return 0
 	}
 	return int32(gain.Pow2Fixed(fixed.Word32(log2GcQ10) + 12*1024))
 }
 
-// predictedLog2GcQ10 returns the predicted log2(g'c) at Q10 plus an
-// `ok` flag that is false on the §3.9.1 zero-energy guard path
-// (Σc² == 0). Exposed to SearchConjugate / Reconstruct so the
-// log-domain quantity drives the §3.9.2 (mant, exp) split bit-for-bit
-// matched to the decoder side (gain.Decoder.Decode IMPL-1 path), see
-// REF-1 §2 and IMPL-3 step C.
-func predictedLog2GcQ10(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
+// predictedLog2GcQ10Search returns the predicted log2(g'c) at Q10 for
+// the encoder's §3.9.2 VQ candidate search. It intentionally uses the
+// bounded MA prediction described on PredictedGcQ12.
+func predictedLog2GcQ10Search(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
 	ecEnergy := gain.FixedCodebookEnergy(c)
 	if ecEnergy <= 0 {
 		return 0, false
 	}
 
-	predicted := gain.PredictedLogGain(pastQuaEn)
+	predicted := gain.PredictedLogGainSat16(pastQuaEn)
 
 	ecLog2Q10 := int32(gain.Log2Fixed(ecEnergy)) - 26*1024
 	ecDbQ10 := (ecLog2Q10*dbPerLog2Q13 + (1 << 12)) >> 13
@@ -101,7 +98,7 @@ func predictedLog2GcQ10(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
 //   - ok:            false ⇔ Σc² == 0 zero-energy guard (mant=0, exp=0).
 //   - gammaCQ13:     γ̂_c at Q13 = GBK1[ga][1] + GBK2[gb][1].
 //
-// Math (mirrors gain.Decoder.Decode IMPL-1 path bit-for-bit):
+// Math (same mantissa/exponent decomposition used by gain.Decoder.Decode):
 //
 //	log2(γ̂_c) Q10  = log2Fixed(γ̂_c) − 13·1024     (γ̂_c is Q13)
 //	log2(g_c)  Q10 = log2GcPredQ10 + log2(γ̂_c) Q10
@@ -110,10 +107,10 @@ func predictedLog2GcQ10(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
 //	gcMantQ14      = Pow2FracQ14(frac)
 //	gcExp          = clamp(intPart, [-128, 127])
 //
-// Encoder-side spec equivalence: by sharing this exact pipeline with
-// gain.Decoder.Decode, the encoder's chosen quantized g_c equals the
-// decoder's reconstruction of the same (ga, gb) bit-for-bit. Pinned
-// by TestApply_MantissaExponent.
+// Encoder-side split: the decomposition is shared with the decoder, but the
+// encoder's caller may pass the bounded search predictor while the strict
+// receiver decoder uses a wider predictor. TestApply_MantissaExponent pins the
+// representation contract and documented split cases.
 func DequantGc(log2GcPredQ10 int32, ok bool, gammaCQ13 int16) (gcMantQ14 int16, gcExp int8) {
 	if !ok || gammaCQ13 <= 0 {
 		return 0, 0
@@ -134,21 +131,23 @@ func DequantGc(log2GcPredQ10 int32, ok bool, gammaCQ13 int16) (gcMantQ14 int16, 
 	return
 }
 
-// Reconstruct is the encoder-side "Apply" surface for spec
-// cross-validation: given the predictor state (pastQuaEn), the current
-// fixed-codebook vector c, and the codebook entry pair (ga, gb)
-// chosen by SearchConjugate, returns the same (gpQ14, gcMantQ14, gcExp)
-// triple a decoder produces from those indices via gain.Decoder.Decode.
+// Reconstruct is the encoder-side "Apply" surface: given the predictor
+// state (pastQuaEn), the current fixed-codebook vector c, and the
+// codebook entry pair (ga, gb) chosen by SearchConjugate, returns the
+// (gpQ14, gcMantQ14, gcExp) triple used to commit the encoder's local
+// synthesis state.
 //
 // Pure / read-only on inputs; does NOT update pastQuaEn (the caller
 // owns the FIFO advance via UpdatePastQuaEn after the §A.3.10 commit).
 //
-// Used by TestApply_MantissaExponent to pin the encoder == decoder
-// numeric equivalence required by REF-1 §2.
+// ENC-GAIN-SPLIT: this intentionally shares the bounded search predictor
+// rather than the wider receiver-side decoder predictor. The FFmpeg
+// black-box encoder gate regresses when the encoder commits local synthesis
+// with the wider predictor even though the strict decoder benefits from it.
 func Reconstruct(pastQuaEn *[4]int16, c *[40]int16, ga, gb uint8) (gpQ14, gcMantQ14 int16, gcExp int8) {
-	gpQ14 = tables.GainGBK1[ga][0] + tables.GainGBK2[gb][0]
-	gammaCQ13 := tables.GainGBK1[ga][1] + tables.GainGBK2[gb][1]
-	log2GcPredQ10, ok := predictedLog2GcQ10(pastQuaEn, c)
+	gpQ14 = fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[ga][0]) + int32(tables.GainGBK2[gb][0])))
+	gammaCQ13 := fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1])))
+	log2GcPredQ10, ok := predictedLog2GcQ10Search(pastQuaEn, c)
 	gcMantQ14, gcExp = DequantGc(log2GcPredQ10, ok, gammaCQ13)
 	return
 }
