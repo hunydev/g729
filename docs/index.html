@@ -20,6 +20,7 @@
       <a href="#scope">Scope</a>
       <a href="#rtp">RTP</a>
       <a href="#quality">Quality</a>
+      <a href="#wasm">WASM</a>
       <a href="#clean-room">Clean room</a>
       <a href="https://github.com/hunydev/g729">GitHub</a>
     </nav>
@@ -113,15 +114,26 @@ a=maxptime:20</code></pre>
       <div class="section-inner">
         <div class="section-heading">
           <p class="eyebrow">Listening comparison</p>
-          <h2 id="quality-title">Prepared for codec quality samples.</h2>
+          <h2 id="quality-title">Codec quality samples.</h2>
           <p>
-            This page is ready for four reviewed listening samples: FFmpeg
-            encoded payloads decoded by this project and FFmpeg, plus this
-            project's encoded payloads decoded by this project and FFmpeg.
+            Source audio is an 8 kHz mono signed 16-bit PCM WAV. The current
+            published samples include this project's encoder decoded by this
+            project and by FFmpeg. FFmpeg reference-encoder slots are shown but
+            disabled because the packaged FFmpeg build exposes a G.729 decoder,
+            not a G.729 encoder.
           </p>
         </div>
         <div class="sample-grid" id="sample-grid" aria-live="polite">
-          <article class="sample-card" data-audio="assets/audio/ffmpeg-encode-g729-decode.wav">
+          <article class="sample-card source-card" data-audio="assets/audio/source-8k-16bit.wav">
+            <div class="sample-meta">
+              <span class="sample-label">Source</span>
+              <h3>Original 8 kHz 16-bit WAV</h3>
+            </div>
+            <canvas class="mini-wave" width="420" height="92" aria-hidden="true"></canvas>
+            <audio controls preload="metadata"></audio>
+            <p class="sample-state">Sample pending.</p>
+          </article>
+          <article class="sample-card unavailable" data-audio="assets/audio/ffmpeg-encode-g729-decode.wav" data-unavailable="FFmpeg G.729 encoder sample pending; this FFmpeg build is decoder-only for G.729.">
             <div class="sample-meta">
               <span class="sample-label">Reference payload</span>
               <h3>FFmpeg encode -> g729 decode</h3>
@@ -130,7 +142,7 @@ a=maxptime:20</code></pre>
             <audio controls preload="metadata"></audio>
             <p class="sample-state">Sample pending.</p>
           </article>
-          <article class="sample-card" data-audio="assets/audio/ffmpeg-encode-ffmpeg-decode.wav">
+          <article class="sample-card unavailable" data-audio="assets/audio/ffmpeg-encode-ffmpeg-decode.wav" data-unavailable="FFmpeg G.729 encoder sample pending; this FFmpeg build is decoder-only for G.729.">
             <div class="sample-meta">
               <span class="sample-label">Reference path</span>
               <h3>FFmpeg encode -> FFmpeg decode</h3>
@@ -162,7 +174,50 @@ a=maxptime:20</code></pre>
           <strong>Current gate:</strong> the outbound encoder/RTP send path is
           black-box tested against FFmpeg, and the strict decoder has local
           FFmpeg/Asterisk-origin sample regression coverage. These are project
-          release gates, not ITU certification.
+          release gates, not ITU certification. The generated raw payload is
+          available as <a href="assets/audio/g729-encode.g729" download>g729-encode.g729</a>.
+        </div>
+      </div>
+    </section>
+
+    <section class="section split" id="wasm" aria-labelledby="wasm-title">
+      <div class="section-inner split-grid">
+        <div>
+          <p class="eyebrow">Browser-side codec</p>
+          <h2 id="wasm-title">Pure-Go encoder and decoder in WebAssembly.</h2>
+          <p>
+            Upload audio in the browser, resample it to 8 kHz mono PCM with
+            Web Audio, encode and decode it through the Go WASM build, then
+            stream the decoded frames through an AudioContext. Raw
+            <code>.g729</code> payload files can be uploaded for decode-only
+            checks.
+          </p>
+        </div>
+        <div class="wasm-panel" id="wasm-demo">
+          <label class="file-picker">
+            <span>Audio file or raw .g729 payload</span>
+            <input id="wasm-file" type="file" accept="audio/*,.wav,.mp3,.g729,.payload">
+          </label>
+          <div class="wasm-actions">
+            <button class="button primary wasm-button" id="wasm-run" type="button" disabled>Encode / Decode</button>
+            <button class="button wasm-button" id="wasm-stream" type="button" disabled>Stream</button>
+          </div>
+          <div class="wasm-downloads">
+            <a class="button wasm-button disabled" id="wasm-download-g729" href="#" download="g729-wasm-encoded.g729" aria-disabled="true">Download G.729</a>
+            <a class="button wasm-button disabled" id="wasm-download-wav" href="#" download="g729-wasm-roundtrip.wav" aria-disabled="true">Download WAV</a>
+          </div>
+          <p class="wasm-status" id="wasm-status">Loading Go WASM codec.</p>
+          <div class="metric-grid" id="wasm-metrics" aria-label="WASM codec metrics"></div>
+          <div class="wasm-audio-grid">
+            <div>
+              <span class="sample-label">Input preview</span>
+              <audio id="wasm-source-audio" controls preload="metadata"></audio>
+            </div>
+            <div>
+              <span class="sample-label">WASM roundtrip</span>
+              <audio id="wasm-decoded-audio" controls preload="metadata"></audio>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -193,6 +248,7 @@ a=maxptime:20</code></pre>
     <a href="https://github.com/hunydev/g729">github.com/hunydev/g729</a>
   </footer>
 
+  <script src="assets/wasm/wasm_exec.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -94,6 +94,13 @@ async function activateAudioSamples() {
     const audioPath = card.dataset.audio;
     const audio = card.querySelector("audio");
     const state = card.querySelector(".sample-state");
+    const unavailable = card.dataset.unavailable;
+
+    if (unavailable) {
+      audio.removeAttribute("src");
+      state.textContent = unavailable;
+      return;
+    }
 
     try {
       const response = await fetch(audioPath, { method: "HEAD", cache: "no-store" });
@@ -107,6 +114,267 @@ async function activateAudioSamples() {
   }));
 }
 
+function waitForWasmReady() {
+  if (window.g729Wasm) return Promise.resolve(window.g729Wasm);
+  return new Promise((resolve) => {
+    window.addEventListener("g729wasmready", () => resolve(window.g729Wasm), { once: true });
+  });
+}
+
+async function loadG729Wasm() {
+  if (window.g729Wasm) return window.g729Wasm;
+  if (typeof Go === "undefined") throw new Error("Go WASM runtime is unavailable");
+
+  const go = new Go();
+  let result;
+  try {
+    result = await WebAssembly.instantiateStreaming(fetch("assets/wasm/g729.wasm"), go.importObject);
+  } catch {
+    const response = await fetch("assets/wasm/g729.wasm");
+    const bytes = await response.arrayBuffer();
+    result = await WebAssembly.instantiate(bytes, go.importObject);
+  }
+  go.run(result.instance).catch((err) => console.error("g729 wasm stopped", err));
+  return waitForWasmReady();
+}
+
+function pcmBytesToWavBlob(bytes, sampleRate = 8000) {
+  const dataLen = bytes.byteLength;
+  const buffer = new ArrayBuffer(44 + dataLen);
+  const view = new DataView(buffer);
+  writeASCII(view, 0, "RIFF");
+  view.setUint32(4, 36 + dataLen, true);
+  writeASCII(view, 8, "WAVE");
+  writeASCII(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeASCII(view, 36, "data");
+  view.setUint32(40, dataLen, true);
+  new Uint8Array(buffer, 44).set(bytes);
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
+function writeASCII(view, offset, text) {
+  for (let i = 0; i < text.length; i += 1) {
+    view.setUint8(offset + i, text.charCodeAt(i));
+  }
+}
+
+async function decodeToPCM16(file) {
+  const sourceURL = URL.createObjectURL(file);
+  const inputBytes = await file.arrayBuffer();
+  const AudioCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtor || !window.OfflineAudioContext) {
+    throw new Error("Web Audio API is unavailable in this browser");
+  }
+
+  const audioContext = new AudioCtor();
+  const decoded = await audioContext.decodeAudioData(inputBytes.slice(0));
+  const sampleRate = 8000;
+  const length = Math.max(1, Math.ceil(decoded.duration * sampleRate));
+  const offline = new OfflineAudioContext(1, length, sampleRate);
+  const source = offline.createBufferSource();
+  source.buffer = decoded;
+  source.connect(offline.destination);
+  source.start(0);
+  const rendered = await offline.startRendering();
+  await audioContext.close();
+
+  const channel = rendered.getChannelData(0);
+  const pcm = new Uint8Array(channel.length * 2);
+  const view = new DataView(pcm.buffer);
+  for (let i = 0; i < channel.length; i += 1) {
+    const clamped = Math.max(-1, Math.min(1, channel[i]));
+    const sample = clamped < 0 ? Math.round(clamped * 32768) : Math.round(clamped * 32767);
+    view.setInt16(i * 2, sample, true);
+  }
+
+  return { pcm, sourceURL, samples: channel.length, sampleRate };
+}
+
+function renderMetrics(container, rows) {
+  container.replaceChildren(...rows.map(([label, value]) => {
+    const item = document.createElement("div");
+    item.className = "metric";
+    const labelEl = document.createElement("span");
+    labelEl.textContent = label;
+    const valueEl = document.createElement("strong");
+    valueEl.textContent = value;
+    item.append(labelEl, valueEl);
+    return item;
+  }));
+}
+
+function streamPCM16(bytes, sampleRate = 8000) {
+  const AudioCtor = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AudioCtor();
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const totalSamples = bytes.byteLength / 2;
+  const chunkSamples = 160;
+  let startAt = ctx.currentTime + 0.05;
+
+  for (let off = 0; off < totalSamples; off += chunkSamples) {
+    const count = Math.min(chunkSamples, totalSamples - off);
+    const buffer = ctx.createBuffer(1, count, sampleRate);
+    const channel = buffer.getChannelData(0);
+    for (let i = 0; i < count; i += 1) {
+      channel[i] = view.getInt16((off + i) * 2, true) / 32768;
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.start(startAt);
+    startAt += count / sampleRate;
+  }
+}
+
+function isG729Payload(file) {
+  const name = file.name.toLowerCase();
+  return name.endsWith(".g729") || name.endsWith(".payload");
+}
+
+async function activateWasmDemo() {
+  const demo = document.querySelector("#wasm-demo");
+  if (!demo) return;
+
+  const fileInput = demo.querySelector("#wasm-file");
+  const runButton = demo.querySelector("#wasm-run");
+  const streamButton = demo.querySelector("#wasm-stream");
+  const downloadG729 = demo.querySelector("#wasm-download-g729");
+  const downloadWAV = demo.querySelector("#wasm-download-wav");
+  const status = demo.querySelector("#wasm-status");
+  const metrics = demo.querySelector("#wasm-metrics");
+  const sourceAudio = demo.querySelector("#wasm-source-audio");
+  const decodedAudio = demo.querySelector("#wasm-decoded-audio");
+  let wasm;
+  let selected;
+  let decodedPCM;
+  let objectURLs = [];
+
+  function rememberURL(url) {
+    objectURLs.push(url);
+    return url;
+  }
+
+  function clearObjectURLs() {
+    objectURLs.forEach((url) => URL.revokeObjectURL(url));
+    objectURLs = [];
+  }
+
+  function disableDownload(link) {
+    link.href = "#";
+    link.classList.add("disabled");
+    link.setAttribute("aria-disabled", "true");
+  }
+
+  function enableDownload(link, blob, filename) {
+    link.href = rememberURL(URL.createObjectURL(blob));
+    link.download = filename;
+    link.classList.remove("disabled");
+    link.setAttribute("aria-disabled", "false");
+  }
+
+  function resetResult() {
+    clearObjectURLs();
+    selected = null;
+    decodedPCM = null;
+    metrics.replaceChildren();
+    decodedAudio.removeAttribute("src");
+    sourceAudio.removeAttribute("src");
+    streamButton.disabled = true;
+    disableDownload(downloadG729);
+    disableDownload(downloadWAV);
+  }
+
+  try {
+    wasm = await loadG729Wasm();
+    status.textContent = "Go WASM codec ready.";
+    runButton.disabled = !fileInput.files.length;
+  } catch (err) {
+    status.textContent = `WASM load failed: ${err.message}`;
+    return;
+  }
+
+  fileInput.addEventListener("change", () => {
+    resetResult();
+    runButton.disabled = !fileInput.files.length || !wasm;
+    if (fileInput.files.length) {
+      const file = fileInput.files[0];
+      runButton.textContent = isG729Payload(file) ? "Decode Payload" : "Encode / Decode";
+      status.textContent = isG729Payload(file) ? "G.729 payload selected." : "Audio selected.";
+    }
+  });
+
+  runButton.addEventListener("click", async () => {
+    if (!fileInput.files.length || !wasm) return;
+    const file = fileInput.files[0];
+    runButton.disabled = true;
+    streamButton.disabled = true;
+    disableDownload(downloadG729);
+    disableDownload(downloadWAV);
+    status.textContent = isG729Payload(file)
+      ? "Decoding G.729 payload through WASM."
+      : "Resampling and running G.729 WASM.";
+
+    try {
+      if (isG729Payload(file)) {
+        const payload = new Uint8Array(await file.arrayBuffer());
+        const result = wasm.decodePayload(payload);
+        if (!result.ok) throw new Error(result.error || "WASM payload decode failed");
+
+        decodedPCM = result.decodedPCM16;
+        const decodedBlob = pcmBytesToWavBlob(decodedPCM, result.sampleRate);
+        decodedAudio.src = rememberURL(URL.createObjectURL(decodedBlob));
+        enableDownload(downloadG729, new Blob([payload], { type: "application/octet-stream" }), file.name);
+        enableDownload(downloadWAV, decodedBlob, "g729-wasm-decoded.wav");
+        renderMetrics(metrics, [
+          ["path", "payload decode"],
+          ["frames", String(result.frames)],
+          ["payload bytes", String(payload.byteLength)],
+          ["decoded samples", String(result.decodedSamples)]
+        ]);
+        status.textContent = "WASM payload decode complete.";
+      } else {
+        selected = await decodeToPCM16(file);
+        sourceAudio.src = rememberURL(selected.sourceURL);
+        const result = wasm.roundTripPCM16(selected.pcm);
+        if (!result.ok) throw new Error(result.error || "WASM roundtrip failed");
+
+        decodedPCM = result.decodedPCM16;
+        const encodedBlob = new Blob([result.encoded], { type: "application/octet-stream" });
+        const decodedBlob = pcmBytesToWavBlob(decodedPCM, result.sampleRate);
+        decodedAudio.src = rememberURL(URL.createObjectURL(decodedBlob));
+        enableDownload(downloadG729, encodedBlob, "g729-wasm-encoded.g729");
+        enableDownload(downloadWAV, decodedBlob, "g729-wasm-roundtrip.wav");
+        renderMetrics(metrics, [
+          ["input samples", String(result.inputSamples)],
+          ["frames", String(result.frames)],
+          ["encoded bytes", String(result.encoded.byteLength)],
+          ["tail padding", `${result.paddedSamples} samples`]
+        ]);
+        status.textContent = "WASM encode/decode complete.";
+      }
+      streamButton.disabled = false;
+    } catch (err) {
+      status.textContent = `WASM demo failed: ${err.message}`;
+    } finally {
+      runButton.disabled = !fileInput.files.length;
+    }
+  });
+
+  streamButton.addEventListener("click", () => {
+    if (!decodedPCM) return;
+    streamPCM16(decodedPCM, 8000);
+    status.textContent = "Decoded PCM scheduled through AudioContext.";
+  });
+}
+
 window.addEventListener("resize", () => drawHeroWave(performance.now()), { passive: true });
 window.requestAnimationFrame(drawHeroWave);
 activateAudioSamples();
+activateWasmDemo();

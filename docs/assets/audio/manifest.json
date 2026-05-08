@@ -1,0 +1,33 @@
+{
+  "source": {
+    "file": "source-8k-16bit.wav",
+    "url": "https://download.huny.dev/d/./8k_16bit.wav",
+    "format": "8000 Hz mono signed linear 16-bit PCM WAV",
+    "samples": 64271,
+    "duration_seconds": 8.033875
+  },
+  "generation": {
+    "source_padding_samples": 49,
+    "target_samples": 64320,
+    "g729_frames": 804,
+    "notes": [
+      "FFmpeg was used as a black-box converter/decoder executable.",
+      "The local repository encoder generated g729-encode.g729.",
+      "FFmpeg reference-encoder samples are not present because the release VM FFmpeg build is decoder-only for G.729."
+    ]
+  },
+  "files": [
+    {
+      "file": "g729-encode.g729",
+      "path": "local encoder raw G.729 payload"
+    },
+    {
+      "file": "g729-encode-g729-decode.wav",
+      "path": "local encoder -> local decoder -> WAV"
+    },
+    {
+      "file": "g729-encode-ffmpeg-decode.wav",
+      "path": "local encoder -> FFmpeg black-box decoder -> WAV"
+    }
+  ]
+}

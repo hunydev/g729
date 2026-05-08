@@ -79,6 +79,24 @@ decoders, encoders, RTP peers, or servers. The permitted operation is:
 The prohibited operation is reading, copying, or deriving implementation
 logic from their G.729 source code.
 
+## Public Demo Media
+
+The GitHub Pages site under `docs/` redistributes a small owner-provided
+speech sample and generated derivatives:
+
+- `docs/assets/audio/source-8k-16bit.wav` — source WAV downloaded from
+  `https://download.huny.dev/d/./8k_16bit.wav`.
+- `docs/assets/audio/g729-encode.g729` — raw payload produced by this
+  repository's encoder.
+- `docs/assets/audio/g729-encode-g729-decode.wav` — local encoder payload
+  decoded by this repository's decoder.
+- `docs/assets/audio/g729-encode-ffmpeg-decode.wav` — local encoder payload
+  decoded by FFmpeg as a black-box executable.
+
+These files are documentation/demo assets, not oracle artifacts and not
+conformance evidence. They do not contain external G.729 implementation source
+or implementation-derived structure.
+
 ## Non-Redistributed Materials
 
 The following materials may exist locally during development but are not
@@ -89,6 +107,9 @@ redistributed by this repository:
 - User, customer, or Asterisk-origin audio/payload samples under
   `testdata/external/`.
 - Local build, transfer, or agent artifacts.
+
+The public Pages demo sample listed above is intentionally excluded from this
+non-redistributed bucket because it is owner-provided for publication.
 
 The repository `.gitignore` excludes these paths, and
 `TestMITDistributionAudit` checks that forbidden local materials are not
@@ -109,4 +130,3 @@ Useful public references:
 This project does not claim ITU certification, ITU byte-exact conformance, or
 endorsement by ITU, FFmpeg, Asterisk, FreeSWITCH, Sangoma, Sipro, or any other
 third party.
-

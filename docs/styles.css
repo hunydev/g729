@@ -39,6 +39,14 @@ a:hover {
   text-decoration-color: currentColor;
 }
 
+code {
+  padding: 0.08em 0.28em;
+  border-radius: 5px;
+  background: rgba(15, 118, 110, 0.09);
+  color: #0b5f58;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
 .site-header {
   position: fixed;
   inset: 0 0 auto 0;
@@ -286,6 +294,12 @@ pre {
   font: 15px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
+pre code {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
 .sample-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -295,6 +309,11 @@ pre {
   gap: 16px;
   padding: 20px;
   min-height: 286px;
+}
+
+.sample-card.unavailable {
+  box-shadow: none;
+  background: #f8f7f2;
 }
 
 .sample-meta {
@@ -336,6 +355,109 @@ audio:not([src]) {
   color: #30343c;
   background: #fffaf5;
   box-shadow: none;
+}
+
+.wasm-panel {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.file-picker {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.file-picker input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f8f6;
+  color: var(--ink);
+}
+
+.wasm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.wasm-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.wasm-button {
+  border-color: var(--line);
+  color: var(--ink);
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.wasm-button.primary {
+  background: var(--codec);
+  color: #ffffff;
+}
+
+.wasm-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.wasm-button.disabled {
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+.wasm-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metric-grid:empty {
+  display: none;
+}
+
+.metric {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f8f6;
+}
+
+.metric span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.metric strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+}
+
+.wasm-audio-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .link-list {
@@ -398,7 +520,9 @@ audio:not([src]) {
   }
 
   .capability-grid,
-  .sample-grid {
+  .sample-grid,
+  .metric-grid,
+  .wasm-audio-grid {
     grid-template-columns: 1fr;
   }
 
