@@ -178,8 +178,8 @@ Current status: the outbound TTS/RTP send path now passes the binding
 FFmpeg black-box encoder quality gate for `G729/8000 annexb=no`
 payloads. This is not an ITU byte-exact or certification claim. The
 strict local decoder also passes the current FFmpeg black-box regression
-gates for this repository's local encoder payload and the included
-Asterisk-origin `.g729` payload sample. That is enough for current
+gates for this repository's local encoder payload and a local,
+non-redistributed Asterisk-origin `.g729` payload sample. That is enough for current
 tooling and loopback confidence, but it is still not broad
 interoperability certification for every external G.729 sender.
 
@@ -226,7 +226,7 @@ Concretely:
    after clean-room numeric handoff audits. These measurements remain
    informational and are not sufficient to certify audio quality.
    Excluded from the default test suite via the `conformance` build tag.
-5. **4 decoder PSTdomain PASS-by-design FAIL pins** (Phase 1o D-3,
+5. **5 decoder PSTdomain PASS-by-design FAIL pins** (Phase 1o D-3,
    sample 40-41 drift). Documented; identical pre/post Phase 3.
    Excluded from the default test suite via the `diagnostic` build
    tag.
@@ -328,6 +328,9 @@ This project maintains a clean-room constraint. No ITU reference C,
 bcg729, FFmpeg, Sipro, or other G.729 implementation source was used.
 Public specifications, test vectors, and independently written tests
 were used. v0.1.0 does not claim ITU byte-exact conformance.
+See [IP_PROVENANCE.md](IP_PROVENANCE.md) for the distribution provenance
+record and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the
+redistribution notice inventory.
 
 Permitted reference materials, used during development:
 
@@ -360,7 +363,10 @@ declaration with citation list.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). The repository includes an engineering
+provenance record in [IP_PROVENANCE.md](IP_PROVENANCE.md) and a
+third-party notice inventory in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ---
 
