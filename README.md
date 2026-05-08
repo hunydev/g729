@@ -1,18 +1,31 @@
 # g729
 
-Pure-Go G.729A-compatible 8 kbps speech codec for MRCP / TTS RTP send paths.
+[![Go Reference](https://pkg.go.dev/badge/github.com/hunydev/g729.svg)](https://pkg.go.dev/github.com/hunydev/g729)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Status: v0.1.0-rc1 — clean-room, MIT-licensed.**
+Pure-Go, MIT-licensed G.729A-compatible speech codec for RTP
+`G729/8000` send paths.
+
+This project provides a clean-room Go implementation of a
+G.729A-compatible encoder and decoder with no cgo, no native
+dependencies, and no vendored codec source. It is intended for SIP/RTP,
+MRCP, TTS, IVR, and server-side media applications that need
+`G729/8000` with `annexb=no`.
+
+**Status: v0.1.0-rc1.** The outbound encoder/RTP send path is
+black-box tested against FFmpeg. The decoder is included for loopback,
+tooling, and limited inbound regression testing. Broad interoperability
+certification and ITU byte-exact conformance are not claimed.
 
 ---
 
 ## Project summary
 
 `github.com/hunydev/g729` is an independent, clean-room, pure-Go
-implementation of the ITU-T G.729 Annex A 8 kbps CS-ACELP speech
-codec, intended primarily as a server-side encoder/decoder for
-RTP payload type 18 (`G729/8000`) inside MRCP / TTS / VoIP
-deployments.
+implementation compatible with the ITU-T G.729 Annex A 8 kbps
+CS-ACELP speech codec, intended primarily as a server-side
+encoder/decoder for RTP payload type 18 (`G729/8000`) inside MRCP /
+TTS / VoIP deployments.
 
 The codec was implemented from public ITU-T specifications and
 public textbooks only. **No** ITU reference C source, `bcg729`,
@@ -21,10 +34,17 @@ other extant G.729 implementation source was consulted at any
 point. See the **Clean-room statement** below.
 
 This module is the G.729 piece of a multi-codec deployment. G.711
-(µ-law / A-law) and G.722 are deliberately not included here —
-those are trivially implementable from their own published
-specifications and live in their own modules in a typical
-deployment stack.
+(µ-law / A-law) and G.722 are intentionally out of scope for this
+module and should live in separate codec packages in a deployment
+stack.
+
+## Why this project exists
+
+Many practical G.729 deployments still rely on native C libraries,
+GPL/commercial licensing, or platform-specific codec modules. This
+package aims to provide a small, dependency-free, MIT-licensed Go codec
+for server-side RTP media paths where cgo and native codec packaging are
+undesirable.
 
 ---
 
@@ -32,7 +52,7 @@ deployment stack.
 
 | Capability | v0.1.0 status |
 |---|---|
-| `G729/8000` RTP payload type 18 | **Outbound RTP send path supported; strict decoder sample-gated, broad interop not certified** |
+| `G729/8000` RTP payload type 18 | **Encoder/send path supported for `annexb=no`; decoder included with limited interoperability coverage** |
 | 10 ms frame: 80 int16 samples ↔ 10 packed bytes | **Supported** |
 | `ptime=10` (one frame per RTP packet) | **Supported** |
 | `ptime=20` (two frames per RTP packet) | **Supported** (caller bundles two encoder outputs) |
@@ -158,8 +178,8 @@ a=maxptime:20
 ```
 
 `annexb=no` MUST be advertised — this codec does not implement
-Annex B SID / CNG / DTX. Receiving SID frames is undefined
-behaviour in v0.1.0.
+Annex B SID / CNG / DTX. Receiving SID frames is not supported in
+v0.1.0 and may return an error or produce invalid audio.
 
 ---
 
@@ -204,7 +224,8 @@ Concretely:
    dB`, `SegSNR=4.39 dB`, while `SPEECH.IN -> our encoder -> ffmpeg`
    currently measures about `GlobalSNR=5.09 dB`, `SegSNR=3.05 dB`.
    The deltas (`-1.95 dB` global, `-1.34 dB` segmental) pass the
-   required `>= -2.00 dB` gate for outbound encoder quality.
+   project-defined `>= -2.00 dB` release gate for outbound encoder
+   quality.
 2. **Local decoder roundtrip gate passes against FFmpeg.** On the local
    encoder's own SPEECH payload, `our encoder -> local decoder` now tracks
    `our encoder -> ffmpeg` at about `GlobalSNR=13.78 dB`,
