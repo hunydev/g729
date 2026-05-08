@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>g729 - Pure-Go G.729A-compatible codec</title>
+  <meta name="description" content="Pure-Go MIT-licensed G.729A-compatible codec for RTP G729/8000 annexb=no send paths.">
+  <meta property="og:title" content="g729">
+  <meta property="og:description" content="Pure-Go MIT-licensed G.729A-compatible codec for RTP G729/8000 annexb=no send paths.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://g729.huny.dev/">
+  <meta name="theme-color" content="#111318">
+  <link rel="canonical" href="https://g729.huny.dev/">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header" aria-label="Primary">
+    <a class="brand" href="#top" aria-label="g729 home">g729</a>
+    <nav class="nav-links">
+      <a href="#scope">Scope</a>
+      <a href="#rtp">RTP</a>
+      <a href="#quality">Quality</a>
+      <a href="#clean-room">Clean room</a>
+      <a href="https://github.com/hunydev/g729">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero" aria-labelledby="hero-title">
+      <canvas id="wave-scene" aria-hidden="true"></canvas>
+      <div class="hero-content">
+        <p class="eyebrow">Pure Go | MIT | G729/8000 | annexb=no</p>
+        <h1 id="hero-title">g729</h1>
+        <p class="hero-copy">
+          A clean-room, G.729A-compatible speech codec for Go services that need
+          RTP payload type 18 without cgo, native codec packages, or vendored
+          codec source.
+        </p>
+        <div class="hero-actions" aria-label="Project links">
+          <a class="button primary" href="https://pkg.go.dev/github.com/hunydev/g729">Go Reference</a>
+          <a class="button" href="https://github.com/hunydev/g729">Source</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="band intro-band" aria-labelledby="intro-title">
+      <div class="section-inner intro-grid">
+        <div>
+          <p class="eyebrow">v0.1.0-rc1</p>
+          <h2 id="intro-title">Built for server-side RTP media paths.</h2>
+        </div>
+        <p>
+          The primary target is MRCP, TTS, IVR, SIP/RTP, and other backend media
+          applications where the input is 8 kHz mono signed 16-bit PCM and the
+          output is 10-byte G.729 speech frames.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="scope" aria-labelledby="scope-title">
+      <div class="section-inner">
+        <div class="section-heading">
+          <p class="eyebrow">Supported scope</p>
+          <h2 id="scope-title">A narrow, explicit codec claim.</h2>
+        </div>
+        <div class="capability-grid">
+          <article class="capability">
+            <span class="status">Supported</span>
+            <h3>G729/8000 payloads</h3>
+            <p>RTP payload type 18, 8 kHz clock, 10 ms speech frames, 10 bytes per frame.</p>
+          </article>
+          <article class="capability">
+            <span class="status">Supported</span>
+            <h3>ptime 10 and 20</h3>
+            <p>Use one encoded frame for ptime=10, or concatenate two frames for ptime=20.</p>
+          </article>
+          <article class="capability">
+            <span class="status warning">Required</span>
+            <h3>annexb=no</h3>
+            <p>Annex B SID, CNG, and DTX are not implemented in this release.</p>
+          </article>
+          <article class="capability">
+            <span class="status muted">Not claimed</span>
+            <h3>No certification claim</h3>
+            <p>ITU byte-exact conformance and broad interoperability certification are not claimed.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section split" id="rtp" aria-labelledby="rtp-title">
+      <div class="section-inner split-grid">
+        <div>
+          <p class="eyebrow">SIP/RTP integration</p>
+          <h2 id="rtp-title">Advertise the exact media shape.</h2>
+          <p>
+            The codec core emits raw 10-byte speech frames. Your SIP/RTP stack
+            owns RTP headers, timestamps, sequence numbers, jitter handling, and
+            packet transmission.
+          </p>
+        </div>
+        <div class="code-panel" aria-label="SDP example">
+<pre><code>m=audio 49170 RTP/AVP 18
+a=rtpmap:18 G729/8000
+a=fmtp:18 annexb=no
+a=ptime:20
+a=maxptime:20</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="quality" aria-labelledby="quality-title">
+      <div class="section-inner">
+        <div class="section-heading">
+          <p class="eyebrow">Listening comparison</p>
+          <h2 id="quality-title">Prepared for codec quality samples.</h2>
+          <p>
+            This page is ready for four reviewed listening samples: FFmpeg
+            encoded payloads decoded by this project and FFmpeg, plus this
+            project's encoded payloads decoded by this project and FFmpeg.
+          </p>
+        </div>
+        <div class="sample-grid" id="sample-grid" aria-live="polite">
+          <article class="sample-card" data-audio="assets/audio/ffmpeg-encode-g729-decode.wav">
+            <div class="sample-meta">
+              <span class="sample-label">Reference payload</span>
+              <h3>FFmpeg encode -> g729 decode</h3>
+            </div>
+            <canvas class="mini-wave" width="420" height="92" aria-hidden="true"></canvas>
+            <audio controls preload="metadata"></audio>
+            <p class="sample-state">Sample pending.</p>
+          </article>
+          <article class="sample-card" data-audio="assets/audio/ffmpeg-encode-ffmpeg-decode.wav">
+            <div class="sample-meta">
+              <span class="sample-label">Reference path</span>
+              <h3>FFmpeg encode -> FFmpeg decode</h3>
+            </div>
+            <canvas class="mini-wave" width="420" height="92" aria-hidden="true"></canvas>
+            <audio controls preload="metadata"></audio>
+            <p class="sample-state">Sample pending.</p>
+          </article>
+          <article class="sample-card" data-audio="assets/audio/g729-encode-g729-decode.wav">
+            <div class="sample-meta">
+              <span class="sample-label">Project loopback</span>
+              <h3>g729 encode -> g729 decode</h3>
+            </div>
+            <canvas class="mini-wave" width="420" height="92" aria-hidden="true"></canvas>
+            <audio controls preload="metadata"></audio>
+            <p class="sample-state">Sample pending.</p>
+          </article>
+          <article class="sample-card" data-audio="assets/audio/g729-encode-ffmpeg-decode.wav">
+            <div class="sample-meta">
+              <span class="sample-label">Interop path</span>
+              <h3>g729 encode -> FFmpeg decode</h3>
+            </div>
+            <canvas class="mini-wave" width="420" height="92" aria-hidden="true"></canvas>
+            <audio controls preload="metadata"></audio>
+            <p class="sample-state">Sample pending.</p>
+          </article>
+        </div>
+        <div class="quality-note">
+          <strong>Current gate:</strong> the outbound encoder/RTP send path is
+          black-box tested against FFmpeg, and the strict decoder has local
+          FFmpeg/Asterisk-origin sample regression coverage. These are project
+          release gates, not ITU certification.
+        </div>
+      </div>
+    </section>
+
+    <section class="section split" id="clean-room" aria-labelledby="clean-title">
+      <div class="section-inner split-grid">
+        <div>
+          <p class="eyebrow">Clean-room boundary</p>
+          <h2 id="clean-title">No vendored codec source. No cgo.</h2>
+          <p>
+            The repository documents its clean-room rule and MIT distribution
+            provenance. External codecs may be used only as black-box tools, and
+            published demo media should carry source and redistribution records.
+          </p>
+        </div>
+        <ul class="link-list" aria-label="Project documents">
+          <li><a href="https://github.com/hunydev/g729/blob/main/README.md">README</a></li>
+          <li><a href="https://github.com/hunydev/g729/blob/main/IP_PROVENANCE.md">IP provenance</a></li>
+          <li><a href="https://github.com/hunydev/g729/blob/main/THIRD_PARTY_NOTICES.md">Third-party notices</a></li>
+          <li><a href="https://github.com/hunydev/g729/releases/tag/v0.1.0-rc1">v0.1.0-rc1 release</a></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>MIT-licensed pure-Go G.729A-compatible codec.</span>
+    <a href="https://github.com/hunydev/g729">github.com/hunydev/g729</a>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
