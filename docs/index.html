@@ -188,7 +188,7 @@ a=maxptime:20</code></pre>
           <p>
             Upload audio in the browser, resample it to 8 kHz mono PCM with
             Web Audio, encode and decode it through the Go WASM build, then
-            stream the decoded frames through an AudioContext. Raw
+            play the decoded PCM through a small buffered AudioContext path. Raw
             <code>.g729</code> payload files can be uploaded for decode-only
             checks.
           </p>

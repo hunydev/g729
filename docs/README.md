@@ -70,8 +70,9 @@ The Pages site includes a Go WebAssembly build of the public codec API:
 
 The browser demo accepts normal browser-decodable audio files, resamples them
 to 8 kHz mono signed 16-bit PCM through Web Audio, runs the Go WASM
-encode/decode path, and schedules the decoded PCM through an `AudioContext`.
-Raw `.g729` payload uploads are decoded directly through the WASM decoder.
+encode/decode path, and schedules decoded PCM through a small buffered
+`AudioContext` playback path. Raw `.g729` payload uploads are decoded directly
+through the WASM decoder.
 
 Rebuild the WASM asset with:
 

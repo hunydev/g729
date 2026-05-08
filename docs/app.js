@@ -212,25 +212,50 @@ function renderMetrics(container, rows) {
 
 function streamPCM16(bytes, sampleRate = 8000) {
   const AudioCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtor) throw new Error("Web Audio API is unavailable in this browser");
+
   const ctx = new AudioCtor();
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const totalSamples = bytes.byteLength / 2;
-  const chunkSamples = 160;
-  let startAt = ctx.currentTime + 0.05;
+  const outputRate = ctx.sampleRate;
+  const outputSamples = Math.max(1, Math.ceil((totalSamples / sampleRate) * outputRate));
+  const buffer = ctx.createBuffer(1, outputSamples, outputRate);
+  const channel = buffer.getChannelData(0);
 
-  for (let off = 0; off < totalSamples; off += chunkSamples) {
-    const count = Math.min(chunkSamples, totalSamples - off);
-    const buffer = ctx.createBuffer(1, count, sampleRate);
-    const channel = buffer.getChannelData(0);
-    for (let i = 0; i < count; i += 1) {
-      channel[i] = view.getInt16((off + i) * 2, true) / 32768;
-    }
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(ctx.destination);
-    source.start(startAt);
-    startAt += count / sampleRate;
+  for (let i = 0; i < outputSamples; i += 1) {
+    const src = (i * sampleRate) / outputRate;
+    const base = Math.floor(src);
+    const frac = src - base;
+    const s0 = sampleAtPCM16(view, base, totalSamples);
+    const s1 = sampleAtPCM16(view, base + 1, totalSamples);
+    channel[i] = (s0 + (s1 - s0) * frac) / 32768;
   }
+
+  const fadeSamples = Math.min(Math.floor(outputRate * 0.005), Math.floor(outputSamples / 2));
+  for (let i = 0; i < fadeSamples; i += 1) {
+    const gain = i / fadeSamples;
+    channel[i] *= gain;
+    channel[outputSamples - 1 - i] *= gain;
+  }
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(ctx.destination);
+  source.onended = () => ctx.close();
+
+  const prebufferSeconds = 0.12;
+  source.start(ctx.currentTime + prebufferSeconds);
+  return {
+    outputRate,
+    outputSamples,
+    prebufferMS: Math.round(prebufferSeconds * 1000)
+  };
+}
+
+function sampleAtPCM16(view, index, totalSamples) {
+  if (index < 0) return 0;
+  if (index >= totalSamples) return totalSamples ? view.getInt16((totalSamples - 1) * 2, true) : 0;
+  return view.getInt16(index * 2, true);
 }
 
 function isG729Payload(file) {
@@ -369,8 +394,8 @@ async function activateWasmDemo() {
 
   streamButton.addEventListener("click", () => {
     if (!decodedPCM) return;
-    streamPCM16(decodedPCM, 8000);
-    status.textContent = "Decoded PCM scheduled through AudioContext.";
+    const playback = streamPCM16(decodedPCM, 8000);
+    status.textContent = `Decoded PCM scheduled as one ${playback.prebufferMS} ms buffered AudioContext stream at ${playback.outputRate} Hz.`;
   });
 }
 
