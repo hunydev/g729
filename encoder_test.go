@@ -110,6 +110,42 @@ func TestEncoderProfiles(t *testing.T) {
 			qualityCleanGainNoiseRepairHighMSEBetterMSEToleranceDen)
 	}
 
+	cleanSNREnc := NewEncoderWithProfile(EncoderProfileQualityCleanSNR)
+	if cleanSNREnc.profile != EncoderProfileQualityCleanSNR ||
+		cleanSNREnc.qualityNormalizedAdaptivePitchSearchEnabled() ||
+		cleanSNREnc.qualityGainMSERepairThreshold() != qualityCleanGainMSERepairThreshold {
+		t.Fatalf("NewEncoderWithProfile(QualityCleanSNR) profile=%v normPitch=%t mseThreshold=%d, want SNR clean tuning",
+			cleanSNREnc.profile,
+			cleanSNREnc.qualityNormalizedAdaptivePitchSearchEnabled(),
+			cleanSNREnc.qualityGainMSERepairThreshold())
+	}
+	snrHighNum, snrHighDen := cleanSNREnc.qualityGainNoiseRepairHighMSEBetterTolerance()
+	if snrHighNum != qualityGainNoiseRepairHighMSEBetterMSEToleranceNum ||
+		snrHighDen != qualityGainNoiseRepairHighMSEBetterMSEToleranceDen {
+		t.Fatalf("QualityCleanSNR high-MSE tolerance = %d/%d, want default %d/%d",
+			snrHighNum, snrHighDen,
+			qualityGainNoiseRepairHighMSEBetterMSEToleranceNum,
+			qualityGainNoiseRepairHighMSEBetterMSEToleranceDen)
+	}
+
+	cleanSmoothEnc := NewEncoderWithProfile(EncoderProfileQualityCleanSmooth)
+	if cleanSmoothEnc.profile != EncoderProfileQualityCleanSmooth ||
+		cleanSmoothEnc.qualityNormalizedAdaptivePitchSearchEnabled() ||
+		cleanSmoothEnc.qualityGainMSERepairThreshold() != qualityCleanSmoothGainMSERepairThreshold {
+		t.Fatalf("NewEncoderWithProfile(QualityCleanSmooth) profile=%v normPitch=%t mseThreshold=%d, want smooth clean tuning",
+			cleanSmoothEnc.profile,
+			cleanSmoothEnc.qualityNormalizedAdaptivePitchSearchEnabled(),
+			cleanSmoothEnc.qualityGainMSERepairThreshold())
+	}
+	smoothHighNum, smoothHighDen := cleanSmoothEnc.qualityGainNoiseRepairHighMSEBetterTolerance()
+	if smoothHighNum != qualityCleanSmoothGainNoiseRepairHighMSEBetterMSEToleranceNum ||
+		smoothHighDen != qualityCleanSmoothGainNoiseRepairHighMSEBetterMSEToleranceDen {
+		t.Fatalf("QualityCleanSmooth high-MSE tolerance = %d/%d, want %d/%d",
+			smoothHighNum, smoothHighDen,
+			qualityCleanSmoothGainNoiseRepairHighMSEBetterMSEToleranceNum,
+			qualityCleanSmoothGainNoiseRepairHighMSEBetterMSEToleranceDen)
+	}
+
 	invalidEnc := NewEncoderWithProfile(EncoderProfile(99))
 	if invalidEnc.profile != EncoderProfileQuality || !invalidEnc.qualityHeuristicsEnabled() {
 		t.Fatalf("invalid profile normalized to %v quality=%t, want EncoderProfileQuality enabled",

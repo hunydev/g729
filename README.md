@@ -159,6 +159,11 @@ smoother, bcg729-like candidate against the default Quality profile. It keeps
 the standard 10-byte payload shape, disables normalized closed-loop pitch
 reranking, and uses stricter, high-residual-aware decoder-in-loop gain MSE
 repair.
+`EncoderProfileQualityCleanSNR` keeps the same pitch policy but uses the older
+high-SNR gain-repair preference for clarity A/B tests.
+`EncoderProfileQualityCleanSmooth` lowers the clean repair threshold and biases
+more strongly toward high-residual reduction for bitstream-level smoothing
+diagnostics.
 
 For clean-room diagnostics and algorithm work, use
 `NewEncoderWithProfile(EncoderProfileCore)` or

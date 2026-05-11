@@ -222,6 +222,18 @@ const (
 	// is intended to compare a smoother, bcg729-like candidate against the
 	// default quality profile.
 	EncoderProfileQualityClean
+
+	// EncoderProfileQualityCleanSNR is a listening-diagnostic variant of
+	// EncoderProfileQualityClean that keeps the older high-SNR gain-repair
+	// preference. It is useful for A/B testing clarity against the smoother
+	// high-residual-aware clean profile.
+	EncoderProfileQualityCleanSNR
+
+	// EncoderProfileQualityCleanSmooth is a listening-diagnostic variant that
+	// applies the clean pitch policy with a lower decoder-in-loop repair
+	// threshold and stronger high-residual preference. It deliberately trades
+	// some waveform SNR for more headroom and a smoother bitstream candidate.
+	EncoderProfileQualityCleanSmooth
 )
 
 type encoderQualityTuning uint16
@@ -270,7 +282,7 @@ func NewEncoderWithProfile(profile EncoderProfile) *Encoder {
 
 func normalizeEncoderProfile(profile EncoderProfile) EncoderProfile {
 	switch profile {
-	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean:
+	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth:
 		return profile
 	default:
 		return EncoderProfileQuality
@@ -283,7 +295,7 @@ func encoderQualityTuningForProfile(profile EncoderProfile) encoderQualityTuning
 		return encoderQualityTuningAll
 	case EncoderProfileQualityAnnexALSP:
 		return encoderQualityTuningAll &^ encoderTuningExpandedLSPSearch
-	case EncoderProfileQualityClean:
+	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth:
 		return encoderQualityTuningAll &^ encoderTuningNormalizedAdaptivePitchSearch
 	default:
 		return 0
@@ -362,15 +374,21 @@ func (e *Encoder) qualityGainMSERepairEnabled() bool {
 }
 
 func (e *Encoder) qualityGainMSERepairThreshold() int {
-	if e.profile == EncoderProfileQualityClean {
+	switch e.profile {
+	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR:
 		return qualityCleanGainMSERepairThreshold
+	case EncoderProfileQualityCleanSmooth:
+		return qualityCleanSmoothGainMSERepairThreshold
 	}
 	return qualityGainMSERepairThreshold
 }
 
 func (e *Encoder) qualityGainNoiseRepairHighMSEBetterTolerance() (num, den int64) {
-	if e.profile == EncoderProfileQualityClean {
+	switch e.profile {
+	case EncoderProfileQualityClean:
 		return qualityCleanGainNoiseRepairHighMSEBetterMSEToleranceNum, qualityCleanGainNoiseRepairHighMSEBetterMSEToleranceDen
+	case EncoderProfileQualityCleanSmooth:
+		return qualityCleanSmoothGainNoiseRepairHighMSEBetterMSEToleranceNum, qualityCleanSmoothGainNoiseRepairHighMSEBetterMSEToleranceDen
 	}
 	return qualityGainNoiseRepairHighMSEBetterMSEToleranceNum, qualityGainNoiseRepairHighMSEBetterMSEToleranceDen
 }
@@ -490,10 +508,13 @@ var qualityGainClipRepairThreshold = 32300
 var qualityGainMSERepairThreshold = 28000
 
 const qualityCleanGainMSERepairThreshold = 26000
+const qualityCleanSmoothGainMSERepairThreshold = 24000
 
 const (
-	qualityCleanGainNoiseRepairHighMSEBetterMSEToleranceNum int64 = 110
-	qualityCleanGainNoiseRepairHighMSEBetterMSEToleranceDen int64 = 100
+	qualityCleanGainNoiseRepairHighMSEBetterMSEToleranceNum       int64 = 110
+	qualityCleanGainNoiseRepairHighMSEBetterMSEToleranceDen       int64 = 100
+	qualityCleanSmoothGainNoiseRepairHighMSEBetterMSEToleranceNum int64 = 120
+	qualityCleanSmoothGainNoiseRepairHighMSEBetterMSEToleranceDen int64 = 100
 )
 
 var (

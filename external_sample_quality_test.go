@@ -138,6 +138,8 @@ func TestExternalSampleProfileCompareDiagnostic(t *testing.T) {
 		{name: "core", profile: EncoderProfileCore},
 		{name: "quality", profile: EncoderProfileQuality},
 		{name: "clean", profile: EncoderProfileQualityClean},
+		{name: "clean-snr", profile: EncoderProfileQualityCleanSNR},
+		{name: "clean-smooth", profile: EncoderProfileQualityCleanSmooth},
 	}
 
 	tmp := t.TempDir()
@@ -265,6 +267,8 @@ func TestExternalSampleQualityTuningAblationDiagnostic(t *testing.T) {
 		{name: "quality-no-early", tuning: encoderQualityTuningAll &^ encoderTuningEarlyClosedLoopSpeechWindow},
 		{name: "quality-no-norm", tuning: encoderQualityTuningAll &^ encoderTuningNormalizedAdaptivePitchSearch},
 		{name: "quality-no-clip", tuning: encoderQualityTuningAll &^ encoderTuningGainClipRepair},
+		{name: "quality-no-mse", tuning: encoderQualityTuningAll &^ encoderTuningGainMSERepair},
+		{name: "quality-no-mse-no-noise", tuning: (encoderQualityTuningAll &^ encoderTuningGainMSERepair) &^ encoderTuningGainNoiseRepair},
 		{name: "quality-no-noise", tuning: encoderQualityTuningAll &^ encoderTuningGainNoiseRepair},
 		{name: "quality+lspx", tuning: encoderQualityTuningAll | encoderTuningExpandedLSPSearch},
 		{name: "quality-wide-no-gain", tuning: (encoderQualityTuningAll &^ encoderTuningGainSearchBias) | encoderTuningWideGainPredictor},
@@ -570,6 +574,18 @@ func TestExternalSampleQualityVariantDeltaDiagnostic(t *testing.T) {
 			name: "quality-no-norm",
 			frames: func() []bitstream.Frame {
 				return encodeBitstreamFramesWithQualityTuning(t, src, encoderQualityTuningAll&^encoderTuningNormalizedAdaptivePitchSearch)
+			},
+		},
+		{
+			name: "quality-no-mse",
+			frames: func() []bitstream.Frame {
+				return encodeBitstreamFramesWithQualityTuning(t, src, encoderQualityTuningAll&^encoderTuningGainMSERepair)
+			},
+		},
+		{
+			name: "quality-no-mse-no-noise",
+			frames: func() []bitstream.Frame {
+				return encodeBitstreamFramesWithQualityTuning(t, src, (encoderQualityTuningAll&^encoderTuningGainMSERepair)&^encoderTuningGainNoiseRepair)
 			},
 		},
 		{
@@ -901,6 +917,8 @@ func TestExternalSampleProfileBitstreamSummaryDiagnostic(t *testing.T) {
 	}{
 		{name: "quality", profile: EncoderProfileQuality},
 		{name: "clean", profile: EncoderProfileQualityClean},
+		{name: "clean-snr", profile: EncoderProfileQualityCleanSNR},
+		{name: "clean-smooth", profile: EncoderProfileQualityCleanSmooth},
 		{name: "core", profile: EncoderProfileCore},
 	}
 
