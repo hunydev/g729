@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,13 +58,20 @@ type payloadInfo struct {
 }
 
 type metricRow struct {
-	Path       string  `json:"path"`
-	SNRDB      float64 `json:"snrDb"`
-	Corr       float64 `json:"corr"`
-	RMSRatio   float64 `json:"rmsRatio"`
-	OutputPeak int     `json:"outputPeak"`
-	NearClip   int     `json:"nearClip"`
-	LagSamples int     `json:"lagSamples"`
+	Path       string   `json:"path"`
+	SNRDB      float64  `json:"snrDb"`
+	Corr       float64  `json:"corr"`
+	RMSRatio   float64  `json:"rmsRatio"`
+	PESQ       *float64 `json:"pesq,omitempty"`
+	OutputPeak int      `json:"outputPeak"`
+	NearClip   int      `json:"nearClip"`
+	LagSamples int      `json:"lagSamples"`
+}
+
+type pesqPair struct {
+	Row    *metricRow
+	RefPCM []byte
+	OutPCM []byte
 }
 
 type noiseRow struct {
@@ -426,6 +434,51 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	localFCBPayloadMetric := qualityMetric("local decoder: FCB-clean payload vs bcg729 payload", localFCBPCM, localExternalPCM)
 	ffmpegFCBPayloadMetric := qualityMetric("ffmpeg decoder: FCB-clean payload vs bcg729 payload", ffmpegFCBPCM, ffmpegExternalPCM)
 
+	pesqNote := addPESQScores(tmp, []pesqPair{
+		{Row: &ourLocalMetric, RefPCM: paddedPCM, OutPCM: localOurPCM},
+		{Row: &ourFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegOurPCM},
+		{Row: &cleanLocalMetric, RefPCM: paddedPCM, OutPCM: localCleanPCM},
+		{Row: &cleanFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegCleanPCM},
+		{Row: &snrLocalMetric, RefPCM: paddedPCM, OutPCM: localSNRPCM},
+		{Row: &snrFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegSNRPCM},
+		{Row: &smoothLocalMetric, RefPCM: paddedPCM, OutPCM: localSmoothPCM},
+		{Row: &smoothFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegSmoothPCM},
+		{Row: &voicedLocalMetric, RefPCM: paddedPCM, OutPCM: localVoicedPCM},
+		{Row: &voicedFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegVoicedPCM},
+		{Row: &degritLocalMetric, RefPCM: paddedPCM, OutPCM: localDegritPCM},
+		{Row: &degritFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegDegritPCM},
+		{Row: &harmonicLocalMetric, RefPCM: paddedPCM, OutPCM: localHarmonicPCM},
+		{Row: &harmonicFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegHarmonicPCM},
+		{Row: &harmonicStrongLocalMetric, RefPCM: paddedPCM, OutPCM: localHarmonicStrongPCM},
+		{Row: &harmonicStrongFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegHarmonicStrongPCM},
+		{Row: &harmonicDeepLocalMetric, RefPCM: paddedPCM, OutPCM: localHarmonicDeepPCM},
+		{Row: &harmonicDeepFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegHarmonicDeepPCM},
+		{Row: &fcbLocalMetric, RefPCM: paddedPCM, OutPCM: localFCBPCM},
+		{Row: &fcbFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegFCBPCM},
+		{Row: &softOurFFmpegMetric, RefPCM: paddedPCM, OutPCM: softOurFFmpegPCM},
+		{Row: &softCleanFFmpegMetric, RefPCM: paddedPCM, OutPCM: softCleanFFmpegPCM},
+		{Row: &externalLocalMetric, RefPCM: paddedPCM, OutPCM: localExternalPCM},
+		{Row: &externalFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegExternalPCM},
+	})
+	notes := []string{
+		"External encoder is isolated under gitignored third-party/ and used only as a black-box executable.",
+		"Clean candidate uses EncoderProfileQualityClean: no normalized closed-loop pitch reranking, stricter gain MSE repair.",
+		"SNR-clean candidate uses the same clean pitch policy with the older high-SNR gain-repair preference.",
+		"Smooth-clean candidate uses a lower clean repair threshold and stronger high-residual preference; it is a bitstream-level diagnostic, not PCM smoothing.",
+		"Voiced-clean candidate keeps clean pitch but lets gain repair prefer stronger adaptive gain within bounded MSE/high-residual tolerance.",
+		"Degrit-clean candidate keeps clean pitch but lets gain repair prefer lower fixed-codebook gain correction when adaptive gain is not reduced.",
+		"Harmonic-clean candidate keeps clean pitch and lets voiced gain repair trade bounded score loss for higher adaptive gain with lower fixed-codebook correction.",
+		"Harmonic-strong candidate pushes that same gain-balance tradeoff harder; it is expected to test grit reduction against possible muffling.",
+		"Harmonic-deep candidate pushes the same gain-balance tradeoff beyond harmonic-strong to locate the grit-vs-muffling boundary.",
+		"FCB-clean candidate keeps clean pitch and reranks a small fixed-codebook candidate set with decoder-in-loop residual scoring.",
+		"Softened candidates are playback-only diagnostics that apply a mild zero-phase PCM smoother after FFmpeg decode; they do not represent a G.729 payload.",
+		"FFmpeg is used only as a black-box G.729 decoder.",
+		"Scores are delay-compensated listening diagnostics, not ITU conformance certification.",
+	}
+	if pesqNote != "" {
+		notes = append(notes, pesqNote)
+	}
+
 	resp := response{
 		Input: inputInfo{
 			Samples:       originalSamples,
@@ -606,21 +659,7 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			residualNoiseMetric("softened current delta under ffmpeg decode", "soft_our_ffmpeg", ffmpegExternalPCM, softOurFFmpegPCM, ffmpegPayloadMetric.LagSamples),
 			residualNoiseMetric("softened clean delta under ffmpeg decode", "soft_clean_ffmpeg", ffmpegExternalPCM, softCleanFFmpegPCM, ffmpegCleanPayloadMetric.LagSamples),
 		},
-		Notes: []string{
-			"External encoder is isolated under gitignored third-party/ and used only as a black-box executable.",
-			"Clean candidate uses EncoderProfileQualityClean: no normalized closed-loop pitch reranking, stricter gain MSE repair.",
-			"SNR-clean candidate uses the same clean pitch policy with the older high-SNR gain-repair preference.",
-			"Smooth-clean candidate uses a lower clean repair threshold and stronger high-residual preference; it is a bitstream-level diagnostic, not PCM smoothing.",
-			"Voiced-clean candidate keeps clean pitch but lets gain repair prefer stronger adaptive gain within bounded MSE/high-residual tolerance.",
-			"Degrit-clean candidate keeps clean pitch but lets gain repair prefer lower fixed-codebook gain correction when adaptive gain is not reduced.",
-			"Harmonic-clean candidate keeps clean pitch and lets voiced gain repair trade bounded score loss for higher adaptive gain with lower fixed-codebook correction.",
-			"Harmonic-strong candidate pushes that same gain-balance tradeoff harder; it is expected to test grit reduction against possible muffling.",
-			"Harmonic-deep candidate pushes the same gain-balance tradeoff beyond harmonic-strong to locate the grit-vs-muffling boundary.",
-			"FCB-clean candidate keeps clean pitch and reranks a small fixed-codebook candidate set with decoder-in-loop residual scoring.",
-			"Softened candidates are playback-only diagnostics that apply a mild zero-phase PCM smoother after FFmpeg decode; they do not represent a G.729 payload.",
-			"FFmpeg is used only as a black-box G.729 decoder.",
-			"Scores are delay-compensated listening diagnostics, not ITU conformance certification.",
-		},
+		Notes: notes,
 	}
 
 	_ = json.NewEncoder(w).Encode(resp)
@@ -996,6 +1035,93 @@ func wavBytes(pcm []byte) []byte {
 	_ = binary.Write(&b, binary.LittleEndian, dataLen)
 	b.Write(pcm)
 	return b.Bytes()
+}
+
+func addPESQScores(tmp string, pairs []pesqPair) string {
+	if len(pairs) == 0 {
+		return ""
+	}
+	if os.Getenv("G729_PESQ_DISABLE") == "1" {
+		return "PESQ NB is disabled by G729_PESQ_DISABLE=1."
+	}
+	python := os.Getenv("G729_PESQ_PYTHON")
+	if python == "" {
+		var err error
+		python, err = exec.LookPath("python3")
+		if err != nil {
+			return "PESQ NB is n/a because python3 is not available."
+		}
+	}
+	if out, err := exec.Command(python, "-c", "import numpy, pesq").CombinedOutput(); err != nil {
+		return "PESQ NB is n/a because Python modules numpy/pesq are unavailable. Install them in a venv and set G729_PESQ_PYTHON to that python. " + compactNote(out)
+	}
+
+	args := []string{"-c", pesqBatchPython}
+	for i, pair := range pairs {
+		refPath := filepath.Join(tmp, fmt.Sprintf("pesq_ref_%02d.wav", i))
+		outPath := filepath.Join(tmp, fmt.Sprintf("pesq_out_%02d.wav", i))
+		if err := os.WriteFile(refPath, wavBytes(pair.RefPCM), 0o600); err != nil {
+			return "PESQ NB is n/a because temporary reference WAV write failed: " + err.Error()
+		}
+		if err := os.WriteFile(outPath, wavBytes(pair.OutPCM), 0o600); err != nil {
+			return "PESQ NB is n/a because temporary degraded WAV write failed: " + err.Error()
+		}
+		args = append(args, refPath, outPath)
+	}
+
+	out, err := exec.Command(python, args...).CombinedOutput()
+	if err != nil {
+		return "PESQ NB is n/a because the scorer failed. " + compactNote(out)
+	}
+	fields := strings.Fields(string(out))
+	for i, field := range fields {
+		if i >= len(pairs) {
+			break
+		}
+		score, err := strconv.ParseFloat(field, 64)
+		if err != nil || math.IsNaN(score) || math.IsInf(score, 0) {
+			continue
+		}
+		scoreCopy := score
+		pairs[i].Row.PESQ = &scoreCopy
+	}
+	return "PESQ NB is an optional legacy P.862-style narrowband diagnostic computed against the converted source PCM; candidate-vs-bcg delta rows remain n/a. P.863/POLQA is the successor family."
+}
+
+const pesqBatchPython = `
+import sys
+import wave
+
+import numpy as np
+from pesq import pesq
+
+def read_wav(path):
+    with wave.open(path, "rb") as f:
+        if f.getnchannels() != 1 or f.getsampwidth() != 2:
+            raise ValueError("expected mono 16-bit WAV")
+        rate = f.getframerate()
+        data = f.readframes(f.getnframes())
+    return rate, np.frombuffer(data, dtype="<i2").astype(np.float32)
+
+for i in range(1, len(sys.argv), 2):
+    try:
+        ref_rate, ref = read_wav(sys.argv[i])
+        out_rate, out = read_wav(sys.argv[i + 1])
+        n = min(ref.shape[0], out.shape[0])
+        if ref_rate != out_rate or ref_rate != 8000 or n <= 0:
+            print("nan")
+            continue
+        print("{:.6f}".format(float(pesq(ref_rate, ref[:n], out[:n], "nb"))))
+    except Exception:
+        print("nan")
+`
+
+func compactNote(b []byte) string {
+	s := strings.Join(strings.Fields(string(b)), " ")
+	if len(s) > 180 {
+		return s[:180] + "..."
+	}
+	return s
 }
 
 func qualityMetric(path string, refPCM, outPCM []byte) metricRow {
@@ -1584,16 +1710,25 @@ const pageHTML = `<!doctype html>
       downloads.append(downloadLink(data.downloads.external_g729, "bcg729-encoder.g729", "Download bcg729 .g729"));
       const table = document.createElement("table");
       table.className = "metric-table";
-      table.innerHTML = "<thead><tr><th>Path</th><th>SNR dB</th><th>Corr</th><th>RMS ratio</th><th>Lag</th><th>Peak</th><th>Near clip</th></tr></thead><tbody></tbody>";
+      table.innerHTML = "<thead><tr><th>Path</th><th>SNR dB</th><th>Corr</th><th>RMS ratio</th><th>PESQ NB</th><th>Lag</th><th>Peak</th><th>Near clip</th></tr></thead><tbody></tbody>";
       const tbody = table.querySelector("tbody");
       data.metrics.forEach((m) => {
         const tr = document.createElement("tr");
-        tr.innerHTML = "<td>" + m.path + "</td><td>" + fmt(m.snrDb) + "</td><td>" + fmt(m.corr, 4) + "</td><td>" + fmt(m.rmsRatio, 4) + "</td><td>" + m.lagSamples + "</td><td>" + m.outputPeak + "</td><td>" + m.nearClip + "</td>";
+        tr.innerHTML = "<td>" + m.path + "</td><td>" + fmt(m.snrDb) + "</td><td>" + fmt(m.corr, 4) + "</td><td>" + fmt(m.rmsRatio, 4) + "</td><td>" + fmtMaybe(m.pesq, 3) + "</td><td>" + m.lagSamples + "</td><td>" + m.outputPeak + "</td><td>" + m.nearClip + "</td>";
         tbody.append(tr);
       });
       $("metrics").append(table);
+      renderNotes(data);
       renderNoise(data);
       renderClips(data);
+    }
+    function renderNotes(data) {
+      const notes = ((data && data.notes) || []).filter((note) => String(note).includes("PESQ"));
+      if (!notes.length) return;
+      const wrap = document.createElement("section");
+      wrap.className = "card clip-card";
+      wrap.innerHTML = "<h2>Metric notes</h2><p class=\"noise-note\">" + notes.map(escapeHTML).join("<br>") + "</p>";
+      $("metrics").append(wrap);
     }
     function renderNoise(data) {
       if (!data.noise || !data.noise.length) return;
@@ -1675,6 +1810,9 @@ const pageHTML = `<!doctype html>
     function fmt(v, digits = 2) {
       if (!Number.isFinite(v)) return String(v);
       return Number(v).toFixed(digits);
+    }
+    function fmtMaybe(v, digits = 2) {
+      return (typeof v === "number" && Number.isFinite(v)) ? Number(v).toFixed(digits) : "n/a";
     }
     function escapeHTML(s) {
       return String(s).replace(/[&<>"']/g, (ch) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;" }[ch]));
