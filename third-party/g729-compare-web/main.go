@@ -200,6 +200,10 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	originalSamples := len(pcm) / 2
 	paddedPCM := padPCMToFrame(pcm)
 	frames := len(paddedPCM) / (g729.FrameSamples * 2)
+	if wanted := parseWantedAudio(r.FormValue("want")); len(wanted) > 0 {
+		writeSelectedAudioCompare(w, tmp, paddedPCM, originalSamples, frames, wanted)
+		return
+	}
 
 	ourPayload, err := encodeWithLocal(paddedPCM)
 	if err != nil {
@@ -422,6 +426,133 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func parseWantedAudio(spec string) map[string]bool {
+	wanted := make(map[string]bool)
+	for _, part := range strings.Split(spec, ",") {
+		key := strings.TrimSpace(part)
+		if key != "" {
+			wanted[key] = true
+		}
+	}
+	return wanted
+}
+
+func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []byte, originalSamples, frames int, wanted map[string]bool) {
+	type payloadEntry struct {
+		payload []byte
+		err     error
+	}
+	payloads := make(map[string]payloadEntry)
+	audio := make(map[string]string)
+
+	getPayload := func(name string) ([]byte, error) {
+		if entry, ok := payloads[name]; ok {
+			return entry.payload, entry.err
+		}
+		var payload []byte
+		var err error
+		switch name {
+		case "our":
+			payload, err = encodeWithLocal(paddedPCM)
+		case "clean":
+			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityClean)
+		case "snr":
+			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanSNR)
+		case "smooth":
+			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanSmooth)
+		case "external":
+			payload, err = encodeWithBCG729(paddedPCM)
+		default:
+			err = fmt.Errorf("unknown payload %q", name)
+		}
+		payloads[name] = payloadEntry{payload: payload, err: err}
+		return payload, err
+	}
+
+	for key := range wanted {
+		pipeline, decoder, soft, ok := selectedAudioPipeline(key)
+		if !ok {
+			writeError(w, fmt.Errorf("unknown requested audio key %q", key))
+			return
+		}
+		if pipeline == "source" {
+			audio[key] = wavDataURL(paddedPCM)
+			continue
+		}
+
+		payload, err := getPayload(pipeline)
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		var decoded []byte
+		switch decoder {
+		case "local":
+			decoded, err = decodeWithLocal(payload)
+		case "ffmpeg":
+			decoded, err = decodeWithFFmpeg(tmp, key, payload)
+		default:
+			err = fmt.Errorf("unknown decoder %q for %q", decoder, key)
+		}
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		if soft {
+			decoded = softenPCM16(decoded)
+		}
+		audio[key] = wavDataURL(decoded)
+	}
+
+	resp := response{
+		Input: inputInfo{
+			Samples:       originalSamples,
+			PaddedSamples: len(paddedPCM)/2 - originalSamples,
+			Frames:        frames,
+			DurationSec:   float64(originalSamples) / g729.SampleRate,
+		},
+		Audio: audio,
+		Notes: []string{
+			"Fast blind-test mode generated only the selected A/B candidates.",
+			"External encoder is isolated under gitignored third-party/ and used only as a black-box executable.",
+		},
+	}
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func selectedAudioPipeline(key string) (pipeline, decoder string, soft bool, ok bool) {
+	switch key {
+	case "source":
+		return "source", "", false, true
+	case "our_local":
+		return "our", "local", false, true
+	case "our_ffmpeg":
+		return "our", "ffmpeg", false, true
+	case "clean_local":
+		return "clean", "local", false, true
+	case "clean_ffmpeg":
+		return "clean", "ffmpeg", false, true
+	case "snr_local":
+		return "snr", "local", false, true
+	case "snr_ffmpeg":
+		return "snr", "ffmpeg", false, true
+	case "smooth_local":
+		return "smooth", "local", false, true
+	case "smooth_ffmpeg":
+		return "smooth", "ffmpeg", false, true
+	case "soft_our_ffmpeg":
+		return "our", "ffmpeg", true, true
+	case "soft_clean_ffmpeg":
+		return "clean", "ffmpeg", true, true
+	case "external_local":
+		return "external", "local", false, true
+	case "external_ffmpeg":
+		return "external", "ffmpeg", false, true
+	default:
+		return "", "", false, false
+	}
 }
 
 func writeError(w http.ResponseWriter, err error) {
@@ -1047,7 +1178,7 @@ const pageHTML = `<!doctype html>
       try {
         for (let i = 0; i < files.length; i++) {
           $("battleStatus").textContent = "Preparing blind test " + (i + 1) + " / " + files.length + ": " + files[i].name;
-          const data = await compareFile(files[i], $("battleMode").value);
+          const data = await compareFile(files[i], $("battleMode").value, pair);
           battleState.trials.push(makeBattleTrial(files[i].name, data, pair));
         }
         shuffleInPlace(battleState.trials);
@@ -1060,10 +1191,11 @@ const pageHTML = `<!doctype html>
       }
     }
 
-    async function compareFile(file, mode) {
+    async function compareFile(file, mode, pair) {
       const form = new FormData();
       form.append("file", file);
       form.append("mode", mode);
+      if (pair && pair.length === 2) form.append("want", pair.join(","));
       const res = await fetch("/api/compare", { method:"POST", body: form });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(file.name + ": " + (data.error || "comparison failed"));
