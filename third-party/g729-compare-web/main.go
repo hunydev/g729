@@ -235,6 +235,11 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	fcbPayload, err := encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanFCBRerank)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	externalPayload, err := encodeWithBCG729(paddedPCM)
 	if err != nil {
 		writeError(w, err)
@@ -269,6 +274,11 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	localDegritPCM, err := decodeWithLocal(degritPayload)
 	if err != nil {
 		writeError(w, fmt.Errorf("local decode of degrit payload: %w", err))
+		return
+	}
+	localFCBPCM, err := decodeWithLocal(fcbPayload)
+	if err != nil {
+		writeError(w, fmt.Errorf("local decode of FCB-rerank payload: %w", err))
 		return
 	}
 	localExternalPCM, err := decodeWithLocal(externalPayload)
@@ -306,6 +316,11 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fmt.Errorf("ffmpeg decode of degrit payload: %w", err))
 		return
 	}
+	ffmpegFCBPCM, err := decodeWithFFmpeg(tmp, "fcb", fcbPayload)
+	if err != nil {
+		writeError(w, fmt.Errorf("ffmpeg decode of FCB-rerank payload: %w", err))
+		return
+	}
 	ffmpegExternalPCM, err := decodeWithFFmpeg(tmp, "external", externalPayload)
 	if err != nil {
 		writeError(w, fmt.Errorf("ffmpeg decode of external payload: %w", err))
@@ -333,6 +348,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	voicedFFmpegMetric := qualityMetric("our voiced-clean encode -> ffmpeg decode", paddedPCM, ffmpegVoicedPCM)
 	degritLocalMetric := qualityMetric("our degrit-clean encode -> local decode", paddedPCM, localDegritPCM)
 	degritFFmpegMetric := qualityMetric("our degrit-clean encode -> ffmpeg decode", paddedPCM, ffmpegDegritPCM)
+	fcbLocalMetric := qualityMetric("our FCB-clean encode -> local decode", paddedPCM, localFCBPCM)
+	fcbFFmpegMetric := qualityMetric("our FCB-clean encode -> ffmpeg decode", paddedPCM, ffmpegFCBPCM)
 	softOurFFmpegMetric := qualityMetric("our encode -> softened FFmpeg decode", paddedPCM, softOurFFmpegPCM)
 	softCleanFFmpegMetric := qualityMetric("our clean encode -> softened FFmpeg decode", paddedPCM, softCleanFFmpegPCM)
 	externalLocalMetric := qualityMetric("bcg729 encode -> local decode", paddedPCM, localExternalPCM)
@@ -349,6 +366,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	ffmpegVoicedPayloadMetric := qualityMetric("ffmpeg decoder: voiced-clean payload vs bcg729 payload", ffmpegVoicedPCM, ffmpegExternalPCM)
 	localDegritPayloadMetric := qualityMetric("local decoder: degrit-clean payload vs bcg729 payload", localDegritPCM, localExternalPCM)
 	ffmpegDegritPayloadMetric := qualityMetric("ffmpeg decoder: degrit-clean payload vs bcg729 payload", ffmpegDegritPCM, ffmpegExternalPCM)
+	localFCBPayloadMetric := qualityMetric("local decoder: FCB-clean payload vs bcg729 payload", localFCBPCM, localExternalPCM)
+	ffmpegFCBPayloadMetric := qualityMetric("ffmpeg decoder: FCB-clean payload vs bcg729 payload", ffmpegFCBPCM, ffmpegExternalPCM)
 
 	resp := response{
 		Input: inputInfo{
@@ -380,6 +399,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			"voiced_ffmpeg":     wavDataURL(ffmpegVoicedPCM),
 			"degrit_local":      wavDataURL(localDegritPCM),
 			"degrit_ffmpeg":     wavDataURL(ffmpegDegritPCM),
+			"fcb_local":         wavDataURL(localFCBPCM),
+			"fcb_ffmpeg":        wavDataURL(ffmpegFCBPCM),
 			"soft_our_ffmpeg":   wavDataURL(softOurFFmpegPCM),
 			"soft_clean_ffmpeg": wavDataURL(softCleanFFmpegPCM),
 			"external_local":    wavDataURL(localExternalPCM),
@@ -392,6 +413,7 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			"smooth_g729":   payloadDataURL(smoothPayload),
 			"voiced_g729":   payloadDataURL(voicedPayload),
 			"degrit_g729":   payloadDataURL(degritPayload),
+			"fcb_g729":      payloadDataURL(fcbPayload),
 			"external_g729": payloadDataURL(externalPayload),
 		},
 		Clips: map[string][]clipEvent{
@@ -408,6 +430,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			"voiced_ffmpeg":     clipEvents(ffmpegVoicedPCM, maxClipMarkers),
 			"degrit_local":      clipEvents(localDegritPCM, maxClipMarkers),
 			"degrit_ffmpeg":     clipEvents(ffmpegDegritPCM, maxClipMarkers),
+			"fcb_local":         clipEvents(localFCBPCM, maxClipMarkers),
+			"fcb_ffmpeg":        clipEvents(ffmpegFCBPCM, maxClipMarkers),
 			"soft_our_ffmpeg":   clipEvents(softOurFFmpegPCM, maxClipMarkers),
 			"soft_clean_ffmpeg": clipEvents(softCleanFFmpegPCM, maxClipMarkers),
 			"external_local":    clipEvents(localExternalPCM, maxClipMarkers),
@@ -426,6 +450,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			voicedFFmpegMetric,
 			degritLocalMetric,
 			degritFFmpegMetric,
+			fcbLocalMetric,
+			fcbFFmpegMetric,
 			softOurFFmpegMetric,
 			softCleanFFmpegMetric,
 			externalLocalMetric,
@@ -442,6 +468,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			ffmpegVoicedPayloadMetric,
 			localDegritPayloadMetric,
 			ffmpegDegritPayloadMetric,
+			localFCBPayloadMetric,
+			ffmpegFCBPayloadMetric,
 		},
 		Noise: []noiseRow{
 			residualNoiseMetric("our encode -> local residual vs source", "our_local", paddedPCM, localOurPCM, ourLocalMetric.LagSamples),
@@ -456,6 +484,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			residualNoiseMetric("our voiced-clean encode -> ffmpeg residual vs source", "voiced_ffmpeg", paddedPCM, ffmpegVoicedPCM, voicedFFmpegMetric.LagSamples),
 			residualNoiseMetric("our degrit-clean encode -> local residual vs source", "degrit_local", paddedPCM, localDegritPCM, degritLocalMetric.LagSamples),
 			residualNoiseMetric("our degrit-clean encode -> ffmpeg residual vs source", "degrit_ffmpeg", paddedPCM, ffmpegDegritPCM, degritFFmpegMetric.LagSamples),
+			residualNoiseMetric("our FCB-clean encode -> local residual vs source", "fcb_local", paddedPCM, localFCBPCM, fcbLocalMetric.LagSamples),
+			residualNoiseMetric("our FCB-clean encode -> ffmpeg residual vs source", "fcb_ffmpeg", paddedPCM, ffmpegFCBPCM, fcbFFmpegMetric.LagSamples),
 			residualNoiseMetric("our encode -> softened FFmpeg residual vs source", "soft_our_ffmpeg", paddedPCM, softOurFFmpegPCM, softOurFFmpegMetric.LagSamples),
 			residualNoiseMetric("our clean encode -> softened FFmpeg residual vs source", "soft_clean_ffmpeg", paddedPCM, softCleanFFmpegPCM, softCleanFFmpegMetric.LagSamples),
 			residualNoiseMetric("bcg729 encode -> local residual vs source", "external_local", paddedPCM, localExternalPCM, externalLocalMetric.LagSamples),
@@ -475,6 +505,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			residualNoiseMetric("voiced-clean encoder delta under ffmpeg decode", "voiced_ffmpeg", ffmpegExternalPCM, ffmpegVoicedPCM, ffmpegVoicedPayloadMetric.LagSamples),
 			residualNoiseMetric("degrit-clean encoder delta under local decode", "degrit_local", localExternalPCM, localDegritPCM, localDegritPayloadMetric.LagSamples),
 			residualNoiseMetric("degrit-clean encoder delta under ffmpeg decode", "degrit_ffmpeg", ffmpegExternalPCM, ffmpegDegritPCM, ffmpegDegritPayloadMetric.LagSamples),
+			residualNoiseMetric("FCB-clean encoder delta under local decode", "fcb_local", localExternalPCM, localFCBPCM, localFCBPayloadMetric.LagSamples),
+			residualNoiseMetric("FCB-clean encoder delta under ffmpeg decode", "fcb_ffmpeg", ffmpegExternalPCM, ffmpegFCBPCM, ffmpegFCBPayloadMetric.LagSamples),
 			residualNoiseMetric("softened current delta under ffmpeg decode", "soft_our_ffmpeg", ffmpegExternalPCM, softOurFFmpegPCM, ffmpegPayloadMetric.LagSamples),
 			residualNoiseMetric("softened clean delta under ffmpeg decode", "soft_clean_ffmpeg", ffmpegExternalPCM, softCleanFFmpegPCM, ffmpegCleanPayloadMetric.LagSamples),
 		},
@@ -485,6 +517,7 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			"Smooth-clean candidate uses a lower clean repair threshold and stronger high-residual preference; it is a bitstream-level diagnostic, not PCM smoothing.",
 			"Voiced-clean candidate keeps clean pitch but lets gain repair prefer stronger adaptive gain within bounded MSE/high-residual tolerance.",
 			"Degrit-clean candidate keeps clean pitch but lets gain repair prefer lower fixed-codebook gain correction when adaptive gain is not reduced.",
+			"FCB-clean candidate keeps clean pitch and reranks a small fixed-codebook candidate set with decoder-in-loop residual scoring.",
 			"Softened candidates are playback-only diagnostics that apply a mild zero-phase PCM smoother after FFmpeg decode; they do not represent a G.729 payload.",
 			"FFmpeg is used only as a black-box G.729 decoder.",
 			"Scores are delay-compensated listening diagnostics, not ITU conformance certification.",
@@ -532,6 +565,8 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanVoiced)
 		case "degrit":
 			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanDegrit)
+		case "fcb":
+			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanFCBRerank)
 		case "external":
 			payload, err = encodeWithBCG729(paddedPCM)
 		default:
@@ -620,6 +655,10 @@ func selectedAudioPipeline(key string) (pipeline, decoder string, soft bool, ok 
 		return "degrit", "local", false, true
 	case "degrit_ffmpeg":
 		return "degrit", "ffmpeg", false, true
+	case "fcb_local":
+		return "fcb", "local", false, true
+	case "fcb_ffmpeg":
+		return "fcb", "ffmpeg", false, true
 	case "soft_our_ffmpeg":
 		return "our", "ffmpeg", true, true
 	case "soft_clean_ffmpeg":
@@ -1158,6 +1197,8 @@ const pageHTML = `<!doctype html>
           <label>Audio files<input id="battleFiles" type="file" multiple accept="audio/*,.wav,.mp3,.pcm,.raw,.sln,.s16le"></label>
           <label>Input mode<select id="battleMode"><option value="audio">WAV/MP3/browser audio</option><option value="raw">Raw 8 kHz mono s16le PCM</option></select></label>
           <label>Battle pair<select id="battlePair">
+            <option value="clean_ffmpeg|fcb_ffmpeg">Clean candidate vs FCB-clean candidate</option>
+            <option value="fcb_ffmpeg|external_ffmpeg">FCB-clean candidate vs bcg729</option>
             <option value="our_ffmpeg|clean_ffmpeg">Current quality vs clean candidate</option>
             <option value="clean_ffmpeg|external_ffmpeg">Clean candidate vs bcg729</option>
             <option value="clean_ffmpeg|snr_ffmpeg">Clean candidate vs SNR-clean candidate</option>
@@ -1194,6 +1235,8 @@ const pageHTML = `<!doctype html>
       voiced_ffmpeg: "our voiced-clean candidate -> FFmpeg decode",
       degrit_local: "our degrit-clean candidate -> our decode",
       degrit_ffmpeg: "our degrit-clean candidate -> FFmpeg decode",
+      fcb_local: "our FCB-clean candidate -> our decode",
+      fcb_ffmpeg: "our FCB-clean candidate -> FFmpeg decode",
       soft_our_ffmpeg: "our encode -> softened FFmpeg decode",
       soft_clean_ffmpeg: "our clean candidate -> softened FFmpeg decode",
       external_local: "bcg729 encode -> our decode",
@@ -1206,6 +1249,7 @@ const pageHTML = `<!doctype html>
       smooth_ffmpeg: { label: "Smooth-clean candidate -> FFmpeg decode" },
       voiced_ffmpeg: { label: "Voiced-clean candidate -> FFmpeg decode" },
       degrit_ffmpeg: { label: "Degrit-clean candidate -> FFmpeg decode" },
+      fcb_ffmpeg: { label: "FCB-clean candidate -> FFmpeg decode" },
       soft_our_ffmpeg: { label: "Current quality -> softened FFmpeg decode" },
       soft_clean_ffmpeg: { label: "Clean candidate -> softened FFmpeg decode" },
       external_ffmpeg: { label: "bcg729 -> FFmpeg decode" },
@@ -1215,6 +1259,7 @@ const pageHTML = `<!doctype html>
       smooth_local: { label: "Smooth-clean candidate -> local decode" },
       voiced_local: { label: "Voiced-clean candidate -> local decode" },
       degrit_local: { label: "Degrit-clean candidate -> local decode" },
+      fcb_local: { label: "FCB-clean candidate -> local decode" },
       external_local: { label: "bcg729 -> local decode" }
     };
     const battleState = { trials: [], index: 0, pair: [] };

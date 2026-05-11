@@ -170,6 +170,9 @@ objective-score tradeoff remains bounded.
 `EncoderProfileQualityCleanDegrit` keeps the clean pitch policy while allowing
 gain repair to prefer lower fixed-codebook gain correction when adaptive gain
 is not reduced.
+`EncoderProfileQualityCleanFCBRerank` keeps the clean pitch policy while
+reranking a small fixed-codebook candidate set with decoder-in-loop residual
+scoring for grit/noise listening diagnostics.
 
 For clean-room diagnostics and algorithm work, use
 `NewEncoderWithProfile(EncoderProfileCore)` or

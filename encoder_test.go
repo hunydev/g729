@@ -170,6 +170,18 @@ func TestEncoderProfiles(t *testing.T) {
 			cleanDegritEnc.qualityGainMSERepairThreshold())
 	}
 
+	cleanFCBEnc := NewEncoderWithProfile(EncoderProfileQualityCleanFCBRerank)
+	if cleanFCBEnc.profile != EncoderProfileQualityCleanFCBRerank ||
+		cleanFCBEnc.qualityNormalizedAdaptivePitchSearchEnabled() ||
+		!cleanFCBEnc.qualityFCBNoiseRerankEnabled() ||
+		cleanFCBEnc.qualityGainMSERepairThreshold() != qualityCleanGainMSERepairThreshold {
+		t.Fatalf("NewEncoderWithProfile(QualityCleanFCBRerank) profile=%v normPitch=%t fcbRerank=%t mseThreshold=%d, want FCB-rerank clean tuning",
+			cleanFCBEnc.profile,
+			cleanFCBEnc.qualityNormalizedAdaptivePitchSearchEnabled(),
+			cleanFCBEnc.qualityFCBNoiseRerankEnabled(),
+			cleanFCBEnc.qualityGainMSERepairThreshold())
+	}
+
 	invalidEnc := NewEncoderWithProfile(EncoderProfile(99))
 	if invalidEnc.profile != EncoderProfileQuality || !invalidEnc.qualityHeuristicsEnabled() {
 		t.Fatalf("invalid profile normalized to %v quality=%t, want EncoderProfileQuality enabled",

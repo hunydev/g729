@@ -247,6 +247,11 @@ const (
 	// fixed-codebook gain correction when adaptive gain is not reduced and the
 	// objective-score tradeoff remains bounded.
 	EncoderProfileQualityCleanDegrit
+
+	// EncoderProfileQualityCleanFCBRerank is a listening-diagnostic variant
+	// that keeps the clean pitch policy and reranks a small fixed-codebook
+	// candidate set with the decoder-in-loop residual score before gain repair.
+	EncoderProfileQualityCleanFCBRerank
 )
 
 type encoderQualityTuning uint16
@@ -295,7 +300,7 @@ func NewEncoderWithProfile(profile EncoderProfile) *Encoder {
 
 func normalizeEncoderProfile(profile EncoderProfile) EncoderProfile {
 	switch profile {
-	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit:
+	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanFCBRerank:
 		return profile
 	default:
 		return EncoderProfileQuality
@@ -308,7 +313,7 @@ func encoderQualityTuningForProfile(profile EncoderProfile) encoderQualityTuning
 		return encoderQualityTuningAll
 	case EncoderProfileQualityAnnexALSP:
 		return encoderQualityTuningAll &^ encoderTuningExpandedLSPSearch
-	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit:
+	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanFCBRerank:
 		return encoderQualityTuningAll &^ encoderTuningNormalizedAdaptivePitchSearch
 	default:
 		return 0
@@ -388,7 +393,7 @@ func (e *Encoder) qualityGainMSERepairEnabled() bool {
 
 func (e *Encoder) qualityGainMSERepairThreshold() int {
 	switch e.profile {
-	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit:
+	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanFCBRerank:
 		return qualityCleanGainMSERepairThreshold
 	case EncoderProfileQualityCleanSmooth:
 		return qualityCleanSmoothGainMSERepairThreshold
@@ -416,6 +421,10 @@ func (e *Encoder) qualityGainPitchPreferenceEnabled() bool {
 
 func (e *Encoder) qualityGainDegritPreferenceEnabled() bool {
 	return e.profile == EncoderProfileQualityCleanDegrit
+}
+
+func (e *Encoder) qualityFCBNoiseRerankEnabled() bool {
+	return e.profile == EncoderProfileQualityCleanFCBRerank
 }
 
 func (e *Encoder) qualityGainNoiseRepairEnabled() bool {
@@ -546,6 +555,11 @@ const (
 	qualityCleanDegritMSEToleranceDen                             int64 = 100
 	qualityCleanDegritHighMSEToleranceNum                         int64 = 108
 	qualityCleanDegritHighMSEToleranceDen                         int64 = 100
+	qualityCleanFCBRerankTopK                                     int   = 8
+	qualityCleanFCBRerankHighMSEBetterMSEToleranceNum             int64 = 112
+	qualityCleanFCBRerankHighMSEBetterMSEToleranceDen             int64 = 100
+	qualityCleanFCBRerankMSEBetterHighMSEToleranceNum             int64 = 105
+	qualityCleanFCBRerankMSEBetterHighMSEToleranceDen             int64 = 100
 )
 
 var (
@@ -1464,6 +1478,17 @@ func (e *Encoder) fcbStep(
 		fcbsearch.SearchDepthFirst(&dAbs, &phi, &positions, &sumOut)
 		e.qualityFCBThresholdEntriesLast = 0
 	}
+	if e.qualityFCBNoiseRerankEnabled() && aHat != nil && refSpeech != nil {
+		tFrac := e.frac1
+		if sub == 1 {
+			tFrac = e.frac2
+		}
+		positions = e.qualityRerankFCBPositions(
+			aHat, refSpeech, x, y, h,
+			&signs, &dAbs, &phi,
+			intLag, tFrac, positions,
+		)
+	}
 
 	// 6. CB-4: c[40] with harmonic enhancement.
 	var c [N]int16
@@ -1600,6 +1625,116 @@ func (e *Encoder) fcbStep(
 	if sub == 1 && e.qualityFCBClipCooldown > 0 {
 		e.qualityFCBClipCooldown--
 	}
+}
+
+func (e *Encoder) qualityRerankFCBPositions(
+	aHat *[lpc.LPCOrder + 1]int16,
+	refSpeech *[closedloop.SubframeLen]int16,
+	x, y, h *[closedloop.SubframeLen]int16,
+	signs *[closedloop.SubframeLen]int16,
+	dAbs *[closedloop.SubframeLen]int32,
+	phi *[closedloop.SubframeLen][closedloop.SubframeLen]int32,
+	intLag int16,
+	tFrac int8,
+	current [4]int8,
+) [4]int8 {
+	ref := *refSpeech
+	pcm.ScaleUpSat(ref[:], ref[:])
+
+	initialState := encoderQualityDecodeState{
+		gainDec: e.qualityGainDec,
+		synth:   e.qualitySynth,
+		pf:      e.qualityPostfilter,
+		pastExc: e.qualityPastExc,
+		prevGp:  e.qualityPrevGpQ14,
+		hpX:     e.qualityHPX,
+		hpY:     e.qualityHPY,
+	}
+
+	best := current
+	bestScore := e.scoreFCBRerankPosition(initialState, aHat, &ref, x, y, h, signs, &best, intLag, tFrac)
+
+	var top [fcbsearch.SearchTopKMax][4]int8
+	topN := fcbsearch.SearchTopK(dAbs, phi, &top, qualityCleanFCBRerankTopK)
+	for i := 0; i < topN; i++ {
+		cand := top[i]
+		score := e.scoreFCBRerankPosition(initialState, aHat, &ref, x, y, h, signs, &cand, intLag, tFrac)
+		if encoderQualityFCBRerankScoreLess(score, bestScore) {
+			best = cand
+			bestScore = score
+		}
+	}
+	return best
+}
+
+func (e *Encoder) scoreFCBRerankPosition(
+	initialState encoderQualityDecodeState,
+	aHat *[lpc.LPCOrder + 1]int16,
+	ref *[closedloop.SubframeLen]int16,
+	x, y, h *[closedloop.SubframeLen]int16,
+	signs *[closedloop.SubframeLen]int16,
+	positions *[4]int8,
+	intLag int16,
+	tFrac int8,
+) encoderQualityOutputScore {
+	var c [closedloop.SubframeLen]int16
+	fcbsearch.BuildCode(positions, signs, intLag, e.prevGpQ14, &c)
+
+	var z [closedloop.SubframeLen]int16
+	fcbsearch.FilterCode(&c, h, &z)
+
+	useNativeGainSearch := e.qualityNativeGainSearchEnabled()
+	useWideGainPredictor := !e.qualityHeuristicsEnabled() || e.qualityWideGainPredictorEnabled() || useNativeGainSearch
+	gpcPredQ12 := gainquant.PredictedGcQ12(&e.pastQuaEn, &c)
+	if useWideGainPredictor {
+		gpcPredQ12 = gainquant.PredictedGcQ12Wide(&e.pastQuaEn, &c)
+	}
+
+	xSearch := *x
+	ySearch := *y
+	gpcSearchQ12 := gpcPredQ12
+	if e.qualityGainSearchBiasEnabled() {
+		scaleGainSearchVector(&xSearch, qualityGainSearchTargetScaleNum, qualityGainSearchTargetScaleDen)
+		scaleGainSearchVector(&ySearch, qualityGainSearchAdaptiveContributionScaleNum, qualityGainSearchAdaptiveContributionScaleDen)
+		gpcSearchQ12 = scaleInt32RatioForGainSearch(
+			gpcPredQ12,
+			qualityGainSearchFixedContributionScaleNum,
+			qualityGainSearchFixedContributionScaleDen,
+		)
+	}
+
+	var gaPhys, gbPhys uint8
+	if useNativeGainSearch {
+		gaPhys, gbPhys, _, _ = searchConjugateNativeGainWide(&e.pastQuaEn, &c, x, y, &z)
+	} else if e.coreGainPreselectPrecisionEnabled() {
+		gaPhys, gbPhys, _, _ = gainquant.SearchConjugatePreselectTargetBits(&xSearch, &ySearch, &z, gpcSearchQ12, encoderCoreGainPreselectTargetBits)
+	} else {
+		gaPhys, gbPhys, _, _ = gainquant.SearchConjugate(&xSearch, &ySearch, &z, gpcSearchQ12)
+	}
+
+	gaBits, gbBits := gainquant.PackGains(gaPhys, gbPhys)
+	cPacked := fcbsearch.PackC(positions)
+	sPacked := fcbsearch.PackS(positions, signs)
+	_, out := simulateEncoderQualityDecodeOutput(initialState, aHat, int(intLag), int(tFrac), cPacked, sPacked, gaBits, gbBits)
+	return scoreEncoderQualityOutput(out[:], ref[:], qualityGainClipRepairThreshold)
+}
+
+func encoderQualityFCBRerankScoreLess(candidate, best encoderQualityOutputScore) bool {
+	if candidate.hardClip != best.hardClip {
+		return candidate.hardClip < best.hardClip
+	}
+	if candidate.nearClip != best.nearClip {
+		return candidate.nearClip < best.nearClip
+	}
+	if candidate.highMSE < best.highMSE &&
+		candidate.mse*qualityCleanFCBRerankHighMSEBetterMSEToleranceDen <= best.mse*qualityCleanFCBRerankHighMSEBetterMSEToleranceNum {
+		return true
+	}
+	if candidate.mse < best.mse &&
+		candidate.highMSE*qualityCleanFCBRerankMSEBetterHighMSEToleranceDen <= best.highMSE*qualityCleanFCBRerankMSEBetterHighMSEToleranceNum {
+		return true
+	}
+	return false
 }
 
 func searchConjugateNativeGainWide(past *[4]int16, c, x, y, z *[40]int16) (ga, gb uint8, gpQ14, gammaCQ13 int16) {

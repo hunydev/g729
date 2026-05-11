@@ -142,6 +142,7 @@ func TestExternalSampleProfileCompareDiagnostic(t *testing.T) {
 		{name: "clean-smooth", profile: EncoderProfileQualityCleanSmooth},
 		{name: "clean-voiced", profile: EncoderProfileQualityCleanVoiced},
 		{name: "clean-degrit", profile: EncoderProfileQualityCleanDegrit},
+		{name: "clean-fcb", profile: EncoderProfileQualityCleanFCBRerank},
 	}
 
 	tmp := t.TempDir()
@@ -923,6 +924,7 @@ func TestExternalSampleProfileBitstreamSummaryDiagnostic(t *testing.T) {
 		{name: "clean-smooth", profile: EncoderProfileQualityCleanSmooth},
 		{name: "clean-voiced", profile: EncoderProfileQualityCleanVoiced},
 		{name: "clean-degrit", profile: EncoderProfileQualityCleanDegrit},
+		{name: "clean-fcb", profile: EncoderProfileQualityCleanFCBRerank},
 		{name: "core", profile: EncoderProfileCore},
 	}
 
@@ -6075,6 +6077,7 @@ func TestExternalSampleProfileStateDivergenceDiagnostic(t *testing.T) {
 	}{
 		{name: "core", profile: EncoderProfileCore},
 		{name: "quality", profile: EncoderProfileQuality},
+		{name: "clean", profile: EncoderProfileQualityClean},
 	}
 
 	t.Logf("external sample profile state-divergence diagnostic: %s", path)
@@ -7046,6 +7049,7 @@ func TestExternalSampleProfilePitchRankDiagnostic(t *testing.T) {
 	}{
 		{name: "core", profile: EncoderProfileCore},
 		{name: "quality", profile: EncoderProfileQuality},
+		{name: "clean", profile: EncoderProfileQualityClean},
 	}
 
 	selected := make(map[int]bool)
