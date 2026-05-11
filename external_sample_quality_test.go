@@ -144,6 +144,7 @@ func TestExternalSampleProfileCompareDiagnostic(t *testing.T) {
 		{name: "clean-degrit", profile: EncoderProfileQualityCleanDegrit},
 		{name: "clean-harmonic", profile: EncoderProfileQualityCleanHarmonic},
 		{name: "clean-harmonic-strong", profile: EncoderProfileQualityCleanHarmonicStrong},
+		{name: "clean-harmonic-deep", profile: EncoderProfileQualityCleanHarmonicDeep},
 		{name: "clean-fcb", profile: EncoderProfileQualityCleanFCBRerank},
 	}
 
@@ -928,6 +929,7 @@ func TestExternalSampleProfileBitstreamSummaryDiagnostic(t *testing.T) {
 		{name: "clean-degrit", profile: EncoderProfileQualityCleanDegrit},
 		{name: "clean-harmonic", profile: EncoderProfileQualityCleanHarmonic},
 		{name: "clean-harmonic-strong", profile: EncoderProfileQualityCleanHarmonicStrong},
+		{name: "clean-harmonic-deep", profile: EncoderProfileQualityCleanHarmonicDeep},
 		{name: "clean-fcb", profile: EncoderProfileQualityCleanFCBRerank},
 		{name: "core", profile: EncoderProfileCore},
 	}

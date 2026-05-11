@@ -260,6 +260,11 @@ const (
 	// residual grit decreases before speech becomes too muffled.
 	EncoderProfileQualityCleanHarmonicStrong
 
+	// EncoderProfileQualityCleanHarmonicDeep pushes the harmonic/adaptive gain
+	// tradeoff beyond EncoderProfileQualityCleanHarmonicStrong. It is intended
+	// to locate the grit-vs-muffling boundary in listening tests.
+	EncoderProfileQualityCleanHarmonicDeep
+
 	// EncoderProfileQualityCleanFCBRerank is a listening-diagnostic variant
 	// that keeps the clean pitch policy and reranks a small fixed-codebook
 	// candidate set with the decoder-in-loop residual score before gain repair.
@@ -312,7 +317,7 @@ func NewEncoderWithProfile(profile EncoderProfile) *Encoder {
 
 func normalizeEncoderProfile(profile EncoderProfile) EncoderProfile {
 	switch profile {
-	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanFCBRerank:
+	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep, EncoderProfileQualityCleanFCBRerank:
 		return profile
 	default:
 		return EncoderProfileQuality
@@ -325,7 +330,7 @@ func encoderQualityTuningForProfile(profile EncoderProfile) encoderQualityTuning
 		return encoderQualityTuningAll
 	case EncoderProfileQualityAnnexALSP:
 		return encoderQualityTuningAll &^ encoderTuningExpandedLSPSearch
-	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanFCBRerank:
+	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep, EncoderProfileQualityCleanFCBRerank:
 		return encoderQualityTuningAll &^ encoderTuningNormalizedAdaptivePitchSearch
 	default:
 		return 0
@@ -405,7 +410,7 @@ func (e *Encoder) qualityGainMSERepairEnabled() bool {
 
 func (e *Encoder) qualityGainMSERepairThreshold() int {
 	switch e.profile {
-	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanFCBRerank:
+	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep, EncoderProfileQualityCleanFCBRerank:
 		return qualityCleanGainMSERepairThreshold
 	case EncoderProfileQualityCleanSmooth:
 		return qualityCleanSmoothGainMSERepairThreshold
@@ -437,10 +442,20 @@ func (e *Encoder) qualityGainDegritPreferenceEnabled() bool {
 
 func (e *Encoder) qualityGainHarmonicPreferenceEnabled() bool {
 	return e.profile == EncoderProfileQualityCleanHarmonic ||
-		e.profile == EncoderProfileQualityCleanHarmonicStrong
+		e.profile == EncoderProfileQualityCleanHarmonicStrong ||
+		e.profile == EncoderProfileQualityCleanHarmonicDeep
 }
 
 func (e *Encoder) qualityGainHarmonicPreferenceParams() (minGp, minStep, gammaDrop int32, mseNum, mseDen, highNum, highDen int64) {
+	if e.profile == EncoderProfileQualityCleanHarmonicDeep {
+		return qualityCleanHarmonicDeepGainPitchMinQ14,
+			qualityCleanHarmonicDeepGainPitchMinStepQ14,
+			qualityCleanHarmonicDeepGammaDropMinQ13,
+			qualityCleanHarmonicDeepMSEToleranceNum,
+			qualityCleanHarmonicDeepMSEToleranceDen,
+			qualityCleanHarmonicDeepHighMSEToleranceNum,
+			qualityCleanHarmonicDeepHighMSEToleranceDen
+	}
 	if e.profile == EncoderProfileQualityCleanHarmonicStrong {
 		return qualityCleanHarmonicStrongGainPitchMinQ14,
 			qualityCleanHarmonicStrongGainPitchMinStepQ14,
@@ -605,6 +620,13 @@ const (
 	qualityCleanHarmonicStrongMSEToleranceDen                     int64 = 100
 	qualityCleanHarmonicStrongHighMSEToleranceNum                 int64 = 115
 	qualityCleanHarmonicStrongHighMSEToleranceDen                 int64 = 100
+	qualityCleanHarmonicDeepGainPitchMinQ14                       int32 = 8192
+	qualityCleanHarmonicDeepGainPitchMinStepQ14                   int32 = 0
+	qualityCleanHarmonicDeepGammaDropMinQ13                       int32 = 768
+	qualityCleanHarmonicDeepMSEToleranceNum                       int64 = 125
+	qualityCleanHarmonicDeepMSEToleranceDen                       int64 = 100
+	qualityCleanHarmonicDeepHighMSEToleranceNum                   int64 = 122
+	qualityCleanHarmonicDeepHighMSEToleranceDen                   int64 = 100
 	qualityCleanFCBRerankTopK                                     int   = 8
 	qualityCleanFCBRerankHighMSEBetterMSEToleranceNum             int64 = 112
 	qualityCleanFCBRerankHighMSEBetterMSEToleranceDen             int64 = 100

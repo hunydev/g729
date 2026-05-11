@@ -245,6 +245,11 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	harmonicDeepPayload, err := encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanHarmonicDeep)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	fcbPayload, err := encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanFCBRerank)
 	if err != nil {
 		writeError(w, err)
@@ -294,6 +299,11 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	localHarmonicStrongPCM, err := decodeWithLocal(harmonicStrongPayload)
 	if err != nil {
 		writeError(w, fmt.Errorf("local decode of harmonic-strong payload: %w", err))
+		return
+	}
+	localHarmonicDeepPCM, err := decodeWithLocal(harmonicDeepPayload)
+	if err != nil {
+		writeError(w, fmt.Errorf("local decode of harmonic-deep payload: %w", err))
 		return
 	}
 	localFCBPCM, err := decodeWithLocal(fcbPayload)
@@ -346,6 +356,11 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fmt.Errorf("ffmpeg decode of harmonic-strong payload: %w", err))
 		return
 	}
+	ffmpegHarmonicDeepPCM, err := decodeWithFFmpeg(tmp, "harmonic_deep", harmonicDeepPayload)
+	if err != nil {
+		writeError(w, fmt.Errorf("ffmpeg decode of harmonic-deep payload: %w", err))
+		return
+	}
 	ffmpegFCBPCM, err := decodeWithFFmpeg(tmp, "fcb", fcbPayload)
 	if err != nil {
 		writeError(w, fmt.Errorf("ffmpeg decode of FCB-rerank payload: %w", err))
@@ -382,6 +397,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	harmonicFFmpegMetric := qualityMetric("our harmonic-clean encode -> ffmpeg decode", paddedPCM, ffmpegHarmonicPCM)
 	harmonicStrongLocalMetric := qualityMetric("our harmonic-strong encode -> local decode", paddedPCM, localHarmonicStrongPCM)
 	harmonicStrongFFmpegMetric := qualityMetric("our harmonic-strong encode -> ffmpeg decode", paddedPCM, ffmpegHarmonicStrongPCM)
+	harmonicDeepLocalMetric := qualityMetric("our harmonic-deep encode -> local decode", paddedPCM, localHarmonicDeepPCM)
+	harmonicDeepFFmpegMetric := qualityMetric("our harmonic-deep encode -> ffmpeg decode", paddedPCM, ffmpegHarmonicDeepPCM)
 	fcbLocalMetric := qualityMetric("our FCB-clean encode -> local decode", paddedPCM, localFCBPCM)
 	fcbFFmpegMetric := qualityMetric("our FCB-clean encode -> ffmpeg decode", paddedPCM, ffmpegFCBPCM)
 	softOurFFmpegMetric := qualityMetric("our encode -> softened FFmpeg decode", paddedPCM, softOurFFmpegPCM)
@@ -404,6 +421,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	ffmpegHarmonicPayloadMetric := qualityMetric("ffmpeg decoder: harmonic-clean payload vs bcg729 payload", ffmpegHarmonicPCM, ffmpegExternalPCM)
 	localHarmonicStrongPayloadMetric := qualityMetric("local decoder: harmonic-strong payload vs bcg729 payload", localHarmonicStrongPCM, localExternalPCM)
 	ffmpegHarmonicStrongPayloadMetric := qualityMetric("ffmpeg decoder: harmonic-strong payload vs bcg729 payload", ffmpegHarmonicStrongPCM, ffmpegExternalPCM)
+	localHarmonicDeepPayloadMetric := qualityMetric("local decoder: harmonic-deep payload vs bcg729 payload", localHarmonicDeepPCM, localExternalPCM)
+	ffmpegHarmonicDeepPayloadMetric := qualityMetric("ffmpeg decoder: harmonic-deep payload vs bcg729 payload", ffmpegHarmonicDeepPCM, ffmpegExternalPCM)
 	localFCBPayloadMetric := qualityMetric("local decoder: FCB-clean payload vs bcg729 payload", localFCBPCM, localExternalPCM)
 	ffmpegFCBPayloadMetric := qualityMetric("ffmpeg decoder: FCB-clean payload vs bcg729 payload", ffmpegFCBPCM, ffmpegExternalPCM)
 
@@ -441,6 +460,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			"harmonic_ffmpeg":        wavDataURL(ffmpegHarmonicPCM),
 			"harmonic_strong_local":  wavDataURL(localHarmonicStrongPCM),
 			"harmonic_strong_ffmpeg": wavDataURL(ffmpegHarmonicStrongPCM),
+			"harmonic_deep_local":    wavDataURL(localHarmonicDeepPCM),
+			"harmonic_deep_ffmpeg":   wavDataURL(ffmpegHarmonicDeepPCM),
 			"fcb_local":              wavDataURL(localFCBPCM),
 			"fcb_ffmpeg":             wavDataURL(ffmpegFCBPCM),
 			"soft_our_ffmpeg":        wavDataURL(softOurFFmpegPCM),
@@ -457,6 +478,7 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			"degrit_g729":          payloadDataURL(degritPayload),
 			"harmonic_g729":        payloadDataURL(harmonicPayload),
 			"harmonic_strong_g729": payloadDataURL(harmonicStrongPayload),
+			"harmonic_deep_g729":   payloadDataURL(harmonicDeepPayload),
 			"fcb_g729":             payloadDataURL(fcbPayload),
 			"external_g729":        payloadDataURL(externalPayload),
 		},
@@ -478,6 +500,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			"harmonic_ffmpeg":        clipEvents(ffmpegHarmonicPCM, maxClipMarkers),
 			"harmonic_strong_local":  clipEvents(localHarmonicStrongPCM, maxClipMarkers),
 			"harmonic_strong_ffmpeg": clipEvents(ffmpegHarmonicStrongPCM, maxClipMarkers),
+			"harmonic_deep_local":    clipEvents(localHarmonicDeepPCM, maxClipMarkers),
+			"harmonic_deep_ffmpeg":   clipEvents(ffmpegHarmonicDeepPCM, maxClipMarkers),
 			"fcb_local":              clipEvents(localFCBPCM, maxClipMarkers),
 			"fcb_ffmpeg":             clipEvents(ffmpegFCBPCM, maxClipMarkers),
 			"soft_our_ffmpeg":        clipEvents(softOurFFmpegPCM, maxClipMarkers),
@@ -502,6 +526,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			harmonicFFmpegMetric,
 			harmonicStrongLocalMetric,
 			harmonicStrongFFmpegMetric,
+			harmonicDeepLocalMetric,
+			harmonicDeepFFmpegMetric,
 			fcbLocalMetric,
 			fcbFFmpegMetric,
 			softOurFFmpegMetric,
@@ -524,6 +550,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			ffmpegHarmonicPayloadMetric,
 			localHarmonicStrongPayloadMetric,
 			ffmpegHarmonicStrongPayloadMetric,
+			localHarmonicDeepPayloadMetric,
+			ffmpegHarmonicDeepPayloadMetric,
 			localFCBPayloadMetric,
 			ffmpegFCBPayloadMetric,
 		},
@@ -544,6 +572,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			residualNoiseMetric("our harmonic-clean encode -> ffmpeg residual vs source", "harmonic_ffmpeg", paddedPCM, ffmpegHarmonicPCM, harmonicFFmpegMetric.LagSamples),
 			residualNoiseMetric("our harmonic-strong encode -> local residual vs source", "harmonic_strong_local", paddedPCM, localHarmonicStrongPCM, harmonicStrongLocalMetric.LagSamples),
 			residualNoiseMetric("our harmonic-strong encode -> ffmpeg residual vs source", "harmonic_strong_ffmpeg", paddedPCM, ffmpegHarmonicStrongPCM, harmonicStrongFFmpegMetric.LagSamples),
+			residualNoiseMetric("our harmonic-deep encode -> local residual vs source", "harmonic_deep_local", paddedPCM, localHarmonicDeepPCM, harmonicDeepLocalMetric.LagSamples),
+			residualNoiseMetric("our harmonic-deep encode -> ffmpeg residual vs source", "harmonic_deep_ffmpeg", paddedPCM, ffmpegHarmonicDeepPCM, harmonicDeepFFmpegMetric.LagSamples),
 			residualNoiseMetric("our FCB-clean encode -> local residual vs source", "fcb_local", paddedPCM, localFCBPCM, fcbLocalMetric.LagSamples),
 			residualNoiseMetric("our FCB-clean encode -> ffmpeg residual vs source", "fcb_ffmpeg", paddedPCM, ffmpegFCBPCM, fcbFFmpegMetric.LagSamples),
 			residualNoiseMetric("our encode -> softened FFmpeg residual vs source", "soft_our_ffmpeg", paddedPCM, softOurFFmpegPCM, softOurFFmpegMetric.LagSamples),
@@ -569,6 +599,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			residualNoiseMetric("harmonic-clean encoder delta under ffmpeg decode", "harmonic_ffmpeg", ffmpegExternalPCM, ffmpegHarmonicPCM, ffmpegHarmonicPayloadMetric.LagSamples),
 			residualNoiseMetric("harmonic-strong encoder delta under local decode", "harmonic_strong_local", localExternalPCM, localHarmonicStrongPCM, localHarmonicStrongPayloadMetric.LagSamples),
 			residualNoiseMetric("harmonic-strong encoder delta under ffmpeg decode", "harmonic_strong_ffmpeg", ffmpegExternalPCM, ffmpegHarmonicStrongPCM, ffmpegHarmonicStrongPayloadMetric.LagSamples),
+			residualNoiseMetric("harmonic-deep encoder delta under local decode", "harmonic_deep_local", localExternalPCM, localHarmonicDeepPCM, localHarmonicDeepPayloadMetric.LagSamples),
+			residualNoiseMetric("harmonic-deep encoder delta under ffmpeg decode", "harmonic_deep_ffmpeg", ffmpegExternalPCM, ffmpegHarmonicDeepPCM, ffmpegHarmonicDeepPayloadMetric.LagSamples),
 			residualNoiseMetric("FCB-clean encoder delta under local decode", "fcb_local", localExternalPCM, localFCBPCM, localFCBPayloadMetric.LagSamples),
 			residualNoiseMetric("FCB-clean encoder delta under ffmpeg decode", "fcb_ffmpeg", ffmpegExternalPCM, ffmpegFCBPCM, ffmpegFCBPayloadMetric.LagSamples),
 			residualNoiseMetric("softened current delta under ffmpeg decode", "soft_our_ffmpeg", ffmpegExternalPCM, softOurFFmpegPCM, ffmpegPayloadMetric.LagSamples),
@@ -583,6 +615,7 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			"Degrit-clean candidate keeps clean pitch but lets gain repair prefer lower fixed-codebook gain correction when adaptive gain is not reduced.",
 			"Harmonic-clean candidate keeps clean pitch and lets voiced gain repair trade bounded score loss for higher adaptive gain with lower fixed-codebook correction.",
 			"Harmonic-strong candidate pushes that same gain-balance tradeoff harder; it is expected to test grit reduction against possible muffling.",
+			"Harmonic-deep candidate pushes the same gain-balance tradeoff beyond harmonic-strong to locate the grit-vs-muffling boundary.",
 			"FCB-clean candidate keeps clean pitch and reranks a small fixed-codebook candidate set with decoder-in-loop residual scoring.",
 			"Softened candidates are playback-only diagnostics that apply a mild zero-phase PCM smoother after FFmpeg decode; they do not represent a G.729 payload.",
 			"FFmpeg is used only as a black-box G.729 decoder.",
@@ -635,6 +668,8 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanHarmonic)
 		case "harmonic_strong":
 			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanHarmonicStrong)
+		case "harmonic_deep":
+			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanHarmonicDeep)
 		case "fcb":
 			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanFCBRerank)
 		case "external":
@@ -733,6 +768,10 @@ func selectedAudioPipeline(key string) (pipeline, decoder string, soft bool, ok 
 		return "harmonic_strong", "local", false, true
 	case "harmonic_strong_ffmpeg":
 		return "harmonic_strong", "ffmpeg", false, true
+	case "harmonic_deep_local":
+		return "harmonic_deep", "local", false, true
+	case "harmonic_deep_ffmpeg":
+		return "harmonic_deep", "ffmpeg", false, true
 	case "fcb_local":
 		return "fcb", "local", false, true
 	case "fcb_ffmpeg":
@@ -1278,10 +1317,13 @@ const pageHTML = `<!doctype html>
             <option value="clean_ffmpeg|fcb_ffmpeg">Clean candidate vs FCB-clean candidate</option>
             <option value="clean_ffmpeg|harmonic_ffmpeg">Clean candidate vs harmonic-clean candidate</option>
             <option value="harmonic_ffmpeg|harmonic_strong_ffmpeg">Harmonic-clean candidate vs harmonic-strong candidate</option>
+            <option value="harmonic_strong_ffmpeg|harmonic_deep_ffmpeg">Harmonic-strong candidate vs harmonic-deep candidate</option>
+            <option value="harmonic_ffmpeg|harmonic_deep_ffmpeg">Harmonic-clean candidate vs harmonic-deep candidate</option>
             <option value="harmonic_ffmpeg|fcb_ffmpeg">Harmonic-clean candidate vs FCB-clean candidate</option>
             <option value="harmonic_strong_ffmpeg|fcb_ffmpeg">Harmonic-strong candidate vs FCB-clean candidate</option>
             <option value="harmonic_ffmpeg|external_ffmpeg">Harmonic-clean candidate vs bcg729</option>
             <option value="harmonic_strong_ffmpeg|external_ffmpeg">Harmonic-strong candidate vs bcg729</option>
+            <option value="harmonic_deep_ffmpeg|external_ffmpeg">Harmonic-deep candidate vs bcg729</option>
             <option value="fcb_ffmpeg|external_ffmpeg">FCB-clean candidate vs bcg729</option>
             <option value="our_ffmpeg|clean_ffmpeg">Current quality vs clean candidate</option>
             <option value="clean_ffmpeg|external_ffmpeg">Clean candidate vs bcg729</option>
@@ -1323,6 +1365,8 @@ const pageHTML = `<!doctype html>
       harmonic_ffmpeg: "our harmonic-clean candidate -> FFmpeg decode",
       harmonic_strong_local: "our harmonic-strong candidate -> our decode",
       harmonic_strong_ffmpeg: "our harmonic-strong candidate -> FFmpeg decode",
+      harmonic_deep_local: "our harmonic-deep candidate -> our decode",
+      harmonic_deep_ffmpeg: "our harmonic-deep candidate -> FFmpeg decode",
       fcb_local: "our FCB-clean candidate -> our decode",
       fcb_ffmpeg: "our FCB-clean candidate -> FFmpeg decode",
       soft_our_ffmpeg: "our encode -> softened FFmpeg decode",
@@ -1339,6 +1383,7 @@ const pageHTML = `<!doctype html>
       degrit_ffmpeg: { label: "Degrit-clean candidate -> FFmpeg decode" },
       harmonic_ffmpeg: { label: "Harmonic-clean candidate -> FFmpeg decode" },
       harmonic_strong_ffmpeg: { label: "Harmonic-strong candidate -> FFmpeg decode" },
+      harmonic_deep_ffmpeg: { label: "Harmonic-deep candidate -> FFmpeg decode" },
       fcb_ffmpeg: { label: "FCB-clean candidate -> FFmpeg decode" },
       soft_our_ffmpeg: { label: "Current quality -> softened FFmpeg decode" },
       soft_clean_ffmpeg: { label: "Clean candidate -> softened FFmpeg decode" },
@@ -1351,6 +1396,7 @@ const pageHTML = `<!doctype html>
       degrit_local: { label: "Degrit-clean candidate -> local decode" },
       harmonic_local: { label: "Harmonic-clean candidate -> local decode" },
       harmonic_strong_local: { label: "Harmonic-strong candidate -> local decode" },
+      harmonic_deep_local: { label: "Harmonic-deep candidate -> local decode" },
       fcb_local: { label: "FCB-clean candidate -> local decode" },
       external_local: { label: "bcg729 -> local decode" }
     };

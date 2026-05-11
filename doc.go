@@ -57,7 +57,8 @@
 // EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth,
 // EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit,
 // EncoderProfileQualityCleanHarmonic,
-// EncoderProfileQualityCleanHarmonicStrong, and
+// EncoderProfileQualityCleanHarmonicStrong,
+// EncoderProfileQualityCleanHarmonicDeep, and
 // EncoderProfileQualityCleanFCBRerank are listening-diagnostic variants of
 // that clean pitch policy for clarity-vs-smoothness A/B tests.
 //
