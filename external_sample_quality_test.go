@@ -621,9 +621,69 @@ func TestExternalSampleQualityVariantDeltaDiagnostic(t *testing.T) {
 			},
 		},
 		{
+			name: "clean-high12",
+			frames: func() []bitstream.Frame {
+				qualityGainMSERepairThreshold = qualityCleanGainMSERepairThreshold
+				qualityGainNoiseRepairHighMSEBetterMSEToleranceNum = 112
+				defer func() {
+					qualityGainMSERepairThreshold = prevMSEThreshold
+					qualityGainNoiseRepairHighMSEBetterMSEToleranceNum = prevHighMSEBetterNum
+				}()
+				return encodeBitstreamFramesWithQualityTuning(t, src, encoderQualityTuningAll&^encoderTuningNormalizedAdaptivePitchSearch)
+			},
+		},
+		{
+			name: "clean-high15",
+			frames: func() []bitstream.Frame {
+				qualityGainMSERepairThreshold = qualityCleanGainMSERepairThreshold
+				qualityGainNoiseRepairHighMSEBetterMSEToleranceNum = 115
+				defer func() {
+					qualityGainMSERepairThreshold = prevMSEThreshold
+					qualityGainNoiseRepairHighMSEBetterMSEToleranceNum = prevHighMSEBetterNum
+				}()
+				return encodeBitstreamFramesWithQualityTuning(t, src, encoderQualityTuningAll&^encoderTuningNormalizedAdaptivePitchSearch)
+			},
+		},
+		{
+			name: "clean-high18",
+			frames: func() []bitstream.Frame {
+				qualityGainMSERepairThreshold = qualityCleanGainMSERepairThreshold
+				qualityGainNoiseRepairHighMSEBetterMSEToleranceNum = 118
+				defer func() {
+					qualityGainMSERepairThreshold = prevMSEThreshold
+					qualityGainNoiseRepairHighMSEBetterMSEToleranceNum = prevHighMSEBetterNum
+				}()
+				return encodeBitstreamFramesWithQualityTuning(t, src, encoderQualityTuningAll&^encoderTuningNormalizedAdaptivePitchSearch)
+			},
+		},
+		{
 			name: "clean-high20",
 			frames: func() []bitstream.Frame {
 				qualityGainMSERepairThreshold = qualityCleanGainMSERepairThreshold
+				qualityGainNoiseRepairHighMSEBetterMSEToleranceNum = 120
+				defer func() {
+					qualityGainMSERepairThreshold = prevMSEThreshold
+					qualityGainNoiseRepairHighMSEBetterMSEToleranceNum = prevHighMSEBetterNum
+				}()
+				return encodeBitstreamFramesWithQualityTuning(t, src, encoderQualityTuningAll&^encoderTuningNormalizedAdaptivePitchSearch)
+			},
+		},
+		{
+			name: "clean-high15-mse24",
+			frames: func() []bitstream.Frame {
+				qualityGainMSERepairThreshold = 24000
+				qualityGainNoiseRepairHighMSEBetterMSEToleranceNum = 115
+				defer func() {
+					qualityGainMSERepairThreshold = prevMSEThreshold
+					qualityGainNoiseRepairHighMSEBetterMSEToleranceNum = prevHighMSEBetterNum
+				}()
+				return encodeBitstreamFramesWithQualityTuning(t, src, encoderQualityTuningAll&^encoderTuningNormalizedAdaptivePitchSearch)
+			},
+		},
+		{
+			name: "clean-high20-mse24",
+			frames: func() []bitstream.Frame {
+				qualityGainMSERepairThreshold = 24000
 				qualityGainNoiseRepairHighMSEBetterMSEToleranceNum = 120
 				defer func() {
 					qualityGainMSERepairThreshold = prevMSEThreshold
