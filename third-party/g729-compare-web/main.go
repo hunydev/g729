@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +60,7 @@ type payloadInfo struct {
 
 type metricRow struct {
 	Path       string   `json:"path"`
+	Key        string   `json:"key,omitempty"`
 	SNRDB      float64  `json:"snrDb"`
 	Corr       float64  `json:"corr"`
 	RMSRatio   float64  `json:"rmsRatio"`
@@ -683,6 +685,10 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 	}
 	payloads := make(map[string]payloadEntry)
 	audio := make(map[string]string)
+	decodedByKey := map[string][]byte{
+		"source": paddedPCM,
+	}
+	audio["source"] = wavDataURL(paddedPCM)
 
 	getPayload := func(name string) ([]byte, error) {
 		if entry, ok := payloads[name]; ok {
@@ -752,7 +758,37 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 		if soft {
 			decoded = softenPCM16(decoded)
 		}
+		decodedByKey[key] = decoded
 		audio[key] = wavDataURL(decoded)
+	}
+
+	metricKeys := make([]string, 0, len(wanted))
+	for key := range wanted {
+		if key != "source" {
+			metricKeys = append(metricKeys, key)
+		}
+	}
+	sort.Strings(metricKeys)
+	metrics := make([]metricRow, 0, len(metricKeys))
+	pesqPairs := make([]pesqPair, 0, len(metricKeys))
+	for _, key := range metricKeys {
+		decoded := decodedByKey[key]
+		row := qualityMetric(selectedMetricPath(key), paddedPCM, decoded)
+		row.Key = key
+		metrics = append(metrics, row)
+		pesqPairs = append(pesqPairs, pesqPair{
+			Row:    &metrics[len(metrics)-1],
+			RefPCM: paddedPCM,
+			OutPCM: decoded,
+		})
+	}
+	pesqNote := addPESQScores(tmp, pesqPairs)
+	notes := []string{
+		"Fast blind-test mode generated only the selected A/B candidates.",
+		"External encoder is isolated under gitignored third-party/ and used only as a black-box executable.",
+	}
+	if pesqNote != "" {
+		notes = append(notes, pesqNote)
 	}
 
 	resp := response{
@@ -762,13 +798,66 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 			Frames:        frames,
 			DurationSec:   float64(originalSamples) / g729.SampleRate,
 		},
-		Audio: audio,
-		Notes: []string{
-			"Fast blind-test mode generated only the selected A/B candidates.",
-			"External encoder is isolated under gitignored third-party/ and used only as a black-box executable.",
-		},
+		Audio:   audio,
+		Metrics: metrics,
+		Notes:   notes,
 	}
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func selectedMetricPath(key string) string {
+	switch key {
+	case "our_local":
+		return "our encode -> local decode"
+	case "our_ffmpeg":
+		return "our encode -> ffmpeg decode"
+	case "clean_local":
+		return "our clean encode -> local decode"
+	case "clean_ffmpeg":
+		return "our clean encode -> ffmpeg decode"
+	case "snr_local":
+		return "our SNR-clean encode -> local decode"
+	case "snr_ffmpeg":
+		return "our SNR-clean encode -> ffmpeg decode"
+	case "smooth_local":
+		return "our smooth-clean encode -> local decode"
+	case "smooth_ffmpeg":
+		return "our smooth-clean encode -> ffmpeg decode"
+	case "voiced_local":
+		return "our voiced-clean encode -> local decode"
+	case "voiced_ffmpeg":
+		return "our voiced-clean encode -> ffmpeg decode"
+	case "degrit_local":
+		return "our degrit-clean encode -> local decode"
+	case "degrit_ffmpeg":
+		return "our degrit-clean encode -> ffmpeg decode"
+	case "harmonic_local":
+		return "our harmonic-clean encode -> local decode"
+	case "harmonic_ffmpeg":
+		return "our harmonic-clean encode -> ffmpeg decode"
+	case "harmonic_strong_local":
+		return "our harmonic-strong encode -> local decode"
+	case "harmonic_strong_ffmpeg":
+		return "our harmonic-strong encode -> ffmpeg decode"
+	case "harmonic_deep_local":
+		return "our harmonic-deep encode -> local decode"
+	case "harmonic_deep_ffmpeg":
+		return "our harmonic-deep encode -> ffmpeg decode"
+	case "fcb_local":
+		return "our FCB-clean encode -> local decode"
+	case "fcb_ffmpeg":
+		return "our FCB-clean encode -> ffmpeg decode"
+	case "soft_our_ffmpeg":
+		return "our encode -> softened FFmpeg decode"
+	case "soft_clean_ffmpeg":
+		return "our clean encode -> softened FFmpeg decode"
+	case "external_local":
+		return "bcg729 encode -> local decode"
+	case "external_ffmpeg":
+		return "bcg729 encode -> ffmpeg decode"
+	default:
+		return key
+	}
 }
 
 func selectedAudioPipeline(key string) (pipeline, decoder string, soft bool, ok bool) {
@@ -1388,6 +1477,7 @@ const pageHTML = `<!doctype html>
     .battle-result { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; }
     .score { padding:16px; border:1px solid var(--line); border-radius:8px; background:#f8fafc; }
     .score strong { display:block; font-size:30px; margin-top:8px; }
+    .score small { display:block; color:var(--muted); margin-top:4px; }
     .card { padding:18px; display:grid; gap:12px; }
     .card h2 { margin:0; font-size:18px; }
     .card p { margin:0; color:var(--muted); }
@@ -1669,28 +1759,51 @@ const pageHTML = `<!doctype html>
       });
       const rows = battleState.trials.map((trial, i) => {
         const picked = trial.winnerKey === "tie" ? "Tie / unsure" : battleCandidates[trial.winnerKey].label;
+        const leftMetric = battleMetric(trial, trial.leftKey);
+        const rightMetric = battleMetric(trial, trial.rightKey);
         return "<tr><td>" + (i + 1) + "</td><td>" + escapeHTML(trial.fileName) + "</td><td>" +
           escapeHTML(battleCandidates[trial.leftKey].label) + "</td><td>" +
-          escapeHTML(battleCandidates[trial.rightKey].label) + "</td><td>" + escapeHTML(picked) + "</td></tr>";
+          metricSummary(leftMetric) + "</td><td>" +
+          escapeHTML(battleCandidates[trial.rightKey].label) + "</td><td>" +
+          metricSummary(rightMetric) + "</td><td>" + escapeHTML(picked) + "</td></tr>";
       }).join("");
       const section = document.createElement("section");
       section.className = "card";
       section.innerHTML =
         "<h2>Blind test result</h2>" +
         "<div class=\"battle-result\">" +
-        scoreHTML(battleCandidates[pair[0]].label, counts[pair[0]]) +
-        scoreHTML(battleCandidates[pair[1]].label, counts[pair[1]]) +
+        scoreHTML(battleCandidates[pair[0]].label, counts[pair[0]], averageBattlePESQ(pair[0])) +
+        scoreHTML(battleCandidates[pair[1]].label, counts[pair[1]], averageBattlePESQ(pair[1])) +
         scoreHTML("Tie / unsure", counts.tie) +
         "</div>" +
-        "<table class=\"metric-table\"><thead><tr><th>#</th><th>File</th><th>Left was</th><th>Right was</th><th>Picked</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+        "<table class=\"metric-table\"><thead><tr><th>#</th><th>File</th><th>Left was</th><th>Left metrics</th><th>Right was</th><th>Right metrics</th><th>Picked</th></tr></thead><tbody>" + rows + "</tbody></table>" +
         "<button id=\"battleAgain\" type=\"button\">Run another blind test</button>";
       arena.replaceChildren(section);
       $("battleStatus").textContent = "완료: " + battleState.trials.length + " trials.";
       $("battleAgain").addEventListener("click", startBattle);
     }
 
-    function scoreHTML(label, count) {
-      return "<div class=\"score\"><span>" + escapeHTML(label) + "</span><strong>" + count + "</strong></div>";
+    function scoreHTML(label, count, pesqAvg = null) {
+      const pesq = (typeof pesqAvg === "number" && Number.isFinite(pesqAvg)) ? "<small>PESQ avg " + fmtMaybe(pesqAvg, 3) + "</small>" : "";
+      return "<div class=\"score\"><span>" + escapeHTML(label) + "</span><strong>" + count + "</strong>" + pesq + "</div>";
+    }
+
+    function battleMetric(trial, key) {
+      return ((trial.data && trial.data.metrics) || []).find((m) => m.key === key) || null;
+    }
+
+    function metricSummary(metric) {
+      if (!metric) return "PESQ n/a";
+      return "PESQ " + fmtMaybe(metric.pesq, 3) + " / SNR " + fmt(metric.snrDb) + " / Corr " + fmt(metric.corr, 4);
+    }
+
+    function averageBattlePESQ(key) {
+      const values = battleState.trials.map((trial) => {
+        const metric = battleMetric(trial, key);
+        return metric ? metric.pesq : null;
+      }).filter((v) => typeof v === "number" && Number.isFinite(v));
+      if (!values.length) return null;
+      return values.reduce((sum, v) => sum + v, 0) / values.length;
     }
 
     function render(data) {
