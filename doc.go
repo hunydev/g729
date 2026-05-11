@@ -55,7 +55,8 @@
 // the quality gain/LSP path while using a smoother closed-loop pitch policy and
 // stricter, high-residual-aware gain MSE repair.
 // EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth,
-// EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, and
+// EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit,
+// EncoderProfileQualityCleanHarmonic, and
 // EncoderProfileQualityCleanFCBRerank are listening-diagnostic variants of
 // that clean pitch policy for clarity-vs-smoothness A/B tests.
 //

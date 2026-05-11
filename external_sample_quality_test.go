@@ -142,6 +142,7 @@ func TestExternalSampleProfileCompareDiagnostic(t *testing.T) {
 		{name: "clean-smooth", profile: EncoderProfileQualityCleanSmooth},
 		{name: "clean-voiced", profile: EncoderProfileQualityCleanVoiced},
 		{name: "clean-degrit", profile: EncoderProfileQualityCleanDegrit},
+		{name: "clean-harmonic", profile: EncoderProfileQualityCleanHarmonic},
 		{name: "clean-fcb", profile: EncoderProfileQualityCleanFCBRerank},
 	}
 
@@ -924,6 +925,7 @@ func TestExternalSampleProfileBitstreamSummaryDiagnostic(t *testing.T) {
 		{name: "clean-smooth", profile: EncoderProfileQualityCleanSmooth},
 		{name: "clean-voiced", profile: EncoderProfileQualityCleanVoiced},
 		{name: "clean-degrit", profile: EncoderProfileQualityCleanDegrit},
+		{name: "clean-harmonic", profile: EncoderProfileQualityCleanHarmonic},
 		{name: "clean-fcb", profile: EncoderProfileQualityCleanFCBRerank},
 		{name: "core", profile: EncoderProfileCore},
 	}

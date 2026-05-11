@@ -235,6 +235,11 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	harmonicPayload, err := encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanHarmonic)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	fcbPayload, err := encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanFCBRerank)
 	if err != nil {
 		writeError(w, err)
@@ -274,6 +279,11 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	localDegritPCM, err := decodeWithLocal(degritPayload)
 	if err != nil {
 		writeError(w, fmt.Errorf("local decode of degrit payload: %w", err))
+		return
+	}
+	localHarmonicPCM, err := decodeWithLocal(harmonicPayload)
+	if err != nil {
+		writeError(w, fmt.Errorf("local decode of harmonic payload: %w", err))
 		return
 	}
 	localFCBPCM, err := decodeWithLocal(fcbPayload)
@@ -316,6 +326,11 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fmt.Errorf("ffmpeg decode of degrit payload: %w", err))
 		return
 	}
+	ffmpegHarmonicPCM, err := decodeWithFFmpeg(tmp, "harmonic", harmonicPayload)
+	if err != nil {
+		writeError(w, fmt.Errorf("ffmpeg decode of harmonic payload: %w", err))
+		return
+	}
 	ffmpegFCBPCM, err := decodeWithFFmpeg(tmp, "fcb", fcbPayload)
 	if err != nil {
 		writeError(w, fmt.Errorf("ffmpeg decode of FCB-rerank payload: %w", err))
@@ -348,6 +363,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	voicedFFmpegMetric := qualityMetric("our voiced-clean encode -> ffmpeg decode", paddedPCM, ffmpegVoicedPCM)
 	degritLocalMetric := qualityMetric("our degrit-clean encode -> local decode", paddedPCM, localDegritPCM)
 	degritFFmpegMetric := qualityMetric("our degrit-clean encode -> ffmpeg decode", paddedPCM, ffmpegDegritPCM)
+	harmonicLocalMetric := qualityMetric("our harmonic-clean encode -> local decode", paddedPCM, localHarmonicPCM)
+	harmonicFFmpegMetric := qualityMetric("our harmonic-clean encode -> ffmpeg decode", paddedPCM, ffmpegHarmonicPCM)
 	fcbLocalMetric := qualityMetric("our FCB-clean encode -> local decode", paddedPCM, localFCBPCM)
 	fcbFFmpegMetric := qualityMetric("our FCB-clean encode -> ffmpeg decode", paddedPCM, ffmpegFCBPCM)
 	softOurFFmpegMetric := qualityMetric("our encode -> softened FFmpeg decode", paddedPCM, softOurFFmpegPCM)
@@ -366,6 +383,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	ffmpegVoicedPayloadMetric := qualityMetric("ffmpeg decoder: voiced-clean payload vs bcg729 payload", ffmpegVoicedPCM, ffmpegExternalPCM)
 	localDegritPayloadMetric := qualityMetric("local decoder: degrit-clean payload vs bcg729 payload", localDegritPCM, localExternalPCM)
 	ffmpegDegritPayloadMetric := qualityMetric("ffmpeg decoder: degrit-clean payload vs bcg729 payload", ffmpegDegritPCM, ffmpegExternalPCM)
+	localHarmonicPayloadMetric := qualityMetric("local decoder: harmonic-clean payload vs bcg729 payload", localHarmonicPCM, localExternalPCM)
+	ffmpegHarmonicPayloadMetric := qualityMetric("ffmpeg decoder: harmonic-clean payload vs bcg729 payload", ffmpegHarmonicPCM, ffmpegExternalPCM)
 	localFCBPayloadMetric := qualityMetric("local decoder: FCB-clean payload vs bcg729 payload", localFCBPCM, localExternalPCM)
 	ffmpegFCBPayloadMetric := qualityMetric("ffmpeg decoder: FCB-clean payload vs bcg729 payload", ffmpegFCBPCM, ffmpegExternalPCM)
 
@@ -399,6 +418,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			"voiced_ffmpeg":     wavDataURL(ffmpegVoicedPCM),
 			"degrit_local":      wavDataURL(localDegritPCM),
 			"degrit_ffmpeg":     wavDataURL(ffmpegDegritPCM),
+			"harmonic_local":    wavDataURL(localHarmonicPCM),
+			"harmonic_ffmpeg":   wavDataURL(ffmpegHarmonicPCM),
 			"fcb_local":         wavDataURL(localFCBPCM),
 			"fcb_ffmpeg":        wavDataURL(ffmpegFCBPCM),
 			"soft_our_ffmpeg":   wavDataURL(softOurFFmpegPCM),
@@ -413,6 +434,7 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			"smooth_g729":   payloadDataURL(smoothPayload),
 			"voiced_g729":   payloadDataURL(voicedPayload),
 			"degrit_g729":   payloadDataURL(degritPayload),
+			"harmonic_g729": payloadDataURL(harmonicPayload),
 			"fcb_g729":      payloadDataURL(fcbPayload),
 			"external_g729": payloadDataURL(externalPayload),
 		},
@@ -430,6 +452,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			"voiced_ffmpeg":     clipEvents(ffmpegVoicedPCM, maxClipMarkers),
 			"degrit_local":      clipEvents(localDegritPCM, maxClipMarkers),
 			"degrit_ffmpeg":     clipEvents(ffmpegDegritPCM, maxClipMarkers),
+			"harmonic_local":    clipEvents(localHarmonicPCM, maxClipMarkers),
+			"harmonic_ffmpeg":   clipEvents(ffmpegHarmonicPCM, maxClipMarkers),
 			"fcb_local":         clipEvents(localFCBPCM, maxClipMarkers),
 			"fcb_ffmpeg":        clipEvents(ffmpegFCBPCM, maxClipMarkers),
 			"soft_our_ffmpeg":   clipEvents(softOurFFmpegPCM, maxClipMarkers),
@@ -450,6 +474,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			voicedFFmpegMetric,
 			degritLocalMetric,
 			degritFFmpegMetric,
+			harmonicLocalMetric,
+			harmonicFFmpegMetric,
 			fcbLocalMetric,
 			fcbFFmpegMetric,
 			softOurFFmpegMetric,
@@ -468,6 +494,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			ffmpegVoicedPayloadMetric,
 			localDegritPayloadMetric,
 			ffmpegDegritPayloadMetric,
+			localHarmonicPayloadMetric,
+			ffmpegHarmonicPayloadMetric,
 			localFCBPayloadMetric,
 			ffmpegFCBPayloadMetric,
 		},
@@ -484,6 +512,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			residualNoiseMetric("our voiced-clean encode -> ffmpeg residual vs source", "voiced_ffmpeg", paddedPCM, ffmpegVoicedPCM, voicedFFmpegMetric.LagSamples),
 			residualNoiseMetric("our degrit-clean encode -> local residual vs source", "degrit_local", paddedPCM, localDegritPCM, degritLocalMetric.LagSamples),
 			residualNoiseMetric("our degrit-clean encode -> ffmpeg residual vs source", "degrit_ffmpeg", paddedPCM, ffmpegDegritPCM, degritFFmpegMetric.LagSamples),
+			residualNoiseMetric("our harmonic-clean encode -> local residual vs source", "harmonic_local", paddedPCM, localHarmonicPCM, harmonicLocalMetric.LagSamples),
+			residualNoiseMetric("our harmonic-clean encode -> ffmpeg residual vs source", "harmonic_ffmpeg", paddedPCM, ffmpegHarmonicPCM, harmonicFFmpegMetric.LagSamples),
 			residualNoiseMetric("our FCB-clean encode -> local residual vs source", "fcb_local", paddedPCM, localFCBPCM, fcbLocalMetric.LagSamples),
 			residualNoiseMetric("our FCB-clean encode -> ffmpeg residual vs source", "fcb_ffmpeg", paddedPCM, ffmpegFCBPCM, fcbFFmpegMetric.LagSamples),
 			residualNoiseMetric("our encode -> softened FFmpeg residual vs source", "soft_our_ffmpeg", paddedPCM, softOurFFmpegPCM, softOurFFmpegMetric.LagSamples),
@@ -505,6 +535,8 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			residualNoiseMetric("voiced-clean encoder delta under ffmpeg decode", "voiced_ffmpeg", ffmpegExternalPCM, ffmpegVoicedPCM, ffmpegVoicedPayloadMetric.LagSamples),
 			residualNoiseMetric("degrit-clean encoder delta under local decode", "degrit_local", localExternalPCM, localDegritPCM, localDegritPayloadMetric.LagSamples),
 			residualNoiseMetric("degrit-clean encoder delta under ffmpeg decode", "degrit_ffmpeg", ffmpegExternalPCM, ffmpegDegritPCM, ffmpegDegritPayloadMetric.LagSamples),
+			residualNoiseMetric("harmonic-clean encoder delta under local decode", "harmonic_local", localExternalPCM, localHarmonicPCM, localHarmonicPayloadMetric.LagSamples),
+			residualNoiseMetric("harmonic-clean encoder delta under ffmpeg decode", "harmonic_ffmpeg", ffmpegExternalPCM, ffmpegHarmonicPCM, ffmpegHarmonicPayloadMetric.LagSamples),
 			residualNoiseMetric("FCB-clean encoder delta under local decode", "fcb_local", localExternalPCM, localFCBPCM, localFCBPayloadMetric.LagSamples),
 			residualNoiseMetric("FCB-clean encoder delta under ffmpeg decode", "fcb_ffmpeg", ffmpegExternalPCM, ffmpegFCBPCM, ffmpegFCBPayloadMetric.LagSamples),
 			residualNoiseMetric("softened current delta under ffmpeg decode", "soft_our_ffmpeg", ffmpegExternalPCM, softOurFFmpegPCM, ffmpegPayloadMetric.LagSamples),
@@ -517,6 +549,7 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			"Smooth-clean candidate uses a lower clean repair threshold and stronger high-residual preference; it is a bitstream-level diagnostic, not PCM smoothing.",
 			"Voiced-clean candidate keeps clean pitch but lets gain repair prefer stronger adaptive gain within bounded MSE/high-residual tolerance.",
 			"Degrit-clean candidate keeps clean pitch but lets gain repair prefer lower fixed-codebook gain correction when adaptive gain is not reduced.",
+			"Harmonic-clean candidate keeps clean pitch and lets voiced gain repair trade bounded score loss for higher adaptive gain with lower fixed-codebook correction.",
 			"FCB-clean candidate keeps clean pitch and reranks a small fixed-codebook candidate set with decoder-in-loop residual scoring.",
 			"Softened candidates are playback-only diagnostics that apply a mild zero-phase PCM smoother after FFmpeg decode; they do not represent a G.729 payload.",
 			"FFmpeg is used only as a black-box G.729 decoder.",
@@ -565,6 +598,8 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanVoiced)
 		case "degrit":
 			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanDegrit)
+		case "harmonic":
+			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanHarmonic)
 		case "fcb":
 			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanFCBRerank)
 		case "external":
@@ -655,6 +690,10 @@ func selectedAudioPipeline(key string) (pipeline, decoder string, soft bool, ok 
 		return "degrit", "local", false, true
 	case "degrit_ffmpeg":
 		return "degrit", "ffmpeg", false, true
+	case "harmonic_local":
+		return "harmonic", "local", false, true
+	case "harmonic_ffmpeg":
+		return "harmonic", "ffmpeg", false, true
 	case "fcb_local":
 		return "fcb", "local", false, true
 	case "fcb_ffmpeg":
@@ -1198,6 +1237,9 @@ const pageHTML = `<!doctype html>
           <label>Input mode<select id="battleMode"><option value="audio">WAV/MP3/browser audio</option><option value="raw">Raw 8 kHz mono s16le PCM</option></select></label>
           <label>Battle pair<select id="battlePair">
             <option value="clean_ffmpeg|fcb_ffmpeg">Clean candidate vs FCB-clean candidate</option>
+            <option value="clean_ffmpeg|harmonic_ffmpeg">Clean candidate vs harmonic-clean candidate</option>
+            <option value="harmonic_ffmpeg|fcb_ffmpeg">Harmonic-clean candidate vs FCB-clean candidate</option>
+            <option value="harmonic_ffmpeg|external_ffmpeg">Harmonic-clean candidate vs bcg729</option>
             <option value="fcb_ffmpeg|external_ffmpeg">FCB-clean candidate vs bcg729</option>
             <option value="our_ffmpeg|clean_ffmpeg">Current quality vs clean candidate</option>
             <option value="clean_ffmpeg|external_ffmpeg">Clean candidate vs bcg729</option>
@@ -1235,6 +1277,8 @@ const pageHTML = `<!doctype html>
       voiced_ffmpeg: "our voiced-clean candidate -> FFmpeg decode",
       degrit_local: "our degrit-clean candidate -> our decode",
       degrit_ffmpeg: "our degrit-clean candidate -> FFmpeg decode",
+      harmonic_local: "our harmonic-clean candidate -> our decode",
+      harmonic_ffmpeg: "our harmonic-clean candidate -> FFmpeg decode",
       fcb_local: "our FCB-clean candidate -> our decode",
       fcb_ffmpeg: "our FCB-clean candidate -> FFmpeg decode",
       soft_our_ffmpeg: "our encode -> softened FFmpeg decode",
@@ -1249,6 +1293,7 @@ const pageHTML = `<!doctype html>
       smooth_ffmpeg: { label: "Smooth-clean candidate -> FFmpeg decode" },
       voiced_ffmpeg: { label: "Voiced-clean candidate -> FFmpeg decode" },
       degrit_ffmpeg: { label: "Degrit-clean candidate -> FFmpeg decode" },
+      harmonic_ffmpeg: { label: "Harmonic-clean candidate -> FFmpeg decode" },
       fcb_ffmpeg: { label: "FCB-clean candidate -> FFmpeg decode" },
       soft_our_ffmpeg: { label: "Current quality -> softened FFmpeg decode" },
       soft_clean_ffmpeg: { label: "Clean candidate -> softened FFmpeg decode" },
@@ -1259,6 +1304,7 @@ const pageHTML = `<!doctype html>
       smooth_local: { label: "Smooth-clean candidate -> local decode" },
       voiced_local: { label: "Voiced-clean candidate -> local decode" },
       degrit_local: { label: "Degrit-clean candidate -> local decode" },
+      harmonic_local: { label: "Harmonic-clean candidate -> local decode" },
       fcb_local: { label: "FCB-clean candidate -> local decode" },
       external_local: { label: "bcg729 -> local decode" }
     };

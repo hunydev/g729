@@ -170,6 +170,18 @@ func TestEncoderProfiles(t *testing.T) {
 			cleanDegritEnc.qualityGainMSERepairThreshold())
 	}
 
+	cleanHarmonicEnc := NewEncoderWithProfile(EncoderProfileQualityCleanHarmonic)
+	if cleanHarmonicEnc.profile != EncoderProfileQualityCleanHarmonic ||
+		cleanHarmonicEnc.qualityNormalizedAdaptivePitchSearchEnabled() ||
+		!cleanHarmonicEnc.qualityGainHarmonicPreferenceEnabled() ||
+		cleanHarmonicEnc.qualityGainMSERepairThreshold() != qualityCleanGainMSERepairThreshold {
+		t.Fatalf("NewEncoderWithProfile(QualityCleanHarmonic) profile=%v normPitch=%t harmonicPref=%t mseThreshold=%d, want harmonic clean tuning",
+			cleanHarmonicEnc.profile,
+			cleanHarmonicEnc.qualityNormalizedAdaptivePitchSearchEnabled(),
+			cleanHarmonicEnc.qualityGainHarmonicPreferenceEnabled(),
+			cleanHarmonicEnc.qualityGainMSERepairThreshold())
+	}
+
 	cleanFCBEnc := NewEncoderWithProfile(EncoderProfileQualityCleanFCBRerank)
 	if cleanFCBEnc.profile != EncoderProfileQualityCleanFCBRerank ||
 		cleanFCBEnc.qualityNormalizedAdaptivePitchSearchEnabled() ||

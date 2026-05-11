@@ -248,6 +248,12 @@ const (
 	// objective-score tradeoff remains bounded.
 	EncoderProfileQualityCleanDegrit
 
+	// EncoderProfileQualityCleanHarmonic is a listening-diagnostic variant
+	// that keeps the clean pitch policy and, on voiced subframes, allows gain
+	// repair to trade a bounded score loss for higher adaptive gain and lower
+	// fixed-codebook correction.
+	EncoderProfileQualityCleanHarmonic
+
 	// EncoderProfileQualityCleanFCBRerank is a listening-diagnostic variant
 	// that keeps the clean pitch policy and reranks a small fixed-codebook
 	// candidate set with the decoder-in-loop residual score before gain repair.
@@ -300,7 +306,7 @@ func NewEncoderWithProfile(profile EncoderProfile) *Encoder {
 
 func normalizeEncoderProfile(profile EncoderProfile) EncoderProfile {
 	switch profile {
-	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanFCBRerank:
+	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanFCBRerank:
 		return profile
 	default:
 		return EncoderProfileQuality
@@ -313,7 +319,7 @@ func encoderQualityTuningForProfile(profile EncoderProfile) encoderQualityTuning
 		return encoderQualityTuningAll
 	case EncoderProfileQualityAnnexALSP:
 		return encoderQualityTuningAll &^ encoderTuningExpandedLSPSearch
-	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanFCBRerank:
+	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanFCBRerank:
 		return encoderQualityTuningAll &^ encoderTuningNormalizedAdaptivePitchSearch
 	default:
 		return 0
@@ -393,7 +399,7 @@ func (e *Encoder) qualityGainMSERepairEnabled() bool {
 
 func (e *Encoder) qualityGainMSERepairThreshold() int {
 	switch e.profile {
-	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanFCBRerank:
+	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanFCBRerank:
 		return qualityCleanGainMSERepairThreshold
 	case EncoderProfileQualityCleanSmooth:
 		return qualityCleanSmoothGainMSERepairThreshold
@@ -421,6 +427,10 @@ func (e *Encoder) qualityGainPitchPreferenceEnabled() bool {
 
 func (e *Encoder) qualityGainDegritPreferenceEnabled() bool {
 	return e.profile == EncoderProfileQualityCleanDegrit
+}
+
+func (e *Encoder) qualityGainHarmonicPreferenceEnabled() bool {
+	return e.profile == EncoderProfileQualityCleanHarmonic
 }
 
 func (e *Encoder) qualityFCBNoiseRerankEnabled() bool {
@@ -555,6 +565,13 @@ const (
 	qualityCleanDegritMSEToleranceDen                             int64 = 100
 	qualityCleanDegritHighMSEToleranceNum                         int64 = 108
 	qualityCleanDegritHighMSEToleranceDen                         int64 = 100
+	qualityCleanHarmonicGainPitchMinQ14                           int32 = 8192
+	qualityCleanHarmonicGainPitchMinStepQ14                       int32 = 256
+	qualityCleanHarmonicGammaDropMinQ13                           int32 = 256
+	qualityCleanHarmonicMSEToleranceNum                           int64 = 112
+	qualityCleanHarmonicMSEToleranceDen                           int64 = 100
+	qualityCleanHarmonicHighMSEToleranceNum                       int64 = 110
+	qualityCleanHarmonicHighMSEToleranceDen                       int64 = 100
 	qualityCleanFCBRerankTopK                                     int   = 8
 	qualityCleanFCBRerankHighMSEBetterMSEToleranceNum             int64 = 112
 	qualityCleanFCBRerankHighMSEBetterMSEToleranceDen             int64 = 100
@@ -1884,6 +1901,16 @@ func (e *Encoder) qualityRepairGainClip(
 						int32(candGamma)+qualityCleanDegritGammaDropMinQ13 <= int32(bestGamma) &&
 						candScore.mse*qualityCleanDegritMSEToleranceDen <= bestScore.mse*qualityCleanDegritMSEToleranceNum &&
 						candScore.highMSE*qualityCleanDegritHighMSEToleranceDen <= bestScore.highMSE*qualityCleanDegritHighMSEToleranceNum {
+						better = true
+					}
+					if !better && e.qualityGainHarmonicPreferenceEnabled() &&
+						candScore.hardClip == 0 && candScore.nearClip == 0 &&
+						bestScore.hardClip == 0 && bestScore.nearClip == 0 &&
+						int32(candGp) >= qualityCleanHarmonicGainPitchMinQ14 &&
+						int32(candGp) >= int32(bestGp)+qualityCleanHarmonicGainPitchMinStepQ14 &&
+						int32(candGamma)+qualityCleanHarmonicGammaDropMinQ13 <= int32(bestGamma) &&
+						candScore.mse*qualityCleanHarmonicMSEToleranceDen <= bestScore.mse*qualityCleanHarmonicMSEToleranceNum &&
+						candScore.highMSE*qualityCleanHarmonicHighMSEToleranceDen <= bestScore.highMSE*qualityCleanHarmonicHighMSEToleranceNum {
 						better = true
 					}
 				}
