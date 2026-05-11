@@ -130,6 +130,53 @@ calls on the same instance are a data race; one instance per stream.
 listening aid. It is not used by the default decoder and is not an ITU
 conformance claim.
 
+### Encoder profiles
+
+`NewEncoder()` and `NewStreamingEncoder()` use `EncoderProfileQuality`.
+This profile emits normal 10-byte G.729 frames, but enables
+standard-compatible encoder search heuristics for normalized pitch search,
+native reconstructed-gain residual search, and decoder-in-loop gain clip/MSE
+repair.
+These heuristics are tuned by black-box executable decode metrics and are a
+product-quality choice, not an ITU byte-exact encoder claim.
+The core open-loop path follows Annex A's raw-correlation per-range maxima
+before the normalized three-range merge, and range-3 override checks every
+lower-range submultiple with the Core `11/10` lift instead of only the current
+pairwise winner.
+Core closed-loop pitch refinement also evaluates the encodable P1/P2 fractional
+boundary codepoints rather than silently restricting the search to only the
+three fractions around the integer winner.
+The focused fixed-codebook threshold scan and clipped-input open-loop rescue
+remain available as diagnostics, but are not part of the default Quality
+profile because the current black-box sample set favours the smaller heuristic
+surface above.
+Quality uses the sequential Annex A LSP VQ path by default; the broader
+second-stage LSP search remains available only as an internal diagnostic knob.
+`EncoderProfileQualityAnnexALSP` is kept as an explicit alias for that LSP path
+in listening diagnostics.
+`EncoderProfileQualityClean` is a listening-diagnostic profile for comparing a
+smoother, bcg729-like candidate against the default Quality profile. It keeps
+the standard 10-byte payload shape, disables normalized closed-loop pitch
+reranking, and uses stricter, high-residual-aware decoder-in-loop gain MSE
+repair.
+
+For clean-room diagnostics and algorithm work, use
+`NewEncoderWithProfile(EncoderProfileCore)` or
+`NewStreamingEncoderWithProfile(w, EncoderProfileCore)`. The core profile
+disables those local quality heuristics while preserving the same public frame
+shape and decoder compatibility. Its gain predictor keeps the wider int32
+§3.9.1 math path and the Annex A GA/GB preselection search. The Core
+preselect center solve preserves the maximum zero-allocation-safe correlation
+precision used by this implementation, but it still keeps Annex A's 4x8
+GA/GB preselect breadth. The quality profile may evaluate all 128 standard
+gain-index pairs using the exact reconstructed-gain residual before applying
+decoder-in-loop clipping repair.
+Its fixed-codebook path uses the K3=0.4 focused threshold search from §3.8.1
+with a 180-entry frame cap across the two subframes; subframe 0 is
+conservatively capped at 90 so it cannot consume the whole frame budget. Its
+LSP VQ path uses the sequential Annex A search rather than the broader
+diagnostic second-stage search.
+
 ---
 
 ## RTP packetization
@@ -226,14 +273,14 @@ Concretely:
 1. **FFmpeg black-box encoder gate passes.** On the ITU SPEECH corpus,
    `SPEECH.BIT -> ffmpeg` tracks `SPEECH.PST` at about `GlobalSNR=7.04
    dB`, `SegSNR=4.39 dB`, while `SPEECH.IN -> our encoder -> ffmpeg`
-   currently measures about `GlobalSNR=5.09 dB`, `SegSNR=3.05 dB`.
-   The deltas (`-1.95 dB` global, `-1.34 dB` segmental) pass the
+   currently measures about `GlobalSNR=7.12 dB`, `SegSNR=4.61 dB`.
+   The deltas (`+0.08 dB` global, `+0.22 dB` segmental) pass the
    project-defined `>= -2.00 dB` release gate for outbound encoder
    quality.
 2. **Local decoder roundtrip gate passes against FFmpeg.** On the local
    encoder's own SPEECH payload, `our encoder -> local decoder` now tracks
-   `our encoder -> ffmpeg` at about `GlobalSNR=13.78 dB`,
-   `SegSNR=13.99 dB`, and RMS ratio `0.991` local-vs-FFmpeg. The
+   `our encoder -> ffmpeg` at about `GlobalSNR=16.12 dB`,
+   `SegSNR=14.41 dB`, and RMS ratio `0.992` local-vs-FFmpeg. The
    end-to-end source quality is still bounded by the outbound encoder gate,
    not by ITU byte-exact vector certification.
 3. **Local Asterisk payload decoder gate passes against FFmpeg.**
@@ -313,19 +360,105 @@ go test -run TestExternalFFmpegBlackboxLocalDecoderDelta_SPEECH -count=1 -v
 ```
 
 For a user-provided problem sample, run the opt-in external sample
-diagnostic. WAV/MP3 inputs are converted to 8 kHz mono signed 16-bit PCM
-through the local FFmpeg executable; raw `.pcm`, `.raw`, `.sln`,
-`.s16le`, and `.in` files are assumed to already be 8 kHz mono signed
-little-endian int16 PCM.
+diagnostic. FFmpeg-readable inputs such as WAV/MP3/M4A are converted to
+8 kHz mono signed 16-bit PCM through the local FFmpeg executable; raw
+`.pcm`, `.raw`, `.sln`, `.s16le`, and `.in` files are assumed to already
+be 8 kHz mono signed little-endian int16 PCM.
 
 ```sh
 G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav \
 go test -run TestExternalSampleQualityDiagnostic -count=1 -v
 ```
 
+If `G729_EXTERNAL_SAMPLE_QUALITY` is unset, the diagnostic first checks
+for the current local problem sample at
+`testdata/external/user_quality_audio.m4a`, then the legacy
+`user_quality_input.*` samples.
+
 This prints `input -> our encoder -> ffmpeg`,
 `input -> our encoder -> local`, and `local decoder vs ffmpeg` on the
 same aligned SNR scale used by the web and release diagnostics.
+
+To separate clipping from "muffled" spectral-shape complaints, run the
+spectral tilt diagnostic. It compares source, `EncoderProfileCore`,
+`EncoderProfileQuality`, and the local `bcg729` black-box executable by
+band-energy share and high/mid tilt; setting
+`G729_EXTERNAL_SAMPLE_SPECTRAL_ABLATION=1` also prints selected quality
+heuristic splits.
+
+```sh
+G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav \
+G729_EXTERNAL_SAMPLE_SPECTRAL_TILT=1 \
+go test -run TestExternalSampleSpectralTiltDiagnostic -count=1 -v
+```
+
+To compare quality variants around a specific audible artifact, run the
+focused-window diagnostic. By default it measures frames `286:312`
+(`2.860s..3.130s` at 8 kHz); override the frame range with
+`G729_EXTERNAL_SAMPLE_QUALITY_WINDOW_FRAMES=start:end`.
+
+```sh
+G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav \
+G729_EXTERNAL_SAMPLE_QUALITY_WINDOW=1 \
+go test -run TestExternalSampleQualityWindowDiagnostic -count=1 -v
+```
+
+For Core-vs-Quality encoder search work, prefer the production-state
+gain-mode diagnostic over the older gain-scale sweep helpers. It keeps the
+same closed-loop and commit state shape as the encoder profiles, then varies
+only the gain-search mode.
+
+```sh
+G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav \
+G729_EXTERNAL_SAMPLE_PRODUCTION_GAIN_MODE=1 \
+go test -run TestExternalSampleProductionGainModeDiagnostic -count=1 -v
+```
+
+The current problem-sample result shows that full native gain search can
+approach the `bcg729` black-box SNR, but it reintroduces near-clips without
+the Quality profile's decoder-in-loop repair. That makes it a Quality
+heuristic, not a Core spec-alignment fix.
+
+For the remaining Core near-clip localization, the patch-matrix diagnostic can
+be run in Core mode. It edits transmitted fields after encoding and decodes
+with FFmpeg, so it is a numeric diagnostic only, not a production fix.
+
+```sh
+G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav \
+G729_EXTERNAL_SAMPLE_CORE_FFMPEG_PATCH_MATRIX=1 \
+go test -run TestExternalSampleCoreFFmpegPatchMatrixDiagnostic -count=1 -v
+```
+
+For the exact Annex A reduced fixed-codebook tree-search question, use the
+clean-room numeric handoff. It exports only scalar search-surface values and
+local scalar results in `fcb_tree_search_got.csv`; an isolated verifier must
+fill only numeric `expected` cells in
+`fcb_tree_search_expected_template.csv` before any comparison is treated as
+evidence.
+
+```sh
+G729_WRITE_FCB_TREE_SEARCH_HANDOFF=1 \
+go test -run TestOracleHandoff_WriteFCBTreeSearchHandoff -count=1 -v
+
+G729_COMPARE_FCB_TREE_SEARCH_HANDOFF=1 \
+G729_REQUIRE_COMPLETE_FCB_TREE_SEARCH_HANDOFF=1 \
+G729_REQUIRE_EXACT_FCB_TREE_SEARCH_HANDOFF=1 \
+go test -run TestOracleHandoff_CompareFCBTreeSearchHandoff -count=1 -v
+```
+
+For the same FCB tree-search question on the user problem sample's
+2.9 second region, use the user-audio handoff pinned to
+`testdata/external/user_quality_audio.m4a`:
+
+```sh
+G729_WRITE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 \
+go test -run TestOracleHandoff_WriteFCBTreeSearchUserAudioHandoff -count=1 -v
+
+G729_COMPARE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 \
+G729_REQUIRE_COMPLETE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 \
+G729_REQUIRE_EXACT_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 \
+go test -run TestOracleHandoff_CompareFCBTreeSearchUserAudioHandoff -count=1 -v
+```
 
 ### Test suite layout
 
@@ -409,6 +542,7 @@ third-party notice inventory in
   [Phase 4 plan](docs/superpowers/plans/2026-05-04-phase4-v0.1.0-release-packaging-plan.md).
 
 This is a release candidate. The public API (`Encoder`, `Decoder`,
-`NewEncoder`, `NewDecoder`, `NewStreamingEncoder`, `EncodeFrame`,
+`EncoderProfile`, `NewEncoder`, `NewEncoderWithProfile`, `NewDecoder`,
+`NewStreamingEncoder`, `NewStreamingEncoderWithProfile`, `EncodeFrame`,
 `DecodeFrame`, `Reset`, `Write`, `Flush`, sentinel errors, frame-shape
 constants) is intended to be stable across the v0.1.x line.

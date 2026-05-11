@@ -156,6 +156,48 @@ func TestFilterCode_CB4Trace(t *testing.T) {
 	}
 }
 
+// TestFilterCode_PitchEnhancementEquivalentViaHSearch pins the §3.8
+// search-surface identity used by the encoder: filtering the final
+// pitch-enhanced code vector c' with the original impulse response h is
+// equivalent, within fixed-point rounding, to filtering the sparse code
+// vector c with the pitch-enhanced search impulse response h'. Rounding
+// can differ by one LSB because the IIR is rounded before convolution on
+// opposite sides of the identity.
+func TestFilterCode_PitchEnhancementEquivalentViaHSearch(t *testing.T) {
+	positions := [4]int8{0, 6, 12, 23}
+	var signs [40]int16
+	signs[0] = +1
+	signs[6] = -1
+	signs[12] = +1
+	signs[23] = -1
+
+	const intLag int16 = 6
+	const betaQ14 int16 = 8192 // 0.5
+
+	h := hRamp()
+	var sparse, enhanced [40]int16
+	fcbsearch.BuildSparseCode(&positions, &signs, &sparse)
+	fcbsearch.BuildCode(&positions, &signs, intLag, betaQ14, &enhanced)
+
+	hSearch := h
+	fcb.ApplyPitchEnhancement(&hSearch, int(intLag), fcb.ClampPitchGainForEnhancement(betaQ14))
+
+	var zEnhancedCode, zEnhancedH [40]int16
+	fcbsearch.FilterCode(&enhanced, &h, &zEnhancedCode)
+	fcbsearch.FilterCode(&sparse, &hSearch, &zEnhancedH)
+
+	for n := 0; n < 40; n++ {
+		diff := zEnhancedCode[n] - zEnhancedH[n]
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff > 1 {
+			t.Fatalf("z[%d]: enhanced-code/h = %d, sparse-code/hSearch = %d",
+				n, zEnhancedCode[n], zEnhancedH[n])
+		}
+	}
+}
+
 // TestFilterCode_AllocsZero gates I3 / I4: caller-owned outputs, no
 // hidden allocations.
 func TestFilterCode_AllocsZero(t *testing.T) {

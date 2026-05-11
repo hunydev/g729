@@ -13,10 +13,12 @@ package pitch
 //	P1 = 3*(T1 − 19) + frac − 1   if T1 ∈ [19, 85], frac ∈ {-1, 0, 1}
 //	P1 = (T1 − 85)   + 197         if T1 ∈ [86, 143], frac = 0
 //
-// Inverting: for P1 < 198, T_int = 19 + (P1+2)/3, T_frac = (P1+2)%3 − 1;
-// for P1 ≥ 198, T_int = P1 − 112, T_frac = 0.
+// Inverting per §4.1.3: for P1 < 197, T_int = 19 + (P1+2)/3,
+// T_frac = P1 − 3*T_int + 58; for P1 ≥ 197, T_int = P1 − 112,
+// T_frac = 0. P1=197 decodes to (85,0) in both algebraic forms; the branch
+// below follows the PDF condition exactly.
 func DecodeDelaySubframe1(p1 uint8) (tInt, tFrac int) {
-	if p1 < 198 {
+	if p1 < 197 {
 		x := int(p1) + 2
 		tInt = 19 + x/3
 		tFrac = x%3 - 1

@@ -16,8 +16,8 @@ import (
 //   - y  : Q0 int16 (Phase 2c GP-1 output)
 //   - gp : Q14 int16 ([0, GpUpperQ14] per Phase 2c GP-1 cap)
 //   - h  : Q12 int16 (HI-1 impulse response)
-//   - x' : Q0 int16; gp*y product is int32 Q14, arithmetically shifted
-//          right by 14 to Q0, then subtracted from x and Word16-saturated.
+//   - x' : Q0 int16; gp*y product is int32 Q14, rounded right by 14 to
+//          Q0, then subtracted from x and Word16-saturated.
 //   - d  : int32 in Q12 (un-shifted accumulator of x'·h products), so the
 //          downstream sign / φ′ / energy combinatorics keep full precision.
 
@@ -117,6 +117,23 @@ func TestAdjustedTarget_HandDerivation(t *testing.T) {
 	}
 }
 
+func TestAdjustedTarget_RoundsQ14Product(t *testing.T) {
+	var x, y [40]int16
+	const gp = int16(8192)
+	y[0] = 1  // gp*y = +0.5 in Q14: rounded shift is +1, truncation is 0.
+	y[1] = -1 // gp*y = -0.5 in Q14: rounded shift is -1.
+
+	var got [40]int16
+	fcbsearch.AdjustedTarget(&x, &y, gp, &got)
+
+	if got[0] != -1 {
+		t.Fatalf("xPrime[0]=%d want -1; AdjustedTarget must round +0.5 Q14 product", got[0])
+	}
+	if got[1] != 1 {
+		t.Fatalf("xPrime[1]=%d want 1; AdjustedTarget must round -0.5 Q14 product", got[1])
+	}
+}
+
 func TestAdjustedTarget_SaturatesOnLargeGpY(t *testing.T) {
 	// Force the subtraction to overflow Word16 in both directions:
 	//   x = -32768, gp·y >> 14 strongly positive → raw underflows to Min16.
@@ -138,7 +155,7 @@ func TestAdjustedTarget_SaturatesOnLargeGpY(t *testing.T) {
 
 	for n := range x {
 		prod := int32(gp) * int32(y[n])
-		shifted := prod >> 14
+		shifted := roundShift(prod, 14)
 		raw := int32(x[n]) - shifted
 		var want int16
 		switch {

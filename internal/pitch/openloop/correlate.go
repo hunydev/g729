@@ -18,15 +18,11 @@ import "github.com/hunydev/g729/internal/fixed"
 //	sw(2n − k) = wsp[143 + 2n − k]  k ∈ [20,143]
 //
 // The function returns the lag k ∈ [kMin, kMax] that maximizes R(k)
-// together with the corresponding R(k) value. §A.3.4 leaves the
-// sign of R(k) implicit; per Phase 2a I1 discipline the operational
-// pin is "negative R(k) is treated as 0 for selection" — only
-// positive-correlation (well-correlated) candidates compete. If no
-// positive R(k) exists in [kMin, kMax] the function returns
-// lag = kMin and rsq = 0. Tie-breaking selects the smallest k via
-// strict ">" so the lower-delay candidate wins, which is consistent
-// with §A.3.4 line 2110 ("favouring the delays with the values in
-// the lower range").
+// together with the corresponding R(k) value. This is a literal raw
+// maximum: if all candidates are negative, the least-negative R(k)
+// still wins. Tie-breaking selects the smallest k via strict ">" so the
+// lower-delay candidate wins, which is consistent with §A.3.4 line 2110
+// ("favouring the delays with the values in the lower range").
 //
 // Q-format. wsp is int16 Q0; the inner accumulator is Word32
 // (int32). fixed.LMac performs acc + 2·a·b with saturation at both
@@ -39,7 +35,7 @@ import "github.com/hunydev/g729/internal/fixed"
 // I3 / I4: pure (reads only wsp), zero allocation.
 func correlate(wsp *[223]int16, kMin, kMax int) (lag int16, rsq int32) {
 	lag = int16(kMin)
-	rsq = 0
+	rsq = fixed.Min32
 	for k := kMin; k <= kMax; k++ {
 		var acc fixed.Word32
 		for n := 0; n < 40; n++ {

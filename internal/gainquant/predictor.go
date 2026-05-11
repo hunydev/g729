@@ -36,10 +36,10 @@ const (
 // ENC-GAIN-SPLIT: this search-surface predictor intentionally uses the
 // legacy Word16-bounded predicted log gain before expanding to g'c Q12.
 // The receiver-side gain reconstruction keeps the wider int32 predictor
-// to avoid decoder amplitude collapse, but applying that wider predictor
-// directly to the §3.9.2 encoder search regresses the FFmpeg black-box
-// encoder gate. Keeping the split explicit prevents decoder robustness
-// fixes from silently changing encoder candidate selection.
+// to avoid decoder amplitude collapse. Production callers that need the
+// clean-room Core/default Quality reconstruction surface use
+// PredictedGcQ12Wide; this bounded helper is retained for diagnostics and
+// explicit tuned-profile experiments.
 //
 // Composition: gain.PredictedLogGainSat16 (eq. 69 bounded form) +
 // gain.FixedCodebookEnergy + gain.Log2Fixed/gain.Pow2Fixed (eq. 66 /
@@ -68,6 +68,17 @@ func PredictedGcQ12(pastQuaEn *[4]int16, c *[40]int16) int32 {
 	return int32(gain.Pow2Fixed(fixed.Word32(log2GcQ10) + 12*1024))
 }
 
+// PredictedGcQ12Wide is the int32-predictor variant of PredictedGcQ12. It
+// follows the same §3.9.1 equations but avoids the intermediate Word16
+// saturation used by the legacy encoder search surface.
+func PredictedGcQ12Wide(pastQuaEn *[4]int16, c *[40]int16) int32 {
+	log2GcQ10, ok := predictedLog2GcQ10Wide(pastQuaEn, c)
+	if !ok {
+		return 0
+	}
+	return int32(gain.Pow2Fixed(fixed.Word32(log2GcQ10) + 12*1024))
+}
+
 // predictedLog2GcQ10Search returns the predicted log2(g'c) at Q10 for
 // the encoder's §3.9.2 VQ candidate search. It intentionally uses the
 // bounded MA prediction described on PredictedGcQ12.
@@ -85,6 +96,23 @@ func predictedLog2GcQ10Search(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
 
 	logGainDbQ10 := fixed.Sub(predicted, ecBarDbQ10)
 	log2GcQ10 := (int32(logGainDbQ10)*invDbScaleQ15 + (1 << 14)) >> 15
+	return log2GcQ10, true
+}
+
+func predictedLog2GcQ10Wide(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
+	ecEnergy := gain.FixedCodebookEnergy(c)
+	if ecEnergy <= 0 {
+		return 0, false
+	}
+
+	predicted := gain.PredictedLogGain(pastQuaEn)
+
+	ecLog2Q10 := int32(gain.Log2Fixed(ecEnergy)) - 26*1024
+	ecDbQ10 := (ecLog2Q10*dbPerLog2Q13 + (1 << 12)) >> 13
+	ecBarDbQ10 := int32(fixed.Saturate(fixed.Word32(ecDbQ10 - int32(tenLog10_40Q10))))
+
+	logGainDbQ10 := predicted - ecBarDbQ10
+	log2GcQ10 := (logGainDbQ10*invDbScaleQ15 + (1 << 14)) >> 15
 	return log2GcQ10, true
 }
 
@@ -108,8 +136,8 @@ func predictedLog2GcQ10Search(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
 //	gcExp          = clamp(intPart, [-128, 127])
 //
 // Encoder-side split: the decomposition is shared with the decoder, but the
-// encoder's caller may pass the bounded search predictor while the strict
-// receiver decoder uses a wider predictor. TestApply_MantissaExponent pins the
+// encoder's caller may choose the bounded legacy search predictor or the wider
+// receiver-aligned predictor. TestApply_MantissaExponent pins the
 // representation contract and documented split cases.
 func DequantGc(log2GcPredQ10 int32, ok bool, gammaCQ13 int16) (gcMantQ14 int16, gcExp int8) {
 	if !ok || gammaCQ13 <= 0 {
@@ -140,14 +168,24 @@ func DequantGc(log2GcPredQ10 int32, ok bool, gammaCQ13 int16) (gcMantQ14 int16, 
 // Pure / read-only on inputs; does NOT update pastQuaEn (the caller
 // owns the FIFO advance via UpdatePastQuaEn after the §A.3.10 commit).
 //
-// ENC-GAIN-SPLIT: this intentionally shares the bounded search predictor
-// rather than the wider receiver-side decoder predictor. The FFmpeg
-// black-box encoder gate regresses when the encoder commits local synthesis
-// with the wider predictor even though the strict decoder benefits from it.
+// ENC-GAIN-SPLIT: this intentionally shares the bounded legacy search
+// predictor rather than the wider receiver-side decoder predictor. Core and
+// default Quality use ReconstructWide together with PredictedGcQ12Wide;
+// Reconstruct remains available for diagnostics and explicit tuned-profile
+// experiments.
 func Reconstruct(pastQuaEn *[4]int16, c *[40]int16, ga, gb uint8) (gpQ14, gcMantQ14 int16, gcExp int8) {
 	gpQ14 = fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[ga][0]) + int32(tables.GainGBK2[gb][0])))
 	gammaCQ13 := fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1])))
 	log2GcPredQ10, ok := predictedLog2GcQ10Search(pastQuaEn, c)
+	gcMantQ14, gcExp = DequantGc(log2GcPredQ10, ok, gammaCQ13)
+	return
+}
+
+// ReconstructWide is the int32-predictor variant of Reconstruct.
+func ReconstructWide(pastQuaEn *[4]int16, c *[40]int16, ga, gb uint8) (gpQ14, gcMantQ14 int16, gcExp int8) {
+	gpQ14 = fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[ga][0]) + int32(tables.GainGBK2[gb][0])))
+	gammaCQ13 := fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1])))
+	log2GcPredQ10, ok := predictedLog2GcQ10Wide(pastQuaEn, c)
 	gcMantQ14, gcExp = DequantGc(log2GcPredQ10, ok, gammaCQ13)
 	return
 }

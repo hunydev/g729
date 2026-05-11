@@ -12,14 +12,6 @@ import "github.com/hunydev/g729/internal/fixed"
 const (
 	PitchMinInt = 20
 	PitchMaxInt = 143
-
-	// closedLoopHalfWindow pins the ±3 integer search window around
-	// the preselected centre value (open-loop pitch Top for the
-	// first subframe; T1 for the second). §A.3.7 line 2167:
-	// "the search range is limited around a preselected value".
-	// The exact half-width is left implementation-defined by the
-	// spec; ±3 mirrors the Phase 2c sub-plan §6 CL-1 contract.
-	closedLoopHalfWindow = 3
 )
 
 // BackwardFilter computes the 40-sample backward-filtered target
@@ -63,18 +55,16 @@ func BackwardFilter(x, h *[SubframeLen]int16, xb *[SubframeLen]int16) {
 //
 // over an integer search range that depends on the subframe index:
 //
-//   - sub = 0 (first subframe): k ∈ [centre − 3, centre + 3]
-//     ∩ [PitchMinInt, PitchMaxInt], where centre is the open-loop
-//     pitch Top (§A.3.7 line 2167: "the search range is limited
-//     around a preselected value"). The ten-lag shape mirrors the
-//     transmitted P1 coding range.
+//   - sub = 0 (first subframe): k ∈ Subframe1Window(centre), where
+//     centre is the open-loop pitch Top (§A.3.7 line 2167: "the
+//     search range is limited around a preselected value"). The
+//     seven-lag window follows §3.7's tmin/tmax boundary adaptation.
 //
 //   - sub = 1 (second subframe): k ∈ Subframe2Window(centre), where
 //     centre is the integer part of the first-subframe lag T1, per
-//     §4.1.3 (G729E.txt lines 1512–1523). This 10-lag sliding
-//     window is what the 5-bit P2 field encodes; closing the loop
-//     over a wider range would emit P2 values the decoder cannot
-//     recover. CL-2 wires this branch.
+//     §4.1.3 (G729E.txt lines 1512–1523). This is the integer search
+//     window; the two extra P2 codepoints are fractional boundary delays,
+//     not integer-search lags.
 //
 // API note (CL-2 decision): the existing single-entry SearchInteger
 // signature was preserved by activating the previously-reserved sub
@@ -95,27 +85,27 @@ func BackwardFilter(x, h *[SubframeLen]int16, xb *[SubframeLen]int16) {
 // line 2161, enabling the short-pitch case k < SubframeLen. The
 // formula u(n − k) = exc[len(exc) − SubframeLen − k + n] is valid
 // uniformly for all (k, n) ∈ [PitchMinInt, PitchMaxInt] × [0, 39]
-// when len(exc) ≥ PitchMaxInt + SubframeLen = 183.
+// when len(exc) ≥ PitchMaxInt + SubframeLen = 183. Fractional
+// candidates near the maximum lag need additional older history for
+// the b30 interpolation taps; the encoder therefore prepends Linter
+// extra samples while preserving the same u(0) anchor.
 //
-// Q-format. xb and exc are Word16 (Q0). The accumulator uses
-// fixed.LMac so the returned RNbest carries the standard ITU
-// implicit ×2 product scaling (cf. openloop.correlate). Tie-break
-// on equal RN(k) favours the lower k via strict ">" comparison,
-// matching the openloop §A.3.4 line 2110 "favouring the delays
-// with the values in the lower range" convention.
+// Q-format. xb and exc are Word16 (Q0). The accumulator keeps the
+// ITU implicit ×2 product scaling (cf. openloop.correlate), but uses
+// int64 internally so the argmax follows the mathematical RN(k) in
+// eq. A.7 rather than a saturated Word32 surrogate. The returned RNbest
+// is saturated to Word32 for the legacy diagnostic surface only.
+// Tie-break on equal RN(k) favours the lower k via strict ">" comparison,
+// matching the openloop §A.3.4 line 2110 "favouring the delays with the
+// values in the lower range" convention.
 //
 // I3 / I4: pure (reads xb / exc), zero allocation.
 func SearchInteger(xb *[SubframeLen]int16, exc []int16, centre int16, sub int) (intLag int16, RNbest int32) {
 	var kMin, kMax int
 	if sub == 0 {
-		kMin = int(centre) - closedLoopHalfWindow
-		if kMin < PitchMinInt {
-			kMin = PitchMinInt
-		}
-		kMax = int(centre) + closedLoopHalfWindow
-		if kMax > PitchMaxInt {
-			kMax = PitchMaxInt
-		}
+		tmin, tmax := Subframe1Window(centre)
+		kMin = int(tmin)
+		kMax = int(tmax)
 	} else {
 		tmin, tmax := Subframe2Window(centre)
 		kMin = int(tmin)
@@ -123,18 +113,28 @@ func SearchInteger(xb *[SubframeLen]int16, exc []int16, centre int16, sub int) (
 	}
 
 	intLag = int16(kMin)
-	RNbest = 0
+	best := int64(-1 << 63)
 	base := len(exc) - SubframeLen
 	for k := kMin; k <= kMax; k++ {
-		var acc fixed.Word32
+		var acc int64
 		excBase := base - k
 		for n := 0; n < SubframeLen; n++ {
-			acc = fixed.LMac(acc, xb[n], exc[excBase+n])
+			acc += 2 * int64(xb[n]) * int64(exc[excBase+n])
 		}
-		if acc > RNbest {
-			RNbest = acc
+		if acc > best {
+			best = acc
 			intLag = int16(k)
 		}
 	}
-	return intLag, RNbest
+	return intLag, saturateInt64ToInt32(best)
+}
+
+func saturateInt64ToInt32(v int64) int32 {
+	if v > int64(fixed.Max32) {
+		return fixed.Max32
+	}
+	if v < int64(fixed.Min32) {
+		return fixed.Min32
+	}
+	return int32(v)
 }

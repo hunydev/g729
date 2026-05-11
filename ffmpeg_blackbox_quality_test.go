@@ -3,6 +3,7 @@ package g729
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math"
 	"os"
 	"os/exec"
@@ -126,6 +127,633 @@ func TestExternalFFmpegBlackboxQuality_SPEECH(t *testing.T) {
 		if gOur-gITU < minDeltaDB || sOur-sITU < minDeltaDB {
 			t.Fatalf("our encoder -> ffmpeg quality below release gate: Global delta %.2f dB, Seg delta %.2f dB; require both >= %.2f dB",
 				gOur-gITU, sOur-sITU, minDeltaDB)
+		}
+	}
+}
+
+func TestExternalFFmpegBlackboxProfileCompare_SPEECH(t *testing.T) {
+	if os.Getenv("G729_FFMPEG_BLACKBOX_PROFILE_COMPARE") != "1" {
+		t.Skip("set G729_FFMPEG_BLACKBOX_PROFILE_COMPARE=1 to compare encoder profiles on SPEECH")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skipf("ffmpeg unavailable: %v", err)
+	}
+
+	const (
+		bytesPerInFrame  = 2 * FrameSamples
+		bytesPerBitFrame = 164
+	)
+	vecDir := filepath.Join("testdata", "itu", "G729_Release3", "g729AnnexA", "test_vectors")
+	inData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.IN"))
+	if err != nil {
+		t.Fatalf("read SPEECH.IN: %v", err)
+	}
+	bitData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.BIT"))
+	if err != nil {
+		t.Fatalf("read SPEECH.BIT: %v", err)
+	}
+
+	frames := len(inData) / bytesPerInFrame
+	if bf := len(bitData) / bytesPerBitFrame; bf < frames {
+		frames = bf
+	}
+	totalSamples := frames * FrameSamples
+	src := s16leToSamples(inData[:totalSamples*2])
+
+	tmp := t.TempDir()
+	ituRaw := filepath.Join(tmp, "speech-itu.g729")
+	ituPCM := filepath.Join(tmp, "speech-itu.ffmpeg.s16le")
+	writeG192AsRawG729(t, bitData[:frames*bytesPerBitFrame], ituRaw)
+	ffmpegDecodeRawG729(t, ituRaw, ituPCM)
+	ituFF := s16leToSamples(readFile(t, ituPCM))
+	if len(ituFF) > totalSamples {
+		ituFF = ituFF[:totalSamples]
+	}
+	if len(ituFF) < totalSamples {
+		t.Fatalf("ffmpeg reference output too short: got=%d want>=%d", len(ituFF), totalSamples)
+	}
+
+	type result struct {
+		name  string
+		raw   []byte
+		pcm   []int16
+		shift int
+		gSNR  float64
+		sSNR  float64
+	}
+	profiles := []struct {
+		name    string
+		profile EncoderProfile
+	}{
+		{name: "core", profile: EncoderProfileCore},
+		{name: "quality", profile: EncoderProfileQuality},
+	}
+	results := make([]result, 0, len(profiles))
+	for _, p := range profiles {
+		rawPath := filepath.Join(tmp, "speech-"+p.name+".g729")
+		pcmPath := filepath.Join(tmp, "speech-"+p.name+".ffmpeg.s16le")
+		writeOurEncodedRawG729WithProfile(t, src, rawPath, p.profile)
+		ffmpegDecodeRawG729(t, rawPath, pcmPath)
+		raw := readFile(t, rawPath)
+		pcm := s16leToSamples(readFile(t, pcmPath))
+		if len(pcm) > totalSamples {
+			pcm = pcm[:totalSamples]
+		}
+		if len(pcm) < totalSamples {
+			t.Fatalf("%s ffmpeg output too short: got=%d want>=%d", p.name, len(pcm), totalSamples)
+		}
+		shift, g, s := bestAlignedSNR(src, pcm, 240)
+		results = append(results, result{name: p.name, raw: raw, pcm: pcm, shift: shift, gSNR: g, sSNR: s})
+	}
+
+	shITU, gITU, sITU := bestAlignedSNR(src, ituFF, 240)
+	t.Logf("ffmpeg black-box profile compare — SPEECH corpus (%d frames, %d samples)", frames, totalSamples)
+	t.Logf("%-24s %6s %10s %10s %10s %10s %10s", "Pipeline", "shift", "RMS", "GlobalSNR", "SegSNR", "dGlobal", "dSeg")
+	t.Logf("%-24s %6d %10.0f %10.2f %10.2f %10s %10s", "SPEECH.BIT -> ffmpeg", shITU, rmsAmp(ituFF), gITU, sITU, "-", "-")
+	for _, r := range results {
+		t.Logf("%-24s %6d %10.0f %10.2f %10.2f %10.2f %10.2f",
+			r.name+" -> ffmpeg", r.shift, rmsAmp(r.pcm), r.gSNR, r.sSNR, r.gSNR-gITU, r.sSNR-sITU)
+	}
+	if len(results) == 2 {
+		t.Logf("core-vs-quality payload byte equality %.2f%%", payloadEqualPercent(results[0].raw, results[1].raw))
+		sh, g, s := bestAlignedSNR(results[0].pcm, results[1].pcm, 240)
+		t.Logf("%-24s %6d %10.0f %10.2f %10.2f", "quality vs core", sh, rmsAmp(results[1].pcm), g, s)
+	}
+}
+
+func TestExternalFFmpegBlackboxTuningAblation_SPEECH(t *testing.T) {
+	if os.Getenv("G729_FFMPEG_BLACKBOX_TUNING_ABLATION") != "1" {
+		t.Skip("set G729_FFMPEG_BLACKBOX_TUNING_ABLATION=1 to split encoder tuning effects on SPEECH")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skipf("ffmpeg unavailable: %v", err)
+	}
+
+	const (
+		bytesPerInFrame  = 2 * FrameSamples
+		bytesPerBitFrame = 164
+	)
+	vecDir := filepath.Join("testdata", "itu", "G729_Release3", "g729AnnexA", "test_vectors")
+	inData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.IN"))
+	if err != nil {
+		t.Fatalf("read SPEECH.IN: %v", err)
+	}
+	bitData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.BIT"))
+	if err != nil {
+		t.Fatalf("read SPEECH.BIT: %v", err)
+	}
+
+	frames := len(inData) / bytesPerInFrame
+	if bf := len(bitData) / bytesPerBitFrame; bf < frames {
+		frames = bf
+	}
+	totalSamples := frames * FrameSamples
+	src := s16leToSamples(inData[:totalSamples*2])
+
+	variants := []struct {
+		name   string
+		tuning encoderQualityTuning
+	}{
+		{name: "core", tuning: 0},
+		{name: "core-wide-flag", tuning: encoderTuningWideGainPredictor},
+		{name: "core-bounded-pred", tuning: encoderDiagnosticBoundedGainPredictorTuning},
+		{name: "fcb+wide", tuning: encoderTuningFCBThresholdScan | encoderTuningWideGainPredictor},
+		{name: "pitch+fcb+wide", tuning: encoderTuningPitchCenterCandidate | encoderTuningFCBThresholdScan | encoderTuningWideGainPredictor},
+		{name: "gain", tuning: encoderTuningGainSearchBias},
+		{name: "gain+wide", tuning: encoderTuningGainSearchBias | encoderTuningWideGainPredictor},
+		{name: "norm+gain+early", tuning: encoderTuningNormalizedAdaptivePitchSearch | encoderTuningGainSearchBias | encoderTuningEarlyClosedLoopSpeechWindow},
+		{name: "norm+gain+early+wide", tuning: encoderTuningNormalizedAdaptivePitchSearch | encoderTuningGainSearchBias | encoderTuningEarlyClosedLoopSpeechWindow | encoderTuningWideGainPredictor},
+		{name: "norm+gain+early+residacb", tuning: encoderTuningNormalizedAdaptivePitchSearch | encoderTuningGainSearchBias | encoderTuningEarlyClosedLoopSpeechWindow | encoderTuningResidualExtensionAdaptiveVector},
+		{name: "quality+pitch", tuning: encoderQualityTuningAll | encoderTuningPitchCenterCandidate},
+		{name: "quality-no-fcb", tuning: encoderQualityTuningAll &^ encoderTuningFCBThresholdScan},
+		{name: "quality+lspx", tuning: encoderQualityTuningAll | encoderTuningExpandedLSPSearch},
+		{name: "quality-wide-no-gain", tuning: (encoderQualityTuningAll &^ encoderTuningGainSearchBias) | encoderTuningWideGainPredictor},
+		{name: "quality-wide+gain", tuning: encoderQualityTuningAll | encoderTuningWideGainPredictor},
+		{name: "quality", tuning: encoderQualityTuningAll},
+		{name: "quality+residacb", tuning: encoderQualityTuningAll | encoderTuningResidualExtensionAdaptiveVector},
+	}
+
+	tmp := t.TempDir()
+	ituRaw := filepath.Join(tmp, "speech-itu.g729")
+	ituPCM := filepath.Join(tmp, "speech-itu.ffmpeg.s16le")
+	writeG192AsRawG729(t, bitData[:frames*bytesPerBitFrame], ituRaw)
+	ffmpegDecodeRawG729(t, ituRaw, ituPCM)
+	ituFF := s16leToSamples(readFile(t, ituPCM))
+	if len(ituFF) > totalSamples {
+		ituFF = ituFF[:totalSamples]
+	}
+	if len(ituFF) < totalSamples {
+		t.Fatalf("SPEECH.BIT ffmpeg output too short: got=%d want>=%d", len(ituFF), totalSamples)
+	}
+
+	type result struct {
+		name string
+		raw  []byte
+		m    externalQualityMetrics
+	}
+	results := make([]result, 0, len(variants))
+	for _, v := range variants {
+		rawPath := filepath.Join(tmp, "speech-"+strings.ReplaceAll(v.name, "+", "_")+".g729")
+		pcmPath := filepath.Join(tmp, "speech-"+strings.ReplaceAll(v.name, "+", "_")+".ffmpeg.s16le")
+		writeOurEncodedRawG729WithTuning(t, src, rawPath, EncoderProfileCore, v.tuning)
+		ffmpegDecodeRawG729(t, rawPath, pcmPath)
+		raw := readFile(t, rawPath)
+		pcm := s16leToSamples(readFile(t, pcmPath))
+		if len(pcm) > totalSamples {
+			pcm = pcm[:totalSamples]
+		}
+		if len(pcm) < totalSamples {
+			t.Fatalf("%s ffmpeg output too short: got=%d want>=%d", v.name, len(pcm), totalSamples)
+		}
+		results = append(results, result{
+			name: v.name,
+			raw:  raw,
+			m:    externalQualityMetricsFor(src, pcm, 240),
+		})
+	}
+
+	ituMetrics := externalQualityMetricsFor(src, ituFF, 240)
+	var qualityRaw []byte
+	for _, r := range results {
+		if r.name == "quality" {
+			qualityRaw = r.raw
+			break
+		}
+	}
+	if qualityRaw == nil {
+		t.Fatal("quality variant missing from SPEECH tuning ablation results")
+	}
+	t.Logf("ffmpeg black-box tuning ablation — SPEECH corpus (%d frames, %d samples)", frames, totalSamples)
+	t.Logf("%-28s %6s %10s %10s %10s %8s %8s %7s %8s %10s", "Pipeline", "shift", "RMS", "GlobalSNR", "SegSNR", "Corr", "RMS/ref", "Peak", "NearClip", "eqQuality")
+	t.Logf("%-28s %6d %10.0f %10.2f %10.2f %8.4f %8.4f %7d %8d %10s",
+		"SPEECH.BIT -> ffmpeg", ituMetrics.shift, ituMetrics.rms, ituMetrics.globalSNR, ituMetrics.segSNR,
+		ituMetrics.corr, ituMetrics.rmsRatio, ituMetrics.peak, ituMetrics.nearClip, "-")
+	for _, r := range results {
+		t.Logf("%-28s %6d %10.0f %10.2f %10.2f %8.4f %8.4f %7d %8d %9.2f%%",
+			r.name+" -> ffmpeg", r.m.shift, r.m.rms, r.m.globalSNR, r.m.segSNR,
+			r.m.corr, r.m.rmsRatio, r.m.peak, r.m.nearClip, payloadEqualPercent(r.raw, qualityRaw))
+	}
+}
+
+func TestExternalFFmpegBlackboxProductionGainMode_SPEECH(t *testing.T) {
+	if os.Getenv("G729_FFMPEG_BLACKBOX_PRODUCTION_GAIN_MODE") != "1" {
+		t.Skip("set G729_FFMPEG_BLACKBOX_PRODUCTION_GAIN_MODE=1 to compare production-state gain modes on SPEECH")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skipf("ffmpeg unavailable: %v", err)
+	}
+
+	const (
+		bytesPerInFrame  = 2 * FrameSamples
+		bytesPerBitFrame = 164
+	)
+	vecDir := filepath.Join("testdata", "itu", "G729_Release3", "g729AnnexA", "test_vectors")
+	inData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.IN"))
+	if err != nil {
+		t.Fatalf("read SPEECH.IN: %v", err)
+	}
+	bitData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.BIT"))
+	if err != nil {
+		t.Fatalf("read SPEECH.BIT: %v", err)
+	}
+
+	frames := len(inData) / bytesPerInFrame
+	if bf := len(bitData) / bytesPerBitFrame; bf < frames {
+		frames = bf
+	}
+	totalSamples := frames * FrameSamples
+	src := s16leToSamples(inData[:totalSamples*2])
+
+	tmp := t.TempDir()
+	ituRaw := filepath.Join(tmp, "speech-itu.g729")
+	ituPCM := filepath.Join(tmp, "speech-itu.ffmpeg.s16le")
+	writeG192AsRawG729(t, bitData[:frames*bytesPerBitFrame], ituRaw)
+	ffmpegDecodeRawG729(t, ituRaw, ituPCM)
+	ituFF := s16leToSamples(readFile(t, ituPCM))
+	if len(ituFF) > totalSamples {
+		ituFF = ituFF[:totalSamples]
+	}
+	if len(ituFF) < totalSamples {
+		t.Fatalf("SPEECH.BIT ffmpeg output too short: got=%d want>=%d", len(ituFF), totalSamples)
+	}
+
+	modes := []externalProductionGainMode{
+		{name: "core-production", production: true},
+		{name: "preselect-wide", search: "preselect", wide: true},
+		{name: "norm24-wide", search: "preselect-norm", wide: true, preselectTargetBits: 24},
+		{name: "norm24-wide-repair30000", search: "preselect-norm", wide: true, gainClipRepair: true, gainClipRepairThreshold: 30000, preselectTargetBits: 24},
+		{name: "norm24-wide-repair28400", search: "preselect-norm", wide: true, gainClipRepair: true, gainClipRepairThreshold: 28400, preselectTargetBits: 24},
+		{name: "bigopt-wide-repair30400", search: "preselect-bigopt", wide: true, gainClipRepair: true, gainClipRepairThreshold: 30400},
+		{name: "preselect-linear-wide", search: "preselect-linear", wide: true},
+		{name: "preselect-native-wide", search: "preselect-native", wide: true},
+		{name: "native-wide", search: "native", wide: true},
+	}
+
+	ituMetrics := externalQualityMetricsFor(src, ituFF, 240)
+	t.Logf("ffmpeg black-box production gain-mode report — SPEECH corpus (%d frames, %d samples)", frames, totalSamples)
+	t.Logf("%-26s %6s %10s %10s %10s %8s %8s %7s %8s", "Pipeline", "shift", "RMS", "GlobalSNR", "SegSNR", "Corr", "RMS/ref", "Peak", "NearClip")
+	t.Logf("%-26s %6d %10.0f %10.2f %10.2f %8.4f %8.4f %7d %8d",
+		"SPEECH.BIT -> ffmpeg", ituMetrics.shift, ituMetrics.rms, ituMetrics.globalSNR, ituMetrics.segSNR,
+		ituMetrics.corr, ituMetrics.rmsRatio, ituMetrics.peak, ituMetrics.nearClip)
+	for _, mode := range modes {
+		rawPath := filepath.Join(tmp, "speech-"+strings.ReplaceAll(mode.name, "+", "_")+".g729")
+		pcmPath := filepath.Join(tmp, "speech-"+strings.ReplaceAll(mode.name, "+", "_")+".ffmpeg.s16le")
+		writePackedFrames(t, encodeBitstreamFramesProductionGainMode(t, src, mode), rawPath)
+		ffmpegDecodeRawG729(t, rawPath, pcmPath)
+		pcm := s16leToSamples(readFile(t, pcmPath))
+		if len(pcm) > totalSamples {
+			pcm = pcm[:totalSamples]
+		}
+		if len(pcm) < totalSamples {
+			t.Fatalf("%s ffmpeg output too short: got=%d want>=%d", mode.name, len(pcm), totalSamples)
+		}
+		m := externalQualityMetricsFor(src, pcm, 240)
+		t.Logf("%-26s %6d %10.0f %10.2f %10.2f %8.4f %8.4f %7d %8d",
+			mode.name+" -> ffmpeg", m.shift, m.rms, m.globalSNR, m.segSNR, m.corr, m.rmsRatio, m.peak, m.nearClip)
+	}
+}
+
+func TestExternalFFmpegBlackboxOpenLoopTopVariant_SPEECH(t *testing.T) {
+	if os.Getenv("G729_FFMPEG_BLACKBOX_OPENLOOP_TOP_VARIANT") != "1" {
+		t.Skip("set G729_FFMPEG_BLACKBOX_OPENLOOP_TOP_VARIANT=1 to compare diagnostic open-loop T_op choices on SPEECH")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skipf("ffmpeg unavailable: %v", err)
+	}
+
+	const (
+		bytesPerInFrame  = 2 * FrameSamples
+		bytesPerBitFrame = 164
+	)
+	vecDir := filepath.Join("testdata", "itu", "G729_Release3", "g729AnnexA", "test_vectors")
+	inData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.IN"))
+	if err != nil {
+		t.Fatalf("read SPEECH.IN: %v", err)
+	}
+	bitData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.BIT"))
+	if err != nil {
+		t.Fatalf("read SPEECH.BIT: %v", err)
+	}
+
+	frames := len(inData) / bytesPerInFrame
+	if bf := len(bitData) / bytesPerBitFrame; bf < frames {
+		frames = bf
+	}
+	totalSamples := frames * FrameSamples
+	src := s16leToSamples(inData[:totalSamples*2])
+
+	tmp := t.TempDir()
+	ituRaw := filepath.Join(tmp, "speech-itu.g729")
+	ituPCM := filepath.Join(tmp, "speech-itu.ffmpeg.s16le")
+	writeG192AsRawG729(t, bitData[:frames*bytesPerBitFrame], ituRaw)
+	ffmpegDecodeRawG729(t, ituRaw, ituPCM)
+	ituFF := s16leToSamples(readFile(t, ituPCM))
+	if len(ituFF) > totalSamples {
+		ituFF = ituFF[:totalSamples]
+	}
+	if len(ituFF) < totalSamples {
+		t.Fatalf("SPEECH.BIT ffmpeg output too short: got=%d want>=%d", len(ituFF), totalSamples)
+	}
+
+	profiles := []struct {
+		name    string
+		profile EncoderProfile
+	}{
+		{name: "core", profile: EncoderProfileCore},
+		{name: "quality", profile: EncoderProfileQuality},
+	}
+	variants := []externalOpenLoopTopVariant{
+		{name: "production"},
+		{name: "range1", mode: "range1"},
+		{name: "range2", mode: "range2"},
+		{name: "range3", mode: "range3"},
+		{name: "best-range", mode: "best-range"},
+		{name: "no-high", mode: "no-high"},
+		{name: "best>=1.03", mode: "best-margin:1.03"},
+		{name: "best>=1.08", mode: "best-margin:1.08"},
+		{name: "low>=0.90", mode: "low-close:0.90"},
+		{name: "low>=0.95", mode: "low-close:0.95"},
+		{name: "r2>=0.90", mode: "range2-close:0.90"},
+		{name: "r2>=0.95", mode: "range2-close:0.95"},
+		{name: "r2-if-best", mode: "range2-if-best"},
+	}
+
+	ituMetrics := externalQualityMetricsFor(src, ituFF, 240)
+	t.Logf("ffmpeg black-box open-loop T_op variant report — SPEECH corpus (%d frames, %d samples)", frames, totalSamples)
+	t.Logf("%-8s %-12s %6s %10s %10s %10s %8s %8s %7s %8s", "Profile", "Variant", "shift", "RMS", "GlobalSNR", "SegSNR", "Corr", "RMS/ref", "Peak", "NearClip")
+	t.Logf("%-8s %-12s %6d %10.0f %10.2f %10.2f %8.4f %8.4f %7d %8d",
+		"ref", "ffmpeg", ituMetrics.shift, ituMetrics.rms, ituMetrics.globalSNR, ituMetrics.segSNR,
+		ituMetrics.corr, ituMetrics.rmsRatio, ituMetrics.peak, ituMetrics.nearClip)
+	for _, p := range profiles {
+		for _, v := range variants {
+			rawPath := filepath.Join(tmp, fmt.Sprintf("speech-%s-%s.g729", p.name, strings.ReplaceAll(v.name, "+", "_")))
+			pcmPath := filepath.Join(tmp, fmt.Sprintf("speech-%s-%s.ffmpeg.s16le", p.name, strings.ReplaceAll(v.name, "+", "_")))
+			writePackedFrames(t, encodeBitstreamFramesOpenLoopTopVariant(t, src, p.profile, v), rawPath)
+			ffmpegDecodeRawG729(t, rawPath, pcmPath)
+			pcm := s16leToSamples(readFile(t, pcmPath))
+			if len(pcm) > totalSamples {
+				pcm = pcm[:totalSamples]
+			}
+			if len(pcm) < totalSamples {
+				t.Fatalf("%s/%s ffmpeg output too short: got=%d want>=%d", p.name, v.name, len(pcm), totalSamples)
+			}
+			m := externalQualityMetricsFor(src, pcm, 240)
+			t.Logf("%-8s %-12s %6d %10.0f %10.2f %10.2f %8.4f %8.4f %7d %8d",
+				p.name, v.name, m.shift, m.rms, m.globalSNR, m.segSNR, m.corr, m.rmsRatio, m.peak, m.nearClip)
+		}
+	}
+}
+
+func TestExternalFFmpegBlackboxOpenLoopLiftSweep_SPEECH(t *testing.T) {
+	if os.Getenv("G729_FFMPEG_BLACKBOX_OPENLOOP_LIFT_SWEEP") != "1" {
+		t.Skip("set G729_FFMPEG_BLACKBOX_OPENLOOP_LIFT_SWEEP=1 to sweep diagnostic Core open-loop submultiple lift on SPEECH")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skipf("ffmpeg unavailable: %v", err)
+	}
+
+	const (
+		bytesPerInFrame  = 2 * FrameSamples
+		bytesPerBitFrame = 164
+	)
+	vecDir := filepath.Join("testdata", "itu", "G729_Release3", "g729AnnexA", "test_vectors")
+	inData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.IN"))
+	if err != nil {
+		t.Fatalf("read SPEECH.IN: %v", err)
+	}
+	bitData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.BIT"))
+	if err != nil {
+		t.Fatalf("read SPEECH.BIT: %v", err)
+	}
+
+	frames := len(inData) / bytesPerInFrame
+	if bf := len(bitData) / bytesPerBitFrame; bf < frames {
+		frames = bf
+	}
+	totalSamples := frames * FrameSamples
+	src := s16leToSamples(inData[:totalSamples*2])
+
+	tmp := t.TempDir()
+	ituRaw := filepath.Join(tmp, "speech-itu.g729")
+	ituPCM := filepath.Join(tmp, "speech-itu.ffmpeg.s16le")
+	writeG192AsRawG729(t, bitData[:frames*bytesPerBitFrame], ituRaw)
+	ffmpegDecodeRawG729(t, ituRaw, ituPCM)
+	ituFF := s16leToSamples(readFile(t, ituPCM))
+	if len(ituFF) > totalSamples {
+		ituFF = ituFF[:totalSamples]
+	}
+	if len(ituFF) < totalSamples {
+		t.Fatalf("SPEECH.BIT ffmpeg output too short: got=%d want>=%d", len(ituFF), totalSamples)
+	}
+
+	ituMetrics := externalQualityMetricsFor(src, ituFF, 240)
+	lifts := []float64{1.05, 1.10, 1.12, 1.15, 20.0 / 17.0, 1.20, 1.30, 1.50, 1.75, 2.00}
+	t.Logf("ffmpeg black-box Core open-loop submultiple-lift sweep — SPEECH corpus (%d frames, %d samples)", frames, totalSamples)
+	t.Logf("%-8s %8s %6s %10s %10s %10s %8s %8s %7s %8s",
+		"Lift", "chgTop", "shift", "RMS", "GlobalSNR", "SegSNR", "Corr", "RMS/ref", "Peak", "NearClip")
+	t.Logf("%-8s %8s %6d %10.0f %10.2f %10.2f %8.4f %8.4f %7d %8d",
+		"ref", "-", ituMetrics.shift, ituMetrics.rms, ituMetrics.globalSNR, ituMetrics.segSNR,
+		ituMetrics.corr, ituMetrics.rmsRatio, ituMetrics.peak, ituMetrics.nearClip)
+	for _, lift := range lifts {
+		rawPath := filepath.Join(tmp, fmt.Sprintf("speech-core-lift-%.2f.g729", lift))
+		pcmPath := filepath.Join(tmp, fmt.Sprintf("speech-core-lift-%.2f.ffmpeg.s16le", lift))
+		encoded, changedTop := encodeBitstreamFramesCoreOpenLoopLift(t, src, lift)
+		writePackedFrames(t, encoded, rawPath)
+		ffmpegDecodeRawG729(t, rawPath, pcmPath)
+		pcm := s16leToSamples(readFile(t, pcmPath))
+		if len(pcm) > totalSamples {
+			pcm = pcm[:totalSamples]
+		}
+		if len(pcm) < totalSamples {
+			t.Fatalf("lift %.2f ffmpeg output too short: got=%d want>=%d", lift, len(pcm), totalSamples)
+		}
+		m := externalQualityMetricsFor(src, pcm, 240)
+		t.Logf("%-8.2f %8d %6d %10.0f %10.2f %10.2f %8.4f %8.4f %7d %8d",
+			lift, changedTop, m.shift, m.rms, m.globalSNR, m.segSNR,
+			m.corr, m.rmsRatio, m.peak, m.nearClip)
+	}
+}
+
+func TestExternalFFmpegBlackboxClippedOpenLoopTopVariant_SPEECH(t *testing.T) {
+	if os.Getenv("G729_FFMPEG_BLACKBOX_CLIPPED_OPENLOOP_TOP_VARIANT") != "1" {
+		t.Skip("set G729_FFMPEG_BLACKBOX_CLIPPED_OPENLOOP_TOP_VARIANT=1 to compare clipped-input open-loop T_op choices on SPEECH")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skipf("ffmpeg unavailable: %v", err)
+	}
+
+	const (
+		bytesPerInFrame  = 2 * FrameSamples
+		bytesPerBitFrame = 164
+	)
+	vecDir := filepath.Join("testdata", "itu", "G729_Release3", "g729AnnexA", "test_vectors")
+	inData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.IN"))
+	if err != nil {
+		t.Fatalf("read SPEECH.IN: %v", err)
+	}
+	bitData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.BIT"))
+	if err != nil {
+		t.Fatalf("read SPEECH.BIT: %v", err)
+	}
+
+	frames := len(inData) / bytesPerInFrame
+	if bf := len(bitData) / bytesPerBitFrame; bf < frames {
+		frames = bf
+	}
+	totalSamples := frames * FrameSamples
+	src := s16leToSamples(inData[:totalSamples*2])
+
+	type mode struct {
+		name      string
+		threshold int
+		cooldown  int
+		variant   externalOpenLoopTopVariant
+	}
+	modes := []mode{
+		{name: "current"},
+		{name: "r2c95-32700-c5", threshold: 32700, cooldown: 5, variant: externalOpenLoopTopVariant{mode: "range2-close:0.95"}},
+		{name: "r2c95-32700-c10", threshold: 32700, cooldown: 10, variant: externalOpenLoopTopVariant{mode: "range2-close:0.95"}},
+		{name: "r2c95-32700-c20", threshold: 32700, cooldown: 20, variant: externalOpenLoopTopVariant{mode: "range2-close:0.95"}},
+	}
+
+	tmp := t.TempDir()
+	t.Logf("ffmpeg black-box clipped-input open-loop T_op variant report — SPEECH corpus (%d frames, %d samples)", frames, totalSamples)
+	t.Logf("%-17s %8s %8s %6s %10s %10s %10s %8s %8s %7s %8s",
+		"Mode", "swFrames", "chgFrames", "shift", "RMS", "GlobalSNR", "SegSNR", "Corr", "RMS/ref", "Peak", "NearClip")
+	for _, mode := range modes {
+		rawPath := filepath.Join(tmp, fmt.Sprintf("speech-%s.g729", strings.ReplaceAll(mode.name, "+", "_")))
+		pcmPath := filepath.Join(tmp, fmt.Sprintf("speech-%s.ffmpeg.s16le", strings.ReplaceAll(mode.name, "+", "_")))
+		outFrames, switched, changed := encodeBitstreamFramesClippedOpenLoopTopVariant(t, src, mode.threshold, mode.cooldown, mode.variant)
+		writePackedFrames(t, outFrames, rawPath)
+		ffmpegDecodeRawG729(t, rawPath, pcmPath)
+		pcm := s16leToSamples(readFile(t, pcmPath))
+		if len(pcm) > totalSamples {
+			pcm = pcm[:totalSamples]
+		}
+		if len(pcm) < totalSamples {
+			t.Fatalf("%s ffmpeg output too short: got=%d want>=%d", mode.name, len(pcm), totalSamples)
+		}
+		m := externalQualityMetricsFor(src, pcm, 240)
+		t.Logf("%-17s %8d %8d %6d %10.0f %10.2f %10.2f %8.4f %8.4f %7d %8d",
+			mode.name, switched, changed, m.shift, m.rms, m.globalSNR, m.segSNR, m.corr, m.rmsRatio, m.peak, m.nearClip)
+	}
+}
+
+func TestExternalFFmpegBlackboxGainPreselectNativeAudit_SPEECH(t *testing.T) {
+	if os.Getenv("G729_FFMPEG_BLACKBOX_GAIN_PRESELECT_NATIVE_AUDIT") != "1" {
+		t.Skip("set G729_FFMPEG_BLACKBOX_GAIN_PRESELECT_NATIVE_AUDIT=1 to audit native gain optimum vs Annex A preselect on SPEECH")
+	}
+
+	const (
+		bytesPerInFrame  = 2 * FrameSamples
+		bytesPerBitFrame = 164
+	)
+	vecDir := filepath.Join("testdata", "itu", "G729_Release3", "g729AnnexA", "test_vectors")
+	inData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.IN"))
+	if err != nil {
+		t.Fatalf("read SPEECH.IN: %v", err)
+	}
+	bitData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.BIT"))
+	if err != nil {
+		t.Fatalf("read SPEECH.BIT: %v", err)
+	}
+
+	frames := len(inData) / bytesPerInFrame
+	if bf := len(bitData) / bytesPerBitFrame; bf < frames {
+		frames = bf
+	}
+	totalSamples := frames * FrameSamples
+	src := s16leToSamples(inData[:totalSamples*2])
+
+	stats := collectGainPreselectNativeAudit(t, src)
+	logGainPreselectNativeAudit(t, fmt.Sprintf("SPEECH gain preselect/native audit: frames=%d samples=%d", frames, totalSamples), stats)
+}
+
+func TestExternalFFmpegBlackboxGainCostModelAudit_SPEECH(t *testing.T) {
+	if os.Getenv("G729_FFMPEG_BLACKBOX_GAIN_COST_MODEL_AUDIT") != "1" {
+		t.Skip("set G729_FFMPEG_BLACKBOX_GAIN_COST_MODEL_AUDIT=1 to compare eq.63 cost ordering against direct linear residual on SPEECH")
+	}
+
+	const bytesPerInFrame = 2 * FrameSamples
+	vecDir := filepath.Join("testdata", "itu", "G729_Release3", "g729AnnexA", "test_vectors")
+	inData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.IN"))
+	if err != nil {
+		t.Fatalf("read SPEECH.IN: %v", err)
+	}
+
+	frames := len(inData) / bytesPerInFrame
+	totalSamples := frames * FrameSamples
+	src := s16leToSamples(inData[:totalSamples*2])
+
+	bounded := collectGainCostModelAudit(t, src, false)
+	logGainCostModelAudit(t, fmt.Sprintf("SPEECH gain cost-model audit bounded: frames=%d samples=%d", frames, totalSamples), bounded)
+	wide := collectGainCostModelAudit(t, src, true)
+	logGainCostModelAudit(t, fmt.Sprintf("SPEECH gain cost-model audit wide: frames=%d samples=%d", frames, totalSamples), wide)
+}
+
+func TestExternalFFmpegBlackboxFCBThresholdLimit_SPEECH(t *testing.T) {
+	if os.Getenv("G729_FFMPEG_BLACKBOX_FCB_THRESHOLD_LIMIT") != "1" {
+		t.Skip("set G729_FFMPEG_BLACKBOX_FCB_THRESHOLD_LIMIT=1 to sweep focused FCB search limits on SPEECH")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skipf("ffmpeg unavailable: %v", err)
+	}
+
+	const (
+		bytesPerInFrame  = 2 * FrameSamples
+		bytesPerBitFrame = 164
+	)
+	vecDir := filepath.Join("testdata", "itu", "G729_Release3", "g729AnnexA", "test_vectors")
+	inData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.IN"))
+	if err != nil {
+		t.Fatalf("read SPEECH.IN: %v", err)
+	}
+	bitData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.BIT"))
+	if err != nil {
+		t.Fatalf("read SPEECH.BIT: %v", err)
+	}
+
+	frames := len(inData) / bytesPerInFrame
+	if bf := len(bitData) / bytesPerBitFrame; bf < frames {
+		frames = bf
+	}
+	totalSamples := frames * FrameSamples
+	src := s16leToSamples(inData[:totalSamples*2])
+
+	prevLimit := qualityFCBThresholdScanLimit
+	defer func() { qualityFCBThresholdScanLimit = prevLimit }()
+
+	modes := []struct {
+		name   string
+		tuning encoderQualityTuning
+	}{
+		{name: "fcb+wide", tuning: encoderTuningFCBThresholdScan | encoderTuningWideGainPredictor},
+		{name: "pitch+fcb+wide", tuning: encoderTuningPitchCenterCandidate | encoderTuningFCBThresholdScan | encoderTuningWideGainPredictor},
+		{name: "quality", tuning: encoderQualityTuningAll},
+	}
+	limits := []int{30, 45, 60, 90, 120, 180}
+
+	tmp := t.TempDir()
+	t.Logf("ffmpeg black-box focused FCB threshold-limit diagnostic — SPEECH corpus (%d frames, %d samples)", frames, totalSamples)
+	t.Logf("%-16s %5s %6s %10s %10s %10s %8s %8s %7s %8s", "Mode", "Limit", "shift", "RMS", "GlobalSNR", "SegSNR", "Corr", "RMS/ref", "Peak", "NearClip")
+	for _, limit := range limits {
+		qualityFCBThresholdScanLimit = limit
+		for _, mode := range modes {
+			name := fmt.Sprintf("%s-l%d", strings.ReplaceAll(mode.name, "+", "_"), limit)
+			rawPath := filepath.Join(tmp, name+".g729")
+			pcmPath := filepath.Join(tmp, name+".ffmpeg.s16le")
+			writeOurEncodedRawG729WithTuning(t, src, rawPath, EncoderProfileCore, mode.tuning)
+			ffmpegDecodeRawG729(t, rawPath, pcmPath)
+			ff := s16leToSamples(readFile(t, pcmPath))
+			if len(ff) > totalSamples {
+				ff = ff[:totalSamples]
+			}
+			if len(ff) < totalSamples {
+				t.Fatalf("%s decoded output too short: ffmpeg=%d want >= %d", name, len(ff), totalSamples)
+			}
+			m := externalQualityMetricsFor(src, ff, 240)
+			t.Logf("%-16s %5d %6d %10.0f %10.2f %10.2f %8.4f %8.4f %7d %8d",
+				mode.name, limit, m.shift, m.rms, m.globalSNR, m.segSNR, m.corr, m.rmsRatio, m.peak, m.nearClip)
 		}
 	}
 }
@@ -1004,7 +1632,24 @@ func writeG192AsRawG729(t *testing.T, g192 []byte, path string) {
 
 func writeOurEncodedRawG729(t *testing.T, samples []int16, path string) {
 	t.Helper()
-	enc := NewEncoder()
+	writeOurEncodedRawG729WithProfile(t, samples, path, EncoderProfileQuality)
+}
+
+func writeOurEncodedRawG729WithProfile(t *testing.T, samples []int16, path string, profile EncoderProfile) {
+	t.Helper()
+	enc := NewEncoderWithProfile(profile)
+	writeRawG729WithEncoder(t, samples, path, enc)
+}
+
+func writeOurEncodedRawG729WithTuning(t *testing.T, samples []int16, path string, profile EncoderProfile, tuning encoderQualityTuning) {
+	t.Helper()
+	enc := NewEncoderWithProfile(profile)
+	enc.qualityTuning = tuning
+	writeRawG729WithEncoder(t, samples, path, enc)
+}
+
+func writeRawG729WithEncoder(t *testing.T, samples []int16, path string, enc *Encoder) {
+	t.Helper()
 	raw := make([]byte, 0, len(samples)/FrameSamples*FrameBytes)
 	var packed [FrameBytes]byte
 	for off := 0; off+FrameSamples <= len(samples); off += FrameSamples {
@@ -1016,6 +1661,57 @@ func writeOurEncodedRawG729(t *testing.T, samples []int16, path string) {
 	if err := os.WriteFile(path, raw, 0o600); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
+}
+
+func writeBCGEncodedRawG729(t *testing.T, samples []int16, path string) {
+	t.Helper()
+	if len(samples)%FrameSamples != 0 {
+		t.Fatalf("bcg729 black-box encode input has %d samples, want multiple of %d", len(samples), FrameSamples)
+	}
+	bin := filepath.Join("third-party", "bcg729-blackbox", "bcg729_encode")
+	if _, err := os.Stat(bin); err != nil {
+		t.Skipf("bcg729 black-box executable unavailable: %v", err)
+	}
+
+	pcm := make([]byte, len(samples)*2)
+	for i, s := range samples {
+		binary.LittleEndian.PutUint16(pcm[2*i:2*i+2], uint16(s))
+	}
+	cmd := exec.Command(bin)
+	cmd.Stdin = bytes.NewReader(pcm)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		t.Fatalf("bcg729 black-box encode: %s", msg)
+	}
+	want := len(samples) / FrameSamples * FrameBytes
+	if len(out) != want {
+		t.Fatalf("bcg729 black-box encoded %d bytes, want %d", len(out), want)
+	}
+	if err := os.WriteFile(path, out, 0o600); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+func readRawG729Frames(t *testing.T, raw []byte) []bitstream.Frame {
+	t.Helper()
+	if len(raw)%FrameBytes != 0 {
+		t.Fatalf("raw G.729 length %d not divisible by %d", len(raw), FrameBytes)
+	}
+	frames := make([]bitstream.Frame, 0, len(raw)/FrameBytes)
+	for off := 0; off < len(raw); off += FrameBytes {
+		var f bitstream.Frame
+		if err := bitstream.Unpack(raw[off:off+FrameBytes], &f); err != nil {
+			t.Fatalf("Unpack raw G.729 frame %d: %v", off/FrameBytes, err)
+		}
+		frames = append(frames, f)
+	}
+	return frames
 }
 
 func decodeRawG729WithLocal(t *testing.T, raw []byte) []int16 {
@@ -1391,10 +2087,9 @@ func forceReferenceCodeOwnGainStepVariant(e *Encoder, sub int, intLag int16, fra
 	}
 	clpitch.ImpulseResponse(aHat, &h)
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	clpitch.AdaptiveVector(excSearch[:], intLag, frac, &v)
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
+	clpitch.AdaptiveVector(exc, intLag, frac, &v)
 	clpitch.GpAndY(&x, &v, &h, &y)
 
 	codeSigns := uint8(refS)
@@ -1623,10 +2318,9 @@ func observeReferenceCodeGainSelection(
 	clpitch.TargetSignal(aHat, &r, &e.swMemErr, &x)
 	clpitch.ImpulseResponse(aHat, &h)
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	clpitch.AdaptiveVector(excSearch[:], intLag, frac, &v)
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
+	clpitch.AdaptiveVector(exc, intLag, frac, &v)
 	clpitch.GpAndY(&x, &v, &h, &y)
 
 	var c [clpitch.SubframeLen]int16
@@ -1790,10 +2484,9 @@ func observeReferenceGainCostSurface(
 	clpitch.TargetSignal(aHat, &r, &e.swMemErr, &x)
 	clpitch.ImpulseResponse(aHat, &h)
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	clpitch.AdaptiveVector(excSearch[:], intLag, frac, &v)
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
+	clpitch.AdaptiveVector(exc, intLag, frac, &v)
 	clpitch.GpAndY(&x, &v, &h, &y)
 
 	var c [clpitch.SubframeLen]int16
@@ -2035,10 +2728,8 @@ func observePitchSelection(e *Encoder, frameIndex, sub int, refInt int16, refFra
 		centre = e.intT1
 	}
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 
 	localInt, _ := clpitch.SearchInteger(&xb, exc, centre, sub)
 	localFrac := clpitch.RefineFraction(&xb, exc, localInt, sub == 1 || localInt < 85)

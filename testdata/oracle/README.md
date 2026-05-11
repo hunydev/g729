@@ -179,6 +179,81 @@ For a complete exact verdict:
 G729_COMPARE_LSP_FRAME0_VQ_HANDOFF=1 G729_REQUIRE_COMPLETE_LSP_FRAME0_VQ_HANDOFF=1 G729_REQUIRE_EXACT_LSP_FRAME0_VQ_HANDOFF=1 go test ./internal/lsp -run TestOracleHandoff_CompareLSPFrame0VQHandoff -v
 ```
 
+## FCB Tree-Search Numeric Handoff
+
+For the narrowed fixed-codebook search question, use:
+
+```sh
+G729_WRITE_FCB_TREE_SEARCH_HANDOFF=1 go test -run TestOracleHandoff_WriteFCBTreeSearchHandoff -v
+```
+
+This writes:
+
+- `testdata/oracle/handoff/fcb_tree_search_got.csv`
+- `testdata/oracle/handoff/fcb_tree_search_expected_template.csv`
+
+Give both files to the verifier. The `got` file carries the numeric
+search surface and current local scalar results; the expected template
+keeps the same keys with a blank verifier-owned `expected` column. The
+verifier fills numeric `expected` cells keyed by:
+
+```csv
+field,frame,sub,index
+```
+
+Rows cover `SPEECH.IN` frames 292 through 294. The `got` rows include the
+numeric `d_abs`, `sign`, `phi`, focused selected positions/scores,
+exhaustive positions/scores, and threshold/accepted-prefix scalars. After
+the verifier fills `expected`, compare:
+
+```sh
+G729_COMPARE_FCB_TREE_SEARCH_HANDOFF=1 go test -run TestOracleHandoff_CompareFCBTreeSearchHandoff -v
+```
+
+For a complete exact verdict:
+
+```sh
+G729_COMPARE_FCB_TREE_SEARCH_HANDOFF=1 G729_REQUIRE_COMPLETE_FCB_TREE_SEARCH_HANDOFF=1 G729_REQUIRE_EXACT_FCB_TREE_SEARCH_HANDOFF=1 go test -run TestOracleHandoff_CompareFCBTreeSearchHandoff -v
+```
+
+## User-Audio FCB Tree-Search Numeric Handoff
+
+For the same narrowed fixed-codebook search question on the converted
+user problem sample frames around 2.9 seconds, use the workflow pinned to
+`testdata/external/user_quality_audio.m4a`:
+
+```sh
+G729_WRITE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 go test -run TestOracleHandoff_WriteFCBTreeSearchUserAudioHandoff -v
+```
+
+This writes:
+
+- `testdata/oracle/handoff/fcb_tree_search_user_audio_got.csv`
+- `testdata/oracle/handoff/fcb_tree_search_user_audio_expected_template.csv`
+
+Give both files to the verifier. The `got` file carries the numeric
+search surface and current local scalar results for frames `292..294`;
+the expected template keeps the same keys with a blank verifier-owned
+`expected` column. The verifier fills numeric `expected` cells keyed by:
+
+```csv
+field,frame,sub,index
+```
+
+Use `testdata/oracle/handoff/FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md`
+as the detailed clean-room verifier prompt. After the verifier fills
+`expected`, compare:
+
+```sh
+G729_COMPARE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 go test -run TestOracleHandoff_CompareFCBTreeSearchUserAudioHandoff -v
+```
+
+For a complete exact verdict:
+
+```sh
+G729_COMPARE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 G729_REQUIRE_COMPLETE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 G729_REQUIRE_EXACT_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 go test -run TestOracleHandoff_CompareFCBTreeSearchUserAudioHandoff -v
+```
+
 ## LSP Frame-0 Source Distinction Handoff
 
 To resolve whether frame 0's transmitted `LSP.BIT` tuple and the

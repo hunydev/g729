@@ -24,8 +24,10 @@
 //	AdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[40]int16)
 //	    Per §3.8 / §4.1.4. Writes v[0..39] from pastExc at the
 //	    specified delay, using the 1/3-sample FIR interpolator from
-//	    tables.PitchInterpFIR for fractional offsets. Extends by
-//	    periodicity when tInt < 40.
+//	    tables.PitchInterpFIR for fractional offsets. Integer short
+//	    pitch extends by periodicity when tInt < 40; fractional short
+//	    pitch evaluates current-subframe taps from previously generated
+//	    adaptive-vector samples.
 //
 // # Past excitation convention
 //

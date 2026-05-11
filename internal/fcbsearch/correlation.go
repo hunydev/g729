@@ -12,12 +12,10 @@ import "github.com/hunydev/g729/internal/fixed"
 // and ĝp is the unquantized adaptive-codebook gain (Phase 2c GP-1
 // output, Q14, range [0, GpUpperQ14] = [0, ~1.2)).
 //
-// Q-format. The product gp·y is int32 in Q14; we arithmetically right-
-// shift by 14 to land in Q0 before subtracting from x and Word16-
-// saturating, matching the OQ-Q-FORMAT-A10 default pinned in the
-// Phase 2d sub-plan §3 (line 462). The shift is unrounded, matching
-// the Phase 2c BackwardFilter convention so x' inherits the same
-// truncation bias as xb.
+// Q-format. The product gp·y is int32 in Q14; roundShift(..., 14)
+// converts it to Q0 before subtracting from x and Word16-saturating.
+// This documents the current fixed-point contract explicitly: the
+// conversion is rounded, not a raw arithmetic right shift.
 //
 // I3 / I4: pure (writes only through xPrime), zero allocation.
 func AdjustedTarget(x, y *[SubframeLen]int16, gp int16, xPrime *[SubframeLen]int16) {

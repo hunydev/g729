@@ -68,6 +68,20 @@ func TestMergeThreeRanges_TieBreakLowerLag(t *testing.T) {
 	}
 }
 
+func TestMergeThreeRanges_Range3ChecksAllLowerSubmultiples(t *testing.T) {
+	r1, e1 := scoreTriple(100, 100) // score 100
+	r2, e2 := scoreTriple(102, 100) // score 104.04
+	r3, e3 := scoreTriple(104, 100) // score 108.16
+
+	// 116 is a near 3x multiple of 39, but not of 75. Range 2 is the
+	// best non-lifted lower candidate; range 3 must still be blocked by
+	// the range-1 11/10 sub-multiple lift instead of only comparing to range 2.
+	got := mergeThreeRanges(r1, e1, 39, r2, e2, 75, r3, e3, 116)
+	if got != 75 {
+		t.Fatalf("mergeThreeRanges(39 submultiple of 116 with stronger 75) = %d, want 75", got)
+	}
+}
+
 // TestMergeThreeRanges_LongRangeWinsOverNonMultiple verifies that when
 // the longest-range candidate strictly dominates and the shorter-range
 // lags are NOT sub-multiples, the longest-range lag is returned (no
@@ -83,10 +97,9 @@ func TestMergeThreeRanges_LongRangeWinsOverNonMultiple(t *testing.T) {
 	}
 }
 
-// TestMergeThreeRanges_LiftInsufficient verifies the OQ-1 4/3 lift is
+// TestMergeThreeRanges_LiftInsufficient verifies the OQ-1 lift is
 // bounded — a sufficiently strong higher-range candidate still wins
-// over a sub-multiple lower-range candidate. With R'²(30) = 1 and
-// R'²(90) = 4, the lifted lower score is 4/3 < 4, so 90 wins.
+// over a sub-multiple lower-range candidate.
 func TestMergeThreeRanges_LiftInsufficient(t *testing.T) {
 	rLow, eLow := scoreTriple(10, 100)     // R²/E = 1
 	rHigh, eHigh := scoreTriple(200, 1000) // R²/E = 40

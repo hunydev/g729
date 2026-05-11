@@ -1,6 +1,7 @@
 package fcbsearch_test
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/hunydev/g729/internal/fcbsearch"
@@ -247,6 +248,142 @@ func TestSearchDepthFirst_NoAlloc(t *testing.T) {
 	}
 }
 
+func TestSearchDepthFirstThresholdScan_DeltaSpike(t *testing.T) {
+	var dAbs [40]int32
+	dAbs[0] = 1 << 20
+	dAbs[1] = 1 << 20
+	dAbs[2] = 1 << 20
+	dAbs[3] = 1 << 20
+
+	var phi [40][40]int32
+	for i := 0; i < 40; i++ {
+		phi[i][i] = 1 << 18
+	}
+
+	var positions [4]int8
+	var sums [2]int64
+	entered := fcbsearch.SearchDepthFirstThresholdScanEntered(&dAbs, &phi, &positions, &sums, fcbsearch.SearchThresholdScanDefaultLimit)
+
+	want := [4]int8{0, 1, 2, 3}
+	if positions != want {
+		t.Fatalf("positions=%v want %v", positions, want)
+	}
+	if entered <= 0 || entered > fcbsearch.SearchThresholdScanDefaultLimit {
+		t.Fatalf("entered=%d want in 1..%d", entered, fcbsearch.SearchThresholdScanDefaultLimit)
+	}
+}
+
+func TestSearchDepthFirstThresholdScan_RequiresCorrelationAboveThreshold(t *testing.T) {
+	var dAbs [40]int32
+	for n := range dAbs {
+		dAbs[n] = 12345
+	}
+
+	var phi [40][40]int32
+	for i := range phi {
+		phi[i][i] = 1 << 16
+	}
+
+	var positions [4]int8
+	var sums [2]int64
+	entered := fcbsearch.SearchDepthFirstThresholdScanEntered(
+		&dAbs, &phi, &positions, &sums,
+		fcbsearch.SearchThresholdScanDefaultLimit,
+	)
+
+	if entered != 0 {
+		t.Fatalf("entered=%d want 0 when first-three correlation only equals threshold", entered)
+	}
+	want := [4]int8{0, 1, 2, 3}
+	if positions != want {
+		t.Fatalf("positions=%v want fallback exhaustive %v", positions, want)
+	}
+}
+
+func TestSearchDepthFirstThresholdScan_InvalidLimitFallsBack(t *testing.T) {
+	var dAbs [40]int32
+	for n := range dAbs {
+		dAbs[n] = int32(1000 + (n*7919)%65521)
+	}
+	var phi [40][40]int32
+	for i := 0; i < 40; i++ {
+		phi[i][i] = int32(1<<14 + i*101)
+	}
+
+	var want, got [4]int8
+	var wantSums, gotSums [2]int64
+	fcbsearch.SearchDepthFirst(&dAbs, &phi, &want, &wantSums)
+	fcbsearch.SearchDepthFirstThresholdScan(&dAbs, &phi, &got, &gotSums, 0)
+
+	if got != want || gotSums != wantSums {
+		t.Fatalf("fallback got positions=%v sums=%v want positions=%v sums=%v", got, gotSums, want, wantSums)
+	}
+}
+
+func TestSearchDepthFirstThresholdScan_NoAlloc(t *testing.T) {
+	var dAbs [40]int32
+	for n := range dAbs {
+		dAbs[n] = int32(1000 + 17*n)
+	}
+	var phi [40][40]int32
+	for i := 0; i < 40; i++ {
+		phi[i][i] = int32(2048 + i)
+	}
+	var positions [4]int8
+	var sums [2]int64
+	if got := testing.AllocsPerRun(8, func() {
+		fcbsearch.SearchDepthFirstThresholdScan(&dAbs, &phi, &positions, &sums, fcbsearch.SearchThresholdScanDefaultLimit)
+	}); got != 0 {
+		t.Fatalf("SearchDepthFirstThresholdScan allocations/op = %v, want 0", got)
+	}
+}
+
+func TestSearchTopK_FirstMatchesSearchDepthFirst(t *testing.T) {
+	var dAbs [40]int32
+	var phi [40][40]int32
+	for n := range dAbs {
+		dAbs[n] = int32(1000 + (n*7919)%65521)
+	}
+	for i := 0; i < 40; i++ {
+		phi[i][i] = int32(1<<14 + i*101)
+		for j := i + 1; j < 40; j++ {
+			v := int32((i*37+j*53)%4096) - 2048
+			phi[i][j] = v
+			phi[j][i] = v
+		}
+	}
+
+	var want [4]int8
+	var sums [2]int64
+	fcbsearch.SearchDepthFirst(&dAbs, &phi, &want, &sums)
+
+	var top [fcbsearch.SearchTopKMax][4]int8
+	gotN := fcbsearch.SearchTopK(&dAbs, &phi, &top, 8)
+	if gotN != 8 {
+		t.Fatalf("SearchTopK count = %d, want 8", gotN)
+	}
+	if top[0] != want {
+		t.Fatalf("SearchTopK top[0]=%v want SearchDepthFirst %v", top[0], want)
+	}
+}
+
+func TestSearchTopK_NoAlloc(t *testing.T) {
+	var dAbs [40]int32
+	for n := range dAbs {
+		dAbs[n] = int32(1000 + 17*n)
+	}
+	var phi [40][40]int32
+	for i := 0; i < 40; i++ {
+		phi[i][i] = int32(2048 + i)
+	}
+	var top [fcbsearch.SearchTopKMax][4]int8
+	if got := testing.AllocsPerRun(8, func() {
+		_ = fcbsearch.SearchTopK(&dAbs, &phi, &top, 8)
+	}); got != 0 {
+		t.Fatalf("SearchTopK allocations/op = %v, want 0", got)
+	}
+}
+
 // bruteForceACELP is an in-test reference: exhaustively scans all
 // 8×8×8×16 = 8192 pulse position combinations, returns the (positions,
 // C², E) maximizing T = C²/E with lower-position-first tie-break.
@@ -299,8 +436,24 @@ func ratioGreater(a, b, c, d int64) bool {
 	if b <= 0 {
 		return false
 	}
-	return (float64(a)*float64(a))/float64(b) >
-		(float64(c)*float64(c))/float64(d)
+	var left, right big.Int
+	var aa, cc, bb, dd big.Int
+	aa.SetInt64(absInt64(a))
+	cc.SetInt64(absInt64(c))
+	bb.SetInt64(b)
+	dd.SetInt64(d)
+	left.Mul(&aa, &aa)
+	left.Mul(&left, &dd)
+	right.Mul(&cc, &cc)
+	right.Mul(&right, &bb)
+	return left.Cmp(&right) > 0
+}
+
+func absInt64(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func squareSaturatingInt64(v int64) int64 {

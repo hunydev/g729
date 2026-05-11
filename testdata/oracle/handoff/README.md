@@ -40,8 +40,26 @@ These files are not oracle artifacts and are intentionally ignored by the option
 - `TAME_GAIN_TAMING_VERIFIER_PROMPT.md`: copyable prompt for an
   isolated clean-room verifier that will fill only numeric `expected`
   cells in the TAME gain/taming template.
+- `fcb_tree_search_got.csv`: this implementation's fixed-codebook
+  tree-search numeric surface for SPEECH.IN frames 292 through 294.
+- `fcb_tree_search_expected_template.csv`: verifier-owned template
+  for the exact reduced-complexity Annex A fixed-codebook tree-search
+  scalar rows; currently verifier-filled and exact-compared.
+- `FCB_TREE_SEARCH_VERIFIER_PROMPT.md`: copyable prompt for an isolated
+  clean-room verifier that will fill only numeric `expected` cells in
+  the FCB tree-search template.
+- `fcb_tree_search_user_audio_got.csv`: this implementation's
+  fixed-codebook tree-search numeric surface for converted user problem
+  sample frames 292 through 294.
+- `fcb_tree_search_user_audio_expected_template.csv`: verifier-owned
+  template for the user-audio fixed-codebook tree-search scalar rows;
+  currently verifier-filled and exact-compared.
+- `FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md`: copyable prompt for an
+  isolated clean-room verifier that will fill only numeric `expected`
+  cells in the user-audio FCB tree-search template.
 - `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md`: consolidated verifier
-  request for the two still-unfilled conformance handoff templates.
+  request for the currently unfilled encoder closed-loop stage
+  conformance handoff template, with completed FCB status noted.
 - `LSP_VERIFIER_PROMPT.md`: copyable prompt for an isolated clean-room
   verifier that will fill only numeric `expected` cells in the LSP
   templates.
@@ -50,6 +68,91 @@ These files are not oracle artifacts and are intentionally ignored by the option
 
 The current LSP handoff completion audit is documented in
 `docs/superpowers/plans/2026-05-06-lsp-oracle-handoff-audit.md`.
+
+Active verifier bundle:
+
+```sh
+sh testdata/oracle/handoff/create_verifier_bundle.sh
+```
+
+The bundle intentionally contains only prompts, manifest/docs, blank
+`expected` templates, and numeric `got` CSVs. It does not contain source
+code or external implementation material. The repo-local helper uses
+deterministic tar/gzip options (`--sort=name`, fixed `--mtime`,
+`--numeric-owner`, and `gzip -n`) so the archive hash is stable for a
+fixed set of input files. By default it refuses to build if the remaining
+outgoing blank `expected` template already has verifier-filled cells.
+
+The helper copies exactly these files into the bundle:
+
+```text
+testdata/oracle/handoff/HANDOFF_MANIFEST.md
+testdata/oracle/handoff/README.md
+testdata/oracle/handoff/EXTERNAL_VERIFIER_REQUEST.md
+testdata/oracle/handoff/create_verifier_bundle.sh
+testdata/oracle/handoff/validate_verifier_output.sh
+testdata/oracle/handoff/REMAINING_CONFORMANCE_VERIFIER_PROMPT.md
+testdata/oracle/handoff/FCB_TREE_SEARCH_VERIFIER_PROMPT.md
+testdata/oracle/handoff/FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md
+testdata/oracle/handoff/ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md
+testdata/oracle/handoff/fcb_tree_search_expected_template.csv
+testdata/oracle/handoff/fcb_tree_search_got.csv
+testdata/oracle/handoff/fcb_tree_search_user_audio_expected_template.csv
+testdata/oracle/handoff/fcb_tree_search_user_audio_got.csv
+testdata/oracle/handoff/encoder_closedloop_stage_expected_template.csv
+testdata/oracle/handoff/encoder_closedloop_stage_got.csv
+```
+
+Filled verifier output intake:
+
+1. Put only the verifier-returned numeric `expected` CSV files in a
+   temporary directory, then validate them before copying:
+
+   ```sh
+   sh testdata/oracle/handoff/validate_verifier_output.sh /path/to/returned-csv-dir
+   ```
+
+   The validator rejects unexpected files, symlinked files, changed
+   headers, changed row counts, changed key columns, blank `expected`
+   cells, and non-numeric `expected` cells. It is validation-only by
+   default.
+2. To copy validated files into their exact template paths, rerun with:
+
+   ```sh
+   G729_APPLY_VERIFIER_OUTPUT=1 \
+   sh testdata/oracle/handoff/validate_verifier_output.sh /path/to/returned-csv-dir
+   ```
+
+3. Do not run any `G729_WRITE_*_HANDOFF=1` command after copying filled
+   templates; those commands regenerate blank templates.
+4. Do not run `create_verifier_bundle.sh` for incoming verifier output.
+   That helper is for outgoing verifier bundles and refuses filled
+   remaining-blank templates by default.
+5. Run the strict compare command for each filled template:
+
+   ```sh
+   G729_COMPARE_FCB_TREE_SEARCH_HANDOFF=1 \
+   G729_REQUIRE_COMPLETE_FCB_TREE_SEARCH_HANDOFF=1 \
+   G729_REQUIRE_EXACT_FCB_TREE_SEARCH_HANDOFF=1 \
+   go test -run TestOracleHandoff_CompareFCBTreeSearchHandoff -count=1 -v
+
+   G729_COMPARE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 \
+   G729_REQUIRE_COMPLETE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 \
+   G729_REQUIRE_EXACT_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 \
+   go test -run TestOracleHandoff_CompareFCBTreeSearchUserAudioHandoff -count=1 -v
+
+   G729_COMPARE_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 \
+   G729_REQUIRE_COMPLETE_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 \
+   G729_REQUIRE_EXACT_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 \
+   go test -run TestOracleHandoff_CompareEncoderClosedLoopStageHandoff -count=1 -v
+   ```
+
+6. If strict compare passes, update `HANDOFF_MANIFEST.md` and the
+   audit docs from "currently unfilled" to verifier-filled status, then
+   rerun the default handoff guards. Until that metadata is updated,
+   `TestOracleHandoff_ManifestUnfilledCountsMatchCurrentFiles` is
+   expected to fail because the previously blank templates are no longer
+   blank.
 
 Write-refresh tests refuse to overwrite any expected template that
 already has verifier-filled cells. To intentionally discard verifier
@@ -75,6 +178,81 @@ Verifier workflow:
 
 4. Use only controlled notes: `mismatch`, `out_of_window`, `range_ok`, `range_fail`, or `unknown`.
 5. Do not include implementation details, code names, source locations, or explanations for oracle internals.
+
+FCB tree-search workflow:
+
+1. Refresh the fixed-codebook tree-search surface and expected-value
+   template:
+
+   ```sh
+   G729_WRITE_FCB_TREE_SEARCH_HANDOFF=1 go test -run TestOracleHandoff_WriteFCBTreeSearchHandoff -v
+   ```
+
+2. Give the verifier both `fcb_tree_search_got.csv` and
+   `fcb_tree_search_expected_template.csv`, then ask it to fill
+   `expected` in the template using `FCB_TREE_SEARCH_VERIFIER_PROMPT.md`.
+3. Compare only numeric scalar values keyed by:
+
+   ```csv
+   field,frame,sub,index
+   ```
+
+4. `index=-1` means "scalar field, no element index". The `got` file
+   includes `d_abs`, `sign`, `phi`, focused selected positions/scores,
+   full-search positions/scores, and threshold/accepted-prefix scalars.
+   The expected template intentionally keeps only the key columns and the
+   blank verifier-owned `expected` column.
+5. After the verifier fills numeric `expected` cells, compare locally:
+
+   ```sh
+   G729_COMPARE_FCB_TREE_SEARCH_HANDOFF=1 go test -run TestOracleHandoff_CompareFCBTreeSearchHandoff -v
+   ```
+
+   For a complete exact verdict, require every cell to be filled and
+   fail on any mismatch:
+
+   ```sh
+   G729_COMPARE_FCB_TREE_SEARCH_HANDOFF=1 G729_REQUIRE_COMPLETE_FCB_TREE_SEARCH_HANDOFF=1 G729_REQUIRE_EXACT_FCB_TREE_SEARCH_HANDOFF=1 go test -run TestOracleHandoff_CompareFCBTreeSearchHandoff -v
+   ```
+
+User-audio FCB tree-search workflow:
+
+1. Refresh the user problem-sample fixed-codebook tree-search surface
+   and expected-value template. This workflow is pinned to
+   `testdata/external/user_quality_audio.m4a`; do not substitute another
+   sample for this template:
+
+   ```sh
+   G729_WRITE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 go test -run TestOracleHandoff_WriteFCBTreeSearchUserAudioHandoff -v
+   ```
+
+2. Give the verifier both `fcb_tree_search_user_audio_got.csv` and
+   `fcb_tree_search_user_audio_expected_template.csv`, then ask it to fill
+   `expected` in the template using
+   `FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md`.
+3. Compare only numeric scalar values keyed by:
+
+   ```csv
+   field,frame,sub,index
+   ```
+
+4. `index=-1` means "scalar field, no element index". The `got` file
+   includes `d_abs`, `sign`, `phi`, focused selected positions/scores,
+   full-search positions/scores, and threshold/accepted-prefix scalars.
+   The expected template intentionally keeps only the key columns and the
+   blank verifier-owned `expected` column.
+5. After the verifier fills numeric `expected` cells, compare locally:
+
+   ```sh
+   G729_COMPARE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 go test -run TestOracleHandoff_CompareFCBTreeSearchUserAudioHandoff -v
+   ```
+
+   For a complete exact verdict, require every cell to be filled and
+   fail on any mismatch:
+
+   ```sh
+   G729_COMPARE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 G729_REQUIRE_COMPLETE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 G729_REQUIRE_EXACT_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 go test -run TestOracleHandoff_CompareFCBTreeSearchUserAudioHandoff -v
+   ```
 
 LSP table workflow:
 

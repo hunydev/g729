@@ -16,16 +16,19 @@ func fillPeriodicSine(wsp *[223]int16, period float64) {
 }
 
 // TestSearch_PeriodicInput_Period100 covers the §A.3.4 composition
-// smoke: a clean period-100 sinusoid feeds the three OL-3 ranges; the
-// [80,143] candidate at lag 100 dominates the merger and the returned
-// T_op equals 100 (the ±1 refinement may nudge to 99/101 depending on
-// integer-rounded sample values).
+// smoke: a clean period-100 sinusoid feeds the three OL-3 ranges. With
+// the Annex A raw-correlation per-range maximum, finite-window rounding
+// makes lag 97 the retained high-range candidate.
 func TestSearch_PeriodicInput_Period100(t *testing.T) {
 	var wsp [223]int16
 	fillPeriodicSine(&wsp, 100)
 	got := Search(&wsp)
-	if got < 99 || got > 101 {
-		t.Fatalf("Search(period-100 sine) = %d, want 100±1", got)
+	if got != 97 {
+		t.Fatalf("Search(period-100 sine) = %d, want 97", got)
+	}
+	heuristic := SearchWithRangesNormalized(&wsp).Top
+	if heuristic < 99 || heuristic > 101 {
+		t.Fatalf("SearchWithRangesNormalized(period-100 sine) = %d, want 100±1", heuristic)
 	}
 }
 

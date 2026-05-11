@@ -9,7 +9,8 @@ import "testing"
 //
 // Inverting the first branch: T_int = 19 + (P1+2)/3, T_frac = (P1+2)%3 − 1.
 // The first valid (T1, frac) pair is (19, +1) at P1=0 because the smallest
-// usable delay is 19+1/3 (negative-frac slots at T1=19 are unreachable).
+// usable delay is 19+1/3 (negative-frac slots at T1=19 are unreachable). Per
+// §4.1.3, P1=197 starts the integer branch but still decodes to (85,0).
 var subframe1Cases = []struct {
 	p1       uint8
 	wantInt  int

@@ -11,7 +11,8 @@ import (
 var ErrNoStreamSink = errors.New("g729: encoder has no streaming sink (use NewStreamingEncoder)")
 
 // NewStreamingEncoder returns an Encoder whose (*Encoder).Write and
-// (*Encoder).Flush methods emit packed 10-byte G.729 frames to w.
+// (*Encoder).Flush methods emit packed 10-byte G.729 frames to w, using
+// EncoderProfileQuality.
 //
 // Plan §6 Task API-2 + design spec §4.3. Buffers up to FrameSamples-1
 // samples between calls; emits one frame per FrameSamples-sample
@@ -20,6 +21,14 @@ var ErrNoStreamSink = errors.New("g729: encoder has no streaming sink (use NewSt
 // codec state and any buffered tail but keeps this sink attached.
 func NewStreamingEncoder(w io.Writer) *Encoder {
 	e := NewEncoder()
+	e.streamSink = w
+	return e
+}
+
+// NewStreamingEncoderWithProfile is NewStreamingEncoder with an explicit
+// encoder search profile.
+func NewStreamingEncoderWithProfile(w io.Writer, profile EncoderProfile) *Encoder {
+	e := NewEncoderWithProfile(profile)
 	e.streamSink = w
 	return e
 }

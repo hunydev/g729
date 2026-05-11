@@ -19,8 +19,7 @@ func fillSquareWave(wsp *[223]int16, period int, amp int16) {
 
 // TestPickBestInRange_Range20_Period25 pins the full-stride scan over
 // the §A.3.4 third delay region [20,39]. A period-25 square wave makes
-// R(25) the unique max of eq. A.4 in that range; constant magnitude
-// makes E(k) constant so the eq. A.5 score order matches R(k) order.
+// R(25) the unique max of eq. A.4 in that range.
 func TestPickBestInRange_Range20_Period25(t *testing.T) {
 	var wsp [223]int16
 	fillSquareWave(&wsp, 25, 1024)
@@ -57,19 +56,17 @@ func TestPickBestInRange_Range80_Period110(t *testing.T) {
 
 // TestPickBestInRange_Range80_OddRefinement pins the §A.3.4 lines
 // 2113-2114 ±1 refinement: when the best even lag in [80,143] is 110
-// but R(109)·E(110) ties (or beats) R(110)·E(109) under the eq. A.5
-// score, the function must visit 109 (not just stop at the even-pass
-// winner) and return 109 by the lower-lag tie-break rule (§A.3.4 line
-// 2110).
+// but R(109) ties R(110), the function must visit 109 (not just stop at
+// the even-pass winner) and return 109 by the lower-lag tie-break rule
+// (§A.3.4 line 2110).
 //
 // Construction. With wsp constant 1024 at:
 //   - current frame even-stride positions  {143,145,…,221}  (sw(2n)=1024)
 //   - history odd indices                  {33,35,…,111}     (drives R(110))
 //   - history even indices                 {34,36,…,112}     (drives R(109))
 //
-// the eq. A.4 sums give R(110) = R(109) = 40·1024² and the eq. A.5
-// energies give E(110) = E(109) = 40·1024², so scores tie. Adjacent
-// even lags 108 and 112 only see 39 of the required 40 history taps
+// the eq. A.4 sums give R(110) = R(109) = 40·1024². Adjacent even
+// lags 108 and 112 only see 39 of the required 40 history taps
 // (one boundary tap missing) so R(108) = R(112) = 39·1024² < R(110),
 // confirming 110 as the unique even-pass winner. Adjacent odd lag 111
 // likewise sees only 39 even-history taps so R(111) = 39·1024² <
@@ -97,7 +94,7 @@ func TestPickBestInRange_Range80_OddRefinement(t *testing.T) {
 //   - history even indices                 {48,50,…,126}    = 1024
 //
 // With history odd indices all zero, every EVEN k in [80,143] reads
-// odd-indexed history → R(k) = E(k) = 0 → score 0 for all evens. The
+// odd-indexed history → R(k) = 0 for all evens. The
 // even-pass tie-breaks to the lowest even lag k=80. Odd lag 95 has
 // R(95) = E(95) = 40·1024² (perfect alignment) — the global max. But
 // the ±1 refinement around 80 only visits {79→clamp 80, 80, 81}, never

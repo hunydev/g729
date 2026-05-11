@@ -65,6 +65,41 @@ func StepSplit(
 	swMem *[10]int16,
 	oldWspeech *[143]int16,
 ) int16 {
+	return StepSplitSearch(aHatSF1Q12, aHatSF2Q12, s, residualMem, swMem, oldWspeech).Top
+}
+
+// StepSplitSearch is StepSplit plus the per-range open-loop winners used by
+// quality-profile diagnostics and heuristics.
+func StepSplitSearch(
+	aHatSF1Q12, aHatSF2Q12 *[11]int16,
+	s *[80]int16,
+	residualMem *[10]int16,
+	swMem *[10]int16,
+	oldWspeech *[143]int16,
+) SearchResult {
+	return stepSplitSearch(aHatSF1Q12, aHatSF2Q12, s, residualMem, swMem, oldWspeech, false)
+}
+
+// StepSplitSearchNormalizedRanges is StepSplitSearch with the quality-profile
+// normalized per-range candidate heuristic.
+func StepSplitSearchNormalizedRanges(
+	aHatSF1Q12, aHatSF2Q12 *[11]int16,
+	s *[80]int16,
+	residualMem *[10]int16,
+	swMem *[10]int16,
+	oldWspeech *[143]int16,
+) SearchResult {
+	return stepSplitSearch(aHatSF1Q12, aHatSF2Q12, s, residualMem, swMem, oldWspeech, true)
+}
+
+func stepSplitSearch(
+	aHatSF1Q12, aHatSF2Q12 *[11]int16,
+	s *[80]int16,
+	residualMem *[10]int16,
+	swMem *[10]int16,
+	oldWspeech *[143]int16,
+	normalizedRanges bool,
+) SearchResult {
 	var aw1, aw2, aPrime1, aPrime2 [11]int16
 	gammaWeightLP(aHatSF1Q12, &aw1)
 	combineWith07(&aw1, &aPrime1)
@@ -78,13 +113,18 @@ func StepSplit(
 	var wsp [223]int16
 	copy(wsp[:143], oldWspeech[:])
 	copy(wsp[143:], freshSw[:])
-	top := Search(&wsp)
+	var result SearchResult
+	if normalizedRanges {
+		result = SearchWithRangesNormalized(&wsp)
+	} else {
+		result = SearchWithRanges(&wsp)
+	}
 
 	copy(residualMem[:], s[70:80])
 	copy(swMem[:], freshSw[70:80])
 	slideOldWspeech(oldWspeech, &freshSw)
 
-	return top
+	return result
 }
 
 func lpResidualSplit(s *[80]int16, aHat1, aHat2 *[11]int16, mem *[10]int16, r *[80]int16) {

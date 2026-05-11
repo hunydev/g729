@@ -48,11 +48,12 @@ func energy(wsp *[223]int16, k int) fixed.Word32 {
 // thereby avoiding the divide and the sqrt of eq. A.5.
 //
 // rsq parameters carry the OL-1 correlate output semantics — the field
-// name is historical: it actually stores R(k) (Word32, signed-clipped
-// to ≥ 0 by correlate; here re-clipped defensively), NOT R²(k). The
-// squaring required by eq. A.5 is performed inside this function. See
-// §A.3.4 line 2104 for the eq. A.5 normalization and the OL-1 doc
-// comment in correlate.go for the rsq Q-format pin.
+// name is historical: it actually stores R(k) (Word32), NOT R²(k). The
+// squaring required by eq. A.5 is performed inside this function for
+// positive R(k); non-positive R(k) is treated as a zero score during
+// inter-range comparison. See §A.3.4 line 2104 for the eq. A.5
+// normalization and the OL-1 doc comment in correlate.go for the rsq
+// Q-format pin.
 //
 // Overflow safety. R and E are each bounded by Max32 ≈ 2³¹. Naïve
 // int64(R)·int64(R)·int64(E) would reach 2⁹³ — wraps catastrophically

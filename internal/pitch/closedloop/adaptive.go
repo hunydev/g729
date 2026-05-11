@@ -5,7 +5,7 @@ package closedloop
 // intLag + frac/3, per ITU-T G.729 §A.3.7 eq. A.8 binding to
 // §3.7.1 eq. (40) (G729E.txt lines 1162, 2178):
 //
-//	v(n) = u(n − intLag + frac/3),  n = 0..39
+//	v(n) = u(n − intLag − frac/3),  n = 0..39
 //
 // where u is the past-excitation buffer with anchor u(0) =
 // exc[len(exc) − SubframeLen] and u(−1) = exc[len(exc) − SubframeLen

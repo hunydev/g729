@@ -1,5 +1,31 @@
 package closedloop
 
+// Subframe1Window returns the integer-lag search window [tmin, tmax]
+// used for the first subframe's closed-loop pitch search around the
+// open-loop pitch Top per ITU-T G.729 §3.7 / Annex A §A.3.7:
+//
+//	tmin = Top − 3
+//	if tmin < 20 then tmin = 20
+//	tmax = tmin + 6
+//	if tmax > 143 then
+//	    tmax = 143
+//	    tmin = tmax − 6
+//	end
+//
+// The returned width tmax − tmin is always exactly 6 (7 lags).
+func Subframe1Window(top int16) (tmin, tmax int16) {
+	tmin = top - 3
+	if tmin < PitchMinInt {
+		tmin = PitchMinInt
+	}
+	tmax = tmin + 6
+	if tmax > PitchMaxInt {
+		tmax = PitchMaxInt
+		tmin = tmax - 6
+	}
+	return tmin, tmax
+}
+
 // Subframe2Window returns the integer-lag search window [tmin, tmax]
 // used for the second subframe's closed-loop pitch search, sliding
 // around the integer part of the first-subframe lag T1 per ITU-T
@@ -14,14 +40,10 @@ package closedloop
 //	end
 //
 // The decoder section §4.1.3 is the canonical specification of the
-// 5-bit relative P2 encoding (Table 8: 32 P2 codepoints map to 10
-// integer lags × 3 fractions ≈ 30 admissible (intT2, frac) pairs;
-// the surplus codepoints are absorbed by the encoding scheme). The
-// encoder MUST produce P2 such that the decoder recovers (intT2,
-// frac) inside this window — i.e. the closed-loop search itself must
-// be confined to the same window. The function is therefore shared
-// between CL-2 (search-window dispatch in SearchInteger) and the
-// future ENC-1 P2 packing.
+// 5-bit relative P2 encoding. The integer search itself uses this 10-lag
+// window; the P2 bit field also contains the two fractional boundary
+// codepoints (tmin-1,+1) and (tmax+1,-1), corresponding to the full
+// [tmin-2/3, tmax+2/3] P2 fractional span.
 //
 // The returned width tmax − tmin is always exactly 9 (10 lags), the
 // invariant exploited by the 5-bit P2 field.

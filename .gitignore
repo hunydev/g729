@@ -7,7 +7,9 @@
 
 # Local agent / transfer artifacts
 /codex.tar.gz
-/third-party/
+/third-party/*
+!/third-party/g729-compare-web/
+!/third-party/g729-compare-web/**
 
 # Local decoder-stage dumps / rejected self-oracle placeholders.
 # If an independent verifier later supplies decoder-stage expected files,
@@ -21,6 +23,8 @@
 # speech and are intentionally not redistributed.
 /testdata/external/*.g729
 /testdata/external/user_quality_input.*
+/testdata/external/user_quality_audio.*
+/testdata/external/gain_probe/
 
 # Editor
 .idea/

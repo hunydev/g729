@@ -158,6 +158,120 @@ func TestRefineFraction_TieBreakFavoursLowerFrac(t *testing.T) {
 	}
 }
 
+func TestRefineFractionSubframe1_LowerBoundaryCodepoint(t *testing.T) {
+	const intLag int16 = PitchMinInt
+	var exc [refineExcLen]int16
+	for i := range exc {
+		exc[i] = int16(((i*131 + 17) & 0x7F) - 64)
+	}
+	var xb [SubframeLen]int16
+	for n := 0; n < SubframeLen; n++ {
+		xb[n] = Interpolate3(exc[:], 19-int16(n), +1)
+	}
+	gotLag, gotFrac := RefineFractionSubframe1(&xb, exc[:], intLag)
+	if gotLag != 19 || gotFrac != +1 {
+		t.Fatalf("RefineFractionSubframe1 lower edge = (%d,%d), want (19,+1)", gotLag, gotFrac)
+	}
+}
+
+func TestRefineFractionSubframe1_UpperBoundaryCodepoint(t *testing.T) {
+	const intLag int16 = 84
+	var exc [refineExcLen]int16
+	for i := range exc {
+		exc[i] = int16(((i*97 + 23) & 0x7F) - 64)
+	}
+	var xb [SubframeLen]int16
+	for n := 0; n < SubframeLen; n++ {
+		xb[n] = Interpolate3(exc[:], 85-int16(n), -1)
+	}
+	gotLag, gotFrac := RefineFractionSubframe1(&xb, exc[:], intLag)
+	if gotLag != 85 || gotFrac != -1 {
+		t.Fatalf("RefineFractionSubframe1 upper edge = (%d,%d), want (85,-1)", gotLag, gotFrac)
+	}
+}
+
+func TestRefineFractionSubframe1_InteriorMatchesRefineFraction(t *testing.T) {
+	const intLag int16 = 61
+	var exc [refineExcLen]int16
+	for i := range exc {
+		exc[i] = int16(((i*31 + 5) & 0x7F) - 64)
+	}
+	var xb [SubframeLen]int16
+	for n := 0; n < SubframeLen; n++ {
+		xb[n] = int16((n*17)%101 - 50)
+	}
+	gotLag, gotFrac := RefineFractionSubframe1(&xb, exc[:], intLag)
+	wantFrac := RefineFraction(&xb, exc[:], intLag, true)
+	if gotLag != intLag || gotFrac != wantFrac {
+		t.Fatalf("RefineFractionSubframe1 interior = (%d,%d), want (%d,%d)",
+			gotLag, gotFrac, intLag, wantFrac)
+	}
+}
+
+func TestRefineFractionSubframe1_IntegerRegionIsNotFractional(t *testing.T) {
+	const intLag int16 = 85
+	var xb [SubframeLen]int16
+	var exc [refineExcLen]int16
+	gotLag, gotFrac := RefineFractionSubframe1(&xb, exc[:], intLag)
+	if gotLag != intLag || gotFrac != 0 {
+		t.Fatalf("RefineFractionSubframe1 integer region = (%d,%d), want (%d,0)",
+			gotLag, gotFrac, intLag)
+	}
+}
+
+func TestRefineFractionSubframe2_LowerBoundaryCodepoint(t *testing.T) {
+	const intT1 int16 = 25 // Subframe2Window => [20,29]
+	const intLag int16 = 20
+	var exc [refineExcLen]int16
+	for i := range exc {
+		exc[i] = int16(((i*131 + 17) & 0x7F) - 64)
+	}
+	var xb [SubframeLen]int16
+	for n := 0; n < SubframeLen; n++ {
+		xb[n] = Interpolate3(exc[:], 19-int16(n), +1)
+	}
+	gotLag, gotFrac := RefineFractionSubframe2(&xb, exc[:], intLag, intT1)
+	if gotLag != 19 || gotFrac != +1 {
+		t.Fatalf("RefineFractionSubframe2 lower edge = (%d,%d), want (19,+1)", gotLag, gotFrac)
+	}
+}
+
+func TestRefineFractionSubframe2_UpperBoundaryCodepoint(t *testing.T) {
+	const intT1 int16 = 60 // Subframe2Window => [55,64]
+	const intLag int16 = 64
+	var exc [refineExcLen]int16
+	for i := range exc {
+		exc[i] = int16(((i*97 + 23) & 0x7F) - 64)
+	}
+	var xb [SubframeLen]int16
+	for n := 0; n < SubframeLen; n++ {
+		xb[n] = Interpolate3(exc[:], 65-int16(n), -1)
+	}
+	gotLag, gotFrac := RefineFractionSubframe2(&xb, exc[:], intLag, intT1)
+	if gotLag != 65 || gotFrac != -1 {
+		t.Fatalf("RefineFractionSubframe2 upper edge = (%d,%d), want (65,-1)", gotLag, gotFrac)
+	}
+}
+
+func TestRefineFractionSubframe2_InteriorMatchesRefineFraction(t *testing.T) {
+	const intT1 int16 = 60
+	const intLag int16 = 61
+	var exc [refineExcLen]int16
+	for i := range exc {
+		exc[i] = int16(((i*31 + 5) & 0x7F) - 64)
+	}
+	var xb [SubframeLen]int16
+	for n := 0; n < SubframeLen; n++ {
+		xb[n] = int16((n*17)%101 - 50)
+	}
+	gotLag, gotFrac := RefineFractionSubframe2(&xb, exc[:], intLag, intT1)
+	wantFrac := RefineFraction(&xb, exc[:], intLag, true)
+	if gotLag != intLag || gotFrac != wantFrac {
+		t.Fatalf("RefineFractionSubframe2 interior = (%d,%d), want (%d,%d)",
+			gotLag, gotFrac, intLag, wantFrac)
+	}
+}
+
 // TestRefineFraction_NoAlloc enforces I4: the per-subframe FR-2
 // refinement runs three 40-sample inner products with on-stack
 // scratch only.

@@ -20,8 +20,9 @@ func drivePeriodicFrame(pcm *[FrameSamples]int16) {
 // encoder with a periodic frame, runs lpcStep + openloopStep +
 // closedloopStep ×2 and asserts that:
 //
-//   - integer lag for each subframe lies in [PitchMinInt, PitchMaxInt]
-//     = [20, 143] per ITU-T G.729 Annex A §A.3.7.
+//   - subframe-1 integer lag lies in [PitchMinInt, PitchMaxInt] =
+//     [20, 143]; subframe-2 may additionally use the two P2 fractional
+//     boundary codepoints.
 //   - frac for each subframe lies in {-1, 0, +1} per §3.7.2 eq. 41.
 //   - the encoded P1 / P0 / P2 fields fit their bit budgets per
 //     Table 8 (P1: 8 bits, P0: 1 bit, P2: 5 bits).
@@ -50,10 +51,6 @@ func TestPhase2cINT0_ClosedLoopStepReturnsPlausibleLags(t *testing.T) {
 			t.Errorf("frame %d sub0 intLag = %d, want in [%d, %d]",
 				f, intT1, closedloop.PitchMinInt, closedloop.PitchMaxInt)
 		}
-		if intT2 < closedloop.PitchMinInt || intT2 > closedloop.PitchMaxInt {
-			t.Errorf("frame %d sub1 intLag = %d, want in [%d, %d]",
-				f, intT2, closedloop.PitchMinInt, closedloop.PitchMaxInt)
-		}
 		if frac1 < -1 || frac1 > 1 {
 			t.Errorf("frame %d sub0 frac = %d, want in {-1,0,+1}", f, frac1)
 		}
@@ -69,11 +66,18 @@ func TestPhase2cINT0_ClosedLoopStepReturnsPlausibleLags(t *testing.T) {
 			t.Errorf("frame %d P2 = %d, want ≤ 31", f, enc.p2)
 		}
 
-		// Subframe-2 search MUST stay inside Subframe2Window(intT1).
+		// Subframe-2 must round-trip through the 5-bit P2 codepoint.
 		tmin, tmax := closedloop.Subframe2Window(intT1)
-		if intT2 < tmin || intT2 > tmax {
-			t.Errorf("frame %d sub1 intLag %d outside P2 window [%d, %d] for intT1=%d",
-				f, intT2, tmin, tmax, intT1)
+		p2 := closedloop.EncodeP2(intT2, frac2, tmin)
+		if p2 > 31 {
+			t.Errorf("frame %d encoded P2 for sub1 lag (%d,%d) = %d, want <= 31",
+				f, intT2, frac2, p2)
+		}
+		if !((intT2 == tmin-1 && frac2 == 1) ||
+			(intT2 >= tmin && intT2 <= tmax) ||
+			(intT2 == tmax+1 && frac2 == -1)) {
+			t.Errorf("frame %d sub1 lag (%d,%d) outside P2 fractional span for intT1=%d window [%d,%d]",
+				f, intT2, frac2, intT1, tmin, tmax)
 		}
 	}
 }

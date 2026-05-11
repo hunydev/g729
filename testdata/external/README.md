@@ -3,8 +3,9 @@
 This directory is for local, non-redistributed audio and raw G.729 payload
 samples used during black-box quality checks.
 
-Files such as `asterisk_payload.g729` and `user_quality_input.*` are ignored by
-git because they may contain user, customer, or otherwise private speech.
+Files such as `asterisk_payload.g729`, `user_quality_audio.*`, and
+`user_quality_input.*` are ignored by git because they may contain user,
+customer, or otherwise private speech.
 
 To run the optional Asterisk local decoder gate, place a raw speech-only
 `annexb=no` G.729 payload at:

@@ -83,22 +83,26 @@ func TestEncodeP1_Boundaries(t *testing.T) {
 	}
 }
 
-// TestEncodeP2_RoundTrip sweeps a representative grid of (intT2,
-// frac, tmin) such that intT2 ∈ [tmin-1, tmin+8] (the 10-lag P2
-// search window per §4.1.3 line 1521 expressed inclusively for the
-// encoder) and frac ∈ {-1, 0, 1}, asserting decoder
-// pitch.DecodeDelaySubframe2 inverts EncodeP2 byte-exactly.
+// TestEncodeP2_RoundTrip sweeps every encodable P2 codepoint:
+// (tmin-1,+1), all fractions for [tmin,tmax], and (tmax+1,-1),
+// asserting decoder pitch.DecodeDelaySubframe2 inverts EncodeP2
+// byte-exactly.
 func TestEncodeP2_RoundTrip(t *testing.T) {
 	t1Ints := []int16{20, 26, 55, 105, 143}
 	for _, t1Int := range t1Ints {
 		tmin, _ := Subframe2Window(t1Int)
-		for d := int16(-1); d <= 8; d++ {
+		for d := int16(-1); d <= 10; d++ {
 			intT2 := tmin + d
 			for _, frac := range []int8{-1, 0, 1} {
 				if intT2 == tmin-1 && frac != 1 {
 					continue
 				}
-				if intT2 == tmin+8 && frac == 1 {
+				if intT2 == tmin+10 && frac != -1 {
+					continue
+				}
+				if intT2 > tmin-1 && intT2 < tmin+10 {
+					// All three fractions are encodable.
+				} else if intT2 != tmin-1 && intT2 != tmin+10 {
 					continue
 				}
 				p2 := EncodeP2(intT2, frac, tmin)
@@ -129,6 +133,8 @@ func TestEncodeP2_BoundaryFormula(t *testing.T) {
 		{20, 0, 20, 2},
 		{20, 1, 20, 3},
 		{29, 0, 20, 29},
+		{30, -1, 20, 31},
+		{54, 1, 55, 0},
 		{50, 0, 50, 2},
 		{55, 1, 50, 18},
 	}

@@ -62,6 +62,34 @@ import (
 // I4 (zero allocation): all scratch buffers are fixed-size local
 // arrays.
 func SearchConjugate(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+	return searchConjugatePreselectTargetBits(x, y, z, gpcPredQ12, gainPreselectDefaultTargetBits)
+}
+
+const (
+	gainPreselectDefaultTargetBits uint = 14
+	gainPreselectMaxTargetBits     uint = 24
+)
+
+// SearchConjugatePreselectTargetBits is a diagnostic/quality-research variant
+// of SearchConjugate. It keeps the same codebook preselect and final integer
+// cost ranking, but lets the caller preserve more correlation bits for the
+// unquantized gp_opt/gc_opt preselect center solve. The hot-path default
+// SearchConjugate remains the 14-bit Annex-A-aligned fixed-point center.
+//
+// targetBits is clamped to [1, 24]. 24 is the largest safe value for the
+// current int64 optimum solve: each product is <2^48, the signed numerator
+// difference is <2^49, and the largest Q14 numerator shift remains <2^63.
+func SearchConjugatePreselectTargetBits(x, y, z *[40]int16, gpcPredQ12 int32, targetBits uint) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+	if targetBits == 0 {
+		targetBits = 1
+	}
+	if targetBits > gainPreselectMaxTargetBits {
+		targetBits = gainPreselectMaxTargetBits
+	}
+	return searchConjugatePreselectTargetBits(x, y, z, gpcPredQ12, targetBits)
+}
+
+func searchConjugatePreselectTargetBits(x, y, z *[40]int16, gpcPredQ12 int32, targetBits uint) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
 	// 1. Correlations in a shared Q24 physical-correlation scale.
 	var A, B, C, D, F int64
 	for i := 0; i < 40; i++ {
@@ -74,9 +102,12 @@ func SearchConjugate(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14,
 		D += (xi * yi) << 24
 		F += (xi * zi) << 12
 	}
+	rawA, rawB, rawC, rawD, rawF := A, B, C, D, F
 
-	// 2. Normalize so max |corr| ≤ 2^14 — keeps both the optimum-solve
-	// products (≤ 2^28) and the cost-term products (≤ 2^54) inside int64.
+	// 2. Normalize so max |corr| ≤ 2^targetBits. SearchConjugate uses
+	// targetBits=14, preserving the existing fixed-point center. Diagnostic
+	// callers may use a larger target to study preselect-center precision
+	// while keeping the final candidate cost path unchanged.
 	maxAbs := absI64(A)
 	if v := absI64(B); v > maxAbs {
 		maxAbs = v
@@ -93,8 +124,8 @@ func SearchConjugate(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14,
 	var nshift uint
 	if maxAbs > 0 {
 		blen := uint(bits.Len64(uint64(maxAbs)))
-		if blen > 14 {
-			nshift = blen - 14
+		if blen > targetBits {
+			nshift = blen - targetBits
 		}
 	}
 	if nshift > 0 {
@@ -166,7 +197,17 @@ func SearchConjugate(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14,
 	gbCands := gbIdx[:8]
 
 	// 6. Exhaustive 4×8 cost minimisation of eq. (63).
-	//    Common Q for cost: Q28 (after shifts).
+	//    Common Q for cost: Q28 (after shifts). The shift is chosen from
+	//    the selected candidates rather than clamping all correlations to
+	//    14 bits; this preserves materially more ordering precision while
+	//    keeping int64 products bounded.
+	costShift := gainSearchCostShift(rawA, rawB, rawC, rawD, rawF, gaCands, gbCands, gpcPredQ12)
+	costA := signedRsh(rawA, costShift)
+	costB := signedRsh(rawB, costShift)
+	costC := signedRsh(rawC, costShift)
+	costD := signedRsh(rawD, costShift)
+	costF := signedRsh(rawF, costShift)
+
 	const costInit int64 = 1 << 62
 	bestCost := costInit
 	var bestGA, bestGB uint8
@@ -182,11 +223,11 @@ func SearchConjugate(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14,
 			gam := int64(fixed.Saturate(fixed.Word32(gam1 + gam2))) // Q13
 			gcQ := (gam * int64(gpcPredQ12)) >> 13                  // Q12
 
-			cost := gpQ * gpQ * A        // Q28
-			cost += (gcQ * gcQ * B) << 4 // Q24<<4 = Q28
-			cost += (2 * gpQ * gcQ * C) << 2
-			cost -= (2 * gpQ * D) << 14
-			cost -= (2 * gcQ * F) << 16
+			cost := gpQ * gpQ * costA        // Q28
+			cost += (gcQ * gcQ * costB) << 4 // Q24<<4 = Q28
+			cost += (2 * gpQ * gcQ * costC) << 2
+			cost -= (2 * gpQ * costD) << 14
+			cost -= (2 * gcQ * costF) << 16
 
 			if cost < bestCost {
 				bestCost = cost
@@ -220,6 +261,74 @@ func absI64(x int64) int64 {
 // intent explicit at the call site).
 func signedRsh(x int64, n uint) int64 {
 	return x >> n
+}
+
+func gainSearchCostShift(A, B, C, D, F int64, gaCands []uint8, gbCands []uint8, gpcPredQ12 int32) uint {
+	const targetBits = 58
+	var maxGp, maxGc int64
+	for _, gai := range gaCands {
+		gp1 := int64(tables.GainGBK1[gai][0])
+		gam1 := int32(tables.GainGBK1[gai][1])
+		for _, gbi := range gbCands {
+			gp := gp1 + int64(tables.GainGBK2[gbi][0])
+			if gp < 0 {
+				gp = -gp
+			}
+			if gp > maxGp {
+				maxGp = gp
+			}
+			gam := int64(fixed.Saturate(fixed.Word32(gam1 + int32(tables.GainGBK2[gbi][1]))))
+			gc := (gam * int64(gpcPredQ12)) >> 13
+			if gc < 0 {
+				gc = -gc
+			}
+			if gc > maxGc {
+				maxGc = gc
+			}
+		}
+	}
+	if maxGp == 0 {
+		maxGp = 1
+	}
+	if maxGc == 0 {
+		maxGc = 1
+	}
+
+	gpBits := bitLenAbsI64(maxGp)
+	gcBits := bitLenAbsI64(maxGc)
+	var shift uint
+	shift = maxUint(shift, gainSearchTermShift(A, gpBits+gpBits, 0, targetBits))
+	shift = maxUint(shift, gainSearchTermShift(B, gcBits+gcBits, 4, targetBits))
+	shift = maxUint(shift, gainSearchTermShift(C, gpBits+gcBits, 3, targetBits))
+	shift = maxUint(shift, gainSearchTermShift(D, gpBits, 15, targetBits))
+	shift = maxUint(shift, gainSearchTermShift(F, gcBits, 17, targetBits))
+	return shift
+}
+
+func gainSearchTermShift(corr int64, factorBits, extraShift, targetBits uint) uint {
+	corrBits := bitLenAbsI64(corr)
+	if corrBits == 0 {
+		return 0
+	}
+	totalBits := corrBits + factorBits + extraShift
+	if totalBits <= targetBits {
+		return 0
+	}
+	return totalBits - targetBits
+}
+
+func bitLenAbsI64(v int64) uint {
+	if v < 0 {
+		v = -v
+	}
+	return uint(bits.Len64(uint64(v)))
+}
+
+func maxUint(a, b uint) uint {
+	if b > a {
+		return b
+	}
+	return a
 }
 
 // sortByDist8 sorts (idx, dist) pairs in-place by ascending dist.

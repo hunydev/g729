@@ -28,8 +28,8 @@ func EncodeP1(intLag int16, frac int8) uint8 {
 //
 // tmin is derived from the subframe-1 integer lag via §4.1.3 lines
 // 1512–1518 (see Subframe2Window). The caller is responsible for
-// ensuring (intT2, frac, tmin) lies inside the 10-lag P2 window so
-// that the resulting P2 fits in 5 bits.
+// ensuring (intT2, frac, tmin) is one of the 32 encodable P2 codepoints
+// spanning [tmin-2/3, tmax+2/3].
 func EncodeP2(intT2 int16, frac int8, tmin int16) uint8 {
 	return uint8(3*(intT2-tmin) + int16(frac) + 2)
 }

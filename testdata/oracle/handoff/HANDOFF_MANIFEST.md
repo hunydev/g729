@@ -26,13 +26,22 @@ identify the current files after numeric `expected` cells were filled.
 | `PITCH_CLOSEDLOOP_VERIFIER_PROMPT.md` | n/a | n/a | `0d5de5773dc4b23b31079e2b254e08a02eaea056174a460158fd05129ac1dd01` |
 | `pitch_closedloop_search_expected_template.csv` | `field,frame,sub,index,lag,frac,expected` | 3192 | `5a4b28ab4c51728c107e5cc278362a67e9f7f5a0b27d9a3bef8d2367bb31d202` |
 | `pitch_closedloop_search_got.csv` | `field,frame,sub,index,lag,frac,got` | 3192 | `086a22e02010f9f9eb1292d89f4b58a06d6969061d7119385dd90c630eb314ea` |
-| `ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md` | n/a | n/a | `25504a04222d53794b6a262e2c56601148e2e312551a6344db3346bc816417b3` |
+| `ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md` | n/a | n/a | `851facd1c72a8e8bd3cf9180a5c4a0f6ef877ad0ae023ee15896df43073dcc43` |
 | `encoder_closedloop_stage_expected_template.csv` | `field,frame,sub,index,lag,frac,expected` | 100848 | `d597acf9a6040a0380dd009e8c5669905aba5ecc7222b4756c13372d4c8aace4` |
 | `encoder_closedloop_stage_got.csv` | `field,frame,sub,index,lag,frac,got` | 100848 | `859bb985aad0cbd4bc18e7f65429d79d176a07e4ec16477a6f982eb407f28b3b` |
 | `TAME_GAIN_TAMING_VERIFIER_PROMPT.md` | n/a | n/a | `7a31b94f0edc9249f1de0e6522e10f136ef42c060262fbdee8d9e6f5e588d3e0` |
 | `tame_gain_taming_expected_template.csv` | `field,frame,sub,index,expected` | 8962 | `4b31d19b4fb910e579ccfd78babe80337798c8a6c9a3b90d29c54bd06b18fc2a` |
 | `tame_gain_taming_got.csv` | `field,frame,sub,index,got` | 8962 | `53927db37826977a1f0e6a2421f4ccb7a0a569998bae8461c479a6260c0af298` |
-| `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md` | n/a | n/a | `e16f930424d36dd33991954531cc7ab6affb941a773151b4f6e3910e8d00d84a` |
+| `FCB_TREE_SEARCH_VERIFIER_PROMPT.md` | n/a | n/a | `b327bac1381cea87d2e364876dbdc423eac89f018d1950ed906e0a41b2a351a0` |
+| `fcb_tree_search_expected_template.csv` | `field,frame,sub,index,expected` | 10194 | `4644b4330f2401496de267fd2f33c33d6e245715e1460accecb1cd51a3164d40` |
+| `fcb_tree_search_got.csv` | `field,frame,sub,index,got` | 10194 | `71788f16112bef803906346b40eb9c10bde543baa9ed2e54192bc41f8e53e235` |
+| `FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md` | n/a | n/a | `102cfaccf8bc984507294b2d4ddee7272cd20befdeb513765b0989fb8fa1ada5` |
+| `fcb_tree_search_user_audio_expected_template.csv` | `field,frame,sub,index,expected` | 10194 | `4644b4330f2401496de267fd2f33c33d6e245715e1460accecb1cd51a3164d40` |
+| `fcb_tree_search_user_audio_got.csv` | `field,frame,sub,index,got` | 10194 | `742386389e98025580a32a1105ddaa8995b38731b233a6a1948ed3eb5b6b46e5` |
+| `EXTERNAL_VERIFIER_REQUEST.md` | n/a | n/a | `d65189e31ed3189ada680e26efd2e934d71d8286023d0c27cef5499df66aa725` |
+| `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md` | n/a | n/a | `0da88d8dc36ccedc36906df62ce781c04056f2e5bd5597187e6ec26b3dd5eadc` |
+| `create_verifier_bundle.sh` | n/a | n/a | `05460c982ec487ec894bcb31b1200be4ab0542fd335bbabd08f8a21cb0651faf` |
+| `validate_verifier_output.sh` | n/a | n/a | `a5d6039222c65e68dd384aa1257fb51a3a5c3d96c816ad9d21a273d8a18d7fbd` |
 
 ## Verifier-filled Files
 
@@ -45,6 +54,14 @@ identify the current files after numeric `expected` cells were filled.
 | `pitch_closedloop_search_expected_template.csv` | 3192 | `e855712427f3da636f4db1c00045782e8b8aec0b7191b0db342c7e57ccba6b8a` |
 | `lsp_decision_expected_template.csv` | 1472 | `7e3b481a2263fe8ed0811ad38b7fdfd0d1e0c69c01e6fdca6a3f623cda7b7f20` |
 | `tame_gain_taming_expected_template.csv` | 8962 | `ab66f67c7f498cf41858f15c45faafaf949e36dcd1319054e69ef14580b85dd4` |
+| `fcb_tree_search_expected_template.csv` | 10194 | `9662f8e6de7eb5e4d0d99ce0fae2770e7ee43b42f61b7a25f813fc297ffd98fa` |
+| `fcb_tree_search_user_audio_expected_template.csv` | 10194 | `8043447cd725636836fe496018e373171b8ad87258604b7297920f5e6d22b260` |
+
+## Currently Unfilled Files
+
+| File | Blank `expected` cells | Next action |
+| --- | ---: | --- |
+| `encoder_closedloop_stage_expected_template.csv` | 100848 | Fill from `ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md` if a broader closed-loop stage oracle is required. |
 
 ## Verification Commands
 
@@ -70,7 +87,16 @@ sha256sum \
   testdata/oracle/handoff/TAME_GAIN_TAMING_VERIFIER_PROMPT.md \
   testdata/oracle/handoff/tame_gain_taming_expected_template.csv \
   testdata/oracle/handoff/tame_gain_taming_got.csv \
-  testdata/oracle/handoff/REMAINING_CONFORMANCE_VERIFIER_PROMPT.md
+  testdata/oracle/handoff/FCB_TREE_SEARCH_VERIFIER_PROMPT.md \
+  testdata/oracle/handoff/fcb_tree_search_expected_template.csv \
+  testdata/oracle/handoff/fcb_tree_search_got.csv \
+  testdata/oracle/handoff/FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md \
+  testdata/oracle/handoff/fcb_tree_search_user_audio_expected_template.csv \
+  testdata/oracle/handoff/fcb_tree_search_user_audio_got.csv \
+  testdata/oracle/handoff/EXTERNAL_VERIFIER_REQUEST.md \
+  testdata/oracle/handoff/REMAINING_CONFORMANCE_VERIFIER_PROMPT.md \
+  testdata/oracle/handoff/create_verifier_bundle.sh \
+  testdata/oracle/handoff/validate_verifier_output.sh
 ```
 
 Check data row counts and headers:
@@ -90,7 +116,11 @@ awk -F, 'FNR==1 {print FILENAME ": header=" $0} FNR>1 {rows++} ENDFILE {print FI
   testdata/oracle/handoff/pitch_closedloop_search_expected_template.csv \
   testdata/oracle/handoff/pitch_closedloop_search_got.csv \
   testdata/oracle/handoff/tame_gain_taming_expected_template.csv \
-  testdata/oracle/handoff/tame_gain_taming_got.csv
+  testdata/oracle/handoff/tame_gain_taming_got.csv \
+  testdata/oracle/handoff/fcb_tree_search_expected_template.csv \
+  testdata/oracle/handoff/fcb_tree_search_got.csv \
+  testdata/oracle/handoff/fcb_tree_search_user_audio_expected_template.csv \
+  testdata/oracle/handoff/fcb_tree_search_user_audio_got.csv
 ```
 
 ## Completion Rule

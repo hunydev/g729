@@ -23,20 +23,40 @@
 //
 // Frame-at-a-time:
 //
-//   - Encoder, NewEncoder, (*Encoder).EncodeFrame, (*Encoder).Reset
+//   - Encoder, NewEncoder, NewEncoderWithProfile,
+//     (*Encoder).EncodeFrame, (*Encoder).Reset
 //   - Decoder, NewDecoder, (*Decoder).DecodeFrame, (*Decoder).Reset
 //   - EncodeFrame, DecodeFrame (top-level convenience wrappers)
 //
 // Streaming (encoder side only; the decoder is naturally frame-driven):
 //
-//   - NewStreamingEncoder, (*Encoder).Write, (*Encoder).Flush
+//   - NewStreamingEncoder, NewStreamingEncoderWithProfile,
+//     (*Encoder).Write, (*Encoder).Flush
 //
 // Frame-shape constants:
 //
 //   - SampleRate (8000), FrameSamples (80), FrameBytes (10)
 //
-// EncodeFrame and DecodeFrame are zero-allocation in steady state;
-// see the v0.1.0-rc1 release verification log for hot-path benchmarks.
+// NewEncoder and NewStreamingEncoder use EncoderProfileQuality, which keeps
+// the emitted bitstream standard-compatible while enabling repository-local
+// encoder search and clip/MSE-repair heuristics: normalized pitch search,
+// native reconstructed-gain residual search, and decoder-in-loop gain
+// clip/MSE repair, tuned by black-box executable decode metrics.
+// EncoderProfileCore is available for diagnostics and clean-room algorithm
+// work. It keeps the focused fixed-codebook threshold-search frame budget and
+// sequential Annex A LSP VQ path, applies the open-loop submultiple lift across
+// all lower ranges using the Core lift, and evaluates encodable closed-loop
+// pitch boundary codepoints. Its gain path keeps Annex A's 4x8 GA/GB
+// preselection breadth while preserving wider fixed-point precision for the
+// preselect-center solve. It is not an ITU byte-exact conformance mode.
+// EncoderProfileQualityAnnexALSP is available for listening diagnostics that
+// keep the quality profile while using the sequential Annex A LSP VQ path.
+// EncoderProfileQualityClean is available for listening diagnostics that keep
+// the quality gain/LSP path while using a smoother closed-loop pitch policy and
+// stricter, high-residual-aware gain MSE repair.
+//
+// EncodeFrame and DecodeFrame are zero-allocation in steady state; see the
+// v0.1.0-rc1 release verification log for hot-path benchmarks.
 //
 // # Concurrency
 //

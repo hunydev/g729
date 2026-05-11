@@ -1940,10 +1940,8 @@ func collectPitchClosedLoopSearchSubframeRecords(e *Encoder, frame, sub, refInt,
 	}
 	kMin, kMax := closedLoopSearchWindow(centre, sub)
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 
 	prodLag, prodRN := clpitch.SearchInteger(&xb, exc, centre, sub)
 	prodFrac := clpitch.RefineFraction(&xb, exc, prodLag, sub == 1 || prodLag < 85)
@@ -1980,7 +1978,7 @@ func collectPitchClosedLoopSearchSubframeRecords(e *Encoder, frame, sub, refInt,
 	for i, value := range xb {
 		add("target_xb", frame, sub, i, -1, -1, int64(value))
 	}
-	for i, value := range e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:] {
+	for i, value := range e.oldExc[len(e.oldExc)-closedLoopPitchSearchHistory:] {
 		add("old_exc", frame, sub, i, -1, -1, int64(value))
 	}
 	for i, value := range r {
@@ -2313,10 +2311,8 @@ func diagnoseClosedLoopStage(e *Encoder, sub int, refInt int, refFrac int, refCo
 	} else {
 		centre = e.intT1
 	}
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 
 	kMin, kMax := closedLoopSearchWindow(centre, sub)
 	inWindow = refInt >= kMin && refInt <= kMax
@@ -2387,22 +2383,22 @@ func diagnoseClosedLoopSignalVariants(e *Encoder, sub int, refInt int, refFrac i
 	kMin, kMax := closedLoopSearchWindow(centre, sub)
 	inWindow := refInt >= kMin && refInt <= kMax
 
-	var excBaseline, excZeroOld, excNoResidual [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	var excOldHalf, excOldDouble, excOldNeg, excOldNegHalf [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excBaseline[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excBaseline[clpitch.PitchMaxInt:], r[:])
-	copy(excZeroOld[clpitch.PitchMaxInt:], r[:])
-	copy(excNoResidual[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	for i, sample := range e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:] {
+	var excBaseline, excZeroOld, excNoResidual [closedLoopPitchSearchLen]int16
+	var excOldHalf, excOldDouble, excOldNeg, excOldNegHalf [closedLoopPitchSearchLen]int16
+	copy(excBaseline[:closedLoopPitchSearchHistory], e.oldExc[len(e.oldExc)-closedLoopPitchSearchHistory:])
+	copy(excBaseline[closedLoopPitchSearchHistory:], r[:])
+	copy(excZeroOld[closedLoopPitchSearchHistory:], r[:])
+	copy(excNoResidual[:closedLoopPitchSearchHistory], e.oldExc[len(e.oldExc)-closedLoopPitchSearchHistory:])
+	for i, sample := range e.oldExc[len(e.oldExc)-closedLoopPitchSearchHistory:] {
 		excOldHalf[i] = sample / 2
 		excOldDouble[i] = fixed.Saturate(int32(sample) * 2)
 		excOldNeg[i] = fixed.Saturate(-int32(sample))
 		excOldNegHalf[i] = -sample / 2
 	}
-	copy(excOldHalf[clpitch.PitchMaxInt:], r[:])
-	copy(excOldDouble[clpitch.PitchMaxInt:], r[:])
-	copy(excOldNeg[clpitch.PitchMaxInt:], r[:])
-	copy(excOldNegHalf[clpitch.PitchMaxInt:], r[:])
+	copy(excOldHalf[closedLoopPitchSearchHistory:], r[:])
+	copy(excOldDouble[closedLoopPitchSearchHistory:], r[:])
+	copy(excOldNeg[closedLoopPitchSearchHistory:], r[:])
+	copy(excOldNegHalf[closedLoopPitchSearchHistory:], r[:])
 
 	out := map[string][2]bool{}
 	add := func(name string, target *[clpitch.SubframeLen]int16, exc []int16) {
@@ -2456,11 +2452,11 @@ func diagnoseClosedLoopSearchPolicy(e *Encoder, sub int, refInt int, refFrac int
 	kMin, kMax := closedLoopSearchWindow(centre, sub)
 	out := closedLoopSearchPolicyResult{inWindow: refInt >= kMin && refInt <= kMax}
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
+	var excSearch [closedLoopPitchSearchLen]int16
 	if !zeroOldExc {
-		copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
+		copy(excSearch[:closedLoopPitchSearchHistory], e.oldExc[len(e.oldExc)-closedLoopPitchSearchHistory:])
 	}
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
+	copy(excSearch[closedLoopPitchSearchHistory:], r[:])
 	exc := excSearch[:]
 
 	if out.inWindow {
@@ -2517,10 +2513,8 @@ func forceClosedLoopStep(e *Encoder, sub int, intLag int16, frac int8, code uint
 	clpitch.TargetSignal(aHat, &r, &e.swMemErr, &x)
 	clpitch.ImpulseResponse(aHat, &h)
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 
 	clpitch.AdaptiveVector(exc, intLag, frac, &v)
 	gp := clpitch.GpAndY(&x, &v, &h, &y)
@@ -2534,7 +2528,7 @@ func forceClosedLoopStep(e *Encoder, sub int, intLag int16, frac int8, code uint
 		e.frac2 = frac
 		e.p2 = uint8(code)
 	}
-	e.fcbStep(sub, &x, &y, &h, &v, gp)
+	e.fcbStep(sub, nil, nil, &x, &y, &h, &v, gp)
 	copy(e.lpResidualMemQ[:], sFrame[30:40])
 }
 
@@ -2892,10 +2886,8 @@ func closedLoopSearchSnapshot(e *Encoder, sub int) (kMin, kMax int, prodLag int1
 	}
 	kMin, kMax = closedLoopSearchWindow(centre, sub)
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 	prodLag, _ = clpitch.SearchInteger(&xb, exc, centre, sub)
 	prodFrac = clpitch.RefineFraction(&xb, exc, prodLag, sub == 1 || prodLag < 85)
 	return
@@ -3192,10 +3184,8 @@ func diagnoseFCBCommitTapWithCode(e *Encoder, sub int, forcePitch bool, forcedLa
 	clpitch.ImpulseResponse(aHat, &h)
 	clpitch.BackwardFilter(&x, &h, &xb)
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 
 	var lag int16
 	var frac int8
@@ -3408,10 +3398,8 @@ func diagnoseFCBSearchSurface(e *Encoder, sub int, forcedLag int16, forcedFrac i
 	clpitch.TargetSignal(aHat, &r, &e.swMemErr, &x)
 	clpitch.ImpulseResponse(aHat, &h)
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 	clpitch.AdaptiveVector(exc, forcedLag, forcedFrac, &v)
 	gpUnq := clpitch.GpAndY(&x, &v, &h, &y)
 
@@ -3583,10 +3571,8 @@ func diagnoseFCBSearchInputVariants(e *Encoder, sub int, forcedLag int16, forced
 	clpitch.TargetSignal(aHat, &r, &e.swMemErr, &x)
 	clpitch.ImpulseResponse(aHat, &h)
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 	clpitch.AdaptiveVector(exc, forcedLag, forcedFrac, &v)
 	gpUnq := clpitch.GpAndY(&x, &v, &h, &y)
 
@@ -3594,8 +3580,8 @@ func diagnoseFCBSearchInputVariants(e *Encoder, sub int, forcedLag int16, forced
 	var xZeroMem [clpitch.SubframeLen]int16
 	clpitch.TargetSignal(aHat, &r, &zeroMem, &xZeroMem)
 
-	var excZeroOld [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excZeroOld[clpitch.PitchMaxInt:], r[:])
+	var excZeroOld [closedLoopPitchSearchLen]int16
+	copy(excZeroOld[closedLoopPitchSearchHistory:], r[:])
 	var vZeroOld, yZeroOld [clpitch.SubframeLen]int16
 	clpitch.AdaptiveVector(excZeroOld[:], forcedLag, forcedFrac, &vZeroOld)
 	gpZeroOld := clpitch.GpAndY(&x, &vZeroOld, &h, &yZeroOld)
@@ -3699,10 +3685,8 @@ func diagnoseFCBScoreTrace(e *Encoder, sub int, forcedLag int16, forcedFrac int8
 	clpitch.TargetSignal(aHat, &r, &e.swMemErr, &x)
 	clpitch.ImpulseResponse(aHat, &h)
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 	clpitch.AdaptiveVector(exc, forcedLag, forcedFrac, &v)
 	gpUnq := clpitch.GpAndY(&x, &v, &h, &y)
 
@@ -3857,10 +3841,8 @@ func diagnoseFCBPhiVariants(e *Encoder, sub int, forcedLag int16, forcedFrac int
 	clpitch.TargetSignal(aHat, &r, &e.swMemErr, &x)
 	clpitch.ImpulseResponse(aHat, &h)
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 	clpitch.AdaptiveVector(exc, forcedLag, forcedFrac, &v)
 	gpUnq := clpitch.GpAndY(&x, &v, &h, &y)
 
@@ -3997,10 +3979,8 @@ func diagnoseFCBCorrelationVariants(e *Encoder, sub int, forcedLag int16, forced
 	clpitch.TargetSignal(aHat, &r, &e.swMemErr, &x)
 	clpitch.ImpulseResponse(aHat, &h)
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 	clpitch.AdaptiveVector(exc, forcedLag, forcedFrac, &v)
 	gpUnq := clpitch.GpAndY(&x, &v, &h, &y)
 
@@ -4178,10 +4158,8 @@ func diagnoseFCBXHVariants(e *Encoder, sub int, forcedLag int16, forcedFrac int8
 		oracleTargetSignalVariant(aXH, &r, &e.swMemErr, gamma, &x)
 		oracleImpulseResponseVariant(aXH, gamma, &h)
 
-		var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-		copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-		copy(excSearch[clpitch.PitchMaxInt:], r[:])
-		exc := excSearch[:]
+		var excSearch [closedLoopPitchSearchLen]int16
+		exc := e.closedLoopExcitationSearch(&r, &excSearch)
 		clpitch.AdaptiveVector(exc, forcedLag, forcedFrac, &v)
 		gpUnq := clpitch.GpAndY(&x, &v, &h, &y)
 		fcbsearch.AdjustedTarget(&x, &y, gpUnq, &xPrime)
@@ -4195,10 +4173,8 @@ func diagnoseFCBXHVariants(e *Encoder, sub int, forcedLag int16, forcedFrac int8
 		var r, x, v, y, xPrime [clpitch.SubframeLen]int16
 		lpResidualSubframe(sFrame, aResidual, &e.lpResidualMemQ, &r)
 		oracleTargetSignalVariant(aX, &r, &e.swMemErr, oracleGamma075, &x)
-		var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-		copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-		copy(excSearch[clpitch.PitchMaxInt:], r[:])
-		exc := excSearch[:]
+		var excSearch [closedLoopPitchSearchLen]int16
+		exc := e.closedLoopExcitationSearch(&r, &excSearch)
 		clpitch.AdaptiveVector(exc, forcedLag, forcedFrac, &v)
 		gpUnq := clpitch.GpAndY(&x, &v, &hIdentity, &y)
 		fcbsearch.AdjustedTarget(&x, &y, gpUnq, &xPrime)
@@ -4352,10 +4328,8 @@ func diagnoseFCBReferenceFieldError(e *Encoder, sub int, forcedLag int16, forced
 	clpitch.TargetSignal(aHat, &r, &e.swMemErr, &x)
 	clpitch.ImpulseResponse(aHat, &h)
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 	clpitch.AdaptiveVector(exc, forcedLag, forcedFrac, &v)
 	gpUnq := clpitch.GpAndY(&x, &v, &h, &y)
 
@@ -4644,10 +4618,9 @@ func forceReferenceFieldStep(e *Encoder, sub int, intLag int16, frac int8, pitch
 	clpitch.TargetSignal(aHat, &r, &e.swMemErr, &x)
 	clpitch.ImpulseResponse(aHat, &h)
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	clpitch.AdaptiveVector(excSearch[:], intLag, frac, &v)
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
+	clpitch.AdaptiveVector(exc, intLag, frac, &v)
 	clpitch.GpAndY(&x, &v, &h, &y)
 
 	var c [clpitch.SubframeLen]int16

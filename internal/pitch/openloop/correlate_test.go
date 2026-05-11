@@ -35,9 +35,8 @@ func TestCorrelate_ImpulseAtBoundary(t *testing.T) {
 // TestCorrelate_Period80 pins eq. A.4 against a period-80 input: a
 // square wave of period 80 (40 positive, 40 negative samples) over
 // the whole wsp window. R(k = 80) = Σ wsp(2n)·wsp(2n) = max positive;
-// R(k = 40) = -Σ wsp²(2n) = max negative (treated as 0); other lags
-// in [20,143] yield strictly smaller R. The kernel must therefore
-// return lag == 80.
+// R(k = 40) = -Σ wsp²(2n) is negative; other lags in [20,143] yield
+// strictly smaller R. The kernel must therefore return lag == 80.
 func TestCorrelate_Period80(t *testing.T) {
 	var wsp [223]int16
 	for i := 0; i < 223; i++ {
@@ -53,6 +52,25 @@ func TestCorrelate_Period80(t *testing.T) {
 	}
 	if rsq <= 0 {
 		t.Fatalf("correlate(period-80) rsq = %d, want > 0", rsq)
+	}
+}
+
+// TestCorrelate_AllNegativeCorrelationsStillMaximizesR pins the raw
+// §A.3.4 per-range maximum. Even if every R(k) is negative, correlate
+// must select the least-negative candidate rather than falling back to
+// the lower bound as if all negative values were zero.
+func TestCorrelate_AllNegativeCorrelationsStillMaximizesR(t *testing.T) {
+	var wsp [223]int16
+	wsp[143] = 100
+	wsp[143-20] = -5
+	wsp[143-21] = -2
+	wsp[143-22] = -9
+	lag, rsq := correlate(&wsp, 20, 22)
+	if lag != 21 {
+		t.Fatalf("correlate(all-negative) lag = %d, want 21 (least-negative R)", lag)
+	}
+	if rsq != -400 {
+		t.Fatalf("correlate(all-negative) R = %d, want -400 (= 2*100*-2)", rsq)
 	}
 }
 

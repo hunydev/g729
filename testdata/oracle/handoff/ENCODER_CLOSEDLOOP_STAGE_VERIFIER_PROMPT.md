@@ -5,14 +5,14 @@ describe any G.729 implementation source code. Fill only numeric
 `expected` cells in:
 
 ```text
-/home/exedev/g729/testdata/oracle/handoff/encoder_closedloop_stage_expected_template.csv
+testdata/oracle/handoff/encoder_closedloop_stage_expected_template.csv
 ```
 
 Use the matching local-observation file only for row keys and local `got`
 comparison after your independent calculation:
 
 ```text
-/home/exedev/g729/testdata/oracle/handoff/encoder_closedloop_stage_got.csv
+testdata/oracle/handoff/encoder_closedloop_stage_got.csv
 ```
 
 Do not copy `got` values into `expected`. That is a self-oracle and is
@@ -23,7 +23,7 @@ invalid.
 Use the G.729 Annex A encoder equations and the test vector input:
 
 ```text
-/home/exedev/g729/testdata/itu/G729_Release3/g729AnnexA/test_vectors/SPEECH.IN
+testdata/itu/G729_Release3/g729AnnexA/test_vectors/SPEECH.IN
 ```
 
 Target frames are fixed by the CSV key rows:

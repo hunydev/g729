@@ -422,21 +422,17 @@ func TestExternalFFmpegBlackboxFCBGainAwareRerank_SPEECH(t *testing.T) {
 	modes := []struct {
 		name                   string
 		topK                   int
-		gpc                    int32
+		gpcNum, gpcDen         int32
 		searchXNum, searchXDen int32
 		searchYNum, searchYDen int32
 	}{
-		{name: "top1 gpc4", topK: 1, gpc: 4},
-		{name: "top4 gpc4", topK: 4, gpc: 4},
-		{name: "top8 gpc4", topK: 8, gpc: 4},
-		{name: "top16 gpc4", topK: 16, gpc: 4},
-		{name: "top32 gpc4", topK: 32, gpc: 4},
-		{name: "top1 prod", topK: 1, gpc: 4, searchXNum: 1, searchXDen: 2, searchYNum: 2, searchYDen: 1},
-		{name: "top4 prod", topK: 4, gpc: 4, searchXNum: 1, searchXDen: 2, searchYNum: 2, searchYDen: 1},
-		{name: "top8 prod", topK: 8, gpc: 4, searchXNum: 1, searchXDen: 2, searchYNum: 2, searchYDen: 1},
-		{name: "top16 prod", topK: 16, gpc: 4, searchXNum: 1, searchXDen: 2, searchYNum: 2, searchYDen: 1},
-		{name: "top8 gpc1", topK: 8, gpc: 1},
-		{name: "top16 gpc1", topK: 16, gpc: 1},
+		{name: "top1 current", topK: 1, gpcNum: 5, gpcDen: 3, searchXNum: 1, searchXDen: 2, searchYNum: 7, searchYDen: 2},
+		{name: "top4 current", topK: 4, gpcNum: 5, gpcDen: 3, searchXNum: 1, searchXDen: 2, searchYNum: 7, searchYDen: 2},
+		{name: "top8 current", topK: 8, gpcNum: 5, gpcDen: 3, searchXNum: 1, searchXDen: 2, searchYNum: 7, searchYDen: 2},
+		{name: "top16 current", topK: 16, gpcNum: 5, gpcDen: 3, searchXNum: 1, searchXDen: 2, searchYNum: 7, searchYDen: 2},
+		{name: "top32 current", topK: 32, gpcNum: 5, gpcDen: 3, searchXNum: 1, searchXDen: 2, searchYNum: 7, searchYDen: 2},
+		{name: "top8 thin", topK: 8, gpcNum: 7, gpcDen: 4, searchXNum: 1, searchXDen: 2, searchYNum: 15, searchYDen: 4},
+		{name: "top16 thin", topK: 16, gpcNum: 7, gpcDen: 4, searchXNum: 1, searchXDen: 2, searchYNum: 15, searchYDen: 4},
 	}
 
 	t.Logf("FCB gain-aware rerank sweep — SPEECH corpus (%d frames, %d samples)", frames, totalSamples)
@@ -448,7 +444,9 @@ func TestExternalFFmpegBlackboxFCBGainAwareRerank_SPEECH(t *testing.T) {
 	for _, mode := range modes {
 		normalizeGainSweepMode(&mode.searchXNum, &mode.searchXDen)
 		normalizeGainSweepMode(&mode.searchYNum, &mode.searchYDen)
-		framesOut := encodeBitstreamFramesFCBGainAwareRerank(t, src, mode.topK, mode.gpc,
+		normalizeGainSweepMode(&mode.gpcNum, &mode.gpcDen)
+		framesOut := encodeBitstreamFramesFCBGainAwareRerank(t, src, mode.topK,
+			mode.gpcNum, mode.gpcDen,
 			mode.searchXNum, mode.searchXDen, mode.searchYNum, mode.searchYDen)
 		fileBase := strings.ReplaceAll(mode.name, " ", "_")
 		rawPath := filepath.Join(tmp, fileBase+".g729")
@@ -825,6 +823,96 @@ func TestExternalFFmpegBlackboxClosedLoopSurfaceSweep_SPEECH(t *testing.T) {
 	}
 }
 
+func TestExternalFFmpegBlackboxPitchCenterThresholdSweep_SPEECH(t *testing.T) {
+	if os.Getenv("G729_FFMPEG_BLACKBOX_QUALITY") != "1" {
+		t.Skip("set G729_FFMPEG_BLACKBOX_QUALITY=1 to run ffmpeg black-box pitch-center threshold sweep")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skipf("ffmpeg unavailable: %v", err)
+	}
+
+	const (
+		bytesPerInFrame  = 2 * FrameSamples
+		bytesPerBitFrame = 164
+	)
+	vecDir := filepath.Join("testdata", "itu", "G729_Release3", "g729AnnexA", "test_vectors")
+	inData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.IN"))
+	if err != nil {
+		t.Fatalf("read SPEECH.IN: %v", err)
+	}
+	bitData, err := os.ReadFile(filepath.Join(vecDir, "SPEECH.BIT"))
+	if err != nil {
+		t.Fatalf("read SPEECH.BIT: %v", err)
+	}
+
+	frames := len(inData) / bytesPerInFrame
+	if bf := len(bitData) / bytesPerBitFrame; bf < frames {
+		frames = bf
+	}
+	totalSamples := frames * FrameSamples
+	src := s16leToSamples(inData[:totalSamples*2])
+
+	tmp := t.TempDir()
+	refRaw := filepath.Join(tmp, "speech-ref.g729")
+	refPCM := filepath.Join(tmp, "speech-ref.ffmpeg.s16le")
+	writeG192AsRawG729(t, bitData[:frames*bytesPerBitFrame], refRaw)
+	ffmpegDecodeRawG729(t, refRaw, refPCM)
+	refFF := s16leToSamples(readFile(t, refPCM))
+	if len(refFF) > totalSamples {
+		refFF = refFF[:totalSamples]
+	}
+	refMetrics := measureFFmpegSweep(src, refFF, 240)
+
+	modes := []closedLoopSurfaceMode{
+		{name: "current", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "submul150", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "submultipleRatio150", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "submul175", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "submultipleRatio175", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "submul200", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "submultipleRatio200", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "harmonic110", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "harmonicRatio110", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "harmonic125", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "harmonicRatio125", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "harmonic150", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "harmonicRatio150", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "full125", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "fullRatio125", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "full150", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "fullRatio150", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "full175", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "fullRatio175", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "full125+t180", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "fullRatio125", fcbMode: "thresholdscan:180", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "full150+t180", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "fullRatio150", fcbMode: "thresholdscan:180", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "full175+t180", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "fullRatio175", fcbMode: "thresholdscan:180", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "drop150", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "dropRatio150", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "drop175", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "dropRatio175", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "drop200", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "dropRatio200", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "drop150+t180", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "dropRatio150", fcbMode: "thresholdscan:180", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "drop175+t180", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "dropRatio175", fcbMode: "thresholdscan:180", xNum: 2, xDen: 5, yNum: 3, yDen: 1, gpcNum: 4, gpcDen: 3},
+		{name: "drop175+t180 g1", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "dropRatio175", fcbMode: "thresholdscan:180", xNum: 2, xDen: 5, yNum: 7, yDen: 2, gpcNum: 2, gpcDen: 1},
+		{name: "drop175+t180 g2", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "dropRatio175", fcbMode: "thresholdscan:180", xNum: 1, xDen: 2, yNum: 9, yDen: 2, gpcNum: 5, gpcDen: 2},
+		{name: "drop175+t180 g3", speechStart: 80, acbMode: "decoderShort", pitchMode: "decoderShortNorm", centerMode: "dropRatio175", fcbMode: "thresholdscan:180", xNum: 2, xDen: 5, yNum: 7, yDen: 2, gpcNum: 5, gpcDen: 3},
+	}
+
+	t.Logf("pitch-center threshold sweep — SPEECH corpus (%d frames, %d samples)", frames, totalSamples)
+	t.Logf("%-14s %7s %8s %8s %8s %8s %8s %8s %8s",
+		"stream", "shift", "rms", "gSNR", "seg", "corr", "optG", "optSeg", "rms/ref")
+	t.Logf("%-14s %7d %8.0f %8.2f %8.2f %8.3f %8.2f %8.2f %8.3f",
+		"SPEECH.BIT", refMetrics.shift, refMetrics.rms, refMetrics.globalSNR, refMetrics.segSNR,
+		refMetrics.corr, refMetrics.optGlobalSNR, refMetrics.optSegSNR, 1.0)
+	for _, mode := range modes {
+		framesOut := encodeBitstreamFramesClosedLoopSurface(t, src, mode)
+		fileBase := strings.NewReplacer(" ", "_", "/", "_").Replace(mode.name)
+		rawPath := filepath.Join(tmp, fileBase+".g729")
+		pcmPath := filepath.Join(tmp, fileBase+".s16le")
+		writePackedFrames(t, framesOut, rawPath)
+		ffmpegDecodeRawG729(t, rawPath, pcmPath)
+		decoded := s16leToSamples(readFile(t, pcmPath))
+		if len(decoded) > totalSamples {
+			decoded = decoded[:totalSamples]
+		}
+		if len(decoded) < totalSamples {
+			t.Fatalf("%s: ffmpeg output too short: got %d want >= %d", mode.name, len(decoded), totalSamples)
+		}
+		m := measureFFmpegSweep(src, decoded, 240)
+		t.Logf("%-14s %7d %8.0f %8.2f %8.2f %8.3f %8.2f %8.2f %8.3f",
+			mode.name, m.shift, m.rms, m.globalSNR, m.segSNR, m.corr, m.optGlobalSNR, m.optSegSNR, m.rms/refMetrics.rms)
+	}
+}
+
 func TestExternalFFmpegBlackboxClosedLoopShortACBGainGrid_SPEECH(t *testing.T) {
 	if os.Getenv("G729_FFMPEG_BLACKBOX_QUALITY") != "1" {
 		t.Skip("set G729_FFMPEG_BLACKBOX_QUALITY=1 to run ffmpeg black-box short-ACB gain grid")
@@ -1075,7 +1163,7 @@ func encodeBitstreamFramesFCBTargetGainScale(t *testing.T, samples []int16, fcbG
 	return frames
 }
 
-func encodeBitstreamFramesFCBGainAwareRerank(t *testing.T, samples []int16, topK int, gpcScale int32, searchXNum, searchXDen, searchYNum, searchYDen int32) []bitstream.Frame {
+func encodeBitstreamFramesFCBGainAwareRerank(t *testing.T, samples []int16, topK int, gpcNum, gpcDen, searchXNum, searchXDen, searchYNum, searchYDen int32) []bitstream.Frame {
 	t.Helper()
 	enc := NewEncoder()
 	frames := make([]bitstream.Frame, 0, len(samples)/FrameSamples)
@@ -1084,8 +1172,8 @@ func encodeBitstreamFramesFCBGainAwareRerank(t *testing.T, samples []int16, topK
 			t.Fatalf("lpcStep frame %d: %v", off/FrameSamples, err)
 		}
 		_ = enc.openloopStep()
-		closedloopStepFCBGainAwareRerank(enc, 0, topK, gpcScale, searchXNum, searchXDen, searchYNum, searchYDen)
-		closedloopStepFCBGainAwareRerank(enc, 1, topK, gpcScale, searchXNum, searchXDen, searchYNum, searchYDen)
+		closedloopStepFCBGainAwareRerank(enc, 0, topK, gpcNum, gpcDen, searchXNum, searchXDen, searchYNum, searchYDen)
+		closedloopStepFCBGainAwareRerank(enc, 1, topK, gpcNum, gpcDen, searchXNum, searchXDen, searchYNum, searchYDen)
 		var f bitstream.Frame
 		enc.buildBitstreamFrame(&f)
 		frames = append(frames, f)
@@ -1143,6 +1231,7 @@ type closedLoopSurfaceMode struct {
 	targetMode       string
 	residualMem      string
 	residualExt      string
+	centerMode       string
 	halfWindow       int
 	xNum             int32
 	xDen             int32
@@ -1231,12 +1320,35 @@ func closedloopStepSurfaceVariant(e *Encoder, sub int, mode closedLoopSurfaceMod
 		centre = e.intT1
 	}
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
+	var excSearch [closedLoopPitchSearchLen]int16
+	copy(excSearch[:closedLoopPitchSearchHistory], e.oldExc[len(e.oldExc)-closedLoopPitchSearchHistory:])
 	if mode.residualExt != "zero" {
-		copy(excSearch[clpitch.PitchMaxInt:], r[:])
+		copy(excSearch[closedLoopPitchSearchHistory:], r[:])
 	}
 	exc := excSearch[:]
+	if sub == 0 && mode.centerMode != "" {
+		fullBestT, fullBestScore := bestFullRangePitchCenterForMode(&x, &h, exc, e.oldExc[:], mode.pitchMode)
+		switch mode.centerMode {
+		case "fullBest":
+			centre = fullBestT
+		case "submultipleFullBest":
+			if isNearSubmultipleForDiag(int(centre), int(fullBestT)) {
+				centre = fullBestT
+			}
+		case "submultipleRatio110", "submultipleRatio125", "submultipleRatio150", "submultipleRatio175", "submultipleRatio200",
+			"harmonicRatio110", "harmonicRatio125", "harmonicRatio150",
+			"fullRatio110", "fullRatio125", "fullRatio150", "fullRatio175", "fullRatio200",
+			"dropRatio110", "dropRatio125", "dropRatio150", "dropRatio175", "dropRatio200":
+			windowScore := bestWindowPitchScoreForMode(&x, &h, exc, e.oldExc[:], centre, sub, mode.halfWindow, mode.pitchMode)
+			if shouldSwitchPitchCenterForDiag(mode.centerMode, centre, fullBestT, windowScore, fullBestScore) {
+				centre = fullBestT
+			}
+		case "topHalf", "topDouble", "topPreferHalf", "topPreferDouble":
+			centre = transformClosedLoopSurfaceCentre(centre, mode.centerMode)
+		default:
+			panic("unknown closed-loop diagnostic center mode: " + mode.centerMode)
+		}
+	}
 	var intLag int16
 	if mode.pitchMode == "decoderShortACB" {
 		intLag = searchIntegerDecoderShortACB(&xb, exc, e.oldExc[:], centre, sub, mode.halfWindow)
@@ -1435,6 +1547,120 @@ func normalizedPitchScoreDecoderShort(x, h *[clpitch.SubframeLen]int16, exc []in
 	return normalizedPitchScoreForVector(x, h, &v)
 }
 
+func bestFullRangePitchCenterForMode(x, h *[clpitch.SubframeLen]int16, exc []int16, oldExc []int16, pitchMode string) (int16, float64) {
+	bestLag := int16(clpitch.PitchMinInt)
+	bestScore := math.Inf(-1)
+	for k := clpitch.PitchMinInt; k <= clpitch.PitchMaxInt; k++ {
+		score := normalizedPitchScoreForMode(x, h, exc, oldExc, int16(k), 0, pitchMode)
+		if score > bestScore {
+			bestScore = score
+			bestLag = int16(k)
+		}
+	}
+	return bestLag, bestScore
+}
+
+func bestWindowPitchScoreForMode(x, h *[clpitch.SubframeLen]int16, exc []int16, oldExc []int16, centre int16, sub int, halfWindow int, pitchMode string) float64 {
+	kMin, kMax := pitchSearchRange(centre, sub, halfWindow)
+	bestScore := math.Inf(-1)
+	for k := kMin; k <= kMax; k++ {
+		fracs, n := externalPitchCandidateFracs(sub, int16(k))
+		for i := 0; i < n; i++ {
+			score := normalizedPitchScoreForMode(x, h, exc, oldExc, int16(k), fracs[i], pitchMode)
+			if score > bestScore {
+				bestScore = score
+			}
+		}
+	}
+	return bestScore
+}
+
+func normalizedPitchScoreForMode(x, h *[clpitch.SubframeLen]int16, exc []int16, oldExc []int16, intLag int16, frac int8, pitchMode string) float64 {
+	if pitchMode == "decoderShortNorm" {
+		return normalizedPitchScoreDecoderShort(x, h, exc, oldExc, intLag, frac)
+	}
+	return normalizedPitchScore(x, h, exc, intLag, frac)
+}
+
+func shouldSwitchPitchCenterForDiag(mode string, centre, fullBestT int16, windowScore, fullBestScore float64) bool {
+	ratio := 1.0
+	switch {
+	case strings.HasSuffix(mode, "110"):
+		ratio = 1.10
+	case strings.HasSuffix(mode, "125"):
+		ratio = 1.25
+	case strings.HasSuffix(mode, "150"):
+		ratio = 1.50
+	case strings.HasSuffix(mode, "175"):
+		ratio = 1.75
+	case strings.HasSuffix(mode, "200"):
+		ratio = 2.00
+	default:
+		return false
+	}
+	if math.IsInf(fullBestScore, -1) || math.IsInf(windowScore, -1) || fullBestScore < windowScore*ratio {
+		return false
+	}
+	if strings.HasPrefix(mode, "fullRatio") {
+		return true
+	}
+	if strings.HasPrefix(mode, "dropRatio") {
+		return int(fullBestT)+20 <= int(centre)
+	}
+	submultiple := isNearSubmultipleForDiag(int(centre), int(fullBestT))
+	if strings.HasPrefix(mode, "submultipleRatio") {
+		return submultiple
+	}
+	harmonic := submultiple || isNearSubmultipleForDiag(int(fullBestT), int(centre))
+	return harmonic
+}
+
+func isNearSubmultipleForDiag(higher, lower int) bool {
+	if lower <= 0 {
+		return false
+	}
+	for k := 2; k <= 7; k++ {
+		d := higher - k*lower
+		if d < 0 {
+			d = -d
+		}
+		if d <= 2 {
+			return true
+		}
+		if k*lower > higher+2 {
+			return false
+		}
+	}
+	return false
+}
+
+func transformClosedLoopSurfaceCentre(centre int16, mode string) int16 {
+	t := int(centre)
+	switch mode {
+	case "topHalf":
+		t = (t + 1) / 2
+	case "topDouble":
+		t *= 2
+	case "topPreferHalf":
+		if t >= 40 {
+			t = (t + 1) / 2
+		}
+	case "topPreferDouble":
+		if t <= 71 {
+			t *= 2
+		}
+	default:
+		panic("unknown closed-loop surface centre transform")
+	}
+	if t < clpitch.PitchMinInt {
+		t = clpitch.PitchMinInt
+	}
+	if t > clpitch.PitchMaxInt {
+		t = clpitch.PitchMaxInt
+	}
+	return int16(t)
+}
+
 func searchIntegerNormalized(x, h *[clpitch.SubframeLen]int16, exc []int16, centre int16, sub int, halfWindow int) int16 {
 	kMin, kMax := pitchSearchRange(centre, sub, halfWindow)
 	bestLag := int16(kMin)
@@ -1603,10 +1829,8 @@ func closedloopStepPitchWindow(e *Encoder, sub int, halfWindow int, xNum, xDen, 
 		centre = e.intT1
 	}
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 	intLag := searchIntegerWindow(&xb, exc, centre, sub, halfWindow)
 	frac := clpitch.RefineFraction(&xb, exc, intLag, sub == 1 || intLag < 85)
 
@@ -1683,10 +1907,8 @@ func closedloopStepPitchCenterMode(e *Encoder, sub int, mode string) {
 		centre = e.intT1
 	}
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 	intLag, _ := clpitch.SearchInteger(&xb, exc, centre, sub)
 	frac := clpitch.RefineFraction(&xb, exc, intLag, sub == 1 || intLag < 85)
 
@@ -1769,10 +1991,8 @@ func closedloopStepFCBTargetGainScale(e *Encoder, sub int, fcbGpNum, fcbGpDen, g
 		centre = e.intT1
 	}
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 	intLag, _ := clpitch.SearchInteger(&xb, exc, centre, sub)
 	frac := clpitch.RefineFraction(&xb, exc, intLag, sub == 1 || intLag < 85)
 
@@ -1795,7 +2015,7 @@ func closedloopStepFCBTargetGainScale(e *Encoder, sub int, fcbGpNum, fcbGpDen, g
 	copy(e.lpResidualMemQ[:], sFrame[30:40])
 }
 
-func closedloopStepFCBGainAwareRerank(e *Encoder, sub int, topK int, gpcScale, searchXNum, searchXDen, searchYNum, searchYDen int32) {
+func closedloopStepFCBGainAwareRerank(e *Encoder, sub int, topK int, gpcNum, gpcDen, searchXNum, searchXDen, searchYNum, searchYDen int32) {
 	var aHat *[11]int16
 	if sub == 0 {
 		aHat = &e.aHatSF1
@@ -1803,7 +2023,7 @@ func closedloopStepFCBGainAwareRerank(e *Encoder, sub int, topK int, gpcScale, s
 		aHat = &e.aHatSF2
 	}
 
-	sStart := 120 + 40*sub
+	sStart := 80 + 40*sub
 	sFrame := (*[40]int16)(e.oldSpeech[sStart : sStart+40])
 
 	var r, x, h, xb, v, y [clpitch.SubframeLen]int16
@@ -1818,14 +2038,12 @@ func closedloopStepFCBGainAwareRerank(e *Encoder, sub int, topK int, gpcScale, s
 	} else {
 		centre = e.intT1
 	}
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
-	intLag, _ := clpitch.SearchInteger(&xb, exc, centre, sub)
-	frac := clpitch.RefineFraction(&xb, exc, intLag, sub == 1 || intLag < 85)
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
+	intLag := e.searchPitchNormalizedAdaptive(&x, &h, exc, centre, sub)
+	frac := e.refinePitchNormalizedAdaptive(&x, &h, exc, intLag, sub == 1 || intLag < 85, sub)
 
-	clpitch.AdaptiveVector(exc, intLag, frac, &v)
+	e.adaptiveVectorForSynthesis(exc, intLag, frac, &v)
 	gp := clpitch.GpAndY(&x, &v, &h, &y)
 
 	if sub == 0 {
@@ -1840,7 +2058,7 @@ func closedloopStepFCBGainAwareRerank(e *Encoder, sub int, topK int, gpcScale, s
 		e.p2 = clpitch.EncodeP2(intLag, frac, tmin)
 	}
 
-	fcbStepGainAwareRerank(e, sub, &x, &y, &h, &v, gp, topK, gpcScale, searchXNum, searchXDen, searchYNum, searchYDen)
+	fcbStepGainAwareRerank(e, sub, &x, &y, &h, &v, gp, topK, gpcNum, gpcDen, searchXNum, searchXDen, searchYNum, searchYDen)
 	copy(e.lpResidualMemQ[:], sFrame[30:40])
 }
 
@@ -1856,26 +2074,28 @@ func fcbStepFCBTargetGainScale(
 	gpForFCB := saturateInt32ToInt16(scaleInt32Ratio(int32(gpUnq), fcbGpNum, fcbGpDen))
 	fcbsearch.AdjustedTarget(x, y, gpForFCB, &xPrime)
 
-	var d [N]int32
-	fcbsearch.CorrelationD(&xPrime, h, &d)
-
-	var signs [N]int16
-	var dAbs [N]int32
-	fcbsearch.SignsFromD(&d, &signs, &dAbs)
-
-	var phi [N][N]int32
-	fcbsearch.PhiPrime(h, &signs, &phi)
-
-	var positions [4]int8
-	var sumOut [2]int64
-	fcbsearch.SearchDepthFirst(&dAbs, &phi, &positions, &sumOut)
-
 	var intLag int16
 	if sub == 0 {
 		intLag = e.intT1
 	} else {
 		intLag = e.intT2
 	}
+	hSearch := productionFCBSearchImpulse(h, intLag, e.prevGpQ14)
+
+	var d [N]int32
+	fcbsearch.CorrelationD(&xPrime, &hSearch, &d)
+
+	var signs [N]int16
+	var dAbs [N]int32
+	fcbsearch.SignsFromD(&d, &signs, &dAbs)
+
+	var phi [N][N]int32
+	fcbsearch.PhiPrime(&hSearch, &signs, &phi)
+
+	var positions [4]int8
+	var sumOut [2]int64
+	fcbsearch.SearchDepthFirst(&dAbs, &phi, &positions, &sumOut)
+
 	var c [N]int16
 	fcbsearch.BuildCode(&positions, &signs, intLag, e.prevGpQ14, &c)
 
@@ -1929,33 +2149,34 @@ func fcbStepGainAwareRerank(
 	x, y, h, v *[clpitch.SubframeLen]int16,
 	gpUnq int16,
 	topK int,
-	gpcScale int32,
+	gpcNum, gpcDen int32,
 	searchXNum, searchXDen, searchYNum, searchYDen int32,
 ) {
 	const N = clpitch.SubframeLen
 	var xPrime [N]int16
 	fcbsearch.AdjustedTarget(x, y, gpUnq, &xPrime)
 
+	var intLag int16
+	if sub == 0 {
+		intLag = e.intT1
+	} else {
+		intLag = e.intT2
+	}
+	hSearch := productionFCBSearchImpulse(h, intLag, e.prevGpQ14)
+
 	var d [N]int32
-	fcbsearch.CorrelationD(&xPrime, h, &d)
+	fcbsearch.CorrelationD(&xPrime, &hSearch, &d)
 
 	var signs [N]int16
 	var dAbs [N]int32
 	fcbsearch.SignsFromD(&d, &signs, &dAbs)
 
 	var phi [N][N]int32
-	fcbsearch.PhiPrime(h, &signs, &phi)
+	fcbsearch.PhiPrime(&hSearch, &signs, &phi)
 
 	cands := fcbTopKCandidatesDiag(&dAbs, &phi, topK)
 	if len(cands) == 0 {
 		cands = []fcbCandidateDiag{{pos: [4]int8{0, 1, 2, 3}}}
-	}
-
-	var intLag int16
-	if sub == 0 {
-		intLag = e.intT1
-	} else {
-		intLag = e.intT2
 	}
 
 	bestCost := int64(1<<63 - 1)
@@ -1965,20 +2186,21 @@ func fcbStepGainAwareRerank(
 	var bestGp, bestGamma int16
 	var bestMant int16
 	var bestExp int8
+	bestTaming := false
 	for _, cand := range cands {
 		var c [N]int16
 		fcbsearch.BuildCode(&cand.pos, &signs, intLag, e.prevGpQ14, &c)
 		var z [N]int16
 		fcbsearch.FilterCode(&c, h, &z)
 		gpcPredQ12 := gainquant.PredictedGcQ12(&e.pastQuaEn, &c)
-		if gpcScale != 1 {
-			gpcPredQ12 = scaleInt32Ratio(gpcPredQ12, gpcScale, 1)
-		}
+		gpcPredQ12 = scaleInt32Ratio(gpcPredQ12, gpcNum, gpcDen)
 		xSearch, ySearch := *x, *y
 		scaleVectorInt16(&xSearch, searchXNum, searchXDen)
 		scaleVectorInt16(&ySearch, searchYNum, searchYDen)
 		gaPhys, gbPhys, gpHatQ14, gammaCQ13 := gainquant.SearchConjugate(&xSearch, &ySearch, &z, gpcPredQ12)
-		gpHatQ14 = gainquant.Tame(gpHatQ14, &e.oldExc)
+		gpTamed := gainquant.Tame(gpHatQ14, &e.oldExc)
+		taming := gpTamed != gpHatQ14
+		gpHatQ14 = gpTamed
 		_, gcMantQ14, gcExp := gainquant.Reconstruct(&e.pastQuaEn, &c, gaPhys, gbPhys)
 		cost := gainResidualEnergyQ0(x, y, &z, gpHatQ14, gcMantQ14, gcExp)
 		if cost < bestCost {
@@ -1989,6 +2211,7 @@ func fcbStepGainAwareRerank(
 			bestGA, bestGB = gaPhys, gbPhys
 			bestGp, bestGamma = gpHatQ14, gammaCQ13
 			bestMant, bestExp = gcMantQ14, gcExp
+			bestTaming = taming
 		}
 	}
 
@@ -2022,7 +2245,7 @@ func fcbStepGainAwareRerank(
 
 	gainquant.UpdatePastQuaEn(&e.pastQuaEn, bestGamma)
 	e.prevGpQ14 = bestGp
-	e.prevTaming = false
+	e.prevTaming = bestTaming
 }
 
 type fcbCandidateDiag struct {
@@ -2053,7 +2276,7 @@ func fcbTopKCandidatesDiag(dAbs *[clpitch.SubframeLen]int32, phi *[clpitch.Subfr
 					if e <= 0 {
 						continue
 					}
-					cand := fcbCandidateDiag{pos: [4]int8{m0, m1, m2, m3}, c2: c * c, e: e}
+					cand := fcbCandidateDiag{pos: [4]int8{m0, m1, m2, m3}, c2: squareSaturatingInt64ForDiag(c), e: e}
 					insertTopFCBCandidateDiag(&top, topK, cand)
 				}
 			}
@@ -2103,10 +2326,8 @@ func closedloopStepGainSearchScale(e *Encoder, sub int, xNum, xDen, yNum, yDen, 
 		centre = e.intT1
 	}
 
-	var excSearch [clpitch.PitchMaxInt + clpitch.SubframeLen]int16
-	copy(excSearch[:clpitch.PitchMaxInt], e.oldExc[len(e.oldExc)-clpitch.PitchMaxInt:])
-	copy(excSearch[clpitch.PitchMaxInt:], r[:])
-	exc := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	exc := e.closedLoopExcitationSearch(&r, &excSearch)
 	intLag, _ := clpitch.SearchInteger(&xb, exc, centre, sub)
 	frac := clpitch.RefineFraction(&xb, exc, intLag, sub == 1 || intLag < 85)
 
@@ -2141,25 +2362,21 @@ func fcbStepGainSearchScale(
 	fcbScoreMode string,
 ) {
 	const N = clpitch.SubframeLen
+	searchMode := fcbScoreMode
+	usePlainH := false
+	if strings.HasPrefix(searchMode, "plainH:") {
+		usePlainH = true
+		searchMode = strings.TrimPrefix(searchMode, "plainH:")
+	} else if searchMode == "plainH" {
+		usePlainH = true
+		searchMode = ""
+	}
+
 	var xPrime [N]int16
-	fcbsearch.AdjustedTarget(x, y, gpUnq, &xPrime)
-
-	var d [N]int32
-	fcbsearch.CorrelationD(&xPrime, h, &d)
-
-	var signs [N]int16
-	var dAbs [N]int32
-	fcbsearch.SignsFromD(&d, &signs, &dAbs)
-
-	var phi [N][N]int32
-	fcbsearch.PhiPrime(h, &signs, &phi)
-
-	var positions [4]int8
-	var sumOut [2]int64
-	if strings.HasPrefix(fcbScoreMode, "score:") {
-		searchDepthFirstScoreModeForDiag(&dAbs, &phi, strings.TrimPrefix(fcbScoreMode, "score:"), &positions, &sumOut)
+	if searchMode == "targetTrunc" {
+		adjustedTargetTruncForDiag(x, y, gpUnq, &xPrime)
 	} else {
-		fcbsearch.SearchDepthFirst(&dAbs, &phi, &positions, &sumOut)
+		fcbsearch.AdjustedTarget(x, y, gpUnq, &xPrime)
 	}
 
 	var intLag int16
@@ -2168,6 +2385,35 @@ func fcbStepGainSearchScale(
 	} else {
 		intLag = e.intT2
 	}
+	hSearch := productionFCBSearchImpulse(h, intLag, e.prevGpQ14)
+	if usePlainH {
+		hSearch = *h
+	}
+
+	var d [N]int32
+	fcbsearch.CorrelationD(&xPrime, &hSearch, &d)
+
+	var signs [N]int16
+	var dAbs [N]int32
+	fcbsearch.SignsFromD(&d, &signs, &dAbs)
+
+	var phi [N][N]int32
+	fcbsearch.PhiPrime(&hSearch, &signs, &phi)
+
+	var positions [4]int8
+	var sumOut [2]int64
+	if strings.HasPrefix(searchMode, "score:") {
+		searchDepthFirstScoreModeForDiag(&dAbs, &phi, strings.TrimPrefix(searchMode, "score:"), &positions, &sumOut)
+	} else if strings.HasPrefix(searchMode, "tracktop:") {
+		searchDepthFirstTrackTopForDiag(&dAbs, &phi, strings.TrimPrefix(searchMode, "tracktop:"), &positions, &sumOut)
+	} else if strings.HasPrefix(searchMode, "first3top:") {
+		searchDepthFirstFirst3TopForDiag(&dAbs, &phi, strings.TrimPrefix(searchMode, "first3top:"), &positions, &sumOut)
+	} else if strings.HasPrefix(searchMode, "thresholdscan:") {
+		searchDepthFirstThresholdScanForDiag(&dAbs, &phi, strings.TrimPrefix(searchMode, "thresholdscan:"), &positions, &sumOut)
+	} else {
+		fcbsearch.SearchDepthFirst(&dAbs, &phi, &positions, &sumOut)
+	}
+
 	var c [N]int16
 	fcbsearch.BuildCode(&positions, &signs, intLag, e.prevGpQ14, &c)
 
@@ -2513,6 +2759,263 @@ func searchDepthFirstScoreModeForDiag(
 	*positions = bestPos
 	sumOut[0] = squareSaturatingInt64ForDiag(bestC)
 	sumOut[1] = bestE
+}
+
+func searchDepthFirstTrackTopForDiag(
+	dAbs *[clpitch.SubframeLen]int32,
+	phi *[clpitch.SubframeLen][clpitch.SubframeLen]int32,
+	mode string,
+	positions *[4]int8,
+	sumOut *[2]int64,
+) {
+	limit := 4
+	switch mode {
+	case "1":
+		limit = 1
+	case "2":
+		limit = 2
+	case "3":
+		limit = 3
+	case "4":
+		limit = 4
+	case "6":
+		limit = 6
+	case "8":
+		limit = 8
+	default:
+		fcbsearch.SearchDepthFirst(dAbs, phi, positions, sumOut)
+		return
+	}
+
+	t0 := topTrackForDiag(track0Diag[:], dAbs, limit)
+	t1 := topTrackForDiag(track1Diag[:], dAbs, limit)
+	t2 := topTrackForDiag(track2Diag[:], dAbs, limit)
+	t3 := topTrackForDiag(track3Diag[:], dAbs, limit*2)
+
+	bestPos := [4]int8{0, 1, 2, 3}
+	var bestC, bestE int64
+	found := false
+	for _, m0 := range t0 {
+		d0 := int64(dAbs[m0])
+		e0 := int64(phi[m0][m0])
+		for _, m1 := range t1 {
+			d01 := d0 + int64(dAbs[m1])
+			e01 := e0 + int64(phi[m1][m1]) + int64(phi[m0][m1])
+			for _, m2 := range t2 {
+				d012 := d01 + int64(dAbs[m2])
+				e012 := e01 + int64(phi[m2][m2]) +
+					int64(phi[m0][m2]) + int64(phi[m1][m2])
+				for _, m3 := range t3 {
+					c := d012 + int64(dAbs[m3])
+					e := e012 + int64(phi[m3][m3]) +
+						int64(phi[m0][m3]) + int64(phi[m1][m3]) +
+						int64(phi[m2][m3])
+					if e <= 0 {
+						continue
+					}
+					if !found || ratioGreaterDiag(c, e, bestC, bestE) {
+						found = true
+						bestC, bestE = c, e
+						bestPos = [4]int8{m0, m1, m2, m3}
+					}
+				}
+			}
+		}
+	}
+
+	if !found {
+		fcbsearch.SearchDepthFirst(dAbs, phi, positions, sumOut)
+		return
+	}
+	*positions = bestPos
+	sumOut[0] = squareSaturatingInt64ForDiag(bestC)
+	sumOut[1] = bestE
+}
+
+func searchDepthFirstFirst3TopForDiag(
+	dAbs *[clpitch.SubframeLen]int32,
+	phi *[clpitch.SubframeLen][clpitch.SubframeLen]int32,
+	mode string,
+	positions *[4]int8,
+	sumOut *[2]int64,
+) {
+	limit, err := strconv.Atoi(mode)
+	if err != nil || limit <= 0 {
+		fcbsearch.SearchDepthFirst(dAbs, phi, positions, sumOut)
+		return
+	}
+
+	first3 := make([]fcbFirst3Diag, 0, len(track0Diag)*len(track1Diag)*len(track2Diag))
+	for _, m0 := range track0Diag {
+		d0 := int64(dAbs[m0])
+		e0 := int64(phi[m0][m0])
+		for _, m1 := range track1Diag {
+			d01 := d0 + int64(dAbs[m1])
+			e01 := e0 + int64(phi[m1][m1]) + int64(phi[m0][m1])
+			for _, m2 := range track2Diag {
+				c := d01 + int64(dAbs[m2])
+				e := e01 + int64(phi[m2][m2]) + int64(phi[m0][m2]) + int64(phi[m1][m2])
+				if e <= 0 {
+					continue
+				}
+				first3 = append(first3, fcbFirst3Diag{m0: m0, m1: m1, m2: m2, c: c, e: e})
+			}
+		}
+	}
+	sort.SliceStable(first3, func(i, j int) bool {
+		ic2 := squareSaturatingInt64ForDiag(first3[i].c)
+		jc2 := squareSaturatingInt64ForDiag(first3[j].c)
+		if ratioGreaterDiag(ic2, first3[i].e, jc2, first3[j].e) {
+			return true
+		}
+		if ratioGreaterDiag(jc2, first3[j].e, ic2, first3[i].e) {
+			return false
+		}
+		if first3[i].m0 != first3[j].m0 {
+			return first3[i].m0 < first3[j].m0
+		}
+		if first3[i].m1 != first3[j].m1 {
+			return first3[i].m1 < first3[j].m1
+		}
+		return first3[i].m2 < first3[j].m2
+	})
+	if limit > len(first3) {
+		limit = len(first3)
+	}
+
+	bestPos := [4]int8{0, 1, 2, 3}
+	var bestC2, bestE int64
+	found := false
+	for _, p := range first3[:limit] {
+		for _, m3 := range track3Diag {
+			c := p.c + int64(dAbs[m3])
+			e := p.e + int64(phi[m3][m3]) +
+				int64(phi[p.m0][m3]) + int64(phi[p.m1][m3]) + int64(phi[p.m2][m3])
+			if e <= 0 {
+				continue
+			}
+			c2 := squareSaturatingInt64ForDiag(c)
+			if !found || ratioGreaterDiag(c2, e, bestC2, bestE) {
+				found = true
+				bestC2, bestE = c2, e
+				bestPos = [4]int8{p.m0, p.m1, p.m2, m3}
+			}
+		}
+	}
+	if !found {
+		fcbsearch.SearchDepthFirst(dAbs, phi, positions, sumOut)
+		return
+	}
+	*positions = bestPos
+	sumOut[0] = bestC2
+	sumOut[1] = bestE
+}
+
+func searchDepthFirstThresholdScanForDiag(
+	dAbs *[clpitch.SubframeLen]int32,
+	phi *[clpitch.SubframeLen][clpitch.SubframeLen]int32,
+	mode string,
+	positions *[4]int8,
+	sumOut *[2]int64,
+) {
+	limit, err := strconv.Atoi(mode)
+	if err != nil || limit <= 0 {
+		fcbsearch.SearchDepthFirst(dAbs, phi, positions, sumOut)
+		return
+	}
+
+	var sumC, maxC int64
+	first3Count := int64(0)
+	for _, m0 := range track0Diag {
+		d0 := int64(dAbs[m0])
+		for _, m1 := range track1Diag {
+			d01 := d0 + int64(dAbs[m1])
+			for _, m2 := range track2Diag {
+				c := d01 + int64(dAbs[m2])
+				sumC += c
+				first3Count++
+				if c > maxC {
+					maxC = c
+				}
+			}
+		}
+	}
+	if first3Count == 0 {
+		fcbsearch.SearchDepthFirst(dAbs, phi, positions, sumOut)
+		return
+	}
+	avgC := sumC / first3Count
+	threshold := avgC + (4*(maxC-avgC))/10
+
+	bestPos := [4]int8{0, 1, 2, 3}
+	var bestC2, bestE int64
+	found := false
+	entered := 0
+scan:
+	for _, m0 := range track0Diag {
+		d0 := int64(dAbs[m0])
+		e0 := int64(phi[m0][m0])
+		for _, m1 := range track1Diag {
+			d01 := d0 + int64(dAbs[m1])
+			e01 := e0 + int64(phi[m1][m1]) + int64(phi[m0][m1])
+			for _, m2 := range track2Diag {
+				c3 := d01 + int64(dAbs[m2])
+				if c3 < threshold {
+					continue
+				}
+				if entered >= limit {
+					break scan
+				}
+				entered++
+				e3 := e01 + int64(phi[m2][m2]) + int64(phi[m0][m2]) + int64(phi[m1][m2])
+				for _, m3 := range track3Diag {
+					c := c3 + int64(dAbs[m3])
+					e := e3 + int64(phi[m3][m3]) +
+						int64(phi[m0][m3]) + int64(phi[m1][m3]) + int64(phi[m2][m3])
+					if e <= 0 {
+						continue
+					}
+					c2 := squareSaturatingInt64ForDiag(c)
+					if !found || ratioGreaterDiag(c2, e, bestC2, bestE) {
+						found = true
+						bestC2, bestE = c2, e
+						bestPos = [4]int8{m0, m1, m2, m3}
+					}
+				}
+			}
+		}
+	}
+	if !found {
+		fcbsearch.SearchDepthFirst(dAbs, phi, positions, sumOut)
+		return
+	}
+	*positions = bestPos
+	sumOut[0] = bestC2
+	sumOut[1] = bestE
+}
+
+func topTrackForDiag(track []int8, dAbs *[clpitch.SubframeLen]int32, limit int) []int8 {
+	if limit > len(track) {
+		limit = len(track)
+	}
+	out := make([]int8, len(track))
+	copy(out, track)
+	sort.SliceStable(out, func(i, j int) bool {
+		di := dAbs[out[i]]
+		dj := dAbs[out[j]]
+		if di == dj {
+			return out[i] < out[j]
+		}
+		return di > dj
+	})
+	return out[:limit]
+}
+
+func adjustedTargetTruncForDiag(x, y *[clpitch.SubframeLen]int16, gp int16, xPrime *[clpitch.SubframeLen]int16) {
+	for n := 0; n < clpitch.SubframeLen; n++ {
+		prod := int32(gp) * int32(y[n])
+		xPrime[n] = saturateInt32ToInt16(int32(x[n]) - (prod >> 14))
+	}
 }
 
 func fcbScoreForDiag(c, e float64, mode string) float64 {

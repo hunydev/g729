@@ -205,10 +205,8 @@ func (e *Encoder) closedloopStepHandoff(frame, sub int, collect bool, rows *[]en
 	if sub == 1 {
 		centre = e.intT1
 	}
-	var excSearch [closedloop.PitchMaxInt + closedloop.SubframeLen]int16
-	copy(excSearch[:closedloop.PitchMaxInt], e.oldExc[len(e.oldExc)-closedloop.PitchMaxInt:])
-	copy(excSearch[closedloop.PitchMaxInt:], r[:])
-	excSlice := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	excSlice := e.closedLoopExcitationSearch(&r, &excSearch)
 	intLag, _ := closedloop.SearchInteger(&xb, excSlice, centre, sub)
 	frac := closedloop.RefineFraction(&xb, excSlice, intLag, sub == 1 || intLag < 85)
 	closedloop.AdaptiveVector(excSlice, intLag, frac, &v)

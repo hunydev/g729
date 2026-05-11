@@ -34,7 +34,10 @@ func prepFcbInputs(
 		aHat = &e.aHatSF2
 	}
 
-	sStart := 160 + 40*sub
+	sStart := 120 + 40*sub
+	if e.qualityEarlyClosedLoopSpeechWindowEnabled() {
+		sStart = 80 + 40*sub
+	}
 	sFrame := (*[40]int16)(e.oldSpeech[sStart : sStart+40])
 
 	var r, xb [closedloop.SubframeLen]int16
@@ -50,15 +53,12 @@ func prepFcbInputs(
 		centre = e.intT1
 	}
 
-	var excSearch [closedloop.PitchMaxInt + closedloop.SubframeLen]int16
-	copy(excSearch[:closedloop.PitchMaxInt],
-		e.oldExc[len(e.oldExc)-closedloop.PitchMaxInt:])
-	copy(excSearch[closedloop.PitchMaxInt:], r[:])
-	excSlice := excSearch[:]
+	var excSearch [closedLoopPitchSearchLen]int16
+	excSlice := e.closedLoopExcitationSearch(&r, &excSearch)
 	intLag, _ := closedloop.SearchInteger(&xb, excSlice, centre, sub)
-	frac := closedloop.RefineFraction(&xb, excSlice, intLag, intLag < 85)
+	frac := closedloop.RefineFraction(&xb, excSlice, intLag, sub == 1 || intLag < 85)
 
-	closedloop.AdaptiveVector(excSlice, intLag, frac, v)
+	e.adaptiveVectorForSynthesis(excSlice, intLag, frac, v)
 	gp = closedloop.GpAndY(x, v, h, y)
 	return gp
 }
@@ -93,7 +93,7 @@ func TestPhase2dINT2_FcbStepZeroAlloc(t *testing.T) {
 		gp := prepFcbInputs(enc, sub, &x, &y, &h, &v)
 
 		allocs := testing.AllocsPerRun(128, func() {
-			enc.fcbStep(sub, &x, &y, &h, &v, gp)
+			enc.fcbStep(sub, nil, nil, &x, &y, &h, &v, gp)
 		})
 		if allocs != 0 {
 			t.Fatalf("Encoder.fcbStep(%d) allocated %.2f times per call; want 0 (I4)", sub, allocs)

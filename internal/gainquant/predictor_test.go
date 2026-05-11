@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // TestPredictedGcQ12_ColdStartFourPulses is the GQ-1 RED-part-B golden:
@@ -44,6 +45,159 @@ func TestPredictedGcQ12_ColdStartFourPulses(t *testing.T) {
 	if got <= 0 {
 		t.Fatalf("PredictedGcQ12 = %d, must be > 0 for non-zero codebook energy", got)
 	}
+}
+
+// TestPredictedGcQ12Wide_MatchesBoundedWhenNoSaturation pins the profile
+// split: the wide core predictor must be a no-op for ordinary states where
+// the §3.9.1 MA prediction does not hit the legacy Word16 bound.
+func TestPredictedGcQ12Wide_MatchesBoundedWhenNoSaturation(t *testing.T) {
+	past := [4]int16{
+		gain.PastErrorsDefault, gain.PastErrorsDefault,
+		gain.PastErrorsDefault, gain.PastErrorsDefault,
+	}
+	var c [40]int16
+	c[0], c[11], c[17], c[24] = 8192, -8192, 8192, -8192
+
+	bounded := PredictedGcQ12(&past, &c)
+	wide := PredictedGcQ12Wide(&past, &c)
+	if wide != bounded {
+		t.Fatalf("PredictedGcQ12Wide cold-start = %d, bounded = %d; want equal before saturation", wide, bounded)
+	}
+}
+
+// TestPredictedGcQ12Wide_ExceedsBoundedAfterPredictionSaturation protects the
+// core-profile fix that avoids collapsing high-energy subframes onto the
+// legacy Word16-bounded search predictor.
+func TestPredictedGcQ12Wide_ExceedsBoundedAfterPredictionSaturation(t *testing.T) {
+	past := [4]int16{32767, 32767, 32767, 32767}
+	var c [40]int16
+	c[0], c[11], c[17], c[24] = 8192, -8192, 8192, -8192
+
+	bounded := PredictedGcQ12(&past, &c)
+	wide := PredictedGcQ12Wide(&past, &c)
+	if wide <= bounded {
+		t.Fatalf("PredictedGcQ12Wide high-energy = %d, bounded = %d; want wide > bounded", wide, bounded)
+	}
+}
+
+// TestReconstructWide_OnlyExpandsFixedGain verifies that ReconstructWide keeps
+// the transmitted pitch-gain reconstruction unchanged while using the wider
+// fixed-gain predictor for core-profile local state commits.
+func TestReconstructWide_OnlyExpandsFixedGain(t *testing.T) {
+	past := [4]int16{32767, 32767, 32767, 32767}
+	var c [40]int16
+	c[0], c[11], c[17], c[24] = 8192, -8192, 8192, -8192
+
+	const gaPhys, gbPhys = uint8(2), uint8(4)
+	gpBounded, mantBounded, expBounded := Reconstruct(&past, &c, gaPhys, gbPhys)
+	gpWide, mantWide, expWide := ReconstructWide(&past, &c, gaPhys, gbPhys)
+
+	if gpWide != gpBounded {
+		t.Fatalf("ReconstructWide gp = %d, bounded gp = %d; pitch gain must be unchanged", gpWide, gpBounded)
+	}
+	if !mantExpGreater(mantWide, expWide, mantBounded, expBounded) {
+		t.Fatalf("ReconstructWide fixed gain mant/exp=(%d,%d), bounded=(%d,%d); want wider gain",
+			mantWide, expWide, mantBounded, expBounded)
+	}
+}
+
+func TestReconstructWide_MatchesDecoderOnLowEnergyCodebook(t *testing.T) {
+	past := [4]int16{
+		gain.PastErrorsDefault, gain.PastErrorsDefault,
+		gain.PastErrorsDefault, gain.PastErrorsDefault,
+	}
+	var c [40]int16
+	c[0] = 1
+
+	const gaBits, gbBits = uint8(4), uint8(9)
+	gaPhys := tables.GainImap1[gaBits]
+	gbPhys := tables.GainImap2[gbBits]
+	gpEnc, mantEnc, expEnc := ReconstructWide(&past, &c, gaPhys, gbPhys)
+
+	var d gain.Decoder
+	gain.SeedDecoder(&d, past)
+	gpDec, mantDec, expDec := d.Decode(gain.Indices{GA: gaBits, GB: gbBits}, &c)
+
+	if gpEnc != gpDec || mantEnc != mantDec || expEnc != expDec {
+		t.Fatalf("ReconstructWide=(gp=%d, mant=%d, exp=%d), decoder=(gp=%d, mant=%d, exp=%d)",
+			gpEnc, mantEnc, expEnc, gpDec, mantDec, expDec)
+	}
+}
+
+func TestReconstructWide_MatchesDecoderDecodeGrid(t *testing.T) {
+	codebooks := []struct {
+		name string
+		c    [40]int16
+	}{
+		{
+			name: "four unit pulses",
+			c: func() [40]int16 {
+				var c [40]int16
+				c[0], c[11], c[17], c[24] = 8192, -8192, 8192, -8192
+				return c
+			}(),
+		},
+		{
+			name: "low energy",
+			c: func() [40]int16 {
+				var c [40]int16
+				c[0] = 1
+				return c
+			}(),
+		},
+		{
+			name: "pitch enhanced shape",
+			c: func() [40]int16 {
+				var c [40]int16
+				c[0], c[6], c[12], c[18], c[24], c[30] = 8192, -4096, 6144, -3072, 2048, -1024
+				return c
+			}(),
+		},
+	}
+	pasts := []struct {
+		name string
+		past [4]int16
+	}{
+		{name: "cold", past: [4]int16{gain.PastErrorsDefault, gain.PastErrorsDefault, gain.PastErrorsDefault, gain.PastErrorsDefault}},
+		{name: "high", past: [4]int16{32767, 32767, 32767, 32767}},
+		{name: "mixed", past: [4]int16{12000, -8000, 3000, gain.PastErrorsDefault}},
+		{name: "low", past: [4]int16{-32768, -32768, -32768, -32768}},
+	}
+	indices := []struct {
+		gaBits uint8
+		gbBits uint8
+	}{
+		{0, 0},
+		{4, 9},
+		{7, 15},
+	}
+
+	for _, cb := range codebooks {
+		for _, ps := range pasts {
+			for _, idx := range indices {
+				gaPhys := tables.GainImap1[idx.gaBits]
+				gbPhys := tables.GainImap2[idx.gbBits]
+				gpEnc, mantEnc, expEnc := ReconstructWide(&ps.past, &cb.c, gaPhys, gbPhys)
+
+				var dec gain.Decoder
+				gain.SeedDecoder(&dec, ps.past)
+				gpDec, mantDec, expDec := dec.Decode(gain.Indices{GA: idx.gaBits, GB: idx.gbBits}, &cb.c)
+
+				if gpEnc != gpDec || mantEnc != mantDec || expEnc != expDec {
+					t.Fatalf("%s/%s GA=%d GB=%d: ReconstructWide=(gp=%d, mant=%d, exp=%d), decoder=(gp=%d, mant=%d, exp=%d)",
+						cb.name, ps.name, idx.gaBits, idx.gbBits,
+						gpEnc, mantEnc, expEnc, gpDec, mantDec, expDec)
+				}
+			}
+		}
+	}
+}
+
+func mantExpGreater(mant1 int16, exp1 int8, mant2 int16, exp2 int8) bool {
+	if exp1 != exp2 {
+		return exp1 > exp2
+	}
+	return mant1 > mant2
 }
 
 // TestPredictedGcQ12_PureFunction asserts the predictor reads its

@@ -1,6 +1,11 @@
 package pitch
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/hunydev/g729/internal/fixed"
+	"github.com/hunydev/g729/internal/tables"
+)
 
 func TestAdaptiveCodebookIntegerDelay(t *testing.T) {
 	// Convention: pastExc[len(pastExc)-1] is u(-1), one sample before
@@ -108,5 +113,48 @@ func TestAdaptiveCodebookShortPitchBoundary(t *testing.T) {
 	if v[39] != v[0] {
 		t.Errorf("v[39] = %d, want v[0] = %d (T_int=39 replication at last sample)",
 			v[39], v[0])
+	}
+}
+
+func TestAdaptiveCodebookShortPitchFractionalUsesCurrentSamples(t *testing.T) {
+	const (
+		tInt  = 20
+		tFrac = 1
+	)
+	var pastExc [200]int16
+	for i := 0; i < len(pastExc); i++ {
+		pastExc[i] = int16((i*73)%5000 - 2500)
+	}
+
+	var v [40]int16
+	AdaptiveCodebook(tInt, tFrac, pastExc[:], &v)
+
+	// At n=tInt, eq. (40)'s forward branch references u(0..9), which
+	// are the adaptive-vector samples already produced in this subframe.
+	k, posPhase, negPhase := tInt+1, 2, 1
+	var acc fixed.Word32
+	for i := 0; i < Linter; i++ {
+		backRel := tInt - k - i
+		fwdRel := tInt - k + 1 + i
+		var back, fwd int16
+		if backRel < 0 {
+			back = pastExc[len(pastExc)+backRel]
+		} else {
+			back = v[backRel]
+		}
+		if fwdRel < 0 {
+			fwd = pastExc[len(pastExc)+fwdRel]
+		} else {
+			fwd = v[fwdRel]
+		}
+		acc = fixed.LMac(acc, tables.PitchInterpFIR[posPhase+3*i], back)
+		acc = fixed.LMac(acc, tables.PitchInterpFIR[negPhase+3*i], fwd)
+	}
+	want := fixed.Round(acc)
+	if v[tInt] != want {
+		t.Fatalf("v[%d] = %d, want %d from recursive current-subframe taps", tInt, v[tInt], want)
+	}
+	if v[tInt] == v[0] {
+		t.Fatalf("v[%d] = v[0] = %d; fractional short-pitch path fell back to integer-period repetition", tInt, v[tInt])
 	}
 }

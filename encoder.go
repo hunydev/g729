@@ -7,6 +7,7 @@ import (
 
 	"github.com/hunydev/g729/internal/acelp"
 	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcb"
 	"github.com/hunydev/g729/internal/fcbsearch"
 	"github.com/hunydev/g729/internal/filter"
 	"github.com/hunydev/g729/internal/fixed"
@@ -18,7 +19,9 @@ import (
 	pitchcore "github.com/hunydev/g729/internal/pitch"
 	"github.com/hunydev/g729/internal/pitch/closedloop"
 	"github.com/hunydev/g729/internal/pitch/openloop"
+	"github.com/hunydev/g729/internal/postfilter"
 	"github.com/hunydev/g729/internal/synth"
+	"github.com/hunydev/g729/internal/tables"
 )
 
 // Encoder holds G.729 Annex A encoder state for one logical stream.
@@ -27,6 +30,9 @@ import (
 // Concurrent calls on the same Encoder are a data race; callers needing
 // parallel encoding must own one Encoder per channel.
 type Encoder struct {
+	profile       EncoderProfile
+	qualityTuning encoderQualityTuning
+
 	pre pcm.PreProcessor
 
 	// §5.3 preallocated histories.
@@ -49,11 +55,10 @@ type Encoder struct {
 
 	// Phase 2b INT-0: open-loop pitch state.
 	//
-	// aQ12Latest caches the order-10 LP polynomial (Q12) produced by
-	// the most recent lpcStep call so openloopStep can build A(z/γ)
-	// and A'(z) per §A.3.3 without re-running LP analysis. Phase 2b
-	// stand-in for Â — the quantized-LP reconstruction is OQ-2 work
-	// (Phase 2b plan §1 line 42).
+	// aQ12Latest caches the order-10 analysis LP polynomial (Q12) produced
+	// by the most recent lpcStep call for diagnostics. The production
+	// openloopStep path uses aHatSF1/aHatSF2, i.e. the reconstructed
+	// quantized LP polynomials, per Annex A §A.3.2.5 and §A.3.3.
 	//
 	// lpResidualMem and swMem are the §A.3.3 filter memories owned
 	// by the encoder per the I10 / Phase-2a state-isolation
@@ -82,21 +87,18 @@ type Encoder struct {
 	//
 	// swMemErr is the §A.3.10 weighted-error memory ew(n) for
 	// the target filter 1/Â(z/γ); committed at the end of every
-	// subframe per eq. A.10. Phase 2c-only placeholder: the
-	// fixed-codebook contribution ĝ_c·z(n) is missing and will be
-	// added by Phase 2d (OQ-EXC-COMMIT, plan §9).
+	// subframe per eq. A.10 after both adaptive and fixed gains are
+	// quantized.
 	//
 	// lpResidualMemQ is the analysis-filter memory for residual
-	// r(n) computed via the QUANTIZED Â (separate from the
-	// open-loop lpResidualMem above which still uses the
-	// unquantized A as the Phase-2b stand-in per OQ-2).
+	// r(n) computed via the QUANTIZED Â. It is separate from the
+	// frame-level open-loop lpResidualMem because closed-loop commits at
+	// subframe boundaries while open-loop advances once per 80-sample frame.
 	//
 	// oldExc holds the trailing past excitation u(-1..-LookbackExc)
 	// in chronological order, with oldExc[len-1] = u(-1). Updated
-	// per subframe after closedloopStep selects (intLag, frac, gp):
-	// shift left by SubframeLen and append the new 40 samples
-	// u(n) = Gp·v(n). Phase 2c-only placeholder per OQ-EXC-COMMIT;
-	// Phase 2d will add Gc·c(n) to u(n).
+	// per subframe after gain quantization by shifting left by
+	// SubframeLen and appending u(n) = ĝp·v(n) + ĝc·c(n).
 	//
 	// intT1 caches the subframe-1 integer winner so closedloopStep(1)
 	// can centre its 10-lag P2 search window per §4.1.3 (lines
@@ -139,6 +141,28 @@ type Encoder struct {
 	ga1, gb1   uint8
 	ga2, gb2   uint8
 
+	// Quality-profile decoder mirror used only to avoid pathological
+	// full-scale output on very loud inputs. It does not affect the core
+	// Annex A search path; it only reranks gain candidates when the
+	// initially selected standard payload would clip after local decode.
+	qualityGainDec    gain.Decoder
+	qualitySynth      synth.Synthesizer
+	qualityPostfilter postfilter.Postfilter
+	qualityPastExc    [153]int16
+	qualityPrevGpQ14  int16
+	qualityHPX        [2]int16
+	qualityHPY        [2]int32
+	qualityLastOutput encoderQualityOutputScore
+
+	// Diagnostic counters for focused FCB search complexity. They track how
+	// many first-three-pulse prefixes entered the fourth loop; encoder output
+	// is unaffected.
+	qualityFCBThresholdEntriesFrame  int
+	qualityFCBThresholdEntriesLast   int
+	coreFCBThresholdEntriesRemaining int
+	qualityFCBClipCooldown           int
+	qualityOpenLoopClipCooldown      int
+
 	// Phase 2f PACK-1: per-frame LSP VQ indices retained from
 	// lpcStep so buildBitstreamFrame can compose the §4.2.1 + Table 8
 	// 80-bit packed frame. Mirrors the p1/p0/p2 + s/c/ga/gb pattern
@@ -172,29 +196,337 @@ type Encoder struct {
 	weight filter.Weighting
 }
 
-// NewEncoder returns an Encoder in initial state.
+// EncoderProfile selects the encoder-side search policy. All profiles emit
+// standard 10-byte G.729 frames; none is an ITU byte-exact conformance claim.
+type EncoderProfile uint8
+
+const (
+	// EncoderProfileCore disables repository-local quality heuristics that
+	// widen or bias the encoder search. It is intended for diagnostics and
+	// clean-room algorithm work, not as a quality recommendation.
+	EncoderProfileCore EncoderProfile = iota
+
+	// EncoderProfileQuality enables standard-compatible encoder search
+	// heuristics tuned by black-box executable decode metrics. This is the
+	// product default used by NewEncoder and NewStreamingEncoder.
+	EncoderProfileQuality
+
+	// EncoderProfileQualityAnnexALSP explicitly selects the quality profile
+	// with the sequential Annex A LSP quantizer. EncoderProfileQuality uses a
+	// wider encoder-side LSP search while still emitting standard LSP indices.
+	EncoderProfileQualityAnnexALSP
+
+	// EncoderProfileQualityClean is a listening-diagnostic quality profile that
+	// disables normalized closed-loop pitch reranking and uses stricter
+	// decoder-in-loop gain repair with a stronger high-residual preference. It
+	// is intended to compare a smoother, bcg729-like candidate against the
+	// default quality profile.
+	EncoderProfileQualityClean
+)
+
+type encoderQualityTuning uint16
+
+const (
+	encoderTuningPitchCenterCandidate encoderQualityTuning = 1 << iota
+	encoderTuningFCBThresholdScan
+	encoderTuningGainSearchBias
+	encoderTuningEarlyClosedLoopSpeechWindow
+	encoderTuningNormalizedAdaptivePitchSearch
+	encoderTuningResidualExtensionAdaptiveVector
+	encoderTuningGainClipRepair
+	encoderTuningGainMSERepair
+	encoderTuningPitchClipRepair
+	encoderTuningWideGainPredictor
+	encoderTuningExpandedLSPSearch
+	encoderTuningNativeGainSearch
+	encoderTuningClippedInputOpenLoopRange2
+	encoderTuningNormalizedOpenLoopSearch
+	encoderTuningGainNoiseRepair
+
+	encoderQualityTuningAll = encoderTuningNormalizedAdaptivePitchSearch |
+		encoderTuningGainClipRepair |
+		encoderTuningGainMSERepair |
+		encoderTuningNativeGainSearch |
+		encoderTuningExpandedLSPSearch |
+		encoderTuningGainNoiseRepair
+)
+
+// NewEncoder returns an Encoder in initial state using EncoderProfileQuality.
 func NewEncoder() *Encoder {
-	e := &Encoder{}
+	return NewEncoderWithProfile(EncoderProfileQuality)
+}
+
+// NewEncoderWithProfile returns an Encoder in initial state using the selected
+// encoder search profile.
+func NewEncoderWithProfile(profile EncoderProfile) *Encoder {
+	profile = normalizeEncoderProfile(profile)
+	e := &Encoder{
+		profile:       profile,
+		qualityTuning: encoderQualityTuningForProfile(profile),
+	}
+	e.initState()
+	return e
+}
+
+func normalizeEncoderProfile(profile EncoderProfile) EncoderProfile {
+	switch profile {
+	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean:
+		return profile
+	default:
+		return EncoderProfileQuality
+	}
+}
+
+func encoderQualityTuningForProfile(profile EncoderProfile) encoderQualityTuning {
+	switch profile {
+	case EncoderProfileQuality:
+		return encoderQualityTuningAll
+	case EncoderProfileQualityAnnexALSP:
+		return encoderQualityTuningAll &^ encoderTuningExpandedLSPSearch
+	case EncoderProfileQualityClean:
+		return encoderQualityTuningAll &^ encoderTuningNormalizedAdaptivePitchSearch
+	default:
+		return 0
+	}
+}
+
+func (e *Encoder) initState() {
 	lsp.InitFreqPrev(&e.freqPrev)
 	lsp.InitLSPOld(&e.lspOld)
 	for i := range e.pastQuaEn {
 		e.pastQuaEn[i] = gain.PastErrorsDefault
 	}
-	return e
 }
+
+func (e *Encoder) qualityHeuristicsEnabled() bool {
+	return e.qualityTuning != 0
+}
+
+func (e *Encoder) qualityPitchCenterCandidateEnabled() bool {
+	return e.qualityTuning&encoderTuningPitchCenterCandidate != 0
+}
+
+func (e *Encoder) qualityFCBThresholdScanEnabled() bool {
+	return e.qualityTuning&encoderTuningFCBThresholdScan != 0
+}
+
+func (e *Encoder) qualityFCBThresholdScanActive() bool {
+	return e.qualityFCBThresholdScanEnabled() && e.qualityFCBClipCooldown == 0
+}
+
+func (e *Encoder) coreFCBThresholdScanEnabled() bool {
+	return e.profile == EncoderProfileCore && e.qualityTuning == 0
+}
+
+func (e *Encoder) coreGainPreselectPrecisionEnabled() bool {
+	return e.profile == EncoderProfileCore && e.qualityTuning == 0
+}
+
+func (e *Encoder) coreFCBThresholdScanLimit(sub int) int {
+	limit := e.coreFCBThresholdEntriesRemaining
+	if sub == 0 && limit > encoderCoreFCBThresholdScanSubframe0Limit {
+		return encoderCoreFCBThresholdScanSubframe0Limit
+	}
+	return limit
+}
+
+func (e *Encoder) recordCoreFCBThresholdEntries(entered int) {
+	e.coreFCBThresholdEntriesRemaining -= entered
+	if e.coreFCBThresholdEntriesRemaining < 0 {
+		e.coreFCBThresholdEntriesRemaining = 0
+	}
+}
+
+func (e *Encoder) qualityGainSearchBiasEnabled() bool {
+	return e.qualityTuning&encoderTuningGainSearchBias != 0
+}
+
+func (e *Encoder) qualityEarlyClosedLoopSpeechWindowEnabled() bool {
+	return e.qualityTuning&encoderTuningEarlyClosedLoopSpeechWindow != 0
+}
+
+func (e *Encoder) qualityNormalizedAdaptivePitchSearchEnabled() bool {
+	return e.qualityTuning&encoderTuningNormalizedAdaptivePitchSearch != 0
+}
+
+func (e *Encoder) qualityResidualExtensionAdaptiveVectorEnabled() bool {
+	return e.qualityTuning&encoderTuningResidualExtensionAdaptiveVector != 0
+}
+
+func (e *Encoder) qualityGainClipRepairEnabled() bool {
+	return e.qualityTuning&encoderTuningGainClipRepair != 0
+}
+
+func (e *Encoder) qualityGainMSERepairEnabled() bool {
+	return e.qualityTuning&encoderTuningGainMSERepair != 0
+}
+
+func (e *Encoder) qualityGainMSERepairThreshold() int {
+	if e.profile == EncoderProfileQualityClean {
+		return qualityCleanGainMSERepairThreshold
+	}
+	return qualityGainMSERepairThreshold
+}
+
+func (e *Encoder) qualityGainNoiseRepairHighMSEBetterTolerance() (num, den int64) {
+	if e.profile == EncoderProfileQualityClean {
+		return qualityCleanGainNoiseRepairHighMSEBetterMSEToleranceNum, qualityCleanGainNoiseRepairHighMSEBetterMSEToleranceDen
+	}
+	return qualityGainNoiseRepairHighMSEBetterMSEToleranceNum, qualityGainNoiseRepairHighMSEBetterMSEToleranceDen
+}
+
+func (e *Encoder) qualityGainNoiseRepairMSEBetterTolerance() (num, den int64) {
+	return qualityGainNoiseRepairMSEBetterHighMSEToleranceNum, qualityGainNoiseRepairMSEBetterHighMSEToleranceDen
+}
+
+func (e *Encoder) qualityGainNoiseRepairEnabled() bool {
+	return e.qualityTuning&encoderTuningGainNoiseRepair != 0
+}
+
+func (e *Encoder) qualityPitchClipRepairEnabled() bool {
+	return e.qualityTuning&encoderTuningPitchClipRepair != 0
+}
+
+func (e *Encoder) qualityWideGainPredictorEnabled() bool {
+	return e.qualityTuning&encoderTuningWideGainPredictor != 0
+}
+
+func (e *Encoder) qualityExpandedLSPSearchEnabled() bool {
+	return e.qualityTuning&encoderTuningExpandedLSPSearch != 0
+}
+
+func (e *Encoder) qualityNativeGainSearchEnabled() bool {
+	return e.qualityTuning&encoderTuningNativeGainSearch != 0
+}
+
+func (e *Encoder) qualityClippedInputOpenLoopRange2Enabled() bool {
+	return e.qualityTuning&encoderTuningClippedInputOpenLoopRange2 != 0
+}
+
+func (e *Encoder) qualityNormalizedOpenLoopSearchEnabled() bool {
+	return e.qualityTuning&encoderTuningNormalizedOpenLoopSearch != 0
+}
+
+const (
+	qualityGainSearchTargetScaleNum               int32 = 2
+	qualityGainSearchTargetScaleDen               int32 = 5
+	qualityGainSearchAdaptiveContributionScaleNum int32 = 3
+	qualityGainSearchAdaptiveContributionScaleDen int32 = 1
+	qualityGainSearchFixedContributionScaleNum    int32 = 4
+	qualityGainSearchFixedContributionScaleDen    int32 = 3
+
+	// Core keeps the Annex A preselect structure but preserves the maximum
+	// zero-allocation-safe correlation precision for the unquantized
+	// gp_opt/gc_opt center solve. This is not used by the Quality profile's
+	// native gain-search heuristic.
+	encoderCoreGainPreselectTargetBits uint = 24
+)
+
+// qualityNormalizedPitchSearchHalfWindow is a quality-profile search
+// heuristic. Core/profile-spec pitch search keeps the Annex A ±3 window.
+var qualityNormalizedPitchSearchHalfWindow = 60
+
+// qualityFCBThresholdScanLimit is the quality-profile focused fixed-codebook
+// search budget used when encoderTuningFCBThresholdScan is enabled. Annex A
+// describes K3=0.4 thresholding with a maximum of 180 fourth-loop entries over
+// two subframes; this product heuristic uses a more conservative per-subframe
+// budget that reduced clipped output on black-box decode metrics.
+var qualityFCBThresholdScanLimit = 60
+
+// Near-clipped input can make the focused fixed-codebook threshold search pick
+// pulse sets that decode hotter than the exhaustive C²/E winner. Temporarily
+// falling back to exhaustive search keeps the payload standard-compatible while
+// avoiding a sample-specific full-scale edge.
+var qualityFCBClipThreshold = 32000
+var qualityFCBClipCooldownFrames = 20
+
+// encoderCoreFCBThresholdScanSubframe0Limit keeps the first subframe from
+// consuming the whole §3.8.1 focused-search budget. The PDF fixes the maximum
+// over two subframes at 180 and notes an average worst case of 90 per subframe;
+// this conservative first-subframe guard preserves that frame cap while leaving
+// the second subframe the remaining budget.
+var encoderCoreFCBThresholdScanSubframe0Limit = fcbsearch.SearchThresholdScanDefaultLimit / 2
+
+// qualityPitchCenterFullSearchMinScoreRatio is a diagnostic rescue
+// threshold for replacing a high open-loop centre with a lower full-range
+// pitch candidate. The default quality profile no longer enables this
+// heuristic; diagnostics may opt in and sweep values without changing
+// core/profile-spec search.
+var qualityPitchCenterFullSearchMinScoreRatio = 1.75
+
+// qualityNormalizedPitchHarmonicGuardRatio is a diagnostic-only threshold
+// for preferring the centre-window pitch candidate over a doubled-period
+// normalized-search winner. A value <= 0 disables the guard.
+var qualityNormalizedPitchHarmonicGuardRatio = 0.0
+
+// qualityNormalizedPitchShortPositiveFracRatio is a diagnostic-only threshold
+// for preferring a +1/3 short-pitch fractional candidate in the quality
+// normalized search when its score is close to the selected fraction. A value
+// <= 0 disables the guard.
+var qualityNormalizedPitchShortPositiveFracRatio = 0.0
+
+// qualityOpenLoopClipThreshold and qualityOpenLoopClipCooldownFrames gate a
+// quality-profile pitch-centre heuristic for hard-clipped input. Around clipped
+// frames, the encoder may prefer the [40,79] open-loop range when its
+// normalized score is close to the merged §A.3.4 winner. Core remains unchanged.
+var qualityOpenLoopClipThreshold = 32700
+var qualityOpenLoopClipCooldownFrames = 10
+
+const (
+	qualityOpenLoopRange2CloseNum int64 = 95
+	qualityOpenLoopRange2CloseDen int64 = 100
+)
+
+// qualityGainClipRepairThreshold controls the quality-profile decoder-in-loop
+// gain repair trigger. Keep this below hard clip so the repair has enough
+// decoder-side headroom before FFmpeg/local output reaches saturation.
+var qualityGainClipRepairThreshold = 32300
+
+// qualityGainMSERepairThreshold is stricter than the hard clip-repair
+// trigger because this path can change otherwise non-clipping gain fields.
+// Keep it below the near-clip threshold while leaving enough level headroom
+// that the high-residual-aware candidate can improve voiced-frame roughness
+// without trading it for full-scale FFmpeg/local decoder peaks.
+var qualityGainMSERepairThreshold = 28000
+
+const qualityCleanGainMSERepairThreshold = 26000
+
+const (
+	qualityCleanGainNoiseRepairHighMSEBetterMSEToleranceNum int64 = 110
+	qualityCleanGainNoiseRepairHighMSEBetterMSEToleranceDen int64 = 100
+)
+
+var (
+	qualityGainNoiseRepairHighMSEBetterMSEToleranceNum int64 = 105
+	qualityGainNoiseRepairHighMSEBetterMSEToleranceDen int64 = 100
+	qualityGainNoiseRepairMSEBetterHighMSEToleranceNum int64 = 130
+	qualityGainNoiseRepairMSEBetterHighMSEToleranceDen int64 = 100
+)
+
+// qualityPitchClipRepairPeakThreshold is a quality-profile decoder-in-loop
+// pitch guard. Some black-box decoders clip before the local mirror reaches the
+// gain-repair threshold, so high local peaks may rerank nearby pitch candidates
+// if subframe MSE remains close to the original candidate.
+var qualityPitchClipRepairPeakThreshold = 29500
+
+const (
+	closedLoopPitchSearchHistory = closedloop.PitchMaxInt + pitchcore.Linter
+	closedLoopPitchSearchLen     = closedLoopPitchSearchHistory + closedloop.SubframeLen
+)
 
 // Reset returns the Encoder codec state to initial state and clears any
 // buffered streaming tail. It reuses the existing memory and preserves the
 // streaming sink configured by NewStreamingEncoder, if any.
 func (e *Encoder) Reset() {
 	sink := e.streamSink
-	*e = Encoder{}
-	e.streamSink = sink
-	lsp.InitFreqPrev(&e.freqPrev)
-	lsp.InitLSPOld(&e.lspOld)
-	for i := range e.pastQuaEn {
-		e.pastQuaEn[i] = gain.PastErrorsDefault
+	profile := e.profile
+	qualityTuning := e.qualityTuning
+	*e = Encoder{
+		profile:       normalizeEncoderProfile(profile),
+		qualityTuning: qualityTuning,
 	}
+	e.streamSink = sink
+	e.initState()
 }
 
 // LSPReuseCount returns the running tally of frames where the
@@ -272,6 +604,19 @@ func (e *Encoder) lpcStep(pcm []int16) (lsp.Indices, error) {
 	if len(pcm) != FrameSamples {
 		return lsp.Indices{}, ErrShortPCM
 	}
+	e.qualityFCBThresholdEntriesFrame = 0
+	e.qualityFCBThresholdEntriesLast = 0
+	if e.coreFCBThresholdScanEnabled() {
+		e.coreFCBThresholdEntriesRemaining = fcbsearch.SearchThresholdScanDefaultLimit
+	} else {
+		e.coreFCBThresholdEntriesRemaining = 0
+	}
+	if e.qualityFCBThresholdScanEnabled() && samplesNearClip(pcm, qualityFCBClipThreshold) {
+		e.qualityFCBClipCooldown = qualityFCBClipCooldownFrames
+	}
+	if e.qualityClippedInputOpenLoopRange2Enabled() && samplesNearClip(pcm, qualityOpenLoopClipThreshold) {
+		e.qualityOpenLoopClipCooldown = qualityOpenLoopClipCooldownFrames
+	}
 
 	var processed [FrameSamples]int16
 	e.pre.Process(pcm, processed[:])
@@ -320,7 +665,17 @@ func (e *Encoder) lpcStep(pcm []int16) (lsp.Indices, error) {
 	var omega [10]int16
 	lsp.LSPToLSF(&qQ15, &omega)
 
-	indices := lsp.Quantize(&omega, &e.freqPrev)
+	var indices lsp.Indices
+	if e.qualityExpandedLSPSearchEnabled() {
+		// Quality heuristic: keep the first-stage L1 search identical to
+		// the Annex A sequential search, then jointly evaluate the L2/L3
+		// pair for that L1. This remains a standard 18-bit LSP tuple on
+		// the wire, but the broader second-stage search is intentionally
+		// not part of EncoderProfileCore.
+		indices = lsp.QuantizeTopK(&omega, &e.freqPrev, 1)
+	} else {
+		indices = lsp.Quantize(&omega, &e.freqPrev)
+	}
 
 	// Phase 2f PACK-1: retain the LSP VQ indices for §4.2.1 + Table 8
 	// frame packing in buildBitstreamFrame.
@@ -342,9 +697,10 @@ func (e *Encoder) lpcStep(pcm []int16) (lsp.Indices, error) {
 // openloopStep runs the §A.3.3 weighted-speech construction and the
 // §A.3.4 open-loop pitch search on the current 80-sample analysis
 // frame. It must be called after lpcStep on the same frame: lpcStep
-// populates e.aQ12Latest and writes the newest 80 pre-processed PCM
-// samples into e.oldSpeech[160:240]. The encoded speech frame is
-// e.oldSpeech[120:200]; e.oldSpeech[200:240] is the 5 ms lookahead.
+// reconstructs e.aHatSF{1,2} and writes the newest 80 pre-processed PCM
+// samples into e.oldSpeech[160:240]. openloopStep reads the encoded
+// speech frame e.oldSpeech[120:200]; e.oldSpeech[200:240] is the 5 ms
+// lookahead.
 //
 // State advanced per call:
 //
@@ -359,8 +715,36 @@ func (e *Encoder) lpcStep(pcm []int16) (lsp.Indices, error) {
 // pointer-to-array reslice over e.oldSpeech, avoiding a stack copy.
 func (e *Encoder) openloopStep() int16 {
 	s := (*[FrameSamples]int16)(e.oldSpeech[120:200])
-	e.tOp = openloop.StepSplit(&e.aHatSF1, &e.aHatSF2, s, &e.lpResidualMem, &e.swMem, &e.oldWspeech)
+	var result openloop.SearchResult
+	if e.qualityNormalizedOpenLoopSearchEnabled() {
+		result = openloop.StepSplitSearchNormalizedRanges(&e.aHatSF1, &e.aHatSF2, s, &e.lpResidualMem, &e.swMem, &e.oldWspeech)
+	} else {
+		result = openloop.StepSplitSearch(&e.aHatSF1, &e.aHatSF2, s, &e.lpResidualMem, &e.swMem, &e.oldWspeech)
+	}
+	e.tOp = result.Top
+	if e.qualityClippedInputOpenLoopRange2Enabled() && e.qualityOpenLoopClipCooldown > 0 {
+		if result.Range2AtLeastRatioOf(e.tOp, qualityOpenLoopRange2CloseNum, qualityOpenLoopRange2CloseDen) {
+			e.tOp = result.Range2.Lag
+		}
+		e.qualityOpenLoopClipCooldown--
+	}
 	return e.tOp
+}
+
+func samplesNearClip(samples []int16, threshold int) bool {
+	if threshold <= 0 {
+		return false
+	}
+	for _, sample := range samples {
+		v := int(sample)
+		if v < 0 {
+			v = -v
+		}
+		if v >= threshold {
+			return true
+		}
+	}
+	return false
 }
 
 // lpResidualSubframe computes the 40-sample LP residual r(n) for one
@@ -392,11 +776,13 @@ func lpResidualSubframe(s *[40]int16, aHat *[lpc.LPCOrder + 1]int16, mem *[10]in
 }
 
 // closedloopStep runs ITU-T G.729 Annex A §A.3.5–§A.3.10 for one
-// subframe and returns the selected (intLag, frac) ∈ [20,143]×{−1,0,+1}.
+// subframe and returns the selected (intLag, frac). Subframe 1 may return the
+// P1 boundary codepoints (19,+1) or (85,-1); subframe 2 may return the P2
+// boundary codepoints (tmin-1,+1) or (tmax+1,-1).
 //
 // Pre-condition: lpcStep + openloopStep have been called for the
-// current frame, so e.aHatSF{1,2} carry the quantized Â (per I-2c-2)
-// and e.tOp carries the open-loop centre. Must be called twice per
+// current frame, so e.aHatSF{1,2} carry the quantized Â and e.tOp
+// carries the open-loop centre. Must be called twice per
 // frame in order: closedloopStep(0) then closedloopStep(1). The
 // subframe-1 winner is committed to e.intT1 so subframe-2's 10-lag
 // P2 search window (closedloop.Subframe2Window) can centre on it
@@ -413,9 +799,9 @@ func lpResidualSubframe(s *[40]int16, aHat *[lpc.LPCOrder + 1]int16, mem *[10]in
 //     closedloop.BackwardFilter).
 //  5. intLag = closedloop.SearchInteger(xb, exc, centre, sub)
 //     where centre = tOp for sub=0 and intT1 for sub=1.
-//  6. refinedFrac = closedloop.RefineFraction(xb, exc, intLag, allowFrac)
-//     per §A.3.7 lines 2169–2170. T1 uses fractions only when
-//     intLag<85; T2 is always fraction-capable by the P2 codebook.
+//  6. refinedFrac = closedloop.RefineFractionSubframe{1,2}(...) per
+//     §A.3.7 lines 2169–2170. T1 uses fractions in the lower region plus
+//     P1 boundary codepoints; T2 is always fraction-capable by the P2 codebook.
 //     The selected fraction is both transmitted and used by the
 //     analysis-by-synthesis path so encoder state stays aligned with the
 //     receiver's reconstructed adaptive-codebook vector.
@@ -425,31 +811,30 @@ func lpResidualSubframe(s *[40]int16, aHat *[lpc.LPCOrder + 1]int16, mem *[10]in
 //  9. P1/P0 (sub=0) or P2 (sub=1) packed via closedloop.EncodeP*
 //     per §3.7.2.
 //  10. Per-subframe state commit:
-//     - swMemErr trail: ew(n) = x(n) − ĝp·y(n) for n = 30..39 per
-//     §A.3.10 eq. A.10. Phase 2c-only placeholder: the spec
-//     eq. A.10 also subtracts ĝ_c·z(n) from the fixed codebook,
-//     which is not yet wired (Phase 2d task). See OQ-EXC-COMMIT
-//     in plan §9.
-//     - oldExc shift-by-40 + append u(n) = round(Gp·v(n)/2^14)
-//     for n = 0..39. Phase 2c-only placeholder: the full
-//     excitation per §A.3.9 is u(n) = ĝp·v(n) + ĝ_c·c(n);
-//     Phase 2d will add the fixed-codebook contribution.
+//     - fcbStep searches the fixed codebook and quantizes gains.
+//     - swMemErr trail: ew(n) = x(n) − ĝp·y(n) − ĝc·z(n) for
+//     n = 30..39 per §A.3.10 eq. A.10.
+//     - oldExc shift-by-40 + append the full excitation
+//     u(n) = ĝp·v(n) + ĝc·c(n) for n = 0..39 per eq. A.9.
+//     - pastQuaEn, prevGpQ14, and prevTaming advance from the selected
+//     gain candidate.
 //     - lpResidualMemQ ← s(30..39) for the next subframe's r(n).
 //
-// Buffer convention (closedloop.SearchInteger / RefineFraction /
-// AdaptiveVector): exc is sized PitchMaxInt + SubframeLen = 183
-// samples; u(0) is anchored at exc[len − SubframeLen]; the past
-// excitation u(−143..−1) occupies the leading 143 samples, and the
-// trailing SubframeLen samples carry the LP-residual extension
-// r(0..39) per §A.3.7 line 2161, supporting the short-pitch case
-// k < SubframeLen.
+// Buffer convention (closedloop.SearchInteger / RefineFractionSubframe{1,2} /
+// AdaptiveVector): exc is sized PitchMaxInt + pitch.Linter +
+// SubframeLen = 193 samples; u(0) is anchored at
+// exc[len − SubframeLen]. The past excitation u(−153..−1) occupies
+// the leading 153 samples so the b30 FIR has real history for high-delay
+// fractional candidates, including the P2 upper edge T_int=144, frac=-1;
+// the trailing SubframeLen samples
+// carry the LP-residual extension r(0..39) per §A.3.7 line 2161,
+// supporting the short-pitch case k < SubframeLen.
 //
-// I3 (relaxed for Phase 2c): swMemErr / lpResidualMemQ / oldExc are
-// updated PER SUBFRAME (not per frame) because subframe-2's adaptive
-// codebook search must observe subframe-1's freshly-committed u(n)
-// (the pitch lag may reference back into the just-completed
-// subframe). The frame-level state (oldSpeech, freqPrev, lspDec
-// internals) remains committed only at frame boundaries via lpcStep.
+// I3: swMemErr / lpResidualMemQ / oldExc / pastQuaEn are updated PER
+// SUBFRAME (not per frame) because subframe-2's adaptive-codebook search and
+// gain prediction must observe subframe-1's freshly committed state. The
+// frame-level state (oldSpeech, freqPrev, lspDec internals) remains committed
+// only at frame boundaries via lpcStep.
 //
 // I4: zero allocation. All scratch (r, x, h, xb, v, y, ew) lives on
 // the stack as fixed-size arrays.
@@ -461,14 +846,17 @@ func (e *Encoder) closedloopStep(sub int) (intLag int16, frac int8) {
 		aHat = &e.aHatSF2
 	}
 
-	// The closed-loop target is evaluated one subframe deeper in the
-	// speech history than the open-loop pitch frame. Black-box FFmpeg
-	// localization shows this restores the encoder/decoder waveform
-	// alignment while retaining the existing LP/open-loop analysis path.
-	sStart := 80 + 40*sub
+	// Core follows the encoded speech frame documented by openloopStep
+	// (oldSpeech[120:200]). The quality profile keeps the earlier
+	// black-box-localized window that improves waveform alignment while
+	// retaining the existing LP/open-loop analysis path.
+	sStart := 120 + 40*sub
+	if e.qualityEarlyClosedLoopSpeechWindowEnabled() {
+		sStart = 80 + 40*sub
+	}
 	sFrame := (*[40]int16)(e.oldSpeech[sStart : sStart+40])
 
-	var r, x, h, xb, v, y [closedloop.SubframeLen]int16
+	var r, x, h, xb [closedloop.SubframeLen]int16
 	lpResidualSubframe(sFrame, aHat, &e.lpResidualMemQ, &r)
 	closedloop.TargetSignal(aHat, &r, &e.swMemErr, &x)
 	closedloop.ImpulseResponse(aHat, &h)
@@ -481,37 +869,59 @@ func (e *Encoder) closedloopStep(sub int) (intLag int16, frac int8) {
 		centre = e.intT1
 	}
 
-	// Build the closed-loop scratch buffer: 143 past-excitation
-	// samples u(−143..−1) followed by the LP-residual extension
-	// r(0..39) for the current subframe per §A.3.7 line 2161.
-	// Stack-allocated; total 183 samples = PitchMaxInt + SubframeLen.
-	var excSearch [closedloop.PitchMaxInt + closedloop.SubframeLen]int16
-	copy(excSearch[:closedloop.PitchMaxInt],
-		e.oldExc[len(e.oldExc)-closedloop.PitchMaxInt:])
-	copy(excSearch[closedloop.PitchMaxInt:], r[:])
-	excSlice := excSearch[:]
-	intLag = e.searchPitchNormalizedAdaptive(&x, &h, excSlice, centre, sub)
-	refinedFrac := e.refinePitchNormalizedAdaptive(&x, &h, excSlice, intLag, sub == 1 || intLag < 85)
+	var excSearch [closedLoopPitchSearchLen]int16
+	excSlice := e.closedLoopExcitationSearch(&r, &excSearch)
+	if e.qualityPitchCenterCandidateEnabled() {
+		centre = e.qualityPitchCenterCandidate(&x, &h, excSlice, centre, sub)
+	}
+	if e.qualityNormalizedAdaptivePitchSearchEnabled() {
+		intLag = e.searchPitchNormalizedAdaptive(&x, &h, excSlice, centre, sub)
+		frac = e.refinePitchNormalizedAdaptive(&x, &h, excSlice, intLag, sub == 1 || intLag < 85, sub)
+	} else {
+		intLag, _ = closedloop.SearchInteger(&xb, excSlice, centre, sub)
+		if sub == 1 {
+			intLag, frac = closedloop.RefineFractionSubframe2(&xb, excSlice, intLag, e.intT1)
+		} else {
+			intLag, frac = closedloop.RefineFractionSubframe1(&xb, excSlice, intLag)
+		}
+	}
+
+	if e.qualityPitchClipRepairEnabled() && e.qualityGainClipRepairEnabled() {
+		return e.qualityRepairPitchClip(sub, aHat, sFrame, &x, &h, excSlice, intLag, frac)
+	}
+
+	e.commitClosedLoopPitch(sub, aHat, sFrame, &x, &h, excSlice, intLag, frac)
+	return intLag, frac
+}
+
+func (e *Encoder) commitClosedLoopPitch(
+	sub int,
+	aHat *[lpc.LPCOrder + 1]int16,
+	sFrame *[closedloop.SubframeLen]int16,
+	x, h *[closedloop.SubframeLen]int16,
+	exc []int16,
+	intLag int16,
+	frac int8,
+) {
+	var v, y [closedloop.SubframeLen]int16
 
 	// Keep bitstream packing, local synthesis, gain search, FCB search,
 	// and excitation-state commit on the same selected fractional delay.
 	// Diverging here lets the encoder search against a state the receiver
 	// will never reconstruct.
-	transmittedFrac := refinedFrac
-	frac = transmittedFrac
-	e.adaptiveVectorForSynthesis(excSlice, intLag, transmittedFrac, &v)
-	gp := closedloop.GpAndY(&x, &v, &h, &y)
+	e.adaptiveVectorForSynthesis(exc, intLag, frac, &v)
+	gp := closedloop.GpAndY(x, &v, h, &y)
 
 	if sub == 0 {
 		e.intT1 = intLag
-		e.frac1 = transmittedFrac
-		e.p1 = closedloop.EncodeP1(intLag, transmittedFrac)
+		e.frac1 = frac
+		e.p1 = closedloop.EncodeP1(intLag, frac)
 		e.p0 = closedloop.EncodeP0(e.p1)
 	} else {
 		tmin, _ := closedloop.Subframe2Window(e.intT1)
 		e.intT2 = intLag
-		e.frac2 = transmittedFrac
-		e.p2 = closedloop.EncodeP2(intLag, transmittedFrac, tmin)
+		e.frac2 = frac
+		e.p2 = closedloop.EncodeP2(intLag, frac, tmin)
 	}
 
 	// §A.3.10 eq. A.9 / A.10 commit and FCB + gain quantization
@@ -520,12 +930,151 @@ func (e *Encoder) closedloopStep(sub int) (intLag int16, frac int8) {
 	//   - swMemErr ← x(n) − ĝp·y(n) − ĝc·z(n) for n=30..39 (eq. A.10)
 	//   - per-frame s/c/ga/gb output bits
 	//   - pastQuaEn FIFO advance and prevGpQ14 / prevTaming carry
-	e.fcbStep(sub, &x, &y, &h, &v, gp)
+	e.fcbStep(sub, aHat, sFrame, x, &y, h, &v, gp)
 
 	// Quantized-Â analysis-filter memory advance for next subframe.
 	copy(e.lpResidualMemQ[:], sFrame[30:40])
+}
 
-	return intLag, frac
+func (e *Encoder) closedLoopExcitationSearch(
+	residual *[closedloop.SubframeLen]int16,
+	exc *[closedLoopPitchSearchLen]int16,
+) []int16 {
+	copy(exc[:closedLoopPitchSearchHistory],
+		e.oldExc[len(e.oldExc)-closedLoopPitchSearchHistory:])
+	copy(exc[closedLoopPitchSearchHistory:], residual[:])
+	return exc[:]
+}
+
+type encoderPitchClipCandidate struct {
+	intLag int16
+	frac   int8
+}
+
+func (e *Encoder) qualityRepairPitchClip(
+	sub int,
+	aHat *[lpc.LPCOrder + 1]int16,
+	sFrame *[closedloop.SubframeLen]int16,
+	x, h *[closedloop.SubframeLen]int16,
+	exc []int16,
+	intLag int16,
+	frac int8,
+) (int16, int8) {
+	bestEncoder := *e
+	bestEncoder.commitClosedLoopPitch(sub, aHat, sFrame, x, h, exc, intLag, frac)
+	bestScore := bestEncoder.qualityLastOutput
+	baseScore := bestScore
+	bestLag, bestFrac := intLag, frac
+
+	if bestScore.nearClip > 0 || bestScore.peak >= qualityPitchClipRepairPeakThreshold {
+		var candidates [18]encoderPitchClipCandidate
+		count := qualityPitchClipCandidates(sub, e.intT1, intLag, frac, &candidates)
+		for i := 0; i < count; i++ {
+			cand := candidates[i]
+			candEncoder := *e
+			candEncoder.commitClosedLoopPitch(sub, aHat, sFrame, x, h, exc, cand.intLag, cand.frac)
+			candScore := candEncoder.qualityLastOutput
+			if qualityPitchClipOutputScoreLess(candScore, bestScore, baseScore) {
+				bestEncoder = candEncoder
+				bestScore = candScore
+				bestLag, bestFrac = cand.intLag, cand.frac
+			}
+		}
+	}
+
+	*e = bestEncoder
+	return bestLag, bestFrac
+}
+
+func qualityPitchClipOutputScoreLess(candidate, best, base encoderQualityOutputScore) bool {
+	if base.hardClip > 0 || base.nearClip > 0 {
+		return encoderQualityOutputScoreLess(candidate, best)
+	}
+	if candidate.peak >= base.peak {
+		return false
+	}
+	if candidate.mse*100 > base.mse*117 {
+		return false
+	}
+	if best.peak >= base.peak {
+		return true
+	}
+	if candidate.mse != best.mse {
+		return candidate.mse < best.mse
+	}
+	return candidate.peak < best.peak
+}
+
+func qualityPitchClipCandidates(
+	sub int,
+	intT1 int16,
+	intLag int16,
+	frac int8,
+	out *[18]encoderPitchClipCandidate,
+) int {
+	count := 0
+	add := func(lag int16, candFrac int8) {
+		if lag == intLag && candFrac == frac {
+			return
+		}
+		for i := 0; i < count; i++ {
+			if out[i].intLag == lag && out[i].frac == candFrac {
+				return
+			}
+		}
+		if count < len(out) {
+			out[count] = encoderPitchClipCandidate{intLag: lag, frac: candFrac}
+			count++
+		}
+	}
+
+	if sub == 0 {
+		for dt := int16(-2); dt <= 2; dt++ {
+			lag := intLag + dt
+			for _, candFrac := range [...]int8{-1, 0, 1} {
+				if !qualityPitchClipSubframe1CandidateRepresentable(lag, candFrac) {
+					continue
+				}
+				p1 := closedloop.EncodeP1(lag, candFrac)
+				rtLag, rtFrac := pitchcore.DecodeDelaySubframe1(p1)
+				add(int16(rtLag), int8(rtFrac))
+			}
+		}
+		return count
+	}
+
+	tmin, _ := closedloop.Subframe2Window(intT1)
+	for dt := int16(-2); dt <= 2; dt++ {
+		lag := intLag + dt
+		for _, candFrac := range [...]int8{-1, 0, 1} {
+			p2 := 3*(int(lag)-int(tmin)) + int(candFrac) + 2
+			if p2 < 0 || p2 > 31 {
+				continue
+			}
+			rtLag, rtFrac := pitchcore.DecodeDelaySubframe2(uint8(p2), int(intT1))
+			add(int16(rtLag), int8(rtFrac))
+		}
+	}
+	return count
+}
+
+func qualityPitchClipSubframe1CandidateRepresentable(intLag int16, frac int8) bool {
+	if frac < -1 || frac > 1 {
+		return false
+	}
+	if intLag == 19 {
+		return frac == 1
+	}
+	if intLag >= 20 && intLag <= 84 {
+		return true
+	}
+	if intLag == 85 {
+		return frac <= 0
+	}
+	if intLag >= 86 && intLag <= closedloop.PitchMaxInt {
+		return frac == 0
+	}
+	return false
 }
 
 func (e *Encoder) searchPitchNormalizedAdaptive(
@@ -534,7 +1083,7 @@ func (e *Encoder) searchPitchNormalizedAdaptive(
 	centre int16,
 	sub int,
 ) int16 {
-	kMin, kMax := closedLoopPitchSearchRange(centre, sub)
+	kMin, kMax := closedLoopPitchSearchRangeWithHalfWindow(centre, sub, qualityNormalizedPitchSearchHalfWindow)
 	bestLag := int16(kMin)
 	bestScore := math.Inf(-1)
 	for k := kMin; k <= kMax; k++ {
@@ -542,6 +1091,21 @@ func (e *Encoder) searchPitchNormalizedAdaptive(
 		if score > bestScore {
 			bestScore = score
 			bestLag = int16(k)
+		}
+	}
+	if qualityNormalizedPitchHarmonicGuardRatio > 0 && sub == 0 && isHigherPitchMultipleCandidate(int(centre), int(bestLag)) {
+		localMin, localMax := closedloop.Subframe1Window(centre)
+		localLag := localMin
+		localScore := math.Inf(-1)
+		for k := int(localMin); k <= int(localMax); k++ {
+			score := e.normalizedAdaptivePitchScore(x, h, exc, int16(k), 0)
+			if score > localScore {
+				localScore = score
+				localLag = int16(k)
+			}
+		}
+		if localScore > 0 && bestScore <= localScore*qualityNormalizedPitchHarmonicGuardRatio {
+			bestLag = localLag
 		}
 	}
 	return bestLag
@@ -552,18 +1116,31 @@ func (e *Encoder) refinePitchNormalizedAdaptive(
 	exc []int16,
 	intLag int16,
 	allowFrac bool,
+	sub int,
 ) int8 {
 	if !allowFrac {
 		return 0
 	}
 	bestFrac := int8(-1)
 	bestScore := e.normalizedAdaptivePitchScore(x, h, exc, intLag, -1)
+	positiveScore := math.Inf(-1)
 	for _, frac := range [2]int8{0, 1} {
 		score := e.normalizedAdaptivePitchScore(x, h, exc, intLag, frac)
+		if frac == 1 {
+			positiveScore = score
+		}
 		if score > bestScore {
 			bestScore = score
 			bestFrac = frac
 		}
+	}
+	if qualityNormalizedPitchShortPositiveFracRatio > 0 &&
+		sub == 1 &&
+		intLag < closedloop.SubframeLen &&
+		bestFrac != 1 &&
+		positiveScore > 0 &&
+		positiveScore >= bestScore*qualityNormalizedPitchShortPositiveFracRatio {
+		return 1
 	}
 	return bestFrac
 }
@@ -595,20 +1172,130 @@ func (e *Encoder) adaptiveVectorForSynthesis(
 	frac int8,
 	v *[closedloop.SubframeLen]int16,
 ) {
-	if intLag < closedloop.SubframeLen {
-		pitchcore.AdaptiveCodebook(int(intLag), int(frac), e.oldExc[:], v)
+	// Annex A copies the LP residual into u(0..39) to simplify the
+	// closed-loop pitch search. Once the transmitted delay is chosen, the
+	// synthesis/gain/commit path must use the same adaptive-codebook vector
+	// the decoder reconstructs; otherwise the encoder optimizes against an
+	// unreachable receiver state. This matters not only for integer delays
+	// shorter than 40, but also for fractional delays near the boundary where
+	// b30 forward taps would otherwise read the residual-extension tail.
+	if e.qualityResidualExtensionAdaptiveVectorEnabled() {
+		closedloop.AdaptiveVector(exc, intLag, frac, v)
 		return
 	}
-	closedloop.AdaptiveVector(exc, intLag, frac, v)
+	pitchcore.AdaptiveCodebook(int(intLag), int(frac), e.oldExc[:], v)
+}
+
+func (e *Encoder) qualityPitchCenterCandidate(
+	x, h *[closedloop.SubframeLen]int16,
+	exc []int16,
+	centre int16,
+	sub int,
+) int16 {
+	if sub != 0 {
+		return centre
+	}
+	fullT, fullScore := e.bestAdaptivePitchScoreInRange(x, h, exc, closedloop.PitchMinInt, closedloop.PitchMaxInt, sub)
+	if !isPitchSubmultipleForCenter(int(centre), int(fullT)) &&
+		!isLowerPitchCenterRescueCandidate(int(centre), int(fullT)) {
+		return centre
+	}
+	kMin, kMax := closedLoopPitchSearchRangeWithHalfWindow(centre, sub, qualityNormalizedPitchSearchHalfWindow)
+	_, windowScore := e.bestAdaptivePitchScoreInRange(x, h, exc, kMin, kMax, sub)
+	if math.IsInf(fullScore, -1) || math.IsInf(windowScore, -1) || fullScore < windowScore*qualityPitchCenterFullSearchMinScoreRatio {
+		return centre
+	}
+	return fullT
+}
+
+func isLowerPitchCenterRescueCandidate(centre, candidate int) bool {
+	return candidate+20 <= centre
+}
+
+func isHigherPitchMultipleCandidate(centre, candidate int) bool {
+	if centre <= 0 || candidate <= centre {
+		return false
+	}
+	for multiple := 2; multiple <= 4; multiple++ {
+		d := candidate - multiple*centre
+		if d < 0 {
+			d = -d
+		}
+		if d <= 4 {
+			return true
+		}
+		if multiple*centre > candidate+4 {
+			return false
+		}
+	}
+	return false
+}
+
+func (e *Encoder) bestAdaptivePitchScoreInRange(
+	x, h *[closedloop.SubframeLen]int16,
+	exc []int16,
+	kMin, kMax int,
+	sub int,
+) (int16, float64) {
+	bestT := int16(kMin)
+	bestScore := math.Inf(-1)
+	for k := kMin; k <= kMax; k++ {
+		fracs, n := pitchCandidateFractions(sub, int16(k))
+		for i := 0; i < n; i++ {
+			score := e.normalizedAdaptivePitchScore(x, h, exc, int16(k), fracs[i])
+			if score > bestScore {
+				bestScore = score
+				bestT = int16(k)
+			}
+		}
+	}
+	return bestT, bestScore
+}
+
+func pitchCandidateFractions(sub int, intLag int16) ([3]int8, int) {
+	if sub == 1 || intLag < 85 {
+		return [3]int8{-1, 0, 1}, 3
+	}
+	return [3]int8{0, 0, 0}, 1
+}
+
+func isPitchSubmultipleForCenter(higher, lower int) bool {
+	if lower <= 0 {
+		return false
+	}
+	for k := 2; k <= 7; k++ {
+		d := higher - k*lower
+		if d < 0 {
+			d = -d
+		}
+		if d <= 2 {
+			return true
+		}
+		if k*lower > higher+2 {
+			return false
+		}
+	}
+	return false
 }
 
 func closedLoopPitchSearchRange(centre int16, sub int) (kMin, kMax int) {
+	return closedLoopPitchSearchRangeWithHalfWindow(centre, sub, 3)
+}
+
+func closedLoopPitchSearchRangeWithHalfWindow(centre int16, sub int, halfWindow int) (kMin, kMax int) {
 	if sub == 0 {
-		kMin = int(centre) - 3
+		if halfWindow <= 0 {
+			halfWindow = 3
+		}
+		if halfWindow == 3 {
+			tMin, tMax := closedloop.Subframe1Window(centre)
+			return int(tMin), int(tMax)
+		}
+		kMin = int(centre) - halfWindow
 		if kMin < closedloop.PitchMinInt {
 			kMin = closedloop.PitchMinInt
 		}
-		kMax = int(centre) + 3
+		kMax = int(centre) + halfWindow
 		if kMax > closedloop.PitchMaxInt {
 			kMax = closedloop.PitchMaxInt
 		}
@@ -624,50 +1311,45 @@ func closedLoopPitchSearchRange(centre int16, sub int) (kMin, kMax int) {
 // (swMemErr). Per Phase 2d sub-plan §6.1 INT-0:
 //
 //  1. CB-1 AdjustedTarget  : x'(n) = x(n) − gp·y(n)        (§3.8.1 eq. 50)
-//  2. CB-1 CorrelationD    : d(n) = Σ x'(i)·h(i−n)         (§3.8.1 eq. 52)
-//  3. CB-3 SignsFromD      : signs[n], |d(n)|              (§3.8.1)
-//  4. CB-2 PhiPrime        : φ′(i,j)                       (§3.8.1 eq. 56–57)
-//  5. CB-2 SearchDepthFirst: 4-pulse positions             (§A.3.8.1)
-//  6. CB-4 BuildCode       : c[40] (Q13) + harmonic enh.   (§3.8 eq. 45–47)
-//  7. CB-5 FilterCode      : z[40] (Q12) = c ⊛ h           (§3.9 eq. 64)
-//  8. GQ-1 PredictedGcQ12  : g'c (Q12)                     (§3.9.1 eq. 71)
-//  9. GQ-2 SearchConjugate : (ga, gb, ĝp Q14, ĝc Q12)      (§3.9.2 eq. 73, 74)
-//  10. GQ-3 Tame           : optional ĝp clamp             (§3.9.2 taming)
-//  11. ENC-1 PackS / PackC : (S, C) bit fields             (§3.8.2 eq. 61, 62)
-//  12. ENC-1 PackGains     : (GA, GB) bit fields           (§3.9.3)
-//  13. eq. A.10 commit     : swMemErr[n−30] = sat(x(n) −
-//     (ĝp·y(n) >> 14) − (ĝc·z(n) >> 12))
-//     for n=30..39 (G729E.txt line 2211)
-//  14. eq. A.9  commit     : shift oldExc left by SubframeLen and
-//     append u(n) = sat((ĝp·v(n) >> 14)
-//     + (ĝc·c(n) >> 12)) for n=0..39 (line 2202)
-//  15. GQ-3 UpdatePastQuaEn: FIFO shift; new entry = 20·log10(γ̂_c) Q10
+//  2. CB-1 hSearch         : h′(n) with fixed-codebook pitch enh.
+//     folded into search                                      (§3.8 eq. 49)
+//  3. CB-1 CorrelationD    : d(n) = Σ x'(i)·h′(i−n)        (§3.8.1 eq. 52)
+//  4. CB-3 SignsFromD      : signs[n], |d(n)|              (§3.8.1)
+//  5. CB-2 PhiPrime        : φ′(i,j) from h′               (§3.8.1 eq. 56–57)
+//  6. CB-2 focused/depth-first search: 4-pulse positions  (§3.8.1/A.3.8.1)
+//  7. CB-4 BuildCode       : c[40] (Q13) + harmonic enh.   (§3.8 eq. 45–47)
+//  8. CB-5 FilterCode      : z[40] (Q12) = c ⊛ h           (§3.9 eq. 64)
+//  9. GQ-1 PredictedGcQ12  : g'c (Q12)                     (§3.9.1 eq. 71)
+//  10. GQ-2 SearchConjugate: (ga, gb, ĝp Q14, γ̂c Q13)     (§3.9.2 eq. 73, 74)
+//  11. GQ-3 Tame           : optional ĝp clamp             (§3.9.2 taming)
+//  12. ENC-1 PackS / PackC : (S, C) bit fields             (§3.8.2 eq. 61, 62)
+//  13. ENC-1 PackGains     : (GA, GB) bit fields           (§3.9.3)
+//  14. eq. A.10 commit     : swMemErr[n−30] = sat(x(n) −
+//     ĝp·y(n) − ĝc·z(n)) for n=30..39 (G729E.txt line 2211)
+//  15. eq. A.9  commit     : shift oldExc left by SubframeLen and
+//     append u(n) = sat(ĝp·v(n) + ĝc·c(n)) for n=0..39
+//     (line 2202)
+//  16. GQ-3 UpdatePastQuaEn: FIFO shift; new entry = 20·log10(γ̂_c) Q10
 //     (§3.9.1 eq. 72)
-//  16. prevGpQ14 ← ĝp ; prevTaming ← taming
+//  17. prevGpQ14 ← ĝp ; prevTaming ← taming
 //
-// Q-format reconciliation (OQ-Q-FORMAT-A10): ĝp is Q14, y is Q0;
-// product is Q14, right-shift by 14 lands Q0. ĝc is Q12, z is Q12
-// (FilterCode CB-5 contract); product is Q24, right-shift by 24 lands
-// Q0 — but z is *stored* as int16 Q12 with the >>13 already applied, so
-// effectively the product is int32 Q24 → >>12 only would land Q12 and
-// then we need additional >>12 to land Q0. To keep the code aligned
-// with the sub-plan §6.1 line 321 spec (>>12), the product (ĝc·z) is
-// scaled by >>12 to land in Q12 (matching x), and the subtraction is
-// performed in Q0 by treating z's stored Q12 representation as the
-// physical sample value (z is the filtered FCB excitation, on the same
-// physical scale as y per §3.9 eq. 63). Likewise for c[]: c is Q13,
-// ĝc·c is Q25, >>13 → Q12. The Q12 sum is then >>12 to Q0 with sat.
-// For oldExc storage (Q0 int16), c is Q13 so ĝc·c >> 13 lands in Q11;
-// to land in Q0 the sub-plan §3 line 321/322 specifies >>12 on the
-// final ĝc·c product which is the joint shift after squaring conventions
-// reconcile (see §A.3.9 narrative).
+// Q-format reconciliation: ĝp is Q14 and y/v are Q0. The fixed gain ĝc is
+// reconstructed from γ̂c and g'c into the decoder-shared mantissa/exponent
+// representation. applyGcToQ12 maps ĝc·z from z Q12 to a Q0 weighted-error
+// contribution; synth.BuildExcitation maps ĝc·c from c Q13 to a Q0 excitation
+// contribution using the same decoder-side arithmetic as the receive path.
+// SearchConjugate's Eq. 63 cost uses the equivalent γ̂c·g'c Q12 value against
+// z Q12, preserving the standard gain-search objective without storing ĝc in a
+// saturated Word16.
 //
 // I3 (relaxed for per-subframe state): commits oldExc, swMemErr,
 // pastQuaEn, prevGpQ14, prevTaming, and the per-subframe s*/c*/ga*/gb*
-// output fields. I4: zero allocation — all scratch (xPrime, d, signs,
-// dAbs, phi, positions, c, z) lives on the stack.
+// output fields. I4: zero allocation — all scratch (xPrime, hSearch, d,
+// signs, dAbs, phi, positions, c, z) lives on the stack.
 func (e *Encoder) fcbStep(
 	sub int,
+	aHat *[lpc.LPCOrder + 1]int16,
+	refSpeech *[closedloop.SubframeLen]int16,
 	x, y, h, v *[closedloop.SubframeLen]int16,
 	gpUnq int16,
 ) {
@@ -677,26 +1359,6 @@ func (e *Encoder) fcbStep(
 	var xPrime [N]int16
 	fcbsearch.AdjustedTarget(x, y, gpUnq, &xPrime)
 
-	// 2. CB-1: d(n) = Σ x'(i)·h(i−n).
-	var d [N]int32
-	fcbsearch.CorrelationD(&xPrime, h, &d)
-
-	// 3. CB-3: signs / |d|.
-	var signs [N]int16
-	var dAbs [N]int32
-	fcbsearch.SignsFromD(&d, &signs, &dAbs)
-
-	// 4. CB-2: φ′(i,j).  ~6.4 KB on stack.
-	var phi [N][N]int32
-	fcbsearch.PhiPrime(h, &signs, &phi)
-
-	// 5. CB-2: depth-first 4-pulse search.
-	var positions [4]int8
-	var sumOut [2]int64
-	fcbsearch.SearchDepthFirst(&dAbs, &phi, &positions, &sumOut)
-
-	// 6. CB-4: c[40] with harmonic enhancement.
-	var c [N]int16
 	// intLag for harmonic enhancement: per §3.8 eq. 46/48, T is the
 	// integer pitch lag of the current subframe; reuse the closed-loop
 	// winner cached on the encoder.
@@ -706,6 +1368,53 @@ func (e *Encoder) fcbStep(
 	} else {
 		intLag = e.intT2
 	}
+
+	// §3.8 eq. 49 incorporates fixed-codebook pitch enhancement into
+	// the search by applying the same β/T recursion to the impulse
+	// response used for d(n) and phi. The final code vector is still
+	// pitch-enhanced in BuildCode and filtered through the original h,
+	// which is the equivalent synthesis path within the fixed-point
+	// rounding bound pinned by the FCB FilterCode tests.
+	hSearch := *h
+	fcb.ApplyPitchEnhancement(&hSearch, int(intLag), fcb.ClampPitchGainForEnhancement(e.prevGpQ14))
+
+	// 2. CB-1: d(n) = Σ x'(i)·h(i−n).
+	var d [N]int32
+	fcbsearch.CorrelationD(&xPrime, &hSearch, &d)
+
+	// 3. CB-3: signs / |d|.
+	var signs [N]int16
+	var dAbs [N]int32
+	fcbsearch.SignsFromD(&d, &signs, &dAbs)
+
+	// 4. CB-2: φ′(i,j).  ~6.4 KB on stack.
+	var phi [N][N]int32
+	fcbsearch.PhiPrime(&hSearch, &signs, &phi)
+
+	// 5. CB-2: depth-first 4-pulse search.
+	var positions [4]int8
+	var sumOut [2]int64
+	if e.qualityFCBThresholdScanActive() || e.coreFCBThresholdScanEnabled() {
+		limit := qualityFCBThresholdScanLimit
+		if e.coreFCBThresholdScanEnabled() {
+			limit = e.coreFCBThresholdScanLimit(sub)
+		}
+		entered := fcbsearch.SearchDepthFirstThresholdScanEntered(
+			&dAbs, &phi, &positions, &sumOut,
+			limit,
+		)
+		e.qualityFCBThresholdEntriesLast = entered
+		e.qualityFCBThresholdEntriesFrame += entered
+		if e.coreFCBThresholdScanEnabled() {
+			e.recordCoreFCBThresholdEntries(entered)
+		}
+	} else {
+		fcbsearch.SearchDepthFirst(&dAbs, &phi, &positions, &sumOut)
+		e.qualityFCBThresholdEntriesLast = 0
+	}
+
+	// 6. CB-4: c[40] with harmonic enhancement.
+	var c [N]int16
 	fcbsearch.BuildCode(&positions, &signs, intLag, e.prevGpQ14, &c)
 
 	// 7. CB-5: z[40] = c ⊛ h (Q12).
@@ -715,27 +1424,48 @@ func (e *Encoder) fcbStep(
 	// 8. GQ-1: g'c (Q12, NOT saturated; see PredictedGcQ12 docstring)
 	// and the predictor's log2 form for §3.9.2 eq. (74) reconstruction
 	// in the native (mant Q14, exp) decoder representation per REF-1.
+	// Use the pitch-enhanced fixed-codebook vector `c`: §4.1.4 constructs
+	// c from the pulses and then applies eq. 48 before §4.1.5 gain decode,
+	// so encoder local state must mirror the receiver rather than reusing
+	// the sparse eq. 45 vector for gain prediction.
+	useNativeGainSearch := e.qualityNativeGainSearchEnabled()
+	useWideGainPredictor := !e.qualityHeuristicsEnabled() || e.qualityWideGainPredictorEnabled() || useNativeGainSearch
 	gpcPredQ12 := gainquant.PredictedGcQ12(&e.pastQuaEn, &c)
+	if useWideGainPredictor {
+		gpcPredQ12 = gainquant.PredictedGcQ12Wide(&e.pastQuaEn, &c)
+	}
 	// Black-box gain-selection localization shows the unscaled local
 	// search over-selects the fixed-codebook contribution. Apply the
 	// bias only inside the search surface; reconstruction and predictor
 	// update below continue to use the transmitted codebook pair exactly.
 	xSearch := *x
 	ySearch := *y
-	scaleGainSearchTargetHalf(&xSearch)
-	scaleGainSearchAdaptiveSevenHalves(&ySearch)
-	const (
-		gainSearchFixedContributionScaleNum = 3
-		gainSearchFixedContributionScaleDen = 2
-	)
-	gpcSearchQ12 := scaleInt32RatioForGainSearch(
-		gpcPredQ12,
-		gainSearchFixedContributionScaleNum,
-		gainSearchFixedContributionScaleDen,
-	)
+	gpcSearchQ12 := gpcPredQ12
+
+	if e.qualityGainSearchBiasEnabled() {
+		scaleGainSearchVector(&xSearch, qualityGainSearchTargetScaleNum, qualityGainSearchTargetScaleDen)
+		scaleGainSearchVector(&ySearch, qualityGainSearchAdaptiveContributionScaleNum, qualityGainSearchAdaptiveContributionScaleDen)
+		gpcSearchQ12 = scaleInt32RatioForGainSearch(
+			gpcPredQ12,
+			qualityGainSearchFixedContributionScaleNum,
+			qualityGainSearchFixedContributionScaleDen,
+		)
+	}
 
 	// 9. GQ-2: conjugate-codebook 2D VQ → (ga, gb, ĝp Q14, γ̂_c Q13).
-	gaPhys, gbPhys, gpHatQ14, gammaCQ13 := gainquant.SearchConjugate(&xSearch, &ySearch, &z, gpcSearchQ12)
+	var gaPhys, gbPhys uint8
+	var gpHatQ14, gammaCQ13 int16
+	if useNativeGainSearch {
+		// Quality heuristic: evaluate all standard gain-index pairs using
+		// the exact reconstructed-gain residual that will be committed below.
+		// This keeps the payload standard-compatible but is not Annex A's
+		// GA/GB preselect procedure, so Core deliberately leaves it disabled.
+		gaPhys, gbPhys, gpHatQ14, gammaCQ13 = searchConjugateNativeGainWide(&e.pastQuaEn, &c, x, y, &z)
+	} else if e.coreGainPreselectPrecisionEnabled() {
+		gaPhys, gbPhys, gpHatQ14, gammaCQ13 = gainquant.SearchConjugatePreselectTargetBits(&xSearch, &ySearch, &z, gpcSearchQ12, encoderCoreGainPreselectTargetBits)
+	} else {
+		gaPhys, gbPhys, gpHatQ14, gammaCQ13 = gainquant.SearchConjugate(&xSearch, &ySearch, &z, gpcSearchQ12)
+	}
 
 	// 10. GQ-3: taming (one-sided clamp on ĝp under predicted-overflow).
 	gpTamed := gainquant.Tame(gpHatQ14, &e.oldExc)
@@ -745,6 +1475,30 @@ func (e *Encoder) fcbStep(
 	// 11. ENC-1: pack S, C.
 	s := fcbsearch.PackS(&positions, &signs)
 	cPacked := fcbsearch.PackC(&positions)
+
+	// 12b. Reconstruct the chosen quantized g_c in the native
+	// (mant Q14, exp) representation that mirrors gain.Decoder.Decode
+	// bit-for-bit (REF-1 §2 / IMPL-3 step C). The §A.3.10 commits below
+	// then use that same representation for swMemErr and oldExc commits,
+	// eliminating the pre-IMPL-3 int16 collapse in `gcHatQ12` while
+	// keeping encoder-side state aligned with decoder reconstruction.
+	var gcMantQ14 int16
+	var gcExp int8
+	if useWideGainPredictor {
+		_, gcMantQ14, gcExp = gainquant.ReconstructWide(&e.pastQuaEn, &c, gaPhys, gbPhys)
+	} else {
+		_, gcMantQ14, gcExp = gainquant.Reconstruct(&e.pastQuaEn, &c, gaPhys, gbPhys)
+	}
+
+	if e.qualityGainClipRepairEnabled() && aHat != nil && refSpeech != nil {
+		tFrac := e.frac1
+		if sub == 1 {
+			tFrac = e.frac2
+		}
+		gaPhys, gbPhys, gpHatQ14, gammaCQ13, taming, gcMantQ14, gcExp = e.qualityRepairGainClip(
+			aHat, refSpeech, intLag, tFrac, cPacked, s, &c, gaPhys, gbPhys, gpHatQ14, gammaCQ13, taming, gcMantQ14, gcExp,
+		)
+	}
 
 	// 12. ENC-1: pack GA, GB (forward §3.9.3 imap).
 	gaBits, gbBits := gainquant.PackGains(gaPhys, gbPhys)
@@ -760,14 +1514,6 @@ func (e *Encoder) fcbStep(
 		e.ga2 = gaBits
 		e.gb2 = gbBits
 	}
-
-	// 12b. Reconstruct the chosen quantized g_c in the native
-	// (mant Q14, exp) representation that mirrors gain.Decoder.Decode
-	// bit-for-bit (REF-1 §2 / IMPL-3 step C). The §A.3.10 commits below
-	// then use that same representation for swMemErr and oldExc commits,
-	// eliminating the pre-IMPL-3 int16 collapse in `gcHatQ12` while
-	// keeping encoder-side state aligned with decoder reconstruction.
-	_, gcMantQ14, gcExp := gainquant.Reconstruct(&e.pastQuaEn, &c, gaPhys, gbPhys)
 
 	// 13. §A.3.10 eq. A.10 commit: swMemErr ← x − ĝp·y − ĝc·z.
 	// Keep this commit in the same physical Q0 domain as x. y is Q0;
@@ -799,6 +1545,335 @@ func (e *Encoder) fcbStep(
 	// 16. Carry forward.
 	e.prevGpQ14 = gpHatQ14
 	e.prevTaming = taming
+	if sub == 1 && e.qualityFCBClipCooldown > 0 {
+		e.qualityFCBClipCooldown--
+	}
+}
+
+func searchConjugateNativeGainWide(past *[4]int16, c, x, y, z *[40]int16) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+	bestCost := int64(1<<63 - 1)
+	for gai := uint8(0); gai < 8; gai++ {
+		for gbi := uint8(0); gbi < 16; gbi++ {
+			gp, gcMant, gcExp := gainquant.ReconstructWide(past, c, gai, gbi)
+			cost := gainResidualEnergyCostQ0(x, y, z, gp, gcMant, gcExp)
+			if cost < bestCost {
+				bestCost = cost
+				ga = gai
+				gb = gbi
+				gpQ14 = gp
+				gammaCQ13 = fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[gai][1]) + int32(tables.GainGBK2[gbi][1])))
+			}
+		}
+	}
+	return
+}
+
+func gainResidualEnergyCostQ0(x, y, z *[40]int16, gpQ14, gcMantQ14 int16, gcExp int8) int64 {
+	const (
+		maxInt64     = int64(1<<63 - 1)
+		maxSqrtInt64 = int64(3037000499)
+	)
+	var sum int64
+	for n := 0; n < 40; n++ {
+		gpY := applyGainQ14ToQ0(gpQ14, y[n])
+		gcZ := applyGcToQ12(gcMantQ14, gcExp, z[n])
+		err := int64(int32(x[n]) - gpY - gcZ)
+		if err < 0 {
+			err = -err
+		}
+		if err > maxSqrtInt64 {
+			return maxInt64
+		}
+		sq := err * err
+		if sum > maxInt64-sq {
+			return maxInt64
+		}
+		sum += sq
+	}
+	return sum
+}
+
+type encoderQualityDecodeState struct {
+	gainDec gain.Decoder
+	synth   synth.Synthesizer
+	pf      postfilter.Postfilter
+	pastExc [153]int16
+	prevGp  int16
+	hpX     [2]int16
+	hpY     [2]int32
+}
+
+type encoderQualityOutputScore struct {
+	hardClip int
+	nearClip int
+	peak     int
+	mse      int64
+	highMSE  int64
+}
+
+func (e *Encoder) qualityRepairGainClip(
+	aHat *[lpc.LPCOrder + 1]int16,
+	refSpeech *[closedloop.SubframeLen]int16,
+	intLag int16,
+	tFrac int8,
+	cPacked uint16,
+	sPacked uint8,
+	encoderC *[closedloop.SubframeLen]int16,
+	gaPhys uint8,
+	gbPhys uint8,
+	gpQ14 int16,
+	gammaCQ13 int16,
+	taming bool,
+	gcMantQ14 int16,
+	gcExp int8,
+) (uint8, uint8, int16, int16, bool, int16, int8) {
+	ref := *refSpeech
+	pcm.ScaleUpSat(ref[:], ref[:])
+
+	initialState := encoderQualityDecodeState{
+		gainDec: e.qualityGainDec,
+		synth:   e.qualitySynth,
+		pf:      e.qualityPostfilter,
+		pastExc: e.qualityPastExc,
+		prevGp:  e.qualityPrevGpQ14,
+		hpX:     e.qualityHPX,
+		hpY:     e.qualityHPY,
+	}
+	gaBits, gbBits := gainquant.PackGains(gaPhys, gbPhys)
+	bestState, bestOut := simulateEncoderQualityDecodeOutput(initialState, aHat, int(intLag), int(tFrac), cPacked, sPacked, gaBits, gbBits)
+	bestScore := scoreEncoderQualityOutput(bestOut[:], ref[:], qualityGainClipRepairThreshold)
+
+	bestGA, bestGB := gaPhys, gbPhys
+	bestGp := gpQ14
+	bestGamma := gammaCQ13
+	bestTaming := taming
+	bestGcMant := gcMantQ14
+	bestGcExp := gcExp
+
+	searchThreshold := qualityGainClipRepairThreshold
+	searchAll := bestScore.nearClip > 0
+	mseRepair := false
+	if !searchAll && e.qualityGainMSERepairEnabled() {
+		searchThreshold = e.qualityGainMSERepairThreshold()
+		bestScore = scoreEncoderQualityOutput(bestOut[:], ref[:], searchThreshold)
+		searchAll = true
+		mseRepair = true
+	}
+
+	if searchAll {
+		useWideCandidate := e.qualityWideGainPredictorEnabled() || e.qualityNativeGainSearchEnabled()
+		for ga := uint8(0); ga < 8; ga++ {
+			for gb := uint8(0); gb < 16; gb++ {
+				candGpRaw, candGamma := encoderGainCandidate(ga, gb)
+				candGp := gainquant.Tame(candGpRaw, &e.oldExc)
+				_, candGcMant, candGcExp := gainquant.Reconstruct(&e.pastQuaEn, encoderC, ga, gb)
+				if useWideCandidate {
+					_, candGcMant, candGcExp = gainquant.ReconstructWide(&e.pastQuaEn, encoderC, ga, gb)
+				}
+				candGABits, candGBBits := gainquant.PackGains(ga, gb)
+				candState, candOut := simulateEncoderQualityDecodeOutput(initialState, aHat, int(intLag), int(tFrac), cPacked, sPacked, candGABits, candGBBits)
+				candScore := scoreEncoderQualityOutput(candOut[:], ref[:], searchThreshold)
+				better := encoderQualityOutputScoreLess(candScore, bestScore)
+				if mseRepair {
+					highBetterNum, highBetterDen := e.qualityGainNoiseRepairHighMSEBetterTolerance()
+					mseBetterNum, mseBetterDen := e.qualityGainNoiseRepairMSEBetterTolerance()
+					better = candScore.hardClip == 0 &&
+						candScore.nearClip == 0 &&
+						(bestScore.hardClip != 0 || bestScore.nearClip != 0 ||
+							encoderQualityMSERepairScoreLess(candScore, bestScore, e.qualityGainNoiseRepairEnabled(),
+								highBetterNum, highBetterDen, mseBetterNum, mseBetterDen))
+				}
+				if better {
+					bestScore = candScore
+					bestState = candState
+					bestOut = candOut
+					bestGA, bestGB = ga, gb
+					bestGp = candGp
+					bestGamma = candGamma
+					bestTaming = candGp != candGpRaw
+					bestGcMant = candGcMant
+					bestGcExp = candGcExp
+				}
+			}
+		}
+	}
+
+	e.qualityLastOutput = scoreEncoderQualityOutput(bestOut[:], ref[:], qualityGainClipRepairThreshold)
+	e.qualityGainDec = bestState.gainDec
+	e.qualitySynth = bestState.synth
+	e.qualityPostfilter = bestState.pf
+	e.qualityPastExc = bestState.pastExc
+	e.qualityPrevGpQ14 = bestState.prevGp
+	e.qualityHPX = bestState.hpX
+	e.qualityHPY = bestState.hpY
+	return bestGA, bestGB, bestGp, bestGamma, bestTaming, bestGcMant, bestGcExp
+}
+
+func encoderGainCandidate(ga, gb uint8) (gpQ14 int16, gammaCQ13 int16) {
+	gp := int32(tables.GainGBK1[ga][0]) + int32(tables.GainGBK2[gb][0])
+	gamma := int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1])
+	return int16(gp), fixed.Saturate(fixed.Word32(gamma))
+}
+
+func simulateEncoderQualityDecodeOutput(
+	state encoderQualityDecodeState,
+	aHat *[lpc.LPCOrder + 1]int16,
+	intLag int,
+	tFrac int,
+	cPacked uint16,
+	sPacked uint8,
+	gaBits uint8,
+	gbBits uint8,
+) (encoderQualityDecodeState, [closedloop.SubframeLen]int16) {
+	var v [closedloop.SubframeLen]int16
+	pitchcore.AdaptiveCodebook(intLag, tFrac, state.pastExc[:], &v)
+
+	var c [closedloop.SubframeLen]int16
+	betaQ14 := fcb.ClampPitchGainForEnhancement(state.prevGp)
+	fcb.Decode(fcb.Indices{Positions: cPacked, Signs: sPacked}, intLag, betaQ14, &c)
+
+	gainTaps := state.gainDec.DecodeWithFullTaps(gain.Indices{GA: gaBits, GB: gbBits}, &c)
+
+	var u [closedloop.SubframeLen]int16
+	synth.BuildExcitation(gainTaps.GpQ14Final, gainTaps.GcMantQ14, gainTaps.GcExp, &v, &c, &u)
+
+	var s [closedloop.SubframeLen]int16
+	state.synth.Filter(aHat, &u, &s)
+
+	var sPf [closedloop.SubframeLen]int16
+	state.pf.Filter(aHat, intLag, &s, &sPf)
+
+	var hp [closedloop.SubframeLen]int16
+	encoderQualityHPFilter(&state.hpX, &state.hpY, &sPf, hp[:])
+
+	out := hp
+	pcm.ScaleUpSat(out[:], out[:])
+
+	copy(state.pastExc[:len(state.pastExc)-closedloop.SubframeLen], state.pastExc[closedloop.SubframeLen:])
+	copy(state.pastExc[len(state.pastExc)-closedloop.SubframeLen:], u[:])
+	state.prevGp = gainTaps.GpQ14Final
+	return state, out
+}
+
+func scoreEncoderQualityOutput(out []int16, ref []int16, threshold int) encoderQualityOutputScore {
+	var score encoderQualityOutputScore
+	var sum int64
+	var highSum int64
+	limit := len(out)
+	if len(ref) < limit {
+		limit = len(ref)
+	}
+	var prevErr int64
+	for i := 0; i < limit; i++ {
+		v := int(out[i])
+		if v < 0 {
+			v = -v
+		}
+		if v > score.peak {
+			score.peak = v
+		}
+		if v >= threshold {
+			score.nearClip++
+		}
+		if v >= 32767 {
+			score.hardClip++
+		}
+		diff := int64(int(out[i]) - int(ref[i]))
+		sum += diff * diff
+		if i > 0 {
+			high := diff - prevErr
+			highSum += high * high
+		}
+		prevErr = diff
+	}
+	if limit == 0 {
+		score.mse = 1<<63 - 1
+		score.highMSE = 1<<63 - 1
+	} else {
+		score.mse = sum / int64(limit)
+		if limit > 1 {
+			score.highMSE = highSum / int64(limit-1)
+		}
+	}
+	return score
+}
+
+func encoderQualityMSERepairScoreLess(
+	candidate, best encoderQualityOutputScore,
+	highAware bool,
+	highMSEBetterMSEToleranceNum, highMSEBetterMSEToleranceDen int64,
+	mseBetterHighMSEToleranceNum, mseBetterHighMSEToleranceDen int64,
+) bool {
+	if !highAware {
+		return candidate.mse < best.mse
+	}
+	if candidate.highMSE < best.highMSE &&
+		candidate.mse*highMSEBetterMSEToleranceDen <= best.mse*highMSEBetterMSEToleranceNum {
+		return true
+	}
+	if candidate.mse < best.mse &&
+		candidate.highMSE*mseBetterHighMSEToleranceDen <= best.highMSE*mseBetterHighMSEToleranceNum {
+		return true
+	}
+	return false
+}
+
+func encoderQualityOutputScoreLess(a encoderQualityOutputScore, b encoderQualityOutputScore) bool {
+	if a.hardClip != b.hardClip {
+		return a.hardClip < b.hardClip
+	}
+	if a.nearClip != b.nearClip {
+		return a.nearClip < b.nearClip
+	}
+	if a.mse == b.mse && a.highMSE != b.highMSE {
+		return a.highMSE < b.highMSE
+	}
+	return a.mse < b.mse
+}
+
+func encoderQualityHPFilter(hpX *[2]int16, hpY *[2]int32, in *[closedloop.SubframeLen]int16, out []int16) {
+	const (
+		hpB0Q13    = 7699
+		hpB1Q13    = -15399
+		hpB2Q13    = 7699
+		hpNegA1Q12 = 7918
+		hpA2Q13    = 7667
+	)
+	x1 := hpX[0]
+	x2 := hpX[1]
+	y1 := hpY[0]
+	y2 := hpY[1]
+	for n := 0; n < closedloop.SubframeLen; n++ {
+		xn := in[n]
+		ff := int32(hpB0Q13)*int32(xn) +
+			int32(hpB1Q13)*int32(x1) +
+			int32(hpB2Q13)*int32(x2)
+		fb := int64(hpNegA1Q12) * int64(y1)
+		fb >>= 12
+		fb -= (int64(hpA2Q13) * int64(y2)) >> 13
+		acc := int64(ff) + fb
+		yn := qualityRoundShift64(acc, 13)
+		out[n] = fixed.Saturate(fixed.Word32(yn))
+		x2 = x1
+		x1 = xn
+		y2 = y1
+		y1 = int32(acc)
+	}
+	hpX[0] = x1
+	hpX[1] = x2
+	hpY[0] = y1
+	hpY[1] = y2
+}
+
+func qualityRoundShift64(v int64, shift uint) int64 {
+	if shift == 0 {
+		return v
+	}
+	add := int64(1 << (shift - 1))
+	if v >= 0 {
+		return (v + add) >> shift
+	}
+	return -(((-v) + add) >> shift)
 }
 
 // mantExpToQ12 converts the native (mantissa Q14, exponent int8) g_c
@@ -879,26 +1954,17 @@ func scaleInt32ForGainSearch(v int32, factor int32) int32 {
 	return scaleInt32RatioForGainSearch(v, factor, 1)
 }
 
-func scaleGainSearchTargetHalf(v *[closedloop.SubframeLen]int16) {
-	for i := range v {
-		x := int32(v[i])
-		if x >= 0 {
-			x++
-		} else {
-			x--
-		}
-		v[i] = fixed.Saturate(x / 2)
+func scaleGainSearchVector(v *[closedloop.SubframeLen]int16, num, den int32) {
+	if den == 0 {
+		return
 	}
-}
-
-func scaleGainSearchAdaptiveSevenHalves(v *[closedloop.SubframeLen]int16) {
 	for i := range v {
-		x := int32(v[i]) * 7
+		x := int64(v[i]) * int64(num)
 		if x >= 0 {
-			x += 1
+			x += int64(den) / 2
 		} else {
-			x -= 1
+			x -= int64(den) / 2
 		}
-		v[i] = fixed.Saturate(x / 2)
+		v[i] = fixed.Saturate(int32(x / int64(den)))
 	}
 }

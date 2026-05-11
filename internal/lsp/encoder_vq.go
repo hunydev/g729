@@ -5,6 +5,11 @@ import (
 	"github.com/hunydev/g729/internal/tables"
 )
 
+// QuantizeTopKMax is the largest first-stage candidate set accepted by
+// QuantizeTopK. The bound keeps the expanded VQ diagnostic stack-only and
+// predictable.
+const QuantizeTopKMax = 16
+
 // searchL1 returns the index L1 ∈ [0,128) of the row of
 // LSPCodebookL1 that minimizes the unweighted Σ_{i=0..9} (target_i −
 // row_i)² and the corresponding sum-of-squares cost in Word32.
@@ -192,6 +197,143 @@ func Quantize(omega *[10]int16, freqPrev *[4][10]int16) Indices {
 	commitPredictorMemory(freqPrev, &bestResidual)
 
 	return Indices{L0: bestSel, L1: bestL1, L2: bestL2, L3: bestL3}
+}
+
+// QuantizeTopK is an expanded clean-room LSP VQ search. For each selector it
+// keeps the top-K first-stage L1 rows by the same unweighted L1 distortion as
+// Quantize, then searches every L2/L3 pair under the final weighted
+// reconstruction cost.
+//
+// It intentionally shares the same target, predictor, rearrangement,
+// stability, and predictor-memory commit pipeline as Quantize. The only
+// difference is search breadth. The public encoder uses topK=1 as a small
+// quality/complexity tradeoff while diagnostics can raise topK to measure the
+// remaining L1-search ceiling. No external implementation behavior is encoded
+// here.
+func QuantizeTopK(omega *[10]int16, freqPrev *[4][10]int16, topK int) Indices {
+	if topK < 1 {
+		topK = 1
+	}
+	if topK > QuantizeTopKMax {
+		topK = QuantizeTopKMax
+	}
+
+	var weights [10]int16
+	weightsLSF(omega, &weights)
+
+	var (
+		bestSel                uint8
+		bestL1, bestL2, bestL3 uint8
+		bestResidual           [10]int16
+		bestCost               int64 = -1
+
+		target [10]int16
+		topL1  [QuantizeTopKMax]uint8
+	)
+
+	for sel := uint8(0); sel < 2; sel++ {
+		computeTargetLSF(sel, freqPrev, omega, &target)
+		nL1 := searchL1TopK(&target, topK, &topL1)
+		for li := 0; li < nL1; li++ {
+			l1 := topL1[li]
+			for l2 := 0; l2 < len(tables.LSPCodebookL2); l2++ {
+				for l3 := 0; l3 < len(tables.LSPCodebookL3); l3++ {
+					cost, residual := finalQuantizedLSFCost(sel, l1, uint8(l2), uint8(l3), freqPrev, omega, &weights)
+					if bestCost < 0 || cost < bestCost {
+						bestCost = cost
+						bestSel = sel
+						bestL1 = l1
+						bestL2 = uint8(l2)
+						bestL3 = uint8(l3)
+						bestResidual = residual
+					}
+				}
+			}
+		}
+	}
+
+	commitPredictorMemory(freqPrev, &bestResidual)
+
+	return Indices{L0: bestSel, L1: bestL1, L2: bestL2, L3: bestL3}
+}
+
+func searchL1TopK(target *[10]int16, topK int, rows *[QuantizeTopKMax]uint8) int {
+	if topK > QuantizeTopKMax {
+		topK = QuantizeTopKMax
+	}
+	var costs [QuantizeTopKMax]int32
+	n := 0
+	for row := 0; row < len(tables.LSPCodebookL1); row++ {
+		var sum int32
+		for i := 0; i < 10; i++ {
+			diff := int32(target[i]) - int32(tables.LSPCodebookL1[row][i])
+			sum += diff * diff
+		}
+		pos := n
+		for pos > 0 && sum < costs[pos-1] {
+			pos--
+		}
+		if pos >= topK {
+			continue
+		}
+		if n < topK {
+			n++
+		}
+		for i := n - 1; i > pos; i-- {
+			costs[i] = costs[i-1]
+			rows[i] = rows[i-1]
+		}
+		costs[pos] = sum
+		rows[pos] = uint8(row)
+	}
+	return n
+}
+
+func finalQuantizedLSFCost(
+	selector uint8,
+	l1, l2, l3 uint8,
+	mem *[4][10]int16,
+	omega, weights *[10]int16,
+) (int64, [10]int16) {
+	var residual, omegaHat [10]int16
+	for i := 0; i < 5; i++ {
+		residual[i] = fixed.Add(tables.LSPCodebookL1[l1][i], tables.LSPCodebookL2[l2][i])
+		residual[5+i] = fixed.Add(tables.LSPCodebookL1[l1][5+i], tables.LSPCodebookL3[l3][i])
+	}
+	rearrangeAdjacent(&residual, lsfRearrJ1)
+	rearrangeAdjacent(&residual, lsfRearrJ2)
+	applyPredictorWithMemory(selector, mem, &residual, &omegaHat)
+	enforceLSFStability(&omegaHat)
+
+	var cost int64
+	for i := 0; i < 10; i++ {
+		d := int64(omega[i]) - int64(omegaHat[i])
+		cost += int64(weights[i]) * d * d
+	}
+	return cost, residual
+}
+
+// TupleCostForDiagnostic evaluates one transmitted LSP tuple against omega
+// using the same final weighted reconstruction cost as Quantize. It is
+// intended for black-box oracle diagnostics; it does not mutate freqPrev.
+func TupleCostForDiagnostic(omega *[10]int16, freqPrev *[4][10]int16, idx Indices) int64 {
+	var weights [10]int16
+	weightsLSF(omega, &weights)
+	cost, _ := finalQuantizedLSFCost(idx.L0, idx.L1, idx.L2, idx.L3, freqPrev, omega, &weights)
+	return cost
+}
+
+// CommitIndicesForDiagnostic advances freqPrev with the residual represented
+// by idx. It mirrors the Quantize commit step for diagnostic memory tracking.
+func CommitIndicesForDiagnostic(freqPrev *[4][10]int16, idx Indices) {
+	var residual [10]int16
+	for i := 0; i < 5; i++ {
+		residual[i] = fixed.Add(tables.LSPCodebookL1[idx.L1][i], tables.LSPCodebookL2[idx.L2][i])
+		residual[5+i] = fixed.Add(tables.LSPCodebookL1[idx.L1][5+i], tables.LSPCodebookL3[idx.L3][i])
+	}
+	rearrangeAdjacent(&residual, lsfRearrJ1)
+	rearrangeAdjacent(&residual, lsfRearrJ2)
+	commitPredictorMemory(freqPrev, &residual)
 }
 
 // searchL3 returns the index L3 ∈ [0, 32) of the row of

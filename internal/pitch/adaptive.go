@@ -33,8 +33,11 @@ const Linter = 10
 //	sufficient condition for the fractional case is
 //	tInt ≥ 40 + Linter).
 //
-// When tInt < 40, the function extends the adaptive codebook by
-// periodicity (Task 8): v[n] = v[n − tInt] for n ≥ tInt.
+// When tInt < 40 and tFrac == 0, the function extends the adaptive
+// codebook by periodicity: v[n] = v[n − tInt] for n ≥ tInt. For
+// fractional short delays, equation (40)'s current-subframe references
+// u(0..n-1) are evaluated from the adaptive vector samples already
+// generated in this call; future current-subframe references remain zero.
 //
 // Allocates nothing.
 func AdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[40]int16) {
@@ -51,19 +54,16 @@ func AdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[40]int16) {
 		return
 	}
 
-	// Short pitch (tInt < 40): fill v[0..tInt-1] from past excitation
-	// (interpolated if fractional), then replicate forward by period
-	// tInt: v[n] = v[n - tInt] for n in [tInt, 40).
 	if tFrac == 0 {
 		base := len(pastExc) - tInt
 		for n := 0; n < tInt; n++ {
 			v[n] = pastExc[base+n]
 		}
+		for n := tInt; n < 40; n++ {
+			v[n] = v[n-tInt]
+		}
 	} else {
-		firInterpolate(tInt, tFrac, pastExc, v, 0, tInt)
-	}
-	for n := tInt; n < 40; n++ {
-		v[n] = v[n-tInt]
+		firInterpolateRecursiveCurrent(tInt, tFrac, pastExc, v)
 	}
 }
 
@@ -104,4 +104,44 @@ func firInterpolate(tInt, tFrac int, pastExc []int16, v *[40]int16, start, end i
 		}
 		v[n] = fixed.Round(acc)
 	}
+}
+
+// firInterpolateRecursiveCurrent handles the short-pitch fractional case.
+// Eq. (40) can reference u(n-k+1+i) inside the current subframe; those
+// samples are available only when they have already been generated.
+func firInterpolateRecursiveCurrent(tInt, tFrac int, pastExc []int16, v *[40]int16) {
+	var k, posPhase, negPhase int
+	if tFrac < 0 {
+		k = tInt
+		posPhase, negPhase = 1, 2
+	} else {
+		k = tInt + 1
+		posPhase, negPhase = 2, 1
+	}
+
+	fir := tables.PitchInterpFIR
+	for n := 0; n < 40; n++ {
+		var acc fixed.Word32
+		for i := 0; i < Linter; i++ {
+			back := adaptiveSource(n-k-i, pastExc, v)
+			fwd := adaptiveSource(n-k+1+i, pastExc, v)
+			acc = fixed.LMac(acc, fir[posPhase+3*i], back)
+			acc = fixed.LMac(acc, fir[negPhase+3*i], fwd)
+		}
+		v[n] = fixed.Round(acc)
+	}
+}
+
+func adaptiveSource(relative int, pastExc []int16, v *[40]int16) int16 {
+	if relative < 0 {
+		idx := len(pastExc) + relative
+		if idx >= 0 && idx < len(pastExc) {
+			return pastExc[idx]
+		}
+		return 0
+	}
+	if relative < 40 {
+		return v[relative]
+	}
+	return 0
 }

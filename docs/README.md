@@ -77,7 +77,9 @@ through the WASM decoder.
 Rebuild the WASM asset with:
 
 ```sh
-cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" docs/assets/wasm/wasm_exec.js
+wasm_exec="$(go env GOROOT)/lib/wasm/wasm_exec.js"
+[ -f "$wasm_exec" ] || wasm_exec="$(go env GOROOT)/misc/wasm/wasm_exec.js"
+cp "$wasm_exec" docs/assets/wasm/wasm_exec.js
 GOOS=js GOARCH=wasm go build -o docs/assets/wasm/g729.wasm ./cmd/g729wasm
 ```
 

@@ -35,6 +35,30 @@ func TestSearchInteger_ZeroExcitationGivesZeroRN(t *testing.T) {
 	}
 }
 
+// TestSearchInteger_AllNegativeCorrelationsStillMaximizesRN pins the
+// literal Annex A criterion: RN(k) is maximized even when every candidate
+// correlation is negative. Initializing RNbest to zero would incorrectly
+// keep the lower window bound instead of choosing the least-negative RN.
+func TestSearchInteger_AllNegativeCorrelationsStillMaximizesRN(t *testing.T) {
+	var xb [SubframeLen]int16
+	xb[0] = 100
+
+	exc := make([]int16, testExcLen)
+	for k := 57; k <= 63; k++ {
+		// Window center 60 -> [57,63]. Values become less negative as
+		// k increases, so the maximum RN is at k=63.
+		exc[testExcLen-SubframeLen-k] = int16(k - 67)
+	}
+
+	intLag, RNbest := SearchInteger(&xb, exc, 60, 0)
+	if intLag != 63 {
+		t.Fatalf("intLag = %d, want 63 (least-negative RN)", intLag)
+	}
+	if RNbest != -800 {
+		t.Fatalf("RNbest = %d, want -800 (= 2*100*-4)", RNbest)
+	}
+}
+
 // TestSearchInteger_ImpulseExcitationLocksLag plants a unit impulse
 // in the past-excitation buffer at offset −k₀ (i.e. u(n) = δ(n+k₀))
 // and a strictly decreasing xb. Eq. A.7 then reduces to

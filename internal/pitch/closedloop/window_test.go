@@ -2,6 +2,40 @@ package closedloop
 
 import "testing"
 
+func TestSubframe1Window_TypicalCenter(t *testing.T) {
+	tmin, tmax := Subframe1Window(60)
+	if tmin != 57 || tmax != 63 {
+		t.Fatalf("Subframe1Window(60) = (%d,%d), want (57,63)", tmin, tmax)
+	}
+}
+
+func TestSubframe1Window_LowerClampKeepsSevenLags(t *testing.T) {
+	tmin, tmax := Subframe1Window(20)
+	if tmin != 20 || tmax != 26 {
+		t.Fatalf("Subframe1Window(20) = (%d,%d), want (20,26)", tmin, tmax)
+	}
+}
+
+func TestSubframe1Window_UpperClampKeepsSevenLags(t *testing.T) {
+	tmin, tmax := Subframe1Window(143)
+	if tmin != 137 || tmax != 143 {
+		t.Fatalf("Subframe1Window(143) = (%d,%d), want (137,143)", tmin, tmax)
+	}
+}
+
+func TestSubframe1Window_WindowAlwaysSevenLags(t *testing.T) {
+	for top := int16(PitchMinInt); top <= int16(PitchMaxInt); top++ {
+		tmin, tmax := Subframe1Window(top)
+		if tmin < PitchMinInt || tmax > PitchMaxInt {
+			t.Fatalf("Subframe1Window(%d) = (%d,%d) out of [%d,%d]",
+				top, tmin, tmax, PitchMinInt, PitchMaxInt)
+		}
+		if tmax-tmin != 6 {
+			t.Fatalf("Subframe1Window(%d) width = %d, want 6", top, tmax-tmin)
+		}
+	}
+}
+
 // TestSubframe2Window_TypicalCenter pins the §4.1.3 sliding-window
 // rule for a mid-range int(T1): tmin = max(20, T1−5), tmax = tmin+9
 // (G729E.txt lines 1512–1523):
@@ -102,6 +136,23 @@ func TestSearchInteger_Sub0UsesCenterPlusMinus3(t *testing.T) {
 	intLag, _ := SearchInteger(&xb, exc, centre, 0)
 	if intLag != k0 {
 		t.Fatalf("sub=0 SearchInteger intLag = %d, want %d", intLag, k0)
+	}
+}
+
+func TestSearchInteger_Sub0LowerClampSlidesUpperEdge(t *testing.T) {
+	const centre = 20
+	const k0 = 26
+	var xb [SubframeLen]int16
+	xb[0] = 400
+	exc := make([]int16, testExcLen)
+	exc[testExcLen-SubframeLen-k0] = 1
+
+	intLag, RNbest := SearchInteger(&xb, exc, centre, 0)
+	if intLag != k0 {
+		t.Fatalf("sub=0 lower-clamp intLag = %d, want %d", intLag, k0)
+	}
+	if RNbest == 0 {
+		t.Fatalf("sub=0 lower-clamp RNbest = 0, want non-zero")
 	}
 }
 
