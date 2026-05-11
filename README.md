@@ -173,6 +173,8 @@ is not reduced.
 `EncoderProfileQualityCleanHarmonic` keeps the clean pitch policy while
 allowing voiced gain repair to trade bounded score loss for higher adaptive
 gain with lower fixed-codebook correction.
+`EncoderProfileQualityCleanHarmonicStrong` pushes that same gain-balance
+tradeoff harder for grit-vs-muffling A/B tests.
 `EncoderProfileQualityCleanFCBRerank` keeps the clean pitch policy while
 reranking a small fixed-codebook candidate set with decoder-in-loop residual
 scoring for grit/noise listening diagnostics.

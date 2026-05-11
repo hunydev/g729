@@ -56,7 +56,8 @@
 // stricter, high-residual-aware gain MSE repair.
 // EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth,
 // EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit,
-// EncoderProfileQualityCleanHarmonic, and
+// EncoderProfileQualityCleanHarmonic,
+// EncoderProfileQualityCleanHarmonicStrong, and
 // EncoderProfileQualityCleanFCBRerank are listening-diagnostic variants of
 // that clean pitch policy for clarity-vs-smoothness A/B tests.
 //

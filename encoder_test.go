@@ -182,6 +182,28 @@ func TestEncoderProfiles(t *testing.T) {
 			cleanHarmonicEnc.qualityGainMSERepairThreshold())
 	}
 
+	cleanHarmonicStrongEnc := NewEncoderWithProfile(EncoderProfileQualityCleanHarmonicStrong)
+	if cleanHarmonicStrongEnc.profile != EncoderProfileQualityCleanHarmonicStrong ||
+		cleanHarmonicStrongEnc.qualityNormalizedAdaptivePitchSearchEnabled() ||
+		!cleanHarmonicStrongEnc.qualityGainHarmonicPreferenceEnabled() ||
+		cleanHarmonicStrongEnc.qualityGainMSERepairThreshold() != qualityCleanGainMSERepairThreshold {
+		t.Fatalf("NewEncoderWithProfile(QualityCleanHarmonicStrong) profile=%v normPitch=%t harmonicPref=%t mseThreshold=%d, want strong harmonic clean tuning",
+			cleanHarmonicStrongEnc.profile,
+			cleanHarmonicStrongEnc.qualityNormalizedAdaptivePitchSearchEnabled(),
+			cleanHarmonicStrongEnc.qualityGainHarmonicPreferenceEnabled(),
+			cleanHarmonicStrongEnc.qualityGainMSERepairThreshold())
+	}
+	_, minStep, gammaDrop, mseNum, mseDen, highNum, highDen := cleanHarmonicStrongEnc.qualityGainHarmonicPreferenceParams()
+	if minStep != qualityCleanHarmonicStrongGainPitchMinStepQ14 ||
+		gammaDrop != qualityCleanHarmonicStrongGammaDropMinQ13 ||
+		mseNum != qualityCleanHarmonicStrongMSEToleranceNum ||
+		mseDen != qualityCleanHarmonicStrongMSEToleranceDen ||
+		highNum != qualityCleanHarmonicStrongHighMSEToleranceNum ||
+		highDen != qualityCleanHarmonicStrongHighMSEToleranceDen {
+		t.Fatalf("QualityCleanHarmonicStrong params minStep=%d gammaDrop=%d mse=%d/%d high=%d/%d, want strong harmonic params",
+			minStep, gammaDrop, mseNum, mseDen, highNum, highDen)
+	}
+
 	cleanFCBEnc := NewEncoderWithProfile(EncoderProfileQualityCleanFCBRerank)
 	if cleanFCBEnc.profile != EncoderProfileQualityCleanFCBRerank ||
 		cleanFCBEnc.qualityNormalizedAdaptivePitchSearchEnabled() ||
