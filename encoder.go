@@ -234,6 +234,13 @@ const (
 	// threshold and stronger high-residual preference. It deliberately trades
 	// some waveform SNR for more headroom and a smoother bitstream candidate.
 	EncoderProfileQualityCleanSmooth
+
+	// EncoderProfileQualityCleanVoiced is a listening-diagnostic variant that
+	// keeps the clean pitch policy and allows gain repair to prefer a slightly
+	// stronger adaptive-codebook gain when MSE and high-residual scores remain
+	// close. This tests whether reducing fixed-codebook roughness is more
+	// audible than the small objective-score tradeoff.
+	EncoderProfileQualityCleanVoiced
 )
 
 type encoderQualityTuning uint16
@@ -282,7 +289,7 @@ func NewEncoderWithProfile(profile EncoderProfile) *Encoder {
 
 func normalizeEncoderProfile(profile EncoderProfile) EncoderProfile {
 	switch profile {
-	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth:
+	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced:
 		return profile
 	default:
 		return EncoderProfileQuality
@@ -295,7 +302,7 @@ func encoderQualityTuningForProfile(profile EncoderProfile) encoderQualityTuning
 		return encoderQualityTuningAll
 	case EncoderProfileQualityAnnexALSP:
 		return encoderQualityTuningAll &^ encoderTuningExpandedLSPSearch
-	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth:
+	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced:
 		return encoderQualityTuningAll &^ encoderTuningNormalizedAdaptivePitchSearch
 	default:
 		return 0
@@ -375,7 +382,7 @@ func (e *Encoder) qualityGainMSERepairEnabled() bool {
 
 func (e *Encoder) qualityGainMSERepairThreshold() int {
 	switch e.profile {
-	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR:
+	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanVoiced:
 		return qualityCleanGainMSERepairThreshold
 	case EncoderProfileQualityCleanSmooth:
 		return qualityCleanSmoothGainMSERepairThreshold
@@ -395,6 +402,10 @@ func (e *Encoder) qualityGainNoiseRepairHighMSEBetterTolerance() (num, den int64
 
 func (e *Encoder) qualityGainNoiseRepairMSEBetterTolerance() (num, den int64) {
 	return qualityGainNoiseRepairMSEBetterHighMSEToleranceNum, qualityGainNoiseRepairMSEBetterHighMSEToleranceDen
+}
+
+func (e *Encoder) qualityGainPitchPreferenceEnabled() bool {
+	return e.profile == EncoderProfileQualityCleanVoiced
 }
 
 func (e *Encoder) qualityGainNoiseRepairEnabled() bool {
@@ -515,6 +526,11 @@ const (
 	qualityCleanGainNoiseRepairHighMSEBetterMSEToleranceDen       int64 = 100
 	qualityCleanSmoothGainNoiseRepairHighMSEBetterMSEToleranceNum int64 = 120
 	qualityCleanSmoothGainNoiseRepairHighMSEBetterMSEToleranceDen int64 = 100
+	qualityCleanVoicedGainPitchMSEToleranceNum                    int64 = 108
+	qualityCleanVoicedGainPitchMSEToleranceDen                    int64 = 100
+	qualityCleanVoicedGainPitchHighMSEToleranceNum                int64 = 108
+	qualityCleanVoicedGainPitchHighMSEToleranceDen                int64 = 100
+	qualityCleanVoicedGainPitchMinStepQ14                         int16 = 256
 )
 
 var (
@@ -1703,6 +1719,14 @@ func (e *Encoder) qualityRepairGainClip(
 						(bestScore.hardClip != 0 || bestScore.nearClip != 0 ||
 							encoderQualityMSERepairScoreLess(candScore, bestScore, e.qualityGainNoiseRepairEnabled(),
 								highBetterNum, highBetterDen, mseBetterNum, mseBetterDen))
+					if !better && e.qualityGainPitchPreferenceEnabled() &&
+						candScore.hardClip == 0 && candScore.nearClip == 0 &&
+						bestScore.hardClip == 0 && bestScore.nearClip == 0 &&
+						int32(candGp) >= int32(bestGp)+int32(qualityCleanVoicedGainPitchMinStepQ14) &&
+						candScore.mse*qualityCleanVoicedGainPitchMSEToleranceDen <= bestScore.mse*qualityCleanVoicedGainPitchMSEToleranceNum &&
+						candScore.highMSE*qualityCleanVoicedGainPitchHighMSEToleranceDen <= bestScore.highMSE*qualityCleanVoicedGainPitchHighMSEToleranceNum {
+						better = true
+					}
 				}
 				if better {
 					bestScore = candScore

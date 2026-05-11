@@ -140,6 +140,7 @@ func TestExternalSampleProfileCompareDiagnostic(t *testing.T) {
 		{name: "clean", profile: EncoderProfileQualityClean},
 		{name: "clean-snr", profile: EncoderProfileQualityCleanSNR},
 		{name: "clean-smooth", profile: EncoderProfileQualityCleanSmooth},
+		{name: "clean-voiced", profile: EncoderProfileQualityCleanVoiced},
 	}
 
 	tmp := t.TempDir()
@@ -919,6 +920,7 @@ func TestExternalSampleProfileBitstreamSummaryDiagnostic(t *testing.T) {
 		{name: "clean", profile: EncoderProfileQualityClean},
 		{name: "clean-snr", profile: EncoderProfileQualityCleanSNR},
 		{name: "clean-smooth", profile: EncoderProfileQualityCleanSmooth},
+		{name: "clean-voiced", profile: EncoderProfileQualityCleanVoiced},
 		{name: "core", profile: EncoderProfileCore},
 	}
 

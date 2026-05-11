@@ -146,6 +146,18 @@ func TestEncoderProfiles(t *testing.T) {
 			qualityCleanSmoothGainNoiseRepairHighMSEBetterMSEToleranceDen)
 	}
 
+	cleanVoicedEnc := NewEncoderWithProfile(EncoderProfileQualityCleanVoiced)
+	if cleanVoicedEnc.profile != EncoderProfileQualityCleanVoiced ||
+		cleanVoicedEnc.qualityNormalizedAdaptivePitchSearchEnabled() ||
+		!cleanVoicedEnc.qualityGainPitchPreferenceEnabled() ||
+		cleanVoicedEnc.qualityGainMSERepairThreshold() != qualityCleanGainMSERepairThreshold {
+		t.Fatalf("NewEncoderWithProfile(QualityCleanVoiced) profile=%v normPitch=%t pitchPref=%t mseThreshold=%d, want voiced clean tuning",
+			cleanVoicedEnc.profile,
+			cleanVoicedEnc.qualityNormalizedAdaptivePitchSearchEnabled(),
+			cleanVoicedEnc.qualityGainPitchPreferenceEnabled(),
+			cleanVoicedEnc.qualityGainMSERepairThreshold())
+	}
+
 	invalidEnc := NewEncoderWithProfile(EncoderProfile(99))
 	if invalidEnc.profile != EncoderProfileQuality || !invalidEnc.qualityHeuristicsEnabled() {
 		t.Fatalf("invalid profile normalized to %v quality=%t, want EncoderProfileQuality enabled",

@@ -164,6 +164,9 @@ high-SNR gain-repair preference for clarity A/B tests.
 `EncoderProfileQualityCleanSmooth` lowers the clean repair threshold and biases
 more strongly toward high-residual reduction for bitstream-level smoothing
 diagnostics.
+`EncoderProfileQualityCleanVoiced` keeps the clean pitch policy while allowing
+decoder-in-loop gain repair to prefer slightly higher adaptive gain when the
+objective-score tradeoff remains bounded.
 
 For clean-room diagnostics and algorithm work, use
 `NewEncoderWithProfile(EncoderProfileCore)` or
