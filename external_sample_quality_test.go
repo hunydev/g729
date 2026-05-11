@@ -141,6 +141,7 @@ func TestExternalSampleProfileCompareDiagnostic(t *testing.T) {
 		{name: "clean-snr", profile: EncoderProfileQualityCleanSNR},
 		{name: "clean-smooth", profile: EncoderProfileQualityCleanSmooth},
 		{name: "clean-voiced", profile: EncoderProfileQualityCleanVoiced},
+		{name: "clean-degrit", profile: EncoderProfileQualityCleanDegrit},
 	}
 
 	tmp := t.TempDir()
@@ -921,16 +922,17 @@ func TestExternalSampleProfileBitstreamSummaryDiagnostic(t *testing.T) {
 		{name: "clean-snr", profile: EncoderProfileQualityCleanSNR},
 		{name: "clean-smooth", profile: EncoderProfileQualityCleanSmooth},
 		{name: "clean-voiced", profile: EncoderProfileQualityCleanVoiced},
+		{name: "clean-degrit", profile: EncoderProfileQualityCleanDegrit},
 		{name: "core", profile: EncoderProfileCore},
 	}
 
 	t.Logf("external sample profile bitstream summary: %s", path)
-	t.Logf("%-8s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %8s %8s",
-		"Profile", "FrameEq", "LSPEq", "PitchEq", "PIntEq", "CodeEq", "SignEq", "GainEq", "GpEq", "HighP", "LowP", "MultP", "MeanGpD", "MeanTD")
+	t.Logf("%-12s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %8s %8s %8s",
+		"Profile", "FrameEq", "LSPEq", "PitchEq", "PIntEq", "CodeEq", "SignEq", "GainEq", "GpEq", "HighP", "LowP", "MultP", "MeanGpD", "MeanGdD", "MeanTD")
 	for _, p := range profiles {
 		frames := encodeBitstreamFramesWithProfile(t, src, p.profile)
 		stats := externalBitstreamSummaryAgainstBCG(frames, bcgFrames)
-		t.Logf("%-8s %7.2f %7.2f %7.2f %7.2f %7.2f %7.2f %7.2f %7.2f %7.2f %7.2f %7.2f %8.1f %8.1f",
+		t.Logf("%-12s %7.2f %7.2f %7.2f %7.2f %7.2f %7.2f %7.2f %7.2f %7.2f %7.2f %7.2f %8.1f %8.1f %8.1f",
 			p.name,
 			percent(stats.sameFrame, stats.frames),
 			percent(stats.sameLSP, stats.frames),
@@ -944,6 +946,7 @@ func TestExternalSampleProfileBitstreamSummaryDiagnostic(t *testing.T) {
 			percent(stats.lowerPitch, stats.subframes),
 			percent(stats.multiplePitch, stats.subframes),
 			stats.meanGpDelta(),
+			stats.meanGammaDelta(),
 			stats.meanPitchDelta())
 	}
 }
@@ -966,6 +969,7 @@ type externalBitstreamSummaryStats struct {
 	multiplePitch int
 
 	gpDeltaSum    int64
+	gammaDeltaSum int64
 	pitchDeltaSum int64
 }
 
@@ -974,6 +978,13 @@ func (s externalBitstreamSummaryStats) meanGpDelta() float64 {
 		return 0
 	}
 	return float64(s.gpDeltaSum) / float64(s.subframes)
+}
+
+func (s externalBitstreamSummaryStats) meanGammaDelta() float64 {
+	if s.subframes == 0 {
+		return 0
+	}
+	return float64(s.gammaDeltaSum) / float64(s.subframes)
 }
 
 func (s externalBitstreamSummaryStats) meanPitchDelta() float64 {
@@ -1023,7 +1034,10 @@ func externalBitstreamSummaryAgainstBCG(frames, bcgFrames []bitstream.Frame) ext
 			if gp == bgp {
 				stats.sameGp++
 			}
+			gamma := externalGainGammaQ13(uint8(ga), uint8(gb))
+			bgamma := externalGainGammaQ13(uint8(bga), uint8(bgb))
 			stats.gpDeltaSum += int64(gp) - int64(bgp)
+			stats.gammaDeltaSum += int64(gamma) - int64(bgamma)
 			stats.pitchDeltaSum += int64(t - bt)
 			if t > bt {
 				stats.higherPitch++
@@ -11973,6 +11987,12 @@ func externalGainGpQ14(gaBits, gbBits uint8) int16 {
 	ga := tables.GainImap1[gaBits&7]
 	gb := tables.GainImap2[gbBits&15]
 	return saturateInt32ToInt16(int32(tables.GainGBK1[ga][0]) + int32(tables.GainGBK2[gb][0]))
+}
+
+func externalGainGammaQ13(gaBits, gbBits uint8) int16 {
+	ga := tables.GainImap1[gaBits&7]
+	gb := tables.GainImap2[gbBits&15]
+	return saturateInt32ToInt16(int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1]))
 }
 
 func scaleInt16RatioForDiagnostic(v int16, num, den int32) int16 {

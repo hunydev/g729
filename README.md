@@ -167,6 +167,9 @@ diagnostics.
 `EncoderProfileQualityCleanVoiced` keeps the clean pitch policy while allowing
 decoder-in-loop gain repair to prefer slightly higher adaptive gain when the
 objective-score tradeoff remains bounded.
+`EncoderProfileQualityCleanDegrit` keeps the clean pitch policy while allowing
+gain repair to prefer lower fixed-codebook gain correction when adaptive gain
+is not reduced.
 
 For clean-room diagnostics and algorithm work, use
 `NewEncoderWithProfile(EncoderProfileCore)` or

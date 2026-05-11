@@ -158,6 +158,18 @@ func TestEncoderProfiles(t *testing.T) {
 			cleanVoicedEnc.qualityGainMSERepairThreshold())
 	}
 
+	cleanDegritEnc := NewEncoderWithProfile(EncoderProfileQualityCleanDegrit)
+	if cleanDegritEnc.profile != EncoderProfileQualityCleanDegrit ||
+		cleanDegritEnc.qualityNormalizedAdaptivePitchSearchEnabled() ||
+		!cleanDegritEnc.qualityGainDegritPreferenceEnabled() ||
+		cleanDegritEnc.qualityGainMSERepairThreshold() != qualityCleanGainMSERepairThreshold {
+		t.Fatalf("NewEncoderWithProfile(QualityCleanDegrit) profile=%v normPitch=%t degritPref=%t mseThreshold=%d, want degrit clean tuning",
+			cleanDegritEnc.profile,
+			cleanDegritEnc.qualityNormalizedAdaptivePitchSearchEnabled(),
+			cleanDegritEnc.qualityGainDegritPreferenceEnabled(),
+			cleanDegritEnc.qualityGainMSERepairThreshold())
+	}
+
 	invalidEnc := NewEncoderWithProfile(EncoderProfile(99))
 	if invalidEnc.profile != EncoderProfileQuality || !invalidEnc.qualityHeuristicsEnabled() {
 		t.Fatalf("invalid profile normalized to %v quality=%t, want EncoderProfileQuality enabled",
