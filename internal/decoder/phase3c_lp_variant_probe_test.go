@@ -3,7 +3,6 @@ package decoder
 import (
 	"bytes"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/hunydev/g729/internal/bitstream"
@@ -17,26 +16,20 @@ import (
 // TestPhase3cLPVariantProbe_SPEECH probes whether the decoder-only quality
 // defect is dominated by the LP envelope feeding the synthesis filter.
 func TestPhase3cLPVariantProbe_SPEECH(t *testing.T) {
-	const bytesPerOutFrame = 2 * frameSamples
-
-	vecDir := filepath.Join("..", "..", "testdata", "itu", "G729_Release3", "g729AnnexA", "test_vectors")
-	bitPath := filepath.Join(vecDir, "SPEECH.BIT")
-	pstPath := filepath.Join(vecDir, "SPEECH.PST")
+	vector := phase3oSelectedVector()
+	bitPath := vectorPath(vector)
+	ensureTestdataPresent(t, bitPath)
 
 	bitData, err := os.ReadFile(bitPath)
 	if err != nil {
-		t.Fatalf("read SPEECH.BIT: %v", err)
-	}
-	pstData, err := os.ReadFile(pstPath)
-	if err != nil {
-		t.Fatalf("read SPEECH.PST: %v", err)
+		t.Fatalf("read %s: %v", vector, err)
 	}
 
-	frames := len(pstData) / bytesPerOutFrame
-	if bf := len(bitData) / bitstream.G192FrameBytes; bf < frames {
-		frames = bf
+	frames := len(bitData) / bitstream.G192FrameBytes
+	ref, ok := phase3oReadVectorPST(t, vector, frames)
+	if !ok {
+		t.Fatalf("missing companion PST for %s", vector)
 	}
-	ref := readPCM16LEForProbe(t, pstData, frames*frameSamples)
 
 	type lpVariant struct {
 		name string
@@ -54,6 +47,16 @@ func TestPhase3cLPVariantProbe_SPEECH(t *testing.T) {
 				a[i] = int16(int32(a[i]) >> 1)
 			}
 		}},
+		{name: "lp_three_quarter", fn: func(a *[11]int16) {
+			for i := 1; i < len(a); i++ {
+				a[i] = sat16((int32(a[i])*3 + 2) >> 2)
+			}
+		}},
+		{name: "lp_quarter", fn: func(a *[11]int16) {
+			for i := 1; i < len(a); i++ {
+				a[i] = int16(int32(a[i]) >> 2)
+			}
+		}},
 		{name: "lp_double_sat", fn: func(a *[11]int16) {
 			for i := 1; i < len(a); i++ {
 				a[i] = sat16(int32(a[i]) << 1)
@@ -66,7 +69,7 @@ func TestPhase3cLPVariantProbe_SPEECH(t *testing.T) {
 		}},
 	}
 
-	t.Logf("Phase 3c LP variant probe — SPEECH.BIT vs SPEECH.PST (%d frames)", frames)
+	t.Logf("Phase 3c LP variant probe — %s (%d frames)", vector, frames)
 	t.Logf("%-24s %10s %10s %10s %10s", "variant", "rms", "GlobalSNR", "SegSNR", "optScale")
 	for _, v := range variants {
 		out := decodeLPVariant(t, bitData, frames, v.fn)

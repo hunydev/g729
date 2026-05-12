@@ -8,6 +8,7 @@ import (
 	"github.com/hunydev/g729/internal/bitstream"
 	"github.com/hunydev/g729/internal/fcb"
 	"github.com/hunydev/g729/internal/gain"
+	"github.com/hunydev/g729/internal/gainquant"
 	"github.com/hunydev/g729/internal/lsp"
 	"github.com/hunydev/g729/internal/pitch"
 	"github.com/hunydev/g729/internal/synth"
@@ -59,6 +60,9 @@ func TestPhase3eUpstreamVariantLocalization_SPEECH(t *testing.T) {
 		{name: "zero_adaptive_contribution", zeroAdaptive: true},
 		{name: "zero_fixed_contribution", zeroFixed: true},
 		{name: "no_fcb_pitch_enhancement", noFCBEnhancement: true},
+		{name: "pitch_gain_tame_energy", pitchTameEnergy: true},
+		{name: "pitch_gain_cap_0p95", pitchCapQ14: 15565},
+		{name: "pitch_gain_cap_0p90", pitchCapQ14: 14746},
 		{name: "pitch_gain_half", pitchScaleNum: 1, pitchScaleDen: 2},
 		{name: "pitch_gain_double", pitchScaleNum: 2, pitchScaleDen: 1},
 		{name: "fixed_gain_half", fixedExpDelta: -1},
@@ -134,6 +138,8 @@ type phase3eVariant struct {
 	zeroAdaptive          bool
 	zeroFixed             bool
 	noFCBEnhancement      bool
+	pitchTameEnergy       bool
+	pitchCapQ14           int16
 	pitchScaleNum         int
 	pitchScaleDen         int
 	fixedExpDelta         int
@@ -240,6 +246,14 @@ func (d *Decoder) decodeSubframePhase3eVariant(
 	if variant.zeroAdaptive {
 		gpQ14 = 0
 	}
+	if variant.pitchTameEnergy &&
+		phase3ePastExcEnergy(d.pastExc[:]) > gainquant.TameEnergyThresholdQ0 &&
+		gpQ14 > gainquant.GpClipQ14 {
+		gpQ14 = gainquant.GpClipQ14
+	}
+	if variant.pitchCapQ14 > 0 && gpQ14 > variant.pitchCapQ14 {
+		gpQ14 = variant.pitchCapQ14
+	}
 	if variant.pitchScaleNum != 0 && variant.pitchScaleDen != 0 {
 		gpQ14 = phase3eScaleWord16(gpQ14, variant.pitchScaleNum, variant.pitchScaleDen)
 	}
@@ -305,6 +319,15 @@ func phase3eScaleWord16(v int16, num, den int) int16 {
 		x = -32768
 	}
 	return int16(x)
+}
+
+func phase3ePastExcEnergy(samples []int16) int64 {
+	var energy int64
+	for _, sample := range samples {
+		s := int64(sample)
+		energy += s * s
+	}
+	return energy
 }
 
 func phase3eClampExp(v int) int8 {

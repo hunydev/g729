@@ -178,6 +178,27 @@ large error is a gain-predictor / excitation-history / synthesis-envelope
 coupling issue, not an FFmpeg oracle mismatch and not a postfilter/HP-only
 defect.
 
+Follow-up localization added three narrower probes:
+
+- `G729_DECODER_LSP_ROUTE_AUDIT=1 G729_DECODER_FFMPEG_ENVELOPE_VECTOR=TAME`
+  found `lsp_l2_l3_swap` improves TAME global SNR from `-3.11` to `4.37 dB`,
+  but the same variant destroys SPEECH (`22.54 -> 1.62 dB`). This is not a
+  production fix; it indicates a TAME-specific LSP/LP-envelope sensitivity.
+- `pitch_gain_cap_0p95` improves TAME under the FFmpeg audit (`-3.20 -> 2.02
+  dB`), but destroys SPEECH (`20.06 -> 6.65 dB`). The energy-gated taming
+  variant is byte-identical to production on both TAME and SPEECH, so the
+  ordinary encoder-side taming energy condition is not the decoder fix.
+- Direct LP coefficient scaling is also TAME-only: `lp_three_quarter` improves
+  TAME (`-3.11 -> 1.49 dB`) but destroys SPEECH (`22.54 -> -7.45 dB`).
+
+The combined interpretation is that TAME's decoder error is a narrow
+gain-history / LSP-to-LP / synthesis-envelope interaction. Simple global
+attenuation, fixed LSP field swapping, and unconditional gain caps are
+disqualified by SPEECH. The next clean-room escalation should request numeric
+oracle rows for TAME frames around `98`, `118`, `119`, and `123` at minimum:
+LSP indices, reconstructed LSF/LSP, LP `a[]`, gain predictor FIFO, decoded
+`gp/gc`, excitation `u[]`, and synth `s[]`.
+
 ## First Trace Result
 
 ALGTHM `first-diff` mode currently points to frame 0 sample 2:

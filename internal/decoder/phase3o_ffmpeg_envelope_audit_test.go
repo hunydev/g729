@@ -481,17 +481,28 @@ func phase3oLogFrameDetail(t *testing.T, vector string, frame int, ref, local []
 		refSub := ref[off : off+subframeLen]
 		localSub := local[off : off+subframeLen]
 		ga, gb := phase3oSubframeGainIndices(f, sf)
-		t.Logf("  sf=%d T=%d/%+d GA/GB=%d/%d gp=%.3f gc=%.3f gammaQ13=%d pred=%.2fdB logGain=%.2fdB refRMS=%.1f localRMS=%.1f uRMS=%.1f sRMS=%.1f spfRMS=%.1f hpRMS=%.1f subSNR=%.2f corr=%.3f clipped=%d",
+		t.Logf("  sf=%d T=%d/%+d GA/GB=%d/%d gp=%.3f gc=%.3f gammaQ13=%d pred=%.2fdB logGain=%.2fdB uCur=%.2fdB pastBefore=%v pastAfter=%v refRMS=%.1f localRMS=%.1f uRMS=%.1f sRMS=%.1f spfRMS=%.1f hpRMS=%.1f subSNR=%.2f corr=%.3f clipped=%d",
 			sf, sub.TInt, sub.TFrac, ga, gb,
 			float64(sub.GpQ14)/16384.0,
 			phase3oLinearGC(sub.GainTaps.GcMantQ14, sub.GainTaps.GcExp),
 			sub.GainTaps.GammaCQ13,
 			float64(sub.GainTaps.Predicted)/1024.0,
 			float64(sub.GainTaps.LogGainDbQ10)/1024.0,
+			float64(sub.GainTaps.UCurrent)/1024.0,
+			phase3oGainErrorsDB(sub.GainTaps.PastErrorsBefore),
+			phase3oGainErrorsDB(sub.GainTaps.PastErrorsAfter),
 			envelopeRMS(refSub), envelopeRMS(localSub),
 			envelopeRMS(sub.U[:]), envelopeRMS(sub.S[:]), envelopeRMS(sub.SPf[:]), envelopeRMS(sub.HpOut[:]),
 			envelopeSNRDB(refSub, localSub), envelopeCorr(refSub, localSub), phase3oClipCount(localSub))
 	}
+}
+
+func phase3oGainErrorsDB(values [4]int16) [4]float64 {
+	var out [4]float64
+	for i, value := range values {
+		out[i] = float64(value) / 1024.0
+	}
+	return out
 }
 
 func phase3oSubframeGainIndices(f bitstream.Frame, sf int) (uint8, uint8) {

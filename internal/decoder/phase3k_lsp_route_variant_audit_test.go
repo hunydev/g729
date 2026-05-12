@@ -15,33 +15,30 @@ import (
 
 // TestPhase3kLSPRouteVariantAudit_SPEECH probes LSP bit-field
 // interpretation and per-subframe LP routing variants with final-output
-// black-box metrics.
+// black-box metrics. By default it runs SPEECH.BIT; set
+// G729_DECODER_FFMPEG_ENVELOPE_VECTOR to focus another vector such as TAME.
 func TestPhase3kLSPRouteVariantAudit_SPEECH(t *testing.T) {
 	if os.Getenv("G729_DECODER_LSP_ROUTE_AUDIT") != "1" {
 		t.Skip("set G729_DECODER_LSP_ROUTE_AUDIT=1 to audit LSP route variants")
 	}
 
-	bitPath := vectorPath("SPEECH.BIT")
-	pstPath := vectorPath("SPEECH.PST")
-	ensureTestdataPresent(t, bitPath, pstPath)
+	vector := phase3oSelectedVector()
+	bitPath := vectorPath(vector)
+	ensureTestdataPresent(t, bitPath)
 
 	bitData, err := os.ReadFile(bitPath)
 	if err != nil {
-		t.Fatalf("read SPEECH.BIT: %v", err)
-	}
-	pstData, err := os.ReadFile(pstPath)
-	if err != nil {
-		t.Fatalf("read SPEECH.PST: %v", err)
+		t.Fatalf("read %s: %v", vector, err)
 	}
 
-	frames := len(pstData) / (2 * frameSamples)
-	if bf := len(bitData) / bitstream.G192FrameBytes; bf < frames {
-		frames = bf
-	}
+	frames := len(bitData) / bitstream.G192FrameBytes
 	if frames <= 0 {
 		t.Fatalf("frames reconciled to %d", frames)
 	}
-	ref := blackboxReadPCM16LE(t, pstData, frames*frameSamples)
+	ref, ok := phase3oReadVectorPST(t, vector, frames)
+	if !ok {
+		t.Fatalf("missing companion PST for %s", vector)
+	}
 	production := decodeVariant(t, bitData, frames, nil, nil)
 	prodMetrics := blackboxMeasure(ref, production, 40)
 
@@ -68,7 +65,7 @@ func TestPhase3kLSPRouteVariantAudit_SPEECH(t *testing.T) {
 	}
 	rows := make([]row, 0, len(variants))
 
-	t.Logf("Phase 3k LSP route variant audit - SPEECH.BIT/SPEECH.PST (%d frames)", frames)
+	t.Logf("Phase 3k LSP route variant audit - %s (%d frames)", vector, frames)
 	t.Logf("baseline production: rms=%.2f peak=%d gSNR=%.2f seg=%.2f corr=%.3f bestLag=%+d bestSNR=%.2f",
 		prodMetrics.rms, prodMetrics.peak, prodMetrics.globalSNR, prodMetrics.segSNR,
 		prodMetrics.corr, prodMetrics.bestSNRLag, prodMetrics.bestSNR)

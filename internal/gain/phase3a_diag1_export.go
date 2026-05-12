@@ -28,6 +28,9 @@ import (
 //     zero-energy guard). Matches Decode's new return per REF-1 §2.
 //   - GcExp            g_c binary exponent (int8). Linear g_c =
 //     GcMantQ14 · 2^(GcExp - 14).
+//   - PastErrorsBefore gain MA predictor FIFO before the subframe update.
+//   - PastErrorsAfter  gain MA predictor FIFO after the subframe update.
+//   - UCurrent         current predictor update U(m), Q10 dB.
 //   - ZeroEnergyGuard  true when the Σc²==0 short-circuit fired
 type GainDecodeFullTaps struct {
 	Predicted       int32
@@ -41,6 +44,9 @@ type GainDecodeFullTaps struct {
 	GcQ12Final      int16
 	GcMantQ14       int16
 	GcExp           int8
+	PastErrorsBefore [4]int16
+	PastErrorsAfter  [4]int16
+	UCurrent         int16
 	ZeroEnergyGuard bool
 }
 
@@ -101,6 +107,7 @@ func (d *Decoder) DecodeWithFullTaps(idx Indices, c *[40]int16) GainDecodeFullTa
 		}
 		d.initialized = true
 	}
+	out.PastErrorsBefore = d.pastErrors
 
 	ecEnergy := fixedCodebookEnergy(c)
 
@@ -113,10 +120,12 @@ func (d *Decoder) DecodeWithFullTaps(idx Indices, c *[40]int16) GainDecodeFullTa
 		out.GcQ12Final = 0
 		out.GcMantQ14 = 0
 		out.GcExp = 0
+		out.UCurrent = pastErrorsDefault
 		d.pastErrors[3] = d.pastErrors[2]
 		d.pastErrors[2] = d.pastErrors[1]
 		d.pastErrors[1] = d.pastErrors[0]
 		d.pastErrors[0] = pastErrorsDefault
+		out.PastErrorsAfter = d.pastErrors
 		return out
 	}
 
@@ -199,10 +208,12 @@ func (d *Decoder) DecodeWithFullTaps(idx Indices, c *[40]int16) GainDecodeFullTa
 	} else {
 		uCurrent = pastErrorsDefault
 	}
+	out.UCurrent = uCurrent
 	d.pastErrors[3] = d.pastErrors[2]
 	d.pastErrors[2] = d.pastErrors[1]
 	d.pastErrors[1] = d.pastErrors[0]
 	d.pastErrors[0] = uCurrent
+	out.PastErrorsAfter = d.pastErrors
 
 	return out
 }
