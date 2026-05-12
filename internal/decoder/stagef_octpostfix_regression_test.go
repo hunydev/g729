@@ -21,8 +21,7 @@ import "testing"
 // This test asserts the CURRENT PRODUCTION OUTPUT for ALGTHM frame 0
 // sub-frame 0, samples 5..7, namely:
 //
-//	got = [+2, +2, +2]   (post decoder output gain recovery)
-//	     ≡ [+1, +1, +1]  (pre-scale, synth/postfilter/HP output)
+//	got = [0, 0, 0]   (post decoder output gain recovery)
 //
 // as the LEGITIMATE SPEC-CONFORMANT output. The ITU `.pst`
 // reference value at this position is:
@@ -173,10 +172,11 @@ import "testing"
 //   - A new mechanism path is discovered beyond the seven (i)-(vii)
 //     enumerated above that can reach frame-0 sf0 sample 5..7.
 //   - Production code is changed in a way that alters the frame 0
-//     sub-frame 0 sample 5..7 output. In that case, the assertion
-//     below WILL fail and force a deliberate disposition update —
-//     this is the intended early-warning behaviour of keeping the
-//     test as a PASS-by-design pin rather than deleting it.
+//     sub-frame 0 sample 5..7 output. The 2026-05-12 Annex A postfilter
+//     fix deliberately re-pinned this value from [+2,+2,+2] to [0,0,0]
+//     after correcting the long-term pitch search/gain and tilt γ_t
+//     branches. Future changes should repeat that investigation before
+//     re-pinning again.
 //
 // -------------------------------------------------------------------
 // CLEAN-ROOM SOURCE NOTE
@@ -202,11 +202,10 @@ func TestDecode_AlgthmFrame0Sf0Sample5to7_KnownPSTDomainDifference(t *testing.T)
 		t.Fatalf("Decode frame 0: %v", err)
 	}
 
-	// Production output post decoder output gain recovery for samples 5..7
-	// (≡ [+1,+1,+1] pre-scale). Pinned as the legitimate
-	// spec-conformant value per the 30-refutation evidence ledger
-	// in the docstring above.
-	wantProd := [3]int16{+2, +2, +2}
+	// Production output post decoder output gain recovery for samples 5..7.
+	// Pinned as the legitimate spec-conformant value after the Annex A
+	// postfilter fix documented in the reactivation-trigger ledger above.
+	wantProd := [3]int16{0, 0, 0}
 
 	// Documented PST-domain reference (NOT asserted as the
 	// expectation). Recorded in test output for posterity and to
@@ -246,8 +245,8 @@ func TestDecode_AlgthmFrame0Sf0Sample5to7_KnownPSTDomainDifference(t *testing.T)
 	// `go test -v` carries it into CI artefacts as a permanent
 	// record of the disposition.
 	t.Logf("Phase 1o D-1b known PST-domain difference: "+
-		"production got=%v (post decoder output gain recovery; ≡ [+1 +1 +1] "+
-		"pre-scale), PST want=%v. Δ documented as PST-file domain "+
+		"production got=%v (post decoder output gain recovery), PST want=%v. "+
+		"Δ documented as PST-file domain "+
 		"ambiguity, NOT an algorithmic defect. See docstring for "+
 		"30-refutation ledger and reactivation triggers.",
 		got, wantPST)

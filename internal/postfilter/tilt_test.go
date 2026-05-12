@@ -66,10 +66,10 @@ func TestComputeTiltMu_SinglePoleHalf(t *testing.T) {
 	aNum := [11]int16{4096, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	aDen := [11]int16{4096, -2048, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	var pf Postfilter
-	mu := pf.computeTiltMuForLongTerm(&aNum, &aDen, true)
-	const want = -14746
+	mu := pf.computeTiltMu(&aNum, &aDen)
+	const want = -13107
 	if mu < want-8 || mu > want+8 {
-		t.Fatalf("μ = 0.9 · (-0.5) Q15: want %d ± 8, got %d", want, mu)
+		t.Fatalf("μ = 0.8 · (-0.5) Q15: want %d ± 8, got %d", want, mu)
 	}
 }
 
@@ -77,20 +77,21 @@ func TestComputeTiltMu_SinglePoleMinusHalf(t *testing.T) {
 	aNum := [11]int16{4096, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	aDen := [11]int16{4096, 2048, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	var pf Postfilter
-	mu := pf.computeTiltMuForLongTerm(&aNum, &aDen, true)
-	const want = 14746
-	if mu < want-8 || mu > want+8 {
-		t.Fatalf("μ = 0.9 · (+0.5) Q15: want %d ± 8, got %d", want, mu)
+	mu := pf.computeTiltMu(&aNum, &aDen)
+	if mu != 0 {
+		t.Fatalf("Annex A k1' >= 0 branch: want μ=0, got %d", mu)
 	}
 }
 
-func TestComputeTiltMu_InactiveLongTermUsesLowTilt(t *testing.T) {
+func TestComputeTiltMu_DoesNotDependOnAGCState(t *testing.T) {
 	aNum := [11]int16{4096, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	aDen := [11]int16{4096, -2048, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-	var pf Postfilter
-	mu := pf.computeTiltMuForLongTerm(&aNum, &aDen, false)
-	const want = -3277
-	if mu < want-8 || mu > want+8 {
-		t.Fatalf("inactive μ = 0.2 · (-0.5) Q15: want %d ± 8, got %d", want, mu)
+	var pfA, pfB Postfilter
+	pfB.agcGainPrev = 1 << 24
+	pfB.initialized = true
+	muA := pfA.computeTiltMu(&aNum, &aDen)
+	muB := pfB.computeTiltMu(&aNum, &aDen)
+	if muA != muB {
+		t.Fatalf("computeTiltMu depended on AGC state: zero-state=%d initialized=%d", muA, muB)
 	}
 }

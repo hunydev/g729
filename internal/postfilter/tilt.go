@@ -4,13 +4,17 @@ package postfilter
 // §A.4.2.3 — "the impulse response … is truncated after 22 samples".
 const tiltLen = 22
 
-// gammaTiltActiveQ14 is γ_t = 0.9 in Q14, used when the long-term
-// postfilter is active (g_l > 0).
-const gammaTiltActiveQ14 int16 = 14746 // round(0.9·2^14)
+// gammaTiltNegativeK1Q14 is Annex A γ_t = 0.8 in Q14, used when k1' < 0.
+const gammaTiltNegativeK1Q14 int16 = 13107 // round(0.8·2^14)
 
-// gammaTiltInactiveQ14 is γ_t = 0.2 in Q14, used when the long-term
-// postfilter is inactive (g_l == 0).
-const gammaTiltInactiveQ14 int16 = 3277 // round(0.2·2^14)
+// gammaTiltNonNegativeK1Q14 is Annex A γ_t = 0 when k1' >= 0.
+const gammaTiltNonNegativeK1Q14 int16 = 0
+
+// Legacy names retained for older diagnostics in this package.
+const (
+	gammaTiltActiveQ14   = gammaTiltNegativeK1Q14
+	gammaTiltInactiveQ14 = gammaTiltNonNegativeK1Q14
+)
 
 // computeTiltMu derives μ for H_t(z) = 1 + μ·z⁻¹ from the
 // cascade A(z/γ_n)/A(z/γ_d) per ITU-T G.729 §A.4.2.3:
@@ -18,15 +22,9 @@ const gammaTiltInactiveQ14 int16 = 3277 // round(0.2·2^14)
 //	h(n) = impulse response of A(z/γ_n)/A(z/γ_d), n = 0..tiltLen-1
 //	r_h(i) = Σ_{n=0..tiltLen-1-i} h(n) · h(n+i),  i ∈ {0, 1}
 //	k_1'  = -r_h(1) / r_h(0)
+//	γ_t   = 0.8 if k_1' < 0, else 0
 //	μ     = γ_t · k_1'
 func (pf *Postfilter) computeTiltMu(aNum, aDen *[lpcOrder + 1]int16) int16 {
-	return pf.computeTiltMuForLongTerm(aNum, aDen, pf.agcGainPrev != 0)
-}
-
-// computeTiltMuForLongTerm selects γ_t from the current long-term
-// postfilter activity. The active branch is used when g_l > 0, reflected by
-// a non-zero long-term coefficient g1 from computeLongTermGain.
-func (pf *Postfilter) computeTiltMuForLongTerm(aNum, aDen *[lpcOrder + 1]int16, longTermActive bool) int16 {
 	// 1. Compute h(n) for n = 0..tiltLen-1.
 	var h [tiltLen]int32
 	for n := 0; n < tiltLen; n++ {
@@ -65,9 +63,9 @@ func (pf *Postfilter) computeTiltMuForLongTerm(aNum, aDen *[lpcOrder + 1]int16, 
 		k1 = -32768
 	}
 
-	gammaTQ14 := gammaTiltActiveQ14
-	if !longTermActive {
-		gammaTQ14 = gammaTiltInactiveQ14
+	gammaTQ14 := gammaTiltNegativeK1Q14
+	if k1 >= 0 {
+		gammaTQ14 = gammaTiltNonNegativeK1Q14
 	}
 
 	mu := (int32(gammaTQ14) * int32(k1)) >> 14

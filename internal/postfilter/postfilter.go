@@ -80,7 +80,7 @@ func (pf *Postfilter) filter(a *[11]int16, tInt int, s *[subframeLen]int16, sPf 
 		taps.ShortTerm = sSt
 	}
 
-	muQ15 := pf.computeTiltMuForLongTerm(&aNum, &aDen, g1 != 0)
+	muQ15 := pf.computeTiltMu(&aNum, &aDen)
 	var sTilt [subframeLen]int16
 	pf.applyTiltWithMu(&sSt, muQ15, &sTilt)
 	if taps != nil {

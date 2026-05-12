@@ -4,27 +4,15 @@ import "testing"
 
 func TestRefinePitch_LocksToTruePeriod(t *testing.T) {
 	var pf Postfilter
-
-	for i := range pf.pastResidual {
-		if (i/15)%2 == 0 {
-			pf.pastResidual[i] = 1000
-		} else {
-			pf.pastResidual[i] = -1000
-		}
-	}
+	const wantT = 30
 	var r [subframeLen]int16
-	for i := range r {
-		if (i/15)%2 == 0 {
-			r[i] = 1000
-		} else {
-			r[i] = -1000
-		}
-	}
+	r[12] = 1000
 	copy(pf.pastResidual[pitchMax:], r[:])
+	pf.pastResidual[pitchMax+12-wantT] = 1000
 
-	bestT := pf.refinePitch(&r, 30)
-	if bestT != 30 {
-		t.Errorf("bestT = %d, want 30", bestT)
+	bestT := pf.refinePitch(&r, wantT)
+	if bestT != wantT {
+		t.Errorf("bestT = %d, want %d", bestT, wantT)
 	}
 }
 
@@ -35,6 +23,20 @@ func TestRefinePitch_ZeroSignalFallsBackToTInt(t *testing.T) {
 	bestT := pf.refinePitch(&r, 55)
 	if bestT != 55 {
 		t.Errorf("bestT = %d, want 55 (fallback to t_int)", bestT)
+	}
+}
+
+func TestRefinePitch_SearchesAnnexAPlusMinusThree(t *testing.T) {
+	var pf Postfilter
+	const center = 40
+	const wantT = center + 3
+	var r [subframeLen]int16
+	r[10] = 1000
+	copy(pf.pastResidual[pitchMax:], r[:])
+	pf.pastResidual[pitchMax+10-wantT] = 1000
+
+	if got := pf.refinePitch(&r, center); got != wantT {
+		t.Fatalf("bestT=%d, want %d from Annex A Tcl±3 search", got, wantT)
 	}
 }
 
@@ -57,8 +59,8 @@ func TestRefinePitch_ClampsFallbackAboveUpperEdge(t *testing.T) {
 	var r [subframeLen]int16
 
 	bestT := pf.refinePitch(&r, 144)
-	if bestT != 143 {
-		t.Errorf("bestT = %d, want 143 (fallback clamped at upper edge)", bestT)
+	if bestT != 140 {
+		t.Errorf("bestT = %d, want 140 (Annex A Tcl bounded before ±3 search)", bestT)
 	}
 }
 
@@ -120,6 +122,25 @@ func TestApplyLongTerm_PeriodicSignalPreserved(t *testing.T) {
 		if rOut[i] < r[i]-1 || rOut[i] > r[i]+1 {
 			t.Errorf("rOut[%d] = %d, want %d (±1)", i, rOut[i], r[i])
 		}
+	}
+}
+
+func TestComputeLongTermGain_AppliesGammaPBeforeWeighting(t *testing.T) {
+	var pf Postfilter
+	const T = 40
+	var r [subframeLen]int16
+	for n := range r {
+		r[n] = 3000
+		pf.pastResidual[pitchMax+n] = 3000
+		pf.pastResidual[pitchMax+n-T] = 4000
+	}
+
+	g0, g1 := pf.computeLongTermGain(&r, T)
+	if g1 < 4460 || g1 > 4480 {
+		t.Fatalf("g1=%d, want about 4470 for γp*gl=0.5*(3000/4000)", g1)
+	}
+	if g0+g1 < 16380 || g0+g1 > 16384 {
+		t.Fatalf("g0+g1=%d, want approximately unity Q14", g0+g1)
 	}
 }
 

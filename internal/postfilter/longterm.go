@@ -1,8 +1,8 @@
 package postfilter
 
-// refinePitch selects the best pitch lag T ∈ {tInt-1, tInt, tInt+1} (within
-// [20, pitchMax]) by maximising the normalised cross-correlation with the
-// residual per ITU-T G.729 §A.4.2.2.
+// refinePitch selects the best integer pitch lag T in the Annex A search
+// range [Tcl-3, Tcl+3] (within [20, pitchMax]) by maximising the
+// normalised cross-correlation with the residual per ITU-T G.729 §A.4.2.1.
 //
 // The caller MUST have written the current subframe's residual r(n) into
 // pf.pastResidual[pitchMax + n] before invoking refinePitch. Past samples
@@ -16,16 +16,21 @@ func (pf *Postfilter) refinePitch(r *[subframeLen]int16, tInt int) int {
 	_ = r // r is also accessible via pf.pastResidual[pitchMax + n]; kept
 	// in the signature so callers express the data dependency.
 
-	bestT := tInt
+	center := tInt
+	if center > 140 {
+		center = 140
+	}
+
+	bestT := center
 	if bestT < minT {
 		bestT = minT
 	} else if bestT > maxT {
 		bestT = maxT
 	}
-	var bestRsq, bestE int64 = 0, 1
+	bestScore := float64(-1)
 
-	for k := -1; k <= 1; k++ {
-		T := tInt + k
+	for k := -3; k <= 3; k++ {
+		T := center + k
 		if T < minT || T > maxT {
 			continue
 		}
@@ -39,55 +44,55 @@ func (pf *Postfilter) refinePitch(r *[subframeLen]int16, tInt int) int {
 		if R <= 0 || E == 0 {
 			continue
 		}
-		// Compare R²/E vs bestRsq/bestE via cross-multiplication.
-		if R*R*bestE > bestRsq*E {
+		score := float64(R) * float64(R) / float64(E)
+		if score > bestScore {
 			bestT = T
-			bestRsq = R * R
-			bestE = E
+			bestScore = score
 		}
 	}
 
 	return bestT
 }
 
-// computeLongTermGain returns pre-computed weights g0 = 1/(1+g_l) and
-// g1 = g_l/(1+g_l) (Q14) for the long-term postfilter, where
+// computeLongTermGain returns pre-computed weights g0 = 1/(1+γp·g_l) and
+// g1 = γp·g_l/(1+γp·g_l) (Q14) for the long-term postfilter, where
 //
-// g_l = clamp(R(T)/E(T), 0, γ_l)
+// g_l = clamp(R(T)/E(T), 0, 1)
 //
-// per ITU-T G.729 §A.4.2.2 with γ_l = 0.5 (Annex A bound).
+// per ITU-T G.729 §4.2.1 / §A.4.2.1 with γp = 0.5. The filter is
+// disabled when the squared normalized correlation is less than 0.5
+// (long-term prediction gain below the 3 dB gate).
 //
 // Like refinePitch, this reads the residual via pf.pastResidual; the
 // caller MUST have written current r(n) into pf.pastResidual[pitchMax+n]
 // beforehand.
 func (pf *Postfilter) computeLongTermGain(r *[subframeLen]int16, T int) (g0, g1 int16) {
-	const gammaLQ14 int16 = 8192 // = 0.5; ITU-T G.729 §A.4.2.2
+	const gammaPQ14 int64 = 8192 // = 0.5; ITU-T G.729 §4.2.1 / §A.4.2.1
 
-	_ = r
-
-	var R, E int64
+	var R, delayedE, currentE int64
 	for n := 0; n < subframeLen; n++ {
 		rn := int64(pf.pastResidual[pitchMax+n])
 		rnT := int64(pf.pastResidual[pitchMax+n-T])
 		R += rn * rnT
-		E += rnT * rnT
+		delayedE += rnT * rnT
+		currentE += int64(r[n]) * int64(r[n])
 	}
 
-	if R <= 0 || E == 0 {
+	if R <= 0 || delayedE == 0 || currentE == 0 {
 		return 16384, 0
 	}
 
-	gRawQ14 := int16(clamp64(R*16384/E, 0, 32767))
-	var gLQ14 int16
-	if gRawQ14 > gammaLQ14 {
-		gLQ14 = gammaLQ14
-	} else {
-		gLQ14 = gRawQ14
+	normCorrSq := float64(R) * float64(R) / (float64(delayedE) * float64(currentE))
+	if normCorrSq < 0.5 {
+		return 16384, 0
 	}
 
-	denom := int32(16384 + int32(gLQ14))
+	glQ14 := clamp64(R*16384/delayedE, 0, 16384)
+	gammaGlQ14 := int32((glQ14*gammaPQ14 + (1 << 13)) >> 14)
+
+	denom := int32(16384) + gammaGlQ14
 	g0 = int16(int32(16384) * 16384 / denom)
-	g1 = int16(int32(gLQ14) * 16384 / denom)
+	g1 = int16(gammaGlQ14 * 16384 / denom)
 	return g0, g1
 }
 
