@@ -697,6 +697,8 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 		var payload []byte
 		var err error
 		switch name {
+		case "core":
+			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileCore)
 		case "our":
 			payload, err = encodeWithLocal(paddedPCM)
 		case "clean":
@@ -809,6 +811,10 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 
 func selectedMetricPath(key string) string {
 	switch key {
+	case "core_local":
+		return "our core encode -> local decode"
+	case "core_ffmpeg":
+		return "our core encode -> ffmpeg decode"
 	case "our_local":
 		return "our encode -> local decode"
 	case "our_blend50":
@@ -872,6 +878,10 @@ func selectedAudioPipeline(key string) (pipeline, decoder string, soft bool, ok 
 	switch key {
 	case "source":
 		return "source", "", false, true
+	case "core_local":
+		return "core", "local", false, true
+	case "core_ffmpeg":
+		return "core", "ffmpeg", false, true
 	case "our_local":
 		return "our", "local", false, true
 	case "our_blend50":
@@ -1561,6 +1571,9 @@ const pageHTML = `<!doctype html>
           <label>Audio files<input id="battleFiles" type="file" multiple accept="audio/*,.wav,.mp3,.pcm,.raw,.sln,.s16le"></label>
           <label>Input mode<select id="battleMode"><option value="audio">WAV/MP3/browser audio</option><option value="raw">Raw 8 kHz mono s16le PCM</option></select></label>
           <label>Battle pair<select id="battlePair">
+            <option value="core_ffmpeg|fcb_ffmpeg">Core profile vs FCB-clean candidate</option>
+            <option value="core_ffmpeg|external_ffmpeg">Core profile vs bcg729</option>
+            <option value="core_ffmpeg|our_ffmpeg">Core profile vs current quality</option>
             <option value="clean_ffmpeg|fcb_ffmpeg">Clean candidate vs FCB-clean candidate</option>
             <option value="clean_ffmpeg|harmonic_ffmpeg">Clean candidate vs harmonic-clean candidate</option>
             <option value="harmonic_ffmpeg|harmonic_strong_ffmpeg">Harmonic-clean candidate vs harmonic-strong candidate</option>
@@ -1601,6 +1614,8 @@ const pageHTML = `<!doctype html>
     const $ = (id) => document.getElementById(id);
     const labels = {
       source: "Converted source PCM",
+      core_local: "our core profile -> our decode",
+      core_ffmpeg: "our core profile -> FFmpeg decode",
       our_local: "our encode -> our decode",
       our_blend50: "our encode -> postfilter-blend50 decode",
       our_ffmpeg: "our encode -> FFmpeg decode",
@@ -1630,6 +1645,7 @@ const pageHTML = `<!doctype html>
       external_ffmpeg: "bcg729 encode -> FFmpeg decode"
     };
     const battleCandidates = {
+      core_ffmpeg: { label: "Core profile -> FFmpeg decode" },
       our_ffmpeg: { label: "Current quality -> FFmpeg decode" },
       clean_ffmpeg: { label: "Clean candidate -> FFmpeg decode" },
       snr_ffmpeg: { label: "SNR-clean candidate -> FFmpeg decode" },
@@ -1643,6 +1659,7 @@ const pageHTML = `<!doctype html>
       soft_our_ffmpeg: { label: "Current quality -> softened FFmpeg decode" },
       soft_clean_ffmpeg: { label: "Clean candidate -> softened FFmpeg decode" },
       external_ffmpeg: { label: "bcg729 -> FFmpeg decode" },
+      core_local: { label: "Core profile -> local decode" },
       our_local: { label: "Current quality -> local decode" },
       our_blend50: { label: "Current quality -> blend50 local decode" },
       clean_local: { label: "Clean candidate -> local decode" },

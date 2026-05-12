@@ -278,12 +278,15 @@ func TestExternalSampleProfileCompareDiagnostic(t *testing.T) {
 	ref := src[:originalSamples]
 
 	type result struct {
-		name   string
-		raw    []byte
-		ff     []int16
-		local  []int16
-		ffm    externalQualityMetrics
-		localm externalQualityMetrics
+		name      string
+		raw       []byte
+		ff        []int16
+		local     []int16
+		ffm       externalQualityMetrics
+		localm    externalQualityMetrics
+		ffPESQ    float64
+		localPESQ float64
+		payloadEq float64
 	}
 	profiles := []struct {
 		name    string
@@ -303,7 +306,45 @@ func TestExternalSampleProfileCompareDiagnostic(t *testing.T) {
 	}
 
 	tmp := t.TempDir()
+	withPESQ := os.Getenv("G729_EXTERNAL_SAMPLE_PROFILE_COMPARE_PESQ") == "1" ||
+		strings.TrimSpace(os.Getenv("G729_PESQ_PYTHON")) != ""
 	results := make([]result, 0, len(profiles))
+	var bcgRaw []byte
+	bcgFFPESQ := math.NaN()
+	if withPESQ {
+		rawPath := filepath.Join(tmp, "bcg729.g729")
+		pcmPath := filepath.Join(tmp, "bcg729.ffmpeg.s16le")
+		writeBCGEncodedRawG729(t, src, rawPath)
+		ffmpegDecodeRawG729(t, rawPath, pcmPath)
+
+		ff := s16leToSamples(readFile(t, pcmPath))
+		raw := readFile(t, rawPath)
+		local := decodeRawG729WithLocal(t, raw)
+		if len(ff) > originalSamples {
+			ff = ff[:originalSamples]
+		}
+		if len(local) > originalSamples {
+			local = local[:originalSamples]
+		}
+		if len(ff) < originalSamples || len(local) < originalSamples {
+			t.Fatalf("bcg729 decoded output too short: ffmpeg=%d local=%d want >= %d", len(ff), len(local), originalSamples)
+		}
+		ffPESQ := pesqNBScore(t, tmp, "profile-bcg729-ffmpeg", ref, ff)
+		localPESQ := pesqNBScore(t, tmp, "profile-bcg729-local", ref, local)
+		bcgRaw = raw
+		bcgFFPESQ = ffPESQ
+		results = append(results, result{
+			name:      "bcg729",
+			raw:       raw,
+			ff:        ff,
+			local:     local,
+			ffm:       externalQualityMetricsFor(ref, ff, 240),
+			localm:    externalQualityMetricsFor(ref, local, 240),
+			ffPESQ:    ffPESQ,
+			localPESQ: localPESQ,
+			payloadEq: 100,
+		})
+	}
 	for _, p := range profiles {
 		rawPath := filepath.Join(tmp, p.name+".g729")
 		pcmPath := filepath.Join(tmp, p.name+".ffmpeg.s16le")
@@ -322,13 +363,26 @@ func TestExternalSampleProfileCompareDiagnostic(t *testing.T) {
 		if len(ff) < originalSamples || len(local) < originalSamples {
 			t.Fatalf("%s decoded output too short: ffmpeg=%d local=%d want >= %d", p.name, len(ff), len(local), originalSamples)
 		}
+		ffPESQ := math.NaN()
+		localPESQ := math.NaN()
+		payloadEq := math.NaN()
+		if withPESQ {
+			ffPESQ = pesqNBScore(t, tmp, "profile-"+p.name+"-ffmpeg", ref, ff)
+			localPESQ = pesqNBScore(t, tmp, "profile-"+p.name+"-local", ref, local)
+			if len(bcgRaw) > 0 {
+				payloadEq = payloadEqualPercent(raw, bcgRaw)
+			}
+		}
 		results = append(results, result{
-			name:   p.name,
-			raw:    raw,
-			ff:     ff,
-			local:  local,
-			ffm:    externalQualityMetricsFor(ref, ff, 240),
-			localm: externalQualityMetricsFor(ref, local, 240),
+			name:      p.name,
+			raw:       raw,
+			ff:        ff,
+			local:     local,
+			ffm:       externalQualityMetricsFor(ref, ff, 240),
+			localm:    externalQualityMetricsFor(ref, local, 240),
+			ffPESQ:    ffPESQ,
+			localPESQ: localPESQ,
+			payloadEq: payloadEq,
 		})
 	}
 
@@ -342,6 +396,22 @@ func TestExternalSampleProfileCompareDiagnostic(t *testing.T) {
 		localNearFrames := externalNearClipFrames(r.local, r.localm.shift, len(src)/FrameSamples, 32700)
 		if len(ffNearFrames) > 0 || len(localNearFrames) > 0 {
 			t.Logf("%s near-clip frames: ffmpeg=%v local=%v", r.name, ffNearFrames, localNearFrames)
+		}
+	}
+	if withPESQ {
+		t.Logf("")
+		t.Logf("PESQ reference is the converted 8 kHz mono source. bcg729 is black-box encode; FFmpeg is black-box decode.")
+		t.Logf("%-24s %10s %10s %12s %12s %11s", "Profile", "LocalPESQ", "FFPESQ", "LocalΔBCG", "FFΔBCG", "PayloadEq")
+		t.Logf("%-24s %10s %10s %12s %12s %11s", "-------", "---------", "------", "---------", "------", "---------")
+		for _, r := range results {
+			localDelta := math.NaN()
+			ffDelta := math.NaN()
+			if !math.IsNaN(bcgFFPESQ) {
+				localDelta = r.localPESQ - bcgFFPESQ
+				ffDelta = r.ffPESQ - bcgFFPESQ
+			}
+			t.Logf("%-24s %10.4f %10.4f %+12.4f %+12.4f %10.2f%%",
+				r.name, r.localPESQ, r.ffPESQ, localDelta, ffDelta, r.payloadEq)
 		}
 	}
 	if len(results) == 2 {
