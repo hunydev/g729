@@ -199,6 +199,50 @@ oracle rows for TAME frames around `98`, `118`, `119`, and `123` at minimum:
 LSP indices, reconstructed LSF/LSP, LP `a[]`, gain predictor FIFO, decoded
 `gp/gc`, excitation `u[]`, and synth `s[]`.
 
+## Decoder ITU Stage Handoff
+
+The clean-room numeric handoff for that escalation is now explicit:
+
+```sh
+G729_DUMP_DECODER_ITU_STAGE_HANDOFF=1 \
+go test ./internal/decoder -run TestDecoderITUStageHandoffTemplate -count=1 -v
+```
+
+Generated files:
+
+- `testdata/oracle/handoff/decoder_itu_stage_expected_template.csv`
+- `testdata/oracle/handoff/decoder_itu_stage_got.csv`
+
+The template contains blank `expected` values and must not be treated as an
+oracle. It covers the current high-value localization frames:
+
+- `ALGTHM`: `0`, `14`, `15`
+- `TAME`: `0`, `98`, `117`, `118`, `119`, `123`
+- `OVERFLOW`: `0`, `106`, `107`, `108`
+
+The expected artifact may contain only numeric scalar values. It must not
+contain ITU reference C, bcg729, FFmpeg, Sipro, or other implementation source,
+implementation-derived branch descriptions, or magic-number provenance. A
+completed verifier artifact should be saved as:
+
+```text
+testdata/oracle/handoff/decoder_itu_stage_expected.csv
+```
+
+Comparison command:
+
+```sh
+G729_COMPARE_DECODER_ITU_STAGE_HANDOFF=1 \
+G729_REQUIRE_COMPLETE_DECODER_ITU_STAGE_HANDOFF=1 \
+G729_REQUIRE_EXACT_DECODER_ITU_STAGE_HANDOFF=1 \
+G729_REJECT_DECODER_ITU_STAGE_SELF_ORACLE=1 \
+go test ./internal/decoder -run TestOracleHandoff_CompareDecoderITUStageHandoff -count=1 -v
+```
+
+Before the independent expected values exist, the template-only comparison is
+allowed to pass without the `REQUIRE_*` flags and reports all rows as blank
+expected values. That is a contract check, not decoder evidence.
+
 ## First Trace Result
 
 ALGTHM `first-diff` mode currently points to frame 0 sample 2:

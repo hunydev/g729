@@ -370,6 +370,34 @@ G729_DECODER_ITU_VECTOR_TRACE_MODE=worst-frame \
 go test ./internal/decoder -run TestDecoderITUVectorFirstDiffTrace -count=1 -v
 ```
 
+To prepare an independent numeric verifier handoff for the current high-value
+decoder frames:
+
+```sh
+G729_DUMP_DECODER_ITU_STAGE_HANDOFF=1 \
+go test ./internal/decoder -run TestDecoderITUStageHandoffTemplate -count=1 -v
+```
+
+This writes:
+
+- `testdata/oracle/handoff/decoder_itu_stage_expected_template.csv`
+- `testdata/oracle/handoff/decoder_itu_stage_got.csv`
+
+The template covers `ALGTHM` frame `0/14/15`, `TAME` frame
+`0/98/117/118/119/123`, and `OVERFLOW` frame `0/106/107/108`. An independent
+verifier should fill only the numeric `expected` column, then save the result
+as `testdata/oracle/handoff/decoder_itu_stage_expected.csv`.
+
+Compare a completed verifier artifact with:
+
+```sh
+G729_COMPARE_DECODER_ITU_STAGE_HANDOFF=1 \
+G729_REQUIRE_COMPLETE_DECODER_ITU_STAGE_HANDOFF=1 \
+G729_REQUIRE_EXACT_DECODER_ITU_STAGE_HANDOFF=1 \
+G729_REJECT_DECODER_ITU_STAGE_SELF_ORACLE=1 \
+go test ./internal/decoder -run TestOracleHandoff_CompareDecoderITUStageHandoff -count=1 -v
+```
+
 The default scope is `annexa-good` (`ALGTHM`, `SPEECH`, `FIXED`, `LSP`,
 `PITCH`, `TAME`, `TEST`, `OVERFLOW`). Set
 `G729_DECODER_ITU_VECTOR_SCOPE=all` to include `ERASURE` and `PARITY`, which
