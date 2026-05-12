@@ -211,9 +211,11 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	paddedPCM := padPCMToFrame(pcm)
 	frames := len(paddedPCM) / (g729.FrameSamples * 2)
 	if wanted := parseWantedAudio(r.FormValue("want")); len(wanted) > 0 {
-		writeSelectedAudioCompare(w, tmp, paddedPCM, originalSamples, frames, wanted)
+		writeSelectedAudioCompare(w, tmp, paddedPCM, originalSamples, frames, wanted, false)
 		return
 	}
+	writeSelectedAudioCompare(w, tmp, paddedPCM, originalSamples, frames, essentialCompareAudio(), true)
+	return
 
 	ourPayload, err := encodeWithLocal(paddedPCM)
 	if err != nil {
@@ -851,7 +853,22 @@ func parseWantedAudio(spec string) map[string]bool {
 	return wanted
 }
 
-func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []byte, originalSamples, frames int, wanted map[string]bool) {
+func essentialCompareAudio() map[string]bool {
+	return map[string]bool{
+		"our_local":        true,
+		"our_ffmpeg":       true,
+		"core_local":       true,
+		"core_ffmpeg":      true,
+		"core_clip_local":  true,
+		"core_clip_ffmpeg": true,
+		"pesq_local":       true,
+		"pesq_ffmpeg":      true,
+		"external_local":   true,
+		"external_ffmpeg":  true,
+	}
+}
+
+func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []byte, originalSamples, frames int, wanted map[string]bool, includeDownloads bool) {
 	type payloadEntry struct {
 		payload []byte
 		err     error
@@ -976,6 +993,41 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 		notes = append(notes, pesqNote)
 	}
 
+	clips := make(map[string][]clipEvent, len(decodedByKey))
+	for key, decoded := range decodedByKey {
+		clips[key] = clipEvents(decoded, maxClipMarkers)
+	}
+
+	var payload payloadInfo
+	downloads := map[string]string(nil)
+	if includeDownloads {
+		downloads = make(map[string]string)
+		for name, entry := range payloads {
+			if entry.err == nil && len(entry.payload) > 0 {
+				downloads[name+"_g729"] = payloadDataURL(entry.payload)
+			}
+		}
+		if our, ok := payloads["our"]; ok && our.err == nil {
+			if external, ok := payloads["external"]; ok && external.err == nil {
+				equal, firstDiff := byteEquality(our.payload, external.payload)
+				den := maxInt(len(our.payload), len(external.payload))
+				equalPercent := 0.0
+				if den > 0 {
+					equalPercent = float64(equal) * 100 / float64(den)
+				}
+				payload = payloadInfo{
+					OurBytes:          len(our.payload),
+					ExternalBytes:     len(external.payload),
+					EqualBytes:        equal,
+					EqualPercent:      equalPercent,
+					FirstDiffByte:     firstDiff,
+					ExternalTool:      "libbcg729 via local black-box CLI",
+					ExternalAvailable: true,
+				}
+			}
+		}
+	}
+
 	resp := response{
 		Input: inputInfo{
 			Samples:       originalSamples,
@@ -983,10 +1035,13 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 			Frames:        frames,
 			DurationSec:   float64(originalSamples) / g729.SampleRate,
 		},
-		Audio:   audio,
-		Metrics: metrics,
-		Noise:   noise,
-		Notes:   notes,
+		Payload:   payload,
+		Audio:     audio,
+		Downloads: downloads,
+		Clips:     clips,
+		Metrics:   metrics,
+		Noise:     noise,
+		Notes:     notes,
 	}
 	_ = json.NewEncoder(w).Encode(resp)
 }
@@ -1790,51 +1845,14 @@ const pageHTML = `<!doctype html>
             <option value="core_local|core_clip_local">Core local decode vs core-clip local decode</option>
             <option value="core_local|core_ffmpeg">Core local decode vs Core FFmpeg decode</option>
             <option value="core_clip_local|external_ffmpeg">Core-clip local decode vs bcg729 FFmpeg</option>
-            <option value="pesq_ffmpeg|external_ffmpeg">PESQ candidate vs bcg729</option>
             <option value="pesq_local|external_ffmpeg">PESQ candidate local decode vs bcg729 FFmpeg</option>
-            <option value="pesq_blend50|external_ffmpeg">PESQ candidate blend50 local decode vs bcg729 FFmpeg</option>
-            <option value="pesq_blend50|pesq_local">PESQ candidate blend50 local decode vs strict local decode</option>
-            <option value="pesq_blend50|pesq_ffmpeg">PESQ candidate blend50 local decode vs FFmpeg decode</option>
-            <option value="pesq_ffmpeg|pesq_degrit_ffmpeg">PESQ candidate vs PESQ-degrit candidate</option>
-            <option value="pesq_degrit_ffmpeg|external_ffmpeg">PESQ-degrit candidate vs bcg729</option>
-            <option value="pesq_degrit_local|external_ffmpeg">PESQ-degrit local decode vs bcg729 FFmpeg</option>
-            <option value="pesq_ffmpeg|fcb_ffmpeg">PESQ candidate vs FCB-clean candidate</option>
-            <option value="pesq_ffmpeg|core_ffmpeg">PESQ candidate vs core profile</option>
+            <option value="pesq_ffmpeg|external_ffmpeg">PESQ candidate FFmpeg decode vs bcg729 FFmpeg</option>
+            <option value="pesq_local|pesq_ffmpeg">PESQ candidate local decode vs FFmpeg decode</option>
+            <option value="pesq_local|our_local">PESQ candidate local decode vs current local decode</option>
+            <option value="core_local|our_local">Core local decode vs current local decode</option>
             <option value="core_ffmpeg|core_clip_ffmpeg">Core profile vs core-clip profile</option>
-            <option value="core_clip_ffmpeg|external_ffmpeg">Core-clip profile vs bcg729</option>
-            <option value="pesq_ffmpeg|core_clip_ffmpeg">PESQ candidate vs core-clip profile</option>
-            <option value="pesq_ffmpeg|our_ffmpeg">PESQ candidate vs current quality</option>
-            <option value="core_ffmpeg|fcb_ffmpeg">Core profile vs FCB-clean candidate</option>
             <option value="core_ffmpeg|external_ffmpeg">Core profile vs bcg729</option>
-            <option value="core_ffmpeg|our_ffmpeg">Core profile vs current quality</option>
-            <option value="clean_ffmpeg|fcb_ffmpeg">Clean candidate vs FCB-clean candidate</option>
-            <option value="clean_ffmpeg|harmonic_ffmpeg">Clean candidate vs harmonic-clean candidate</option>
-            <option value="harmonic_ffmpeg|harmonic_strong_ffmpeg">Harmonic-clean candidate vs harmonic-strong candidate</option>
-            <option value="harmonic_strong_ffmpeg|harmonic_deep_ffmpeg">Harmonic-strong candidate vs harmonic-deep candidate</option>
-            <option value="harmonic_ffmpeg|harmonic_deep_ffmpeg">Harmonic-clean candidate vs harmonic-deep candidate</option>
-            <option value="harmonic_ffmpeg|fcb_ffmpeg">Harmonic-clean candidate vs FCB-clean candidate</option>
-            <option value="harmonic_strong_ffmpeg|fcb_ffmpeg">Harmonic-strong candidate vs FCB-clean candidate</option>
-            <option value="harmonic_ffmpeg|external_ffmpeg">Harmonic-clean candidate vs bcg729</option>
-            <option value="harmonic_strong_ffmpeg|external_ffmpeg">Harmonic-strong candidate vs bcg729</option>
-            <option value="harmonic_deep_ffmpeg|external_ffmpeg">Harmonic-deep candidate vs bcg729</option>
-            <option value="fcb_ffmpeg|external_ffmpeg">FCB-clean candidate vs bcg729</option>
-            <option value="our_ffmpeg|clean_ffmpeg">Current quality vs clean candidate</option>
-            <option value="clean_ffmpeg|external_ffmpeg">Clean candidate vs bcg729</option>
-            <option value="clean_blend50|external_ffmpeg">Clean blend50 local decode vs bcg729</option>
-            <option value="clean_blend50|clean_ffmpeg">Clean blend50 local decode vs clean FFmpeg</option>
-            <option value="clean_ffmpeg|snr_ffmpeg">Clean candidate vs SNR-clean candidate</option>
-            <option value="clean_ffmpeg|smooth_ffmpeg">Clean candidate vs smooth-clean candidate</option>
-            <option value="clean_ffmpeg|voiced_ffmpeg">Clean candidate vs voiced-clean candidate</option>
-            <option value="clean_ffmpeg|degrit_ffmpeg">Clean candidate vs degrit-clean candidate</option>
-            <option value="snr_ffmpeg|external_ffmpeg">SNR-clean candidate vs bcg729</option>
-            <option value="smooth_ffmpeg|external_ffmpeg">Smooth-clean candidate vs bcg729</option>
-            <option value="voiced_ffmpeg|external_ffmpeg">Voiced-clean candidate vs bcg729</option>
-            <option value="degrit_ffmpeg|external_ffmpeg">Degrit-clean candidate vs bcg729</option>
             <option value="our_ffmpeg|external_ffmpeg">Current quality vs bcg729</option>
-            <option value="our_blend50|our_ffmpeg">Current blend50 local decode vs current FFmpeg</option>
-            <option value="external_blend50|external_ffmpeg">bcg729 blend50 local decode vs bcg729 FFmpeg</option>
-            <option value="external_blend50|external_local">bcg729 blend50 local decode vs strict local decode</option>
-            <option value="our_local|clean_local">Current quality local vs clean local</option>
           </select></label>
           <button id="battleStart">Start blind test</button>
         </div>
@@ -1852,75 +1870,23 @@ const pageHTML = `<!doctype html>
       core_clip_local: "our core-clip profile -> our decode",
       core_clip_ffmpeg: "our core-clip profile -> FFmpeg decode",
       our_local: "our encode -> our decode",
-      our_blend50: "our encode -> postfilter-blend50 decode",
       our_ffmpeg: "our encode -> FFmpeg decode",
-      clean_local: "our clean candidate -> our decode",
-      clean_blend50: "our clean candidate -> postfilter-blend50 decode",
-      clean_ffmpeg: "our clean candidate -> FFmpeg decode",
-      snr_local: "our SNR-clean candidate -> our decode",
-      snr_ffmpeg: "our SNR-clean candidate -> FFmpeg decode",
-      smooth_local: "our smooth-clean candidate -> our decode",
-      smooth_ffmpeg: "our smooth-clean candidate -> FFmpeg decode",
-      voiced_local: "our voiced-clean candidate -> our decode",
-      voiced_ffmpeg: "our voiced-clean candidate -> FFmpeg decode",
-      degrit_local: "our degrit-clean candidate -> our decode",
-      degrit_ffmpeg: "our degrit-clean candidate -> FFmpeg decode",
-      harmonic_local: "our harmonic-clean candidate -> our decode",
-      harmonic_ffmpeg: "our harmonic-clean candidate -> FFmpeg decode",
-      harmonic_strong_local: "our harmonic-strong candidate -> our decode",
-      harmonic_strong_ffmpeg: "our harmonic-strong candidate -> FFmpeg decode",
-      harmonic_deep_local: "our harmonic-deep candidate -> our decode",
-      harmonic_deep_ffmpeg: "our harmonic-deep candidate -> FFmpeg decode",
-      fcb_local: "our FCB-clean candidate -> our decode",
-      fcb_ffmpeg: "our FCB-clean candidate -> FFmpeg decode",
       pesq_local: "our PESQ candidate -> our decode",
-      pesq_blend50: "our PESQ candidate -> postfilter-blend50 decode",
       pesq_ffmpeg: "our PESQ candidate -> FFmpeg decode",
-      pesq_degrit_local: "our PESQ-degrit candidate -> our decode",
-      pesq_degrit_ffmpeg: "our PESQ-degrit candidate -> FFmpeg decode",
-      soft_our_ffmpeg: "our encode -> softened FFmpeg decode",
-      soft_clean_ffmpeg: "our clean candidate -> softened FFmpeg decode",
       external_local: "bcg729 encode -> our decode",
-      external_blend50: "bcg729 encode -> postfilter-blend50 decode",
       external_ffmpeg: "bcg729 encode -> FFmpeg decode"
     };
     const battleCandidates = {
-      core_ffmpeg: { label: "Core profile -> FFmpeg decode" },
-      core_clip_ffmpeg: { label: "Core-clip profile -> FFmpeg decode" },
-      our_ffmpeg: { label: "Current quality -> FFmpeg decode" },
-      clean_ffmpeg: { label: "Clean candidate -> FFmpeg decode" },
-      snr_ffmpeg: { label: "SNR-clean candidate -> FFmpeg decode" },
-      smooth_ffmpeg: { label: "Smooth-clean candidate -> FFmpeg decode" },
-      voiced_ffmpeg: { label: "Voiced-clean candidate -> FFmpeg decode" },
-      degrit_ffmpeg: { label: "Degrit-clean candidate -> FFmpeg decode" },
-      harmonic_ffmpeg: { label: "Harmonic-clean candidate -> FFmpeg decode" },
-      harmonic_strong_ffmpeg: { label: "Harmonic-strong candidate -> FFmpeg decode" },
-      harmonic_deep_ffmpeg: { label: "Harmonic-deep candidate -> FFmpeg decode" },
-      fcb_ffmpeg: { label: "FCB-clean candidate -> FFmpeg decode" },
-      pesq_ffmpeg: { label: "PESQ candidate -> FFmpeg decode" },
-      pesq_degrit_ffmpeg: { label: "PESQ-degrit candidate -> FFmpeg decode" },
-      soft_our_ffmpeg: { label: "Current quality -> softened FFmpeg decode" },
-      soft_clean_ffmpeg: { label: "Clean candidate -> softened FFmpeg decode" },
-      external_ffmpeg: { label: "bcg729 -> FFmpeg decode" },
       core_local: { label: "Core profile -> local decode" },
+      core_ffmpeg: { label: "Core profile -> FFmpeg decode" },
       core_clip_local: { label: "Core-clip profile -> local decode" },
+      core_clip_ffmpeg: { label: "Core-clip profile -> FFmpeg decode" },
       our_local: { label: "Current quality -> local decode" },
-      our_blend50: { label: "Current quality -> blend50 local decode" },
-      clean_local: { label: "Clean candidate -> local decode" },
-      clean_blend50: { label: "Clean candidate -> blend50 local decode" },
-      snr_local: { label: "SNR-clean candidate -> local decode" },
-      smooth_local: { label: "Smooth-clean candidate -> local decode" },
-      voiced_local: { label: "Voiced-clean candidate -> local decode" },
-      degrit_local: { label: "Degrit-clean candidate -> local decode" },
-      harmonic_local: { label: "Harmonic-clean candidate -> local decode" },
-      harmonic_strong_local: { label: "Harmonic-strong candidate -> local decode" },
-      harmonic_deep_local: { label: "Harmonic-deep candidate -> local decode" },
-      fcb_local: { label: "FCB-clean candidate -> local decode" },
+      our_ffmpeg: { label: "Current quality -> FFmpeg decode" },
       pesq_local: { label: "PESQ candidate -> local decode" },
-      pesq_blend50: { label: "PESQ candidate -> blend50 local decode" },
-      pesq_degrit_local: { label: "PESQ-degrit candidate -> local decode" },
-      external_blend50: { label: "bcg729 -> blend50 local decode" },
-      external_local: { label: "bcg729 -> local decode" }
+      pesq_ffmpeg: { label: "PESQ candidate -> FFmpeg decode" },
+      external_local: { label: "bcg729 -> local decode" },
+      external_ffmpeg: { label: "bcg729 -> FFmpeg decode" }
     };
     const battleState = { trials: [], index: 0, pair: [] };
 
@@ -1948,7 +1914,8 @@ const pageHTML = `<!doctype html>
         const data = await res.json();
         if (!res.ok || data.error) throw new Error(data.error || "comparison failed");
         render(data);
-        $("status").textContent = data.input.frames + " frames, " + data.input.paddedSamples + " padded samples. Payload byte equality " + data.payload.equalPercent.toFixed(2) + "%.";
+        const payloadText = data.payload && data.payload.externalAvailable ? " Payload byte equality " + data.payload.equalPercent.toFixed(2) + "%." : "";
+        $("status").textContent = data.input.frames + " frames, " + data.input.paddedSamples + " padded samples." + payloadText;
       } catch (err) {
         $("status").textContent = err.message;
       } finally {
@@ -2185,6 +2152,7 @@ const pageHTML = `<!doctype html>
     function render(data) {
       const grid = $("audioGrid");
       Object.entries(labels).forEach(([key, label]) => {
+        if (!data.audio || !data.audio[key]) return;
         const card = document.createElement("article");
         card.className = "card";
         card.innerHTML = "<h2>" + label + "</h2><audio controls preload=\"metadata\"></audio>";
@@ -2194,11 +2162,13 @@ const pageHTML = `<!doctype html>
         grid.append(card);
       });
       const downloads = $("downloads");
-      downloads.append(downloadLink(data.downloads.core_g729, "our-core-profile.g729", "Download core profile .g729"));
-      downloads.append(downloadLink(data.downloads.core_clip_g729, "our-core-clip-profile.g729", "Download core-clip profile .g729"));
-      downloads.append(downloadLink(data.downloads.our_g729, "our-encoder.g729", "Download our .g729"));
-      downloads.append(downloadLink(data.downloads.clean_g729, "our-clean-candidate.g729", "Download clean candidate .g729"));
-      downloads.append(downloadLink(data.downloads.external_g729, "bcg729-encoder.g729", "Download bcg729 .g729"));
+      if (data.downloads) {
+        if (data.downloads.core_g729) downloads.append(downloadLink(data.downloads.core_g729, "our-core-profile.g729", "Download core profile .g729"));
+        if (data.downloads.core_clip_g729) downloads.append(downloadLink(data.downloads.core_clip_g729, "our-core-clip-profile.g729", "Download core-clip profile .g729"));
+        if (data.downloads.our_g729) downloads.append(downloadLink(data.downloads.our_g729, "our-encoder.g729", "Download our .g729"));
+        if (data.downloads.pesq_g729) downloads.append(downloadLink(data.downloads.pesq_g729, "our-pesq-candidate.g729", "Download PESQ candidate .g729"));
+        if (data.downloads.external_g729) downloads.append(downloadLink(data.downloads.external_g729, "bcg729-encoder.g729", "Download bcg729 .g729"));
+      }
       const table = document.createElement("table");
       table.className = "metric-table";
       table.innerHTML = "<thead><tr><th>Path</th><th>SNR dB</th><th>Corr</th><th>RMS ratio</th><th>PESQ NB</th><th>Lag</th><th>Peak</th><th>Near clip</th></tr></thead><tbody></tbody>";
