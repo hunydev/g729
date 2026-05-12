@@ -39,11 +39,10 @@
 //
 //   - SampleRate (8000), FrameSamples (80), FrameBytes (10)
 //
-// NewEncoder and NewStreamingEncoder use EncoderProfileQuality, which keeps
-// the emitted bitstream standard-compatible while enabling repository-local
-// encoder search and clip/MSE-repair heuristics: normalized pitch search,
-// native reconstructed-gain residual search, and decoder-in-loop gain
-// clip/MSE repair, tuned by black-box executable decode metrics.
+// NewEncoder and NewStreamingEncoder use EncoderProfileQualityPESQ, which
+// keeps the emitted bitstream standard-compatible while enabling native
+// reconstructed-gain residual search, gain clip repair, and fixed-codebook
+// residual reranking, tuned by black-box executable decode metrics.
 // EncoderProfileCore is available for diagnostics and clean-room algorithm
 // work. It keeps the focused fixed-codebook threshold-search frame budget and
 // sequential Annex A LSP VQ path, applies the open-loop submultiple lift across
@@ -66,10 +65,8 @@
 // EncoderProfileQualityCleanHarmonicDeep, and
 // EncoderProfileQualityCleanFCBRerank are listening-diagnostic variants of
 // that clean pitch policy for clarity-vs-smoothness A/B tests.
-// EncoderProfileQualityPESQ is a separate listening-diagnostic candidate that
-// combines native reconstructed-gain search, gain clip repair, and
-// fixed-codebook residual reranking while leaving the broader quality
-// heuristic set disabled.
+// EncoderProfileQuality remains available as the older broad quality-heuristic
+// profile for diagnostics. EncoderProfileQualityPESQ is the product default.
 // EncoderProfileQualityPESQDegrit is a PESQ-candidate variant that also enables
 // bounded gain MSE/noise repair for blind tests targeting high-residual grit.
 //

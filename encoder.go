@@ -206,9 +206,9 @@ const (
 	// clean-room algorithm work, not as a quality recommendation.
 	EncoderProfileCore EncoderProfile = iota
 
-	// EncoderProfileQuality enables standard-compatible encoder search
-	// heuristics tuned by black-box executable decode metrics. This is the
-	// product default used by NewEncoder and NewStreamingEncoder.
+	// EncoderProfileQuality enables the older broad standard-compatible encoder
+	// search heuristics tuned by black-box executable decode metrics. It remains
+	// available for diagnostics; the product default is EncoderProfileQualityPESQ.
 	EncoderProfileQuality
 
 	// EncoderProfileQualityAnnexALSP explicitly selects the quality profile
@@ -270,10 +270,9 @@ const (
 	// candidate set with the decoder-in-loop residual score before gain repair.
 	EncoderProfileQualityCleanFCBRerank
 
-	// EncoderProfileQualityPESQ is a listening-diagnostic profile that keeps a
+	// EncoderProfileQualityPESQ is the product default profile. It keeps a
 	// smaller encoder-side search set but enables native reconstructed-gain
-	// search, gain clip repair, and fixed-codebook residual reranking. It is
-	// intended to A/B test the current PESQ-leading repository-local candidate.
+	// search, gain clip repair, and fixed-codebook residual reranking.
 	EncoderProfileQualityPESQ
 
 	// EncoderProfileQualityPESQDegrit is a listening-diagnostic variant of the
@@ -287,6 +286,8 @@ const (
 	// clip repair when the selected gain would produce near-clipped output.
 	EncoderProfileCoreClipRepair
 )
+
+const defaultEncoderProfile = EncoderProfileQualityPESQ
 
 type encoderQualityTuning uint32
 
@@ -316,9 +317,10 @@ const (
 		encoderTuningGainNoiseRepair
 )
 
-// NewEncoder returns an Encoder in initial state using EncoderProfileQuality.
+// NewEncoder returns an Encoder in initial state using the current product
+// default profile.
 func NewEncoder() *Encoder {
-	return NewEncoderWithProfile(EncoderProfileQuality)
+	return NewEncoderWithProfile(defaultEncoderProfile)
 }
 
 // NewEncoderWithProfile returns an Encoder in initial state using the selected
@@ -338,7 +340,7 @@ func normalizeEncoderProfile(profile EncoderProfile) EncoderProfile {
 	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep, EncoderProfileQualityCleanFCBRerank, EncoderProfileQualityPESQ, EncoderProfileQualityPESQDegrit, EncoderProfileCoreClipRepair:
 		return profile
 	default:
-		return EncoderProfileQuality
+		return defaultEncoderProfile
 	}
 }
 

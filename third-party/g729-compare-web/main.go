@@ -861,8 +861,6 @@ func essentialCompareAudio() map[string]bool {
 		"core_ffmpeg":      true,
 		"core_clip_local":  true,
 		"core_clip_ffmpeg": true,
-		"pesq_local":       true,
-		"pesq_ffmpeg":      true,
 		"external_local":   true,
 		"external_ffmpeg":  true,
 	}
@@ -1221,11 +1219,15 @@ func ffmpegToPCM(tmp, input string) ([]byte, error) {
 }
 
 func encodeWithLocal(pcm []byte) ([]byte, error) {
-	return encodeWithLocalProfile(pcm, g729.EncoderProfileQuality)
+	enc := g729.NewEncoder()
+	return encodeWithEncoder(pcm, enc)
 }
 
 func encodeWithLocalProfile(pcm []byte, profile g729.EncoderProfile) ([]byte, error) {
-	enc := g729.NewEncoderWithProfile(profile)
+	return encodeWithEncoder(pcm, g729.NewEncoderWithProfile(profile))
+}
+
+func encodeWithEncoder(pcm []byte, enc *g729.Encoder) ([]byte, error) {
 	out := make([]byte, 0, len(pcm)/(g729.FrameSamples*2)*g729.FrameBytes)
 	frame := make([]int16, g729.FrameSamples)
 	bits := make([]byte, g729.FrameBytes)
@@ -1841,18 +1843,15 @@ const pageHTML = `<!doctype html>
           <label>Battle pair<select id="battlePair">
             <option value="core_local|external_ffmpeg">Core local decode vs bcg729 FFmpeg</option>
             <option value="core_local|external_local">Core local decode vs bcg729 local decode</option>
-            <option value="core_local|pesq_local">Core local decode vs PESQ candidate local decode</option>
+            <option value="core_local|our_local">Core local decode vs current default local decode</option>
             <option value="core_local|core_clip_local">Core local decode vs core-clip local decode</option>
             <option value="core_local|core_ffmpeg">Core local decode vs Core FFmpeg decode</option>
             <option value="core_clip_local|external_ffmpeg">Core-clip local decode vs bcg729 FFmpeg</option>
-            <option value="pesq_local|external_ffmpeg">PESQ candidate local decode vs bcg729 FFmpeg</option>
-            <option value="pesq_ffmpeg|external_ffmpeg">PESQ candidate FFmpeg decode vs bcg729 FFmpeg</option>
-            <option value="pesq_local|pesq_ffmpeg">PESQ candidate local decode vs FFmpeg decode</option>
-            <option value="pesq_local|our_local">PESQ candidate local decode vs current local decode</option>
-            <option value="core_local|our_local">Core local decode vs current local decode</option>
+            <option value="our_local|external_ffmpeg">Current default local decode vs bcg729 FFmpeg</option>
+            <option value="our_ffmpeg|external_ffmpeg">Current default FFmpeg decode vs bcg729 FFmpeg</option>
+            <option value="our_local|our_ffmpeg">Current default local decode vs FFmpeg decode</option>
             <option value="core_ffmpeg|core_clip_ffmpeg">Core profile vs core-clip profile</option>
             <option value="core_ffmpeg|external_ffmpeg">Core profile vs bcg729</option>
-            <option value="our_ffmpeg|external_ffmpeg">Current quality vs bcg729</option>
           </select></label>
           <button id="battleStart">Start blind test</button>
         </div>
@@ -1869,10 +1868,8 @@ const pageHTML = `<!doctype html>
       core_ffmpeg: "our core profile -> FFmpeg decode",
       core_clip_local: "our core-clip profile -> our decode",
       core_clip_ffmpeg: "our core-clip profile -> FFmpeg decode",
-      our_local: "our encode -> our decode",
-      our_ffmpeg: "our encode -> FFmpeg decode",
-      pesq_local: "our PESQ candidate -> our decode",
-      pesq_ffmpeg: "our PESQ candidate -> FFmpeg decode",
+      our_local: "our default encode -> our decode",
+      our_ffmpeg: "our default encode -> FFmpeg decode",
       external_local: "bcg729 encode -> our decode",
       external_ffmpeg: "bcg729 encode -> FFmpeg decode"
     };
@@ -1881,10 +1878,8 @@ const pageHTML = `<!doctype html>
       core_ffmpeg: { label: "Core profile -> FFmpeg decode" },
       core_clip_local: { label: "Core-clip profile -> local decode" },
       core_clip_ffmpeg: { label: "Core-clip profile -> FFmpeg decode" },
-      our_local: { label: "Current quality -> local decode" },
-      our_ffmpeg: { label: "Current quality -> FFmpeg decode" },
-      pesq_local: { label: "PESQ candidate -> local decode" },
-      pesq_ffmpeg: { label: "PESQ candidate -> FFmpeg decode" },
+      our_local: { label: "Current default -> local decode" },
+      our_ffmpeg: { label: "Current default -> FFmpeg decode" },
       external_local: { label: "bcg729 -> local decode" },
       external_ffmpeg: { label: "bcg729 -> FFmpeg decode" }
     };
@@ -2166,7 +2161,6 @@ const pageHTML = `<!doctype html>
         if (data.downloads.core_g729) downloads.append(downloadLink(data.downloads.core_g729, "our-core-profile.g729", "Download core profile .g729"));
         if (data.downloads.core_clip_g729) downloads.append(downloadLink(data.downloads.core_clip_g729, "our-core-clip-profile.g729", "Download core-clip profile .g729"));
         if (data.downloads.our_g729) downloads.append(downloadLink(data.downloads.our_g729, "our-encoder.g729", "Download our .g729"));
-        if (data.downloads.pesq_g729) downloads.append(downloadLink(data.downloads.pesq_g729, "our-pesq-candidate.g729", "Download PESQ candidate .g729"));
         if (data.downloads.external_g729) downloads.append(downloadLink(data.downloads.external_g729, "bcg729-encoder.g729", "Download bcg729 .g729"));
       }
       const table = document.createElement("table");

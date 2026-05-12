@@ -12,7 +12,7 @@ var ErrNoStreamSink = errors.New("g729: encoder has no streaming sink (use NewSt
 
 // NewStreamingEncoder returns an Encoder whose (*Encoder).Write and
 // (*Encoder).Flush methods emit packed 10-byte G.729 frames to w, using
-// EncoderProfileQuality.
+// the current product default encoder profile.
 //
 // Plan §6 Task API-2 + design spec §4.3. Buffers up to FrameSamples-1
 // samples between calls; emits one frame per FrameSamples-sample

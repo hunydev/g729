@@ -2,8 +2,9 @@
 
 Date: 2026-05-12
 
-Scope: status handoff for the active end-to-end G.729 quality goal after the
-decoder postfilter alignment work and the PESQ-led encoder candidate.
+Scope: final status for the active end-to-end G.729 quality goal after the
+decoder postfilter alignment work and the PESQ-led encoder candidate was
+promoted to the product default.
 
 Clean-room boundary:
 
@@ -16,7 +17,7 @@ Clean-room boundary:
 
 ## Candidate
 
-The current listening-diagnostic candidate is:
+The current product default encoder profile is:
 
 ```text
 EncoderProfileQualityPESQ
@@ -31,7 +32,9 @@ surface disabled, but enables:
 
 This profile was introduced for A/B testing because it is the first local
 candidate in this cycle that reaches the active PESQ target on both main user
-samples while keeping decoded near-clips at zero.
+samples while keeping decoded near-clips at zero. It is now the default used by
+`NewEncoder` and `NewStreamingEncoder`; the older broad
+`EncoderProfileQuality` remains available as a diagnostic profile.
 
 ## Current Numeric Evidence
 
@@ -83,8 +86,10 @@ End-to-end status:
 
 The 8000 app exposes:
 
-- full Compare rows for `pesq_local` and `pesq_ffmpeg`;
-- Blind 1:1 options for `PESQ candidate vs bcg729`;
+- full Compare rows for the default encoder, Core, Core-clip, and bcg729
+  black-box anchor paths;
+- Blind 1:1 options for default-vs-Core, default-vs-bcg729, Core-vs-bcg729,
+  and local-vs-FFmpeg decoder checks;
 - trial result rows with `PESQ`, `SNR`, `Corr`, `Clip`, residual `High`, and
   residual `Worst`;
 - a copyable blind-result summary text area for preserving listening results.
@@ -122,12 +127,17 @@ go test ./... -count=1
 
 ## Completion Status
 
-Not complete yet.
+Complete.
 
-The numeric gates are satisfied, but the active goal also requires that the
-user-reported grit/smoky/mic-rub artifact becomes difficult to distinguish from
-bcg729 in blind listening. That requirement needs the user's Blind 1:1 result
-summary from the 8000 web app before the goal can be closed.
+The numeric gates are satisfied, and the blind-listening gate is now satisfied
+by the user's 2026-05-12 report:
+
+- no audible difference among `our PESQ/default encode -> local decode`,
+  `our core encode -> local decode`, and `bcg729 encode -> FFmpeg decode`;
+- no audible grit, muffling, or bcg729-relative roughness in the current local
+  encode/decode output;
+- no audible difference between `bcg729 encode -> FFmpeg decode` and
+  `bcg729 encode -> local decode`.
 
 ## Addendum: PESQ-Degrit Blind Candidate
 
@@ -213,8 +223,41 @@ Default-gate interpretation:
 
 Current blocker:
 
-- Need user-provided Blind 1:1 results, starting with
-  `Core local decode vs bcg729 FFmpeg`.
-  If Core wins or ties convincingly, the next engineering decision is whether
-  to promote a Core-derived profile despite lower PESQ. If Core loses, the
-  PESQ candidate is the stronger numeric release candidate.
+- Resolved. Final blind listening reported no meaningful audible difference
+  between the promoted default, Core, and the bcg729+FFmpeg anchor. The PESQ
+  candidate was promoted because it satisfies the numeric release gate while
+  also passing the user's subjective gate.
+
+## Addendum: Final Default Promotion Audit
+
+`EncoderProfileQualityPESQ` is promoted to the default encoder profile used by
+the public constructors. The 8000 web app now labels this path as `our encode`
+instead of exposing it as a separate PESQ candidate.
+
+Current 8000 API evidence after default promotion:
+
+`testdata/external/user_quality_audio.m4a`:
+
+| Key | PESQ NB | Gap vs bcg729+FFmpeg | NearClip | Lag | Peak |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `our_local` | 3.558455 | -0.139031 | 0 | 40 | 31978 |
+| `our_ffmpeg` | 3.601664 | -0.095822 | 0 | 40 | 31847 |
+| `external_local` | 3.649558 | -0.047928 | 0 | 40 | 32622 |
+| `external_ffmpeg` | 3.697486 | 0.000000 | 0 | 40 | 32614 |
+
+`testdata/external/user_quality_input.m4a`:
+
+| Key | PESQ NB | Gap vs bcg729+FFmpeg | NearClip | Lag | Peak |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `our_local` | 3.545760 | -0.109909 | 0 | 40 | 27326 |
+| `our_ffmpeg` | 3.555439 | -0.100230 | 0 | 40 | 30366 |
+| `external_local` | 3.605134 | -0.050535 | 0 | 40 | 26136 |
+| `external_ffmpeg` | 3.655669 | 0.000000 | 0 | 40 | 25881 |
+
+Verification:
+
+```sh
+go test ./... -count=1
+(cd third-party/g729-compare-web && go test . -count=1)
+curl -fsS http://127.0.0.1:8000/healthz
+```

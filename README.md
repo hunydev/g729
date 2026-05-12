@@ -132,13 +132,12 @@ conformance claim.
 
 ### Encoder profiles
 
-`NewEncoder()` and `NewStreamingEncoder()` use `EncoderProfileQuality`.
-This profile emits normal 10-byte G.729 frames, but enables
-standard-compatible encoder search heuristics for normalized pitch search,
-native reconstructed-gain residual search, and decoder-in-loop gain clip/MSE
-repair.
-These heuristics are tuned by black-box executable decode metrics and are a
-product-quality choice, not an ITU byte-exact encoder claim.
+`NewEncoder()` and `NewStreamingEncoder()` use `EncoderProfileQualityPESQ`.
+This profile emits normal 10-byte G.729 frames, keeps the broader historical
+Quality heuristic surface disabled, and enables native reconstructed-gain
+residual search, gain clip repair, and fixed-codebook residual reranking.
+It is a product-quality choice tuned by black-box executable decode metrics,
+not an ITU byte-exact encoder claim.
 The core open-loop path follows Annex A's raw-correlation per-range maxima
 before the normalized three-range merge, and range-3 override checks every
 lower-range submultiple with the Core `11/10` lift instead of only the current
@@ -180,11 +179,10 @@ beyond the strong candidate to locate the grit-vs-muffling boundary.
 `EncoderProfileQualityCleanFCBRerank` keeps the clean pitch policy while
 reranking a small fixed-codebook candidate set with decoder-in-loop residual
 scoring for grit/noise listening diagnostics.
-`EncoderProfileQualityPESQ` is a separate listening-diagnostic candidate that
-keeps the broader Quality heuristic surface disabled while enabling native
-reconstructed-gain residual search, gain clip repair, and fixed-codebook
-residual reranking. It is the current PESQ-led A/B candidate, not the default
-encoder profile.
+`EncoderProfileQuality` remains available as the older broad quality-heuristic
+profile for diagnostics. `EncoderProfileQualityPESQ` is the current default
+because it satisfies the active PESQ/near-clip gates and the user reported no
+blind-listening difference versus Core or the `bcg729` black-box anchor.
 
 For clean-room diagnostics and algorithm work, use
 `NewEncoderWithProfile(EncoderProfileCore)` or
@@ -420,8 +418,8 @@ go test -run TestExternalSampleEncoderCandidatePESQDiagnostic -count=1 -v
 ```
 
 See `docs/superpowers/diagnostics/2026-05-12-pesq-candidate-status.md` for
-the current `EncoderProfileQualityPESQ` status, web-app checks, and the
-remaining blind-listening completion gate.
+the current `EncoderProfileQualityPESQ` default status, web-app checks, and
+blind-listening completion evidence.
 
 To separate clipping from "muffled" spectral-shape complaints, run the
 spectral tilt diagnostic. It compares source, `EncoderProfileCore`,
