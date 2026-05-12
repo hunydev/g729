@@ -71,9 +71,17 @@ The Pages site includes a Go WebAssembly build of the public codec API:
 
 The browser demo accepts normal browser-decodable audio files, resamples them
 to 8 kHz mono signed 16-bit PCM through Web Audio, runs the Go WASM
-encode/decode path, and schedules decoded PCM through a small buffered
-`AudioContext` playback path. Raw `.g729` payload uploads are decoded directly
-through the WASM decoder.
+`EncoderProfileCore` encode/decode path, and schedules decoded PCM through a
+small buffered `AudioContext` playback path. Raw `.g729` payload uploads are
+decoded directly through the WASM decoder.
+
+The checked-in WASM binary must be rebuilt whenever the codec algorithm or
+default encoder profile changes. The current public asset is built from the
+Core-default code path and has SHA-256:
+
+```text
+681c4cff6c005420a21e7c736f701b8ba957cbd040b8a45c8bbedd4ad192a24f  docs/assets/wasm/g729.wasm
+```
 
 Rebuild the WASM asset with:
 
@@ -82,6 +90,7 @@ wasm_exec="$(go env GOROOT)/lib/wasm/wasm_exec.js"
 [ -f "$wasm_exec" ] || wasm_exec="$(go env GOROOT)/misc/wasm/wasm_exec.js"
 cp "$wasm_exec" docs/assets/wasm/wasm_exec.js
 GOOS=js GOARCH=wasm go build -o docs/assets/wasm/g729.wasm ./cmd/g729wasm
+sha256sum docs/assets/wasm/g729.wasm
 ```
 
 ## Golden regression gate

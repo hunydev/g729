@@ -117,10 +117,10 @@ a=maxptime:20</code></pre>
           <h2 id="quality-title">Codec quality samples.</h2>
           <p>
             Source audio is an 8 kHz mono signed 16-bit PCM WAV. The current
-            published samples include this project's encoder decoded by this
-            project and by FFmpeg. FFmpeg reference-encoder slots are shown but
-            disabled because the packaged FFmpeg build exposes a G.729 decoder,
-            not a G.729 encoder.
+            published samples use this project's current Core encoder default
+            decoded by this project and by FFmpeg. FFmpeg reference-encoder
+            slots are shown but disabled because the packaged FFmpeg build
+            exposes a G.729 decoder, not a G.729 encoder.
           </p>
         </div>
         <div class="sample-grid" id="sample-grid" aria-live="polite">
@@ -174,7 +174,7 @@ a=maxptime:20</code></pre>
           <strong>Current gate:</strong> the outbound encoder/RTP send path is
           black-box tested against FFmpeg, and the strict decoder has local
           FFmpeg/Asterisk-origin sample regression coverage. These are project
-          release gates, not ITU certification. The generated raw payload is
+          release gates, not ITU certification. The generated raw Core payload is
           available as <a href="assets/audio/g729-encode.g729" download>g729-encode.g729</a>.
         </div>
       </div>
@@ -187,10 +187,10 @@ a=maxptime:20</code></pre>
           <h2 id="wasm-title">Pure-Go encoder and decoder in WebAssembly.</h2>
           <p>
             Upload audio in the browser, resample it to 8 kHz mono PCM with
-            Web Audio, encode and decode it through the Go WASM build, then
-            play the decoded PCM through a small buffered AudioContext path. Raw
-            <code>.g729</code> payload files can be uploaded for decode-only
-            checks.
+            Web Audio, encode and decode it through the current Go WASM Core
+            default, then play the decoded PCM through a small buffered
+            AudioContext path. Raw <code>.g729</code> payload files can be
+            uploaded for decode-only checks.
           </p>
         </div>
         <div class="wasm-panel" id="wasm-demo">
@@ -200,7 +200,7 @@ a=maxptime:20</code></pre>
           </label>
           <div class="wasm-actions">
             <button class="button primary wasm-button" id="wasm-run" type="button" disabled>Encode / Decode</button>
-            <button class="button wasm-button" id="wasm-stream" type="button" disabled>Stream</button>
+            <button class="button wasm-button" id="wasm-stream" type="button" disabled>Play stream</button>
           </div>
           <div class="wasm-downloads">
             <a class="button wasm-button disabled" id="wasm-download-g729" href="#" download="g729-wasm-encoded.g729" aria-disabled="true">Download G.729</a>

@@ -359,6 +359,7 @@ async function activateWasmDemo() {
         enableDownload(downloadWAV, decodedBlob, "g729-wasm-decoded.wav");
         renderMetrics(metrics, [
           ["path", "payload decode"],
+          ["decoder", "Go WASM local decoder"],
           ["frames", String(result.frames)],
           ["payload bytes", String(payload.byteLength)],
           ["decoded samples", String(result.decodedSamples)]
@@ -377,6 +378,8 @@ async function activateWasmDemo() {
         enableDownload(downloadG729, encodedBlob, "g729-wasm-encoded.g729");
         enableDownload(downloadWAV, decodedBlob, "g729-wasm-roundtrip.wav");
         renderMetrics(metrics, [
+          ["profile", "EncoderProfileCore"],
+          ["path", "Core encode -> local decode"],
           ["input samples", String(result.inputSamples)],
           ["frames", String(result.frames)],
           ["encoded bytes", String(result.encoded.byteLength)],
@@ -395,7 +398,7 @@ async function activateWasmDemo() {
   streamButton.addEventListener("click", () => {
     if (!decodedPCM) return;
     const playback = streamPCM16(decodedPCM, 8000);
-    status.textContent = `Decoded PCM scheduled as one ${playback.prebufferMS} ms buffered AudioContext stream at ${playback.outputRate} Hz.`;
+    status.textContent = `Current WASM decoded PCM scheduled as one ${playback.prebufferMS} ms buffered AudioContext stream at ${playback.outputRate} Hz.`;
   });
 }
 
