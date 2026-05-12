@@ -89,11 +89,84 @@ validate_expected() {
   validated_files="$validated_files $name"
 }
 
+validate_fcb_position_clarification() {
+  name="decoder_itu_fcb_position_clarification_expected.csv"
+  src="$src_dir/$name"
+  template="$handoff_dir/decoder_itu_fcb_position_clarification_expected_template.csv"
+
+  [ -f "$src" ] || return 0
+  found_any=1
+
+  awk -F, '
+    NR == FNR {
+      if (FNR == 1) {
+        header = $0
+        headerNF = NF
+        next
+      }
+      if (NF != headerNF) {
+        printf "%s line %d has %d columns, want %d\n", FILENAME, FNR, NF, headerNF > "/dev/stderr"
+        exit 1
+      }
+      rows++
+      templateC[rows] = $1
+      next
+    }
+    FNR == 1 {
+      if ($0 != header) {
+        printf "%s header changed; expected %s\n", FILENAME, header > "/dev/stderr"
+        exit 1
+      }
+      if (NF != headerNF) {
+        printf "%s header has %d columns, want %d\n", FILENAME, NF, headerNF > "/dev/stderr"
+        exit 1
+      }
+      next
+    }
+    {
+      if (NF != headerNF) {
+        printf "%s line %d has %d columns, want %d\n", FILENAME, FNR, NF, headerNF > "/dev/stderr"
+        exit 1
+      }
+      row = FNR - 1
+      if (row > rows) {
+        printf "%s has extra data row at line %d\n", FILENAME, FNR > "/dev/stderr"
+        exit 1
+      }
+      if ($1 != templateC[row]) {
+        printf "%s line %d C key changed; got %s want %s\n", FILENAME, FNR, $1, templateC[row] > "/dev/stderr"
+        exit 1
+      }
+      for (i = 2; i <= 10; i++) {
+        if ($i !~ /^-?[0-9]+$/) {
+          printf "%s line %d column %d is not a numeric scalar\n", FILENAME, FNR, i > "/dev/stderr"
+          exit 1
+        }
+      }
+      if ($11 != "formula_ok" && $11 != "formula_conflict" && $11 != "unknown") {
+        printf "%s line %d note %s is not an allowed controlled note\n", FILENAME, FNR, $11 > "/dev/stderr"
+        exit 1
+      }
+      filled += 10
+    }
+    END {
+      if (filled != rows * 10) {
+        printf "%s filled cells=%d, want %d numeric-or-controlled cells\n", FILENAME, filled, rows * 10 > "/dev/stderr"
+        exit 1
+      }
+      printf "%s: validated %d numeric-or-controlled cells\n", FILENAME, filled
+    }
+  ' "$template" "$src"
+
+  validated_files="$validated_files $name"
+}
+
 allowed_file() {
   case "$1" in
     fcb_tree_search_expected_template.csv|\
     fcb_tree_search_user_audio_expected_template.csv|\
-    encoder_closedloop_stage_expected_template.csv)
+    encoder_closedloop_stage_expected_template.csv|\
+    decoder_itu_fcb_position_clarification_expected.csv)
       return 0
       ;;
     *)
@@ -127,6 +200,7 @@ done < "$entry_list"
 validate_expected "fcb_tree_search_expected_template.csv" 4
 validate_expected "fcb_tree_search_user_audio_expected_template.csv" 4
 validate_expected "encoder_closedloop_stage_expected_template.csv" 6
+validate_fcb_position_clarification
 
 if [ "$found_any" -ne 1 ]; then
   echo "$src_dir contains no allowed verifier-returned expected CSV files" >&2

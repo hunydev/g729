@@ -237,13 +237,15 @@ Partial verifier artifact status:
   gains match exactly on filled rows.
 - Filled `fixed_c_q13` rows match `297/303`; the remaining six disagreements
   all move the fourth fixed-codebook pulse for `C=4099`, `C=3587`, or `C=4183`.
-- The fourth-pulse disagreements are isolated enough that they should not be
-  used as a production decoder fix without verifier clarification. The prompt
-  for that narrow clean-room clarification is
-  `testdata/oracle/handoff/DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md`.
-- The clarification has its own three-row template:
-  `testdata/oracle/handoff/decoder_itu_fcb_position_clarification_expected_template.csv`.
-  After verifier return, compare it with:
+- The separate three-row fixed-codebook clarification returned `30/30` exact
+  against the local §3.8.2-style decomposition:
+  `4099 -> m3=23`, `3587 -> m3=19`, and `4183 -> m3=23`.
+- Therefore those six `fixed_c_q13` disagreements should be treated as a
+  partial-stage-artifact issue, not as a production decoder fixed-codebook
+  defect.
+- The clarification artifact is:
+  `testdata/oracle/handoff/decoder_itu_fcb_position_clarification_expected.csv`.
+  Compare it with:
 
   ```sh
   G729_COMPARE_DECODER_ITU_FCB_POSITION_CLARIFICATION=1 \

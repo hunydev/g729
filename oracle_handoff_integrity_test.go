@@ -283,8 +283,7 @@ func TestOracleHandoff_ManifestUnfilledCountsMatchCurrentFiles(t *testing.T) {
 
 	counts := parseManifestBlankCounts(t, text, "## Currently Unfilled Files", "## Verification Commands")
 	wantFiles := map[string]bool{
-		"decoder_itu_fcb_position_clarification_expected_template.csv": true,
-		"encoder_closedloop_stage_expected_template.csv":               true,
+		"encoder_closedloop_stage_expected_template.csv": true,
 	}
 	if len(counts) != len(wantFiles) {
 		t.Fatalf("manifest unfilled file count=%d, want %d", len(counts), len(wantFiles))
@@ -560,7 +559,7 @@ func TestOracleHandoff_BundleScriptPinsDeterministicInputs(t *testing.T) {
 }
 
 func TestOracleHandoff_BundleScriptBuildsDocumentedArchive(t *testing.T) {
-	const wantSHA256 = "75ac4fc5232bba3d920e3af309f2a742e19e5e1fc338ce65351a411e0e3818de"
+	const wantSHA256 = "8c47ed61e8dd4e0f2aaea43d27e455d8d303c96f4fe427bc141f39ad5d8c6e75"
 	scriptPath := filepath.Join("testdata", "oracle", "handoff", "create_verifier_bundle.sh")
 	tmp := t.TempDir()
 	bundleDir := filepath.Join(tmp, "g729-fcb-verifier-handoff")

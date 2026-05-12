@@ -69,6 +69,9 @@ These files are not oracle artifacts and are intentionally ignored by the option
   fourth-pulse position decompositions from the partial decoder stage artifact.
 - `decoder_itu_fcb_position_clarification_expected_template.csv`:
   verifier-owned template for that three-row clarification.
+- `decoder_itu_fcb_position_clarification_expected.csv`: verifier-filled
+  clarification artifact; currently exact-compared and resolves the three
+  fixed-codebook fourth-pulse position decompositions.
 - `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md`: consolidated verifier
   request for the currently unfilled encoder closed-loop stage
   conformance handoff template, with completed FCB status noted.
@@ -126,8 +129,8 @@ Filled verifier output intake:
 
    The validator rejects unexpected files, symlinked files, changed
    headers, changed row counts, changed key columns, blank `expected`
-   cells, and non-numeric `expected` cells. It is validation-only by
-   default.
+   cells, and non-numeric `expected` cells unless that artifact explicitly
+   allows controlled note cells. It is validation-only by default.
 2. To copy validated files into their exact template paths, rerun with:
 
    ```sh

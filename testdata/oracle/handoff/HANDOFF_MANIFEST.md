@@ -45,7 +45,7 @@ identify the current files after numeric `expected` cells were filled.
 | `EXTERNAL_VERIFIER_REQUEST.md` | n/a | n/a | `d65189e31ed3189ada680e26efd2e934d71d8286023d0c27cef5499df66aa725` |
 | `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md` | n/a | n/a | `0da88d8dc36ccedc36906df62ce781c04056f2e5bd5597187e6ec26b3dd5eadc` |
 | `create_verifier_bundle.sh` | n/a | n/a | `05460c982ec487ec894bcb31b1200be4ab0542fd335bbabd08f8a21cb0651faf` |
-| `validate_verifier_output.sh` | n/a | n/a | `a5d6039222c65e68dd384aa1257fb51a3a5c3d96c816ad9d21a273d8a18d7fbd` |
+| `validate_verifier_output.sh` | n/a | n/a | `064574602becaa3c572adc3f28c703f48a90acd7ff34df5509b315e4928f459d` |
 
 ## Verifier-filled Files
 
@@ -60,18 +60,18 @@ identify the current files after numeric `expected` cells were filled.
 | `tame_gain_taming_expected_template.csv` | 8962 | `ab66f67c7f498cf41858f15c45faafaf949e36dcd1319054e69ef14580b85dd4` |
 | `fcb_tree_search_expected_template.csv` | 10194 | `9662f8e6de7eb5e4d0d99ce0fae2770e7ee43b42f61b7a25f813fc297ffd98fa` |
 | `fcb_tree_search_user_audio_expected_template.csv` | 10194 | `8043447cd725636836fe496018e373171b8ad87258604b7297920f5e6d22b260` |
+| `decoder_itu_fcb_position_clarification_expected.csv` | 30 | `e2a8ff28bbd291c251e9d8dad13e2d82da9985bf342246ed9c7ac9fcf145fca2` |
 
 ## Partially Filled Files
 
 | File | Filled `expected` cells | Blank `expected` cells | SHA-256 | Next action |
 | --- | ---: | ---: | --- | --- |
-| `decoder_itu_stage_expected.csv` | 1562 | 8929 | `158a1c310206163f60022a00d0e3002a23ee525d3dfd9955cfd4e8b0b3be261b` | Use as a localization artifact only; resolve the fixed-codebook fourth-pulse clarification, then request additional LP/synthesis state rows before promoting to a strict gate. |
+| `decoder_itu_stage_expected.csv` | 1562 | 8929 | `158a1c310206163f60022a00d0e3002a23ee525d3dfd9955cfd4e8b0b3be261b` | Use as a localization artifact only; fixed-codebook fourth-pulse clarification is resolved, so request additional LP/synthesis state rows before promoting to a strict gate. |
 
 ## Currently Unfilled Files
 
 | File | Blank `expected` cells | Next action |
 | --- | ---: | --- |
-| `decoder_itu_fcb_position_clarification_expected_template.csv` | 3 | Fill from `DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md` to resolve the three fixed-codebook fourth-pulse position disagreements. |
 | `encoder_closedloop_stage_expected_template.csv` | 100848 | Fill from `ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md` if a broader closed-loop stage oracle is required. |
 
 ## Verification Commands
