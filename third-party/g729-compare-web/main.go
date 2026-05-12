@@ -902,6 +902,8 @@ func selectedMetricPath(key string) string {
 		return "our FCB-clean encode -> ffmpeg decode"
 	case "pesq_local":
 		return "our PESQ candidate encode -> local decode"
+	case "pesq_blend50":
+		return "our PESQ candidate encode -> local postfilter-blend50 decode"
 	case "pesq_ffmpeg":
 		return "our PESQ candidate encode -> ffmpeg decode"
 	case "soft_our_ffmpeg":
@@ -973,6 +975,8 @@ func selectedAudioPipeline(key string) (pipeline, decoder string, soft bool, ok 
 		return "fcb", "ffmpeg", false, true
 	case "pesq_local":
 		return "pesq", "local", false, true
+	case "pesq_blend50":
+		return "pesq", "blend50", false, true
 	case "pesq_ffmpeg":
 		return "pesq", "ffmpeg", false, true
 	case "soft_our_ffmpeg":
@@ -1625,6 +1629,9 @@ const pageHTML = `<!doctype html>
           <label>Battle pair<select id="battlePair">
             <option value="pesq_ffmpeg|external_ffmpeg">PESQ candidate vs bcg729</option>
             <option value="pesq_local|external_ffmpeg">PESQ candidate local decode vs bcg729 FFmpeg</option>
+            <option value="pesq_blend50|external_ffmpeg">PESQ candidate blend50 local decode vs bcg729 FFmpeg</option>
+            <option value="pesq_blend50|pesq_local">PESQ candidate blend50 local decode vs strict local decode</option>
+            <option value="pesq_blend50|pesq_ffmpeg">PESQ candidate blend50 local decode vs FFmpeg decode</option>
             <option value="pesq_ffmpeg|fcb_ffmpeg">PESQ candidate vs FCB-clean candidate</option>
             <option value="pesq_ffmpeg|core_ffmpeg">PESQ candidate vs core profile</option>
             <option value="pesq_ffmpeg|our_ffmpeg">PESQ candidate vs current quality</option>
@@ -1696,6 +1703,7 @@ const pageHTML = `<!doctype html>
       fcb_local: "our FCB-clean candidate -> our decode",
       fcb_ffmpeg: "our FCB-clean candidate -> FFmpeg decode",
       pesq_local: "our PESQ candidate -> our decode",
+      pesq_blend50: "our PESQ candidate -> postfilter-blend50 decode",
       pesq_ffmpeg: "our PESQ candidate -> FFmpeg decode",
       soft_our_ffmpeg: "our encode -> softened FFmpeg decode",
       soft_clean_ffmpeg: "our clean candidate -> softened FFmpeg decode",
@@ -1733,6 +1741,7 @@ const pageHTML = `<!doctype html>
       harmonic_deep_local: { label: "Harmonic-deep candidate -> local decode" },
       fcb_local: { label: "FCB-clean candidate -> local decode" },
       pesq_local: { label: "PESQ candidate -> local decode" },
+      pesq_blend50: { label: "PESQ candidate -> blend50 local decode" },
       external_blend50: { label: "bcg729 -> blend50 local decode" },
       external_local: { label: "bcg729 -> local decode" }
     };
