@@ -8,14 +8,18 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/hunydev/g729/internal/bitstream"
 )
 
 // TestPhase3oFFmpegEnvelopeAudit_SPEECH compares the local decoder with
-// FFmpeg executable black-box decode on the same SPEECH.BIT payload, then
+// FFmpeg executable black-box decode on the same ITU .BIT payload, then
 // attaches local DecodeWithTaps gain/stage metrics to the worst active frames.
+//
+// By default it runs SPEECH.BIT. Set G729_DECODER_FFMPEG_ENVELOPE_VECTOR=TAME
+// or another ITU vector basename to focus a specific decoder surface.
 //
 // FFmpeg is used only as an external executable. No external implementation
 // source is inspected.
@@ -27,11 +31,12 @@ func TestPhase3oFFmpegEnvelopeAudit_SPEECH(t *testing.T) {
 		t.Skipf("ffmpeg unavailable: %v", err)
 	}
 
-	bitPath := vectorPath("SPEECH.BIT")
+	vector := phase3oSelectedVector()
+	bitPath := vectorPath(vector)
 	ensureTestdataPresent(t, bitPath)
 	bitData, err := os.ReadFile(bitPath)
 	if err != nil {
-		t.Fatalf("read SPEECH.BIT: %v", err)
+		t.Fatalf("read %s: %v", vector, err)
 	}
 	frames := len(bitData) / bitstream.G192FrameBytes
 	if frames <= 0 {
@@ -39,8 +44,9 @@ func TestPhase3oFFmpegEnvelopeAudit_SPEECH(t *testing.T) {
 	}
 
 	tmp := t.TempDir()
-	rawPath := filepath.Join(tmp, "speech-bit.g729")
-	ffPath := filepath.Join(tmp, "speech-bit.ffmpeg.s16le")
+	vectorBase := strings.ToLower(strings.TrimSuffix(vector, ".BIT"))
+	rawPath := filepath.Join(tmp, vectorBase+".g729")
+	ffPath := filepath.Join(tmp, vectorBase+".ffmpeg.s16le")
 	writeG192RawForEnvelopeAudit(t, bitData, frames, rawPath)
 	ffmpegDecodeRawForEnvelopeAudit(t, rawPath, ffPath)
 
@@ -53,6 +59,13 @@ func TestPhase3oFFmpegEnvelopeAudit_SPEECH(t *testing.T) {
 	}
 
 	local, taps := decodeG192WithTapsForEnvelopeAudit(t, bitData, frames)
+	if pst, ok := phase3oReadVectorPST(t, vector, frames); ok {
+		ffVsPST := blackboxMeasure(pst, ff, 40)
+		localVsPST := blackboxMeasure(pst, local, 40)
+		t.Logf("PST cross-check: FFmpeg gSNR=%.2f seg=%.2f corr=%.3f rms=%.2f peak=%d ; local gSNR=%.2f seg=%.2f corr=%.3f rms=%.2f peak=%d",
+			ffVsPST.globalSNR, ffVsPST.segSNR, ffVsPST.corr, ffVsPST.rms, ffVsPST.peak,
+			localVsPST.globalSNR, localVsPST.segSNR, localVsPST.corr, localVsPST.rms, localVsPST.peak)
+	}
 
 	rows := make([]envelopeAuditFrame, 0, frames)
 	for frame := 0; frame < frames; frame++ {
@@ -89,7 +102,7 @@ func TestPhase3oFFmpegEnvelopeAudit_SPEECH(t *testing.T) {
 	})
 
 	summary := summarizeEnvelopeAudit(rows)
-	t.Logf("Phase 3o FFmpeg envelope audit - SPEECH.BIT (%d frames)", frames)
+	t.Logf("Phase 3o FFmpeg envelope audit - %s (%d frames)", vector, frames)
 	t.Logf("active frames ffRMS>=500: %d ; ratio median=%.3f mean=%.3f p10=%.3f p90=%.3f low<0.5=%d high>1.5=%d corr<0=%d corr<0.3=%d",
 		summary.activeFrames, summary.ratioMedian, summary.ratioMean, summary.ratioP10, summary.ratioP90,
 		summary.lowRatioFrames, summary.highRatioFrames, summary.negativeCorrFrames, summary.lowCorrFrames)
@@ -112,6 +125,53 @@ func TestPhase3oFFmpegEnvelopeAudit_SPEECH(t *testing.T) {
 			r.stages.sRMS, r.stages.spfRMS, r.stages.hpRMS, r.stages.outRMS,
 			r.stages.gpMax, r.stages.gcMax, r.stages.predictedAvgQ10/1024.0, r.stages.logGainAvgQ10/1024.0)
 	}
+
+	detailLimit := 5
+	if detailLimit > len(rows) {
+		detailLimit = len(rows)
+	}
+	t.Logf("")
+	t.Logf("Worst-frame subframe detail:")
+	for i := 0; i < detailLimit; i++ {
+		phase3oLogFrameDetail(t, vector, rows[i].frame, ff, local, taps[rows[i].frame])
+	}
+}
+
+func phase3oSelectedVector() string {
+	vector := strings.TrimSpace(os.Getenv("G729_DECODER_FFMPEG_ENVELOPE_VECTOR"))
+	if vector == "" {
+		return "SPEECH.BIT"
+	}
+	vector = strings.ToUpper(vector)
+	if !strings.HasSuffix(vector, ".BIT") {
+		vector += ".BIT"
+	}
+	return vector
+}
+
+func phase3oReadVectorPST(t *testing.T, vector string, frames int) ([]int16, bool) {
+	t.Helper()
+	base := strings.TrimSuffix(vector, ".BIT")
+	for _, candidate := range []string{base + ".PST", base + ".pst"} {
+		path := vectorPath(candidate)
+		if _, err := os.Stat(path); err != nil {
+			continue
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", candidate, err)
+		}
+		want := frames * frameSamples
+		out := blackboxReadPCM16LE(t, data, want)
+		if len(out) > want {
+			out = out[:want]
+		}
+		if len(out) < want {
+			t.Fatalf("%s too short: got %d samples want >= %d", candidate, len(out), want)
+		}
+		return out, true
+	}
+	return nil, false
 }
 
 type envelopeAuditFrame struct {
@@ -235,7 +295,7 @@ func writeG192RawForEnvelopeAudit(t *testing.T, g192 []byte, frames int, path st
 	r := bytes.NewReader(g192)
 	var packed [bitstream.FrameBytes]byte
 	for f := 0; f < frames; f++ {
-		if _, err := bitstream.ReadG192Frame(r, packed[:]); err != nil {
+		if _, err := bitstream.ReadG192FrameLenient(r, packed[:]); err != nil {
 			t.Fatalf("ReadG192Frame frame %d: %v", f, err)
 		}
 		raw.Write(packed[:])
@@ -278,7 +338,7 @@ func decodeG192WithTapsForEnvelopeAudit(t *testing.T, g192 []byte, frames int) (
 	var packed [bitstream.FrameBytes]byte
 	r := bytes.NewReader(g192)
 	for f := 0; f < frames; f++ {
-		if _, err := bitstream.ReadG192Frame(r, packed[:]); err != nil {
+		if _, err := bitstream.ReadG192FrameLenient(r, packed[:]); err != nil {
 			t.Fatalf("ReadG192Frame frame %d: %v", f, err)
 		}
 		frameTaps, err := dec.DecodeWithTaps(packed[:])
@@ -397,4 +457,60 @@ func envelopeCorr(a, b []int16) float64 {
 		return math.NaN()
 	}
 	return num / den
+}
+
+func phase3oLogFrameDetail(t *testing.T, vector string, frame int, ref, local []int16, taps Phase3DiagFrameTaps) {
+	t.Helper()
+	base := frame * frameSamples
+	if base+frameSamples > len(ref) || base+frameSamples > len(local) {
+		return
+	}
+
+	frameRef := ref[base : base+frameSamples]
+	frameLocal := local[base : base+frameSamples]
+	f := taps.Frame
+	t.Logf("%s frame=%d indices L=(%d,%d,%d,%d) P1=%d P0=%d P2=%d C=(%d,%d) S=(%d,%d) GA/GB=(%d,%d)/(%d,%d) refRMS=%.1f localRMS=%.1f ratio=%.3f snr=%.2f corr=%.3f clipped=%d",
+		vector, frame, f.L0, f.L1, f.L2, f.L3, f.P1, f.P0, f.P2, f.C1, f.C2, f.S1, f.S2,
+		f.GA1, f.GB1, f.GA2, f.GB2,
+		envelopeRMS(frameRef), envelopeRMS(frameLocal), safeRatioFloat64(envelopeRMS(frameLocal), envelopeRMS(frameRef)),
+		envelopeSNRDB(frameRef, frameLocal), envelopeCorr(frameRef, frameLocal), phase3oClipCount(frameLocal))
+
+	for sf := 0; sf < 2; sf++ {
+		sub := taps.Sub[sf]
+		off := base + sf*subframeLen
+		refSub := ref[off : off+subframeLen]
+		localSub := local[off : off+subframeLen]
+		ga, gb := phase3oSubframeGainIndices(f, sf)
+		t.Logf("  sf=%d T=%d/%+d GA/GB=%d/%d gp=%.3f gc=%.3f gammaQ13=%d pred=%.2fdB logGain=%.2fdB refRMS=%.1f localRMS=%.1f uRMS=%.1f sRMS=%.1f spfRMS=%.1f hpRMS=%.1f subSNR=%.2f corr=%.3f clipped=%d",
+			sf, sub.TInt, sub.TFrac, ga, gb,
+			float64(sub.GpQ14)/16384.0,
+			phase3oLinearGC(sub.GainTaps.GcMantQ14, sub.GainTaps.GcExp),
+			sub.GainTaps.GammaCQ13,
+			float64(sub.GainTaps.Predicted)/1024.0,
+			float64(sub.GainTaps.LogGainDbQ10)/1024.0,
+			envelopeRMS(refSub), envelopeRMS(localSub),
+			envelopeRMS(sub.U[:]), envelopeRMS(sub.S[:]), envelopeRMS(sub.SPf[:]), envelopeRMS(sub.HpOut[:]),
+			envelopeSNRDB(refSub, localSub), envelopeCorr(refSub, localSub), phase3oClipCount(localSub))
+	}
+}
+
+func phase3oSubframeGainIndices(f bitstream.Frame, sf int) (uint8, uint8) {
+	if sf == 0 {
+		return uint8(f.GA1), uint8(f.GB1)
+	}
+	return uint8(f.GA2), uint8(f.GB2)
+}
+
+func phase3oLinearGC(mant int16, exp int8) float64 {
+	return float64(mant) * math.Exp2(float64(exp)-14)
+}
+
+func phase3oClipCount(samples []int16) int {
+	var clipped int
+	for _, s := range samples {
+		if s == 32767 || s == -32768 {
+			clipped++
+		}
+	}
+	return clipped
 }

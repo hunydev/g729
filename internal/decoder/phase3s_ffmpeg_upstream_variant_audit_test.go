@@ -10,7 +10,10 @@ import (
 )
 
 // TestPhase3sFFmpegUpstreamVariantAudit_SPEECH repeats the upstream local
-// decoder variants against FFmpeg executable black-box decode of SPEECH.BIT.
+// decoder variants against FFmpeg executable black-box decode of an ITU .BIT
+// payload. By default it runs SPEECH.BIT; set
+// G729_DECODER_FFMPEG_ENVELOPE_VECTOR to focus another vector such as TAME.
+//
 // FFmpeg is used only as an external process; no implementation source is
 // inspected.
 func TestPhase3sFFmpegUpstreamVariantAudit_SPEECH(t *testing.T) {
@@ -21,11 +24,12 @@ func TestPhase3sFFmpegUpstreamVariantAudit_SPEECH(t *testing.T) {
 		t.Skipf("ffmpeg unavailable: %v", err)
 	}
 
-	bitPath := vectorPath("SPEECH.BIT")
+	vector := phase3oSelectedVector()
+	bitPath := vectorPath(vector)
 	ensureTestdataPresent(t, bitPath)
 	bitData, err := os.ReadFile(bitPath)
 	if err != nil {
-		t.Fatalf("read SPEECH.BIT: %v", err)
+		t.Fatalf("read %s: %v", vector, err)
 	}
 	frames := len(bitData) / bitstream.G192FrameBytes
 	if frames <= 0 {
@@ -33,8 +37,8 @@ func TestPhase3sFFmpegUpstreamVariantAudit_SPEECH(t *testing.T) {
 	}
 
 	tmp := t.TempDir()
-	rawPath := filepath.Join(tmp, "speech-bit.g729")
-	ffPath := filepath.Join(tmp, "speech-bit.ffmpeg.s16le")
+	rawPath := filepath.Join(tmp, "vector.g729")
+	ffPath := filepath.Join(tmp, "vector.ffmpeg.s16le")
 	writeG192RawForEnvelopeAudit(t, bitData, frames, rawPath)
 	ffmpegDecodeRawForEnvelopeAudit(t, rawPath, ffPath)
 	ref := readPCM16LEForEnvelopeAudit(t, ffPath)
@@ -81,7 +85,7 @@ func TestPhase3sFFmpegUpstreamVariantAudit_SPEECH(t *testing.T) {
 	}
 	rows := make([]row, 0, len(variants))
 
-	t.Logf("Phase 3s FFmpeg upstream variant audit - SPEECH.BIT (%d frames)", frames)
+	t.Logf("Phase 3s FFmpeg upstream variant audit - %s (%d frames)", vector, frames)
 	t.Logf("baseline production vs FFmpeg: rms=%.2f peak=%d gSNR=%.2f seg=%.2f corr=%.3f bestLag=%+d bestSNR=%.2f ratioMed=%.3f low<0.5=%d corr<0.3=%d",
 		prodMetrics.rms, prodMetrics.peak, prodMetrics.globalSNR, prodMetrics.segSNR,
 		prodMetrics.corr, prodMetrics.bestSNRLag, prodMetrics.bestSNR,
