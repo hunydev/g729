@@ -40,7 +40,8 @@ identify the current files after numeric `expected` cells were filled.
 | `fcb_tree_search_user_audio_got.csv` | `field,frame,sub,index,got` | 10194 | `742386389e98025580a32a1105ddaa8995b38731b233a6a1948ed3eb5b6b46e5` |
 | `decoder_itu_stage_expected_template.csv` | `source,frame,sub,field,index,expected` | 10491 | `a06d13af94cb2d1b60c6d6f13caeb6567a559e0b6a5d6959d56a6225f1a522a7` |
 | `decoder_itu_stage_got.csv` | `source,frame,sub,field,index,got` | 10491 | `8358a260b67f0551fa7a84280ca97e1106ae236bb44e5252c9fcc42ee4b4bdda` |
-| `DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md` | n/a | n/a | `0954f507bb54f51d901c3a911edc5b51f7daa750d99dea9e9bd2ef72939333a5` |
+| `DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md` | n/a | n/a | `adf86bb920b590d25103bb4b1982aba459e1380a9886e3526f8ee535d7cb6790` |
+| `decoder_itu_fcb_position_clarification_expected_template.csv` | `C,i0,i1,i2,i3,jx,m0,m1,m2,m3,note` | 3 | `33b5766a587219fedc26a7d6e8b757eade3dd03f31f9394834bd4602968ca450` |
 | `EXTERNAL_VERIFIER_REQUEST.md` | n/a | n/a | `d65189e31ed3189ada680e26efd2e934d71d8286023d0c27cef5499df66aa725` |
 | `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md` | n/a | n/a | `0da88d8dc36ccedc36906df62ce781c04056f2e5bd5597187e6ec26b3dd5eadc` |
 | `create_verifier_bundle.sh` | n/a | n/a | `05460c982ec487ec894bcb31b1200be4ab0542fd335bbabd08f8a21cb0651faf` |
@@ -70,6 +71,7 @@ identify the current files after numeric `expected` cells were filled.
 
 | File | Blank `expected` cells | Next action |
 | --- | ---: | --- |
+| `decoder_itu_fcb_position_clarification_expected_template.csv` | 3 | Fill from `DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md` to resolve the three fixed-codebook fourth-pulse position disagreements. |
 | `encoder_closedloop_stage_expected_template.csv` | 100848 | Fill from `ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md` if a broader closed-loop stage oracle is required. |
 
 ## Verification Commands

@@ -241,6 +241,17 @@ Partial verifier artifact status:
   used as a production decoder fix without verifier clarification. The prompt
   for that narrow clean-room clarification is
   `testdata/oracle/handoff/DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md`.
+- The clarification has its own three-row template:
+  `testdata/oracle/handoff/decoder_itu_fcb_position_clarification_expected_template.csv`.
+  After verifier return, compare it with:
+
+  ```sh
+  G729_COMPARE_DECODER_ITU_FCB_POSITION_CLARIFICATION=1 \
+  G729_REQUIRE_COMPLETE_DECODER_ITU_FCB_POSITION_CLARIFICATION=1 \
+  G729_REQUIRE_EXACT_DECODER_ITU_FCB_POSITION_CLARIFICATION=1 \
+  go test ./internal/fcb -run TestOracleHandoff_CompareDecoderITUFCBPositionClarification -count=1 -v
+  ```
+
 - Filled final `pcm_q0` rows are still far from exact, so the partial artifact
   is useful for localization but is not a completed oracle gate.
 

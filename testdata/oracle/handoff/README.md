@@ -67,6 +67,8 @@ These files are not oracle artifacts and are intentionally ignored by the option
 - `DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md`: copyable prompt for an
   isolated clean-room verifier to clarify the three unresolved fixed-codebook
   fourth-pulse position decompositions from the partial decoder stage artifact.
+- `decoder_itu_fcb_position_clarification_expected_template.csv`:
+  verifier-owned template for that three-row clarification.
 - `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md`: consolidated verifier
   request for the currently unfilled encoder closed-loop stage
   conformance handoff template, with completed FCB status noted.
