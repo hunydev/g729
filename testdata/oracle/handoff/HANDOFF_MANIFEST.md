@@ -34,10 +34,10 @@ identify the current files after numeric `expected` cells were filled.
 | `tame_gain_taming_got.csv` | `field,frame,sub,index,got` | 8962 | `53927db37826977a1f0e6a2421f4ccb7a0a569998bae8461c479a6260c0af298` |
 | `FCB_TREE_SEARCH_VERIFIER_PROMPT.md` | n/a | n/a | `b327bac1381cea87d2e364876dbdc423eac89f018d1950ed906e0a41b2a351a0` |
 | `fcb_tree_search_expected_template.csv` | `field,frame,sub,index,expected` | 10194 | `4644b4330f2401496de267fd2f33c33d6e245715e1460accecb1cd51a3164d40` |
-| `fcb_tree_search_got.csv` | `field,frame,sub,index,got` | 10194 | `71788f16112bef803906346b40eb9c10bde543baa9ed2e54192bc41f8e53e235` |
+| `fcb_tree_search_got.csv` | `field,frame,sub,index,got` | 10194 | `9e788a38f7df52c0ed3d02f02a484fb5425e6d19dace0b88f7d5e36321640b75` |
 | `FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md` | n/a | n/a | `102cfaccf8bc984507294b2d4ddee7272cd20befdeb513765b0989fb8fa1ada5` |
 | `fcb_tree_search_user_audio_expected_template.csv` | `field,frame,sub,index,expected` | 10194 | `4644b4330f2401496de267fd2f33c33d6e245715e1460accecb1cd51a3164d40` |
-| `fcb_tree_search_user_audio_got.csv` | `field,frame,sub,index,got` | 10194 | `742386389e98025580a32a1105ddaa8995b38731b233a6a1948ed3eb5b6b46e5` |
+| `fcb_tree_search_user_audio_got.csv` | `field,frame,sub,index,got` | 10194 | `88412b695175e48192a6f1f50fedc9647d56417d3e9682623406b2d1ef904ac8` |
 | `decoder_itu_stage_expected_template.csv` | `source,frame,sub,field,index,expected` | 10491 | `a06d13af94cb2d1b60c6d6f13caeb6567a559e0b6a5d6959d56a6225f1a522a7` |
 | `decoder_itu_stage_got.csv` | `source,frame,sub,field,index,got` | 10491 | `8358a260b67f0551fa7a84280ca97e1106ae236bb44e5252c9fcc42ee4b4bdda` |
 | `DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md` | n/a | n/a | `adf86bb920b590d25103bb4b1982aba459e1380a9886e3526f8ee535d7cb6790` |
@@ -62,6 +62,12 @@ identify the current files after numeric `expected` cells were filled.
 | `fcb_tree_search_user_audio_expected_template.csv` | 10194 | `8043447cd725636836fe496018e373171b8ad87258604b7297920f5e6d22b260` |
 | `decoder_itu_fcb_position_clarification_expected.csv` | 30 | `e2a8ff28bbd291c251e9d8dad13e2d82da9985bf342246ed9c7ac9fcf145fca2` |
 | `decoder_tame_stage_wide_expected.csv` | 1518 | `ca9809900a74be1345f844bcc00090d31b0bfe4c3ada6bd1d82702d5c578b35e` |
+
+## Controlled Numeric Diagnostics
+
+| File | Data rows | SHA-256 | Note |
+| --- | ---: | --- | --- |
+| `tame_short_pitch_relation.csv` | 48 | `9d73b5aea66fa153b2d26353e750d9beddae4cc1b8a2df33c35bc80fb111560c` | Verifier-produced relation table for TAME short-pitch `T_frac=0`; supports the phase-0 FIR adaptive-codebook fix. |
 
 ## Partially Filled Files
 

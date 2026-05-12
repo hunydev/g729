@@ -80,7 +80,7 @@ default encoder profile changes. The current public asset is built from the
 Core-default code path and has SHA-256:
 
 ```text
-681c4cff6c005420a21e7c736f701b8ba957cbd040b8a45c8bbedd4ad192a24f  docs/assets/wasm/g729.wasm
+2d82e70d5769070d8fb4840598d79aed0a2830399b8c7bb017a86d559e691484  docs/assets/wasm/g729.wasm
 ```
 
 Rebuild the WASM asset with:

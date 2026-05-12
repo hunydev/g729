@@ -33,6 +33,28 @@ func TestPagesAudioGoldenOutputs(t *testing.T) {
 	}
 }
 
+func TestPagesAudioWriteGoldenOutputs(t *testing.T) {
+	if os.Getenv("G729_WRITE_PAGES_AUDIO_GOLDEN") != "1" {
+		t.Skip("set G729_WRITE_PAGES_AUDIO_GOLDEN=1 to refresh docs/assets/audio golden outputs")
+	}
+
+	sourcePCM, format := readPCM16WAVFixture(t, "docs/assets/audio/source-8k-16bit.wav")
+	if format.sampleRate != SampleRate || format.channels != 1 || format.bitsPerSample != 16 {
+		t.Fatalf("source WAV format = %d Hz, %d channel(s), %d bits; want 8000 Hz mono s16",
+			format.sampleRate, format.channels, format.bitsPerSample)
+	}
+
+	padded := padPCM16ToFrames(t, sourcePCM)
+	encoded := encodePCM16LEForGolden(t, padded)
+	if err := os.WriteFile("docs/assets/audio/g729-encode.g729", encoded, 0o644); err != nil {
+		t.Fatalf("write g729-encode.g729: %v", err)
+	}
+
+	decoded := decodeG729ForGolden(t, encoded)
+	writePCM16WAVFixture(t, "docs/assets/audio/g729-encode-g729-decode.wav", decoded)
+	t.Logf("wrote %d encoded bytes and %d decoded PCM bytes", len(encoded), len(decoded))
+}
+
 type wavFixtureFormat struct {
 	sampleRate    int
 	channels      int
@@ -156,6 +178,37 @@ func readGoldenFile(t *testing.T, path string) []byte {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return data
+}
+
+func writePCM16WAVFixture(t *testing.T, path string, pcm []byte) {
+	t.Helper()
+	if len(pcm)%2 != 0 {
+		t.Fatalf("PCM byte length is odd: %d", len(pcm))
+	}
+	dataBytes := uint32(len(pcm))
+	riffBytes := uint32(36 + len(pcm))
+	byteRate := uint32(SampleRate * 2)
+	blockAlign := uint16(2)
+
+	out := make([]byte, 44+len(pcm))
+	copy(out[0:4], "RIFF")
+	binary.LittleEndian.PutUint32(out[4:8], riffBytes)
+	copy(out[8:12], "WAVE")
+	copy(out[12:16], "fmt ")
+	binary.LittleEndian.PutUint32(out[16:20], 16)
+	binary.LittleEndian.PutUint16(out[20:22], 1)
+	binary.LittleEndian.PutUint16(out[22:24], 1)
+	binary.LittleEndian.PutUint32(out[24:28], SampleRate)
+	binary.LittleEndian.PutUint32(out[28:32], byteRate)
+	binary.LittleEndian.PutUint16(out[32:34], blockAlign)
+	binary.LittleEndian.PutUint16(out[34:36], 16)
+	copy(out[36:40], "data")
+	binary.LittleEndian.PutUint32(out[40:44], dataBytes)
+	copy(out[44:], pcm)
+
+	if err := os.WriteFile(path, out, 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
 }
 
 func byteMismatch(got, want []byte) string {

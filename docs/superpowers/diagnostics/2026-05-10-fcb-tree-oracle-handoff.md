@@ -129,7 +129,7 @@ The current repo-external verifier bundle is:
 
 ```text
 /tmp/g729-fcb-verifier-handoff-2026-05-10.tar.gz
-sha256 1982d92755c7f87ba9ad937cd165b26711b9b0c6bbdcf444f8b4e2368cb552e1
+sha256 96b3786d2259a0d5b25dbcd46e6b480f42668870fe326fed8447806490f18f75
 ```
 
 External verifiers should start with
@@ -145,9 +145,26 @@ template paths. The validator accepts only the three active expected CSV
 filenames and requires unchanged headers, row order, key columns, and
 complete numeric `expected` cells.
 
+## Superseded Status
+
+This diagnostic was exact at the time it was produced. On 2026-05-12, the
+short-pitch `T_frac=0` adaptive-codebook path was corrected to use phase-0 FIR
+interpolation. That production change intentionally changed the encoder
+closed-loop/FCB numeric surface, so the verifier-filled FCB expected files are
+now historical evidence for the old surface and should not be used as a current
+strict gate until the verifier reruns against the refreshed `got` CSVs.
+
+Current non-strict compare after that fix:
+
+- `fcb_tree_search_expected_template.csv`: exact `7047/10194`, mismatches
+  `3147`, blanks `0`, missing `0`.
+- `fcb_tree_search_user_audio_expected_template.csv`: exact `8141/10194`,
+  mismatches `2053`, blanks `0`, missing `0`.
+
 ## Finding
 
-No production encoder behavior changed. The verifier-filled focused FCB
+At the time of this handoff, no production encoder behavior had changed. The
+verifier-filled focused FCB
 handoffs provide clean-room evidence for deciding whether the current Core
 focused-search approximation differs from the exact Annex A
 reduced-complexity tree subset.

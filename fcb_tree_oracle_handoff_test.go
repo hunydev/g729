@@ -68,6 +68,22 @@ func TestOracleHandoff_WriteFCBTreeSearchHandoff(t *testing.T) {
 	t.Logf("wrote %d FCB tree-search handoff rows", len(rows))
 }
 
+func TestOracleHandoff_WriteFCBTreeSearchGot(t *testing.T) {
+	if os.Getenv("G729_WRITE_FCB_TREE_SEARCH_GOT") != "1" {
+		t.Skip("set G729_WRITE_FCB_TREE_SEARCH_GOT=1 to refresh only the FCB tree-search got file")
+	}
+
+	rows := collectFCBTreeHandoffRows(t, fcbTreeHandoffTargetFrames())
+	if len(rows) == 0 {
+		t.Fatal("no FCB tree-search handoff rows collected")
+	}
+	gotPath := filepath.Join(encoderClosedLoopHandoffDir, fcbTreeHandoffGotName)
+	if err := writeFCBTreeHandoffCSV(gotPath, "got", rows, false); err != nil {
+		t.Fatalf("write got: %v", err)
+	}
+	t.Logf("wrote %d FCB tree-search got rows", len(rows))
+}
+
 func TestOracleHandoff_WriteFCBTreeSearchUserAudioHandoff(t *testing.T) {
 	if os.Getenv("G729_WRITE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF") != "1" {
 		t.Skip("set G729_WRITE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 to refresh user-audio FCB tree-search handoff files")
@@ -102,6 +118,31 @@ func TestOracleHandoff_WriteFCBTreeSearchUserAudioHandoff(t *testing.T) {
 		t.Fatalf("write got: %v", err)
 	}
 	t.Logf("wrote %d user-audio FCB tree-search handoff rows from %s", len(rows), fcbTreeUserAudioSamplePath)
+}
+
+func TestOracleHandoff_WriteFCBTreeSearchUserAudioGot(t *testing.T) {
+	if os.Getenv("G729_WRITE_FCB_TREE_SEARCH_USER_AUDIO_GOT") != "1" {
+		t.Skip("set G729_WRITE_FCB_TREE_SEARCH_USER_AUDIO_GOT=1 to refresh only the user-audio FCB tree-search got file")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skipf("ffmpeg unavailable: %v", err)
+	}
+	if _, err := os.Stat(fcbTreeUserAudioSamplePath); err != nil {
+		t.Skipf("user-audio sample unavailable: %v", err)
+	}
+	samples := readExternalQualitySamples(t, fcbTreeUserAudioSamplePath)
+	if rem := len(samples) % FrameSamples; rem != 0 {
+		samples = append(samples, make([]int16, FrameSamples-rem)...)
+	}
+	rows := collectFCBTreeHandoffRowsFromSamples(t, samples, fcbTreeUserAudioSamplePath, fcbTreeHandoffTargetFrames())
+	if len(rows) == 0 {
+		t.Fatal("no user-audio FCB tree-search handoff rows collected")
+	}
+	gotPath := filepath.Join(encoderClosedLoopHandoffDir, fcbTreeUserAudioHandoffGotName)
+	if err := writeFCBTreeHandoffCSV(gotPath, "got", rows, false); err != nil {
+		t.Fatalf("write got: %v", err)
+	}
+	t.Logf("wrote %d user-audio FCB tree-search got rows from %s", len(rows), fcbTreeUserAudioSamplePath)
 }
 
 func TestOracleHandoff_FCBTreeSearchGotMatchesCurrentSurface(t *testing.T) {

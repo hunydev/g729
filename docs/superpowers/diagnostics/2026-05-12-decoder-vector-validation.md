@@ -272,12 +272,16 @@ TAME wide-stage artifact status:
 - `fixed_c_q13` and `fixed_contrib_q0` are mostly exact (`214/240`) and the
   fixed contribution max absolute delta is only `2`, so these rows are
   localization evidence but not the dominant current decoder error.
-- A temporary `tFrac=0` FIR-phase-0 adaptive-codebook experiment reduced the
-  TAME-wide `adaptive_v_q0` max absolute delta from `2994` to `455` and
-  `synth_s_q0` max absolute delta from `32477` to `3281`, but did not improve
-  exact row count and conflicts with the current pitch unit-test contract.
-  Treat it as the next hypothesis to verify, not as an accepted production
-  change.
+- The follow-up verifier relation artifact
+  `tame_short_pitch_relation.csv` reported the spec-required short-pitch
+  `T_frac=0` relation as phase-0 FIR/interpolation, not direct periodic
+  repetition.
+- After applying that production fix, the TAME-wide comparison still has
+  `444/1518` exact cells, but the dominant adaptive-codebook error shrank:
+  `adaptive_v_q0` max absolute delta `2994 -> 437`,
+  `pitch_contrib_q0` / `excitation_u_q0` max absolute delta `3102 -> 443`.
+  Remaining synthesis mismatch is now more tied to LP/gain/history deltas than
+  to the original short-pitch direct-repeat bug.
 
 Comparison command:
 

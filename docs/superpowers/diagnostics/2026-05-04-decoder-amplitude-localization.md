@@ -1163,10 +1163,10 @@ ITU-T G.729 (06/2012) — clean-room re-read of the relevant clauses:
            + Σ_{i=0..9}  u(n − k + 1 + i)·b30(3 − t + 3i)
 
   for `n = 0..39`, where `(k, t)` carry the (integer, fractional)
-  pitch delay components. The integer-only case (`t = 0`) reduces to
-  a direct copy `v(n) = u(n − k)` since b30(0) is the implicit centre
-  tap. For short pitch (T_int < 40) the AC is extended by periodicity:
-  `v(n) = v(n − T_int)` for `n ≥ T_int`.
+  pitch delay components. Later TAME wide-stage verifier evidence corrected
+  the short-pitch `t = 0` interpretation: for `T_int < 40`, the decoder uses
+  the phase-0 FIR/interpolation path rather than direct periodic repetition.
+  The long-lag integer-only case still uses a direct copy.
 - **§3.7.2** — b30 definition: Hamming-windowed sinc, cut-off 3600 Hz
   (3 dB), oversampled by 3, |k| ≤ 29 with a zero pad at ±30 ⇒ 30
   one-sided unique taps + b30(0). `b30(0) ≈ 0.9` (the cut-off scaling
@@ -1203,7 +1203,7 @@ ITU-T G.729 (06/2012) — clean-room re-read of the relevant clauses:
 | `internal/pitch/delay.go::DecodeDelaySubframe2`                   | sf-2 lag unpack                | Inverts §4.1.3 eq. (42) exactly; t_min clip to [20, 134], T_int may reach 144 with frac=−1.        |
 | `internal/pitch/parity.go::Parity` / `CheckParity`                | parity recompute               | XOR over six MSBs of P1, NOT'ed: `P0 = NOT(b7 ⊕ … ⊕ b2)` per §3.7.2 / §4.1.3.                       |
 | `internal/decoder/subframe.go:31`                                 | AC build call                  | `pitch.AdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v)`                                            |
-| `internal/pitch/adaptive.go::AdaptiveCodebook`                    | AC build                       | tFrac=0 fast path = direct copy from `pastExc[L−tInt+n]`; tFrac=±1 = §3.7.1 eq. (40) over 20 taps; tInt<40 = periodic extension. |
+| `internal/pitch/adaptive.go::AdaptiveCodebook`                    | AC build                       | tFrac=0 fast path = direct copy from `pastExc[L−tInt+n]` only for `tInt>=40`; tInt<40, including `tFrac=0`, uses the recursive current-subframe eq. (40) FIR path. |
 | `internal/pitch/adaptive.go::firInterpolate`                      | b30 FIR convolution            | `tFrac=+1: k=tInt, posPhase=1, negPhase=2`; `tFrac=−1: k=tInt−1, posPhase=2, negPhase=1`. Out-of-range reads zero (matches §3.7.1 boundary clause). |
 | `internal/tables/pitch_interp.go::PitchInterpFIR`                 | b30 table                      | 31 Q15 ints, indices 0..30 = b30(0..30); b30(0) = 29443 (≈ 0.898, the cut-off factor).             |
 | `internal/decoder/subframe.go:51-52`                              | FIFO commit                    | `copy(pastExc[:113], pastExc[40:]); copy(pastExc[113:], u[:])` — read-then-write, end of subframe. |

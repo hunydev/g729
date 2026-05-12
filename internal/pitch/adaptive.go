@@ -21,7 +21,7 @@ const Linter = 10
 // decoded pitch delay is T = tInt + tFrac/3, and v(n)=u(n-T), so
 // (k,t) is derived as:
 //
-//	tFrac =  0:  k = tInt,     t = 0   (handled by direct copy)
+//	tFrac =  0:  k = tInt,     t = 0
 //	tFrac = -1:  k = tInt,     t = 1
 //	tFrac = +1:  k = tInt + 1, t = 2
 //
@@ -33,11 +33,11 @@ const Linter = 10
 //	sufficient condition for the fractional case is
 //	tInt ≥ 40 + Linter).
 //
-// When tInt < 40 and tFrac == 0, the function extends the adaptive
-// codebook by periodicity: v[n] = v[n − tInt] for n ≥ tInt. For
-// fractional short delays, equation (40)'s current-subframe references
-// u(0..n-1) are evaluated from the adaptive vector samples already
-// generated in this call; future current-subframe references remain zero.
+// For short delays (tInt < 40), equation (40)'s current-subframe references
+// u(0..n-1) are evaluated from the adaptive vector samples already generated
+// in this call; future current-subframe references remain zero. This applies
+// to tFrac == 0 as well: the long-lag integer direct-copy fast path is not
+// used for the recursive short-pitch extension.
 //
 // Allocates nothing.
 func AdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[40]int16) {
@@ -55,13 +55,7 @@ func AdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[40]int16) {
 	}
 
 	if tFrac == 0 {
-		base := len(pastExc) - tInt
-		for n := 0; n < tInt; n++ {
-			v[n] = pastExc[base+n]
-		}
-		for n := tInt; n < 40; n++ {
-			v[n] = v[n-tInt]
-		}
+		firInterpolateRecursiveCurrent(tInt, tFrac, pastExc, v)
 	} else {
 		firInterpolateRecursiveCurrent(tInt, tFrac, pastExc, v)
 	}
@@ -106,12 +100,15 @@ func firInterpolate(tInt, tFrac int, pastExc []int16, v *[40]int16, start, end i
 	}
 }
 
-// firInterpolateRecursiveCurrent handles the short-pitch fractional case.
-// Eq. (40) can reference u(n-k+1+i) inside the current subframe; those
-// samples are available only when they have already been generated.
+// firInterpolateRecursiveCurrent handles the short-pitch case. Eq. (40) can
+// reference u(n-k+1+i) inside the current subframe; those samples are available
+// only when they have already been generated.
 func firInterpolateRecursiveCurrent(tInt, tFrac int, pastExc []int16, v *[40]int16) {
 	var k, posPhase, negPhase int
-	if tFrac < 0 {
+	if tFrac == 0 {
+		k = tInt
+		posPhase, negPhase = 0, 3
+	} else if tFrac < 0 {
 		k = tInt
 		posPhase, negPhase = 1, 2
 	} else {

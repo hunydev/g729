@@ -76,6 +76,9 @@ These files are not oracle artifacts and are intentionally ignored by the option
   decoder-stage artifact for TAME frames 117 through 119. It contains
   subframe LP, adaptive/fixed gain, adaptive vector, fixed codebook,
   pitch/fixed contribution, excitation, and synthesis cells for localization.
+- `tame_short_pitch_relation.csv`: verifier-produced numeric relation table
+  derived from the TAME wide artifact. It documents the short-pitch
+  `T_frac=0` relation used to justify the phase-0 FIR adaptive-codebook fix.
 - `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md`: consolidated verifier
   request for the currently unfilled encoder closed-loop stage
   conformance handoff template, with completed FCB status noted.
