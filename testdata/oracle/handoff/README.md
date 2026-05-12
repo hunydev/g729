@@ -72,6 +72,10 @@ These files are not oracle artifacts and are intentionally ignored by the option
 - `decoder_itu_fcb_position_clarification_expected.csv`: verifier-filled
   clarification artifact; currently exact-compared and resolves the three
   fixed-codebook fourth-pulse position decompositions.
+- `decoder_tame_stage_wide_expected.csv`: verifier-filled wide numeric
+  decoder-stage artifact for TAME frames 117 through 119. It contains
+  subframe LP, adaptive/fixed gain, adaptive vector, fixed codebook,
+  pitch/fixed contribution, excitation, and synthesis cells for localization.
 - `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md`: consolidated verifier
   request for the currently unfilled encoder closed-loop stage
   conformance handoff template, with completed FCB status noted.
@@ -160,6 +164,10 @@ Filled verifier output intake:
    G729_REQUIRE_COMPLETE_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 \
    G729_REQUIRE_EXACT_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 \
    go test -run TestOracleHandoff_CompareEncoderClosedLoopStageHandoff -count=1 -v
+
+   G729_COMPARE_DECODER_TAME_STAGE_WIDE=1 \
+   G729_REQUIRE_EXACT_DECODER_TAME_STAGE_WIDE=1 \
+   go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEStageWide -count=1 -v
    ```
 
 6. If strict compare passes, update `HANDOFF_MANIFEST.md` and the

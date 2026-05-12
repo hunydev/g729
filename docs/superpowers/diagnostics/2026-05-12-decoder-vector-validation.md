@@ -257,6 +257,28 @@ Partial verifier artifact status:
 - Filled final `pcm_q0` rows are still far from exact, so the partial artifact
   is useful for localization but is not a completed oracle gate.
 
+TAME wide-stage artifact status:
+
+- `decoder_tame_stage_wide_expected.csv` is a verifier-filled numeric artifact
+  for TAME frames `117`, `118`, and `119`, subframes `0` and `1`.
+- It covers LP coefficients, adaptive/fixed gains, adaptive vector,
+  fixed codebook, pitch/fixed contribution, excitation, and synthesis cells.
+- Current comparison reports `444/1518` exact cells with no missing local rows.
+- `adaptive_gain_q14` is exact `6/6`, so the decoded adaptive gain and taming
+  output at these subframes are not the first failing stage.
+- `adaptive_v_q0`, `pitch_contrib_q0`, `excitation_u_q0`, and `synth_s_q0`
+  are `0/240` exact. The first substantial divergence is therefore the
+  adaptive-codebook vector / past-excitation history entering TAME frame 117.
+- `fixed_c_q13` and `fixed_contrib_q0` are mostly exact (`214/240`) and the
+  fixed contribution max absolute delta is only `2`, so these rows are
+  localization evidence but not the dominant current decoder error.
+- A temporary `tFrac=0` FIR-phase-0 adaptive-codebook experiment reduced the
+  TAME-wide `adaptive_v_q0` max absolute delta from `2994` to `455` and
+  `synth_s_q0` max absolute delta from `32477` to `3281`, but did not improve
+  exact row count and conflicts with the current pitch unit-test contract.
+  Treat it as the next hypothesis to verify, not as an accepted production
+  change.
+
 Comparison command:
 
 ```sh
@@ -265,6 +287,14 @@ G729_REQUIRE_COMPLETE_DECODER_ITU_STAGE_HANDOFF=1 \
 G729_REQUIRE_EXACT_DECODER_ITU_STAGE_HANDOFF=1 \
 G729_REJECT_DECODER_ITU_STAGE_SELF_ORACLE=1 \
 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderITUStageHandoff -count=1 -v
+```
+
+TAME wide comparison command:
+
+```sh
+G729_COMPARE_DECODER_TAME_STAGE_WIDE=1 \
+G729_REQUIRE_EXACT_DECODER_TAME_STAGE_WIDE=1 \
+go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEStageWide -count=1 -v
 ```
 
 Before the independent expected values exist, the template-only comparison is

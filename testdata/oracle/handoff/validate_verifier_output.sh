@@ -161,12 +161,85 @@ validate_fcb_position_clarification() {
   validated_files="$validated_files $name"
 }
 
+validate_decoder_tame_stage_wide() {
+  name="decoder_tame_stage_wide_expected.csv"
+  src="$src_dir/$name"
+  dst="$handoff_dir/$name"
+
+  [ -f "$src" ] || return 0
+  found_any=1
+
+  awk -F, '
+    NR == FNR {
+      if (FNR == 1) {
+        header = $0
+        headerNF = NF
+        next
+      }
+      if (NF != headerNF) {
+        printf "%s line %d has %d columns, want %d\n", FILENAME, FNR, NF, headerNF > "/dev/stderr"
+        exit 1
+      }
+      rows++
+      templateKey[rows] = $1 "," $2
+      next
+    }
+    FNR == 1 {
+      if ($0 != header) {
+        printf "%s header changed; expected %s\n", FILENAME, header > "/dev/stderr"
+        exit 1
+      }
+      if (NF != headerNF) {
+        printf "%s header has %d columns, want %d\n", FILENAME, NF, headerNF > "/dev/stderr"
+        exit 1
+      }
+      next
+    }
+    {
+      if (NF != headerNF) {
+        printf "%s line %d has %d columns, want %d\n", FILENAME, FNR, NF, headerNF > "/dev/stderr"
+        exit 1
+      }
+      row = FNR - 1
+      if (row > rows) {
+        printf "%s has extra data row at line %d\n", FILENAME, FNR > "/dev/stderr"
+        exit 1
+      }
+      key = $1 "," $2
+      if (key != templateKey[row]) {
+        printf "%s line %d key changed; got %s want %s\n", FILENAME, FNR, key, templateKey[row] > "/dev/stderr"
+        exit 1
+      }
+      for (i = 3; i <= NF; i++) {
+        value = $i
+        sub(/\r$/, "", value)
+        if (value !~ /^-?[0-9]+$/) {
+          printf "%s line %d column %d is not a numeric scalar\n", FILENAME, FNR, i > "/dev/stderr"
+          exit 1
+        }
+        filled++
+      }
+    }
+    END {
+      want = rows * (headerNF - 2)
+      if (filled != want) {
+        printf "%s filled cells=%d, want %d complete numeric cells\n", FILENAME, filled, want > "/dev/stderr"
+        exit 1
+      }
+      printf "%s: validated %d numeric cells\n", FILENAME, filled
+    }
+  ' "$dst" "$src"
+
+  validated_files="$validated_files $name"
+}
+
 allowed_file() {
   case "$1" in
     fcb_tree_search_expected_template.csv|\
     fcb_tree_search_user_audio_expected_template.csv|\
     encoder_closedloop_stage_expected_template.csv|\
-    decoder_itu_fcb_position_clarification_expected.csv)
+    decoder_itu_fcb_position_clarification_expected.csv|\
+    decoder_tame_stage_wide_expected.csv)
       return 0
       ;;
     *)
@@ -201,6 +274,7 @@ validate_expected "fcb_tree_search_expected_template.csv" 4
 validate_expected "fcb_tree_search_user_audio_expected_template.csv" 4
 validate_expected "encoder_closedloop_stage_expected_template.csv" 6
 validate_fcb_position_clarification
+validate_decoder_tame_stage_wide
 
 if [ "$found_any" -ne 1 ]; then
   echo "$src_dir contains no allowed verifier-returned expected CSV files" >&2
