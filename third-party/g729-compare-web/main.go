@@ -1567,6 +1567,7 @@ const pageHTML = `<!doctype html>
     .battle-result { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; }
     .result-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
     .result-text { width:100%; min-height:170px; padding:12px; border:1px solid var(--line); border-radius:8px; background:#f8fafc; color:var(--ink); font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize:vertical; }
+    .trial-note { width:100%; min-height:80px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); resize:vertical; }
     .score { padding:16px; border:1px solid var(--line); border-radius:8px; background:#f8fafc; }
     .score strong { display:block; font-size:30px; margin-top:8px; }
     .score small { display:block; color:var(--muted); margin-top:4px; }
@@ -1823,7 +1824,8 @@ const pageHTML = `<!doctype html>
         leftKey: leftKey,
         rightKey: rightKey,
         choice: "",
-        winnerKey: ""
+        winnerKey: "",
+        note: ""
       };
     }
 
@@ -1845,7 +1847,8 @@ const pageHTML = `<!doctype html>
         "<div class=\"battle-grid\">" +
         "<article class=\"card\"><h2>Left</h2><audio controls preload=\"metadata\"></audio><button class=\"battle-choice left\" type=\"button\" data-choice=\"left\">Left가 더 낫다</button></article>" +
         "<article class=\"card\"><h2>Right</h2><audio controls preload=\"metadata\"></audio><button class=\"battle-choice right\" type=\"button\" data-choice=\"right\">Right가 더 낫다</button></article>" +
-        "</div><button class=\"battle-choice tie\" type=\"button\" data-choice=\"tie\">비슷함 / 판단 보류</button>";
+        "</div><label>Listening note<textarea id=\"battleNote\" class=\"trial-note\" placeholder=\"예: Left가 더 깨끗함, Right에 서걱거림, 둘 다 비슷함\"></textarea></label>" +
+        "<button class=\"battle-choice tie\" type=\"button\" data-choice=\"tie\">비슷함 / 판단 보류</button>";
       const audios = wrap.querySelectorAll("audio");
       audios[0].src = trial.data.audio.source;
       audios[1].src = trial.data.audio[trial.leftKey];
@@ -1859,6 +1862,8 @@ const pageHTML = `<!doctype html>
     function recordBattleChoice(choice) {
       const trial = battleState.trials[battleState.index];
       trial.choice = choice;
+      const note = $("battleNote");
+      trial.note = note ? note.value.trim() : "";
       if (choice === "left") trial.winnerKey = trial.leftKey;
       if (choice === "right") trial.winnerKey = trial.rightKey;
       if (choice === "tie") trial.winnerKey = "tie";
@@ -1887,7 +1892,8 @@ const pageHTML = `<!doctype html>
           escapeHTML(battleCandidates[trial.leftKey].label) + "</td><td>" +
           metricSummary(leftMetric, leftNoise) + "</td><td>" +
           escapeHTML(battleCandidates[trial.rightKey].label) + "</td><td>" +
-          metricSummary(rightMetric, rightNoise) + "</td><td>" + escapeHTML(picked) + "</td></tr>";
+          metricSummary(rightMetric, rightNoise) + "</td><td>" + escapeHTML(picked) + "</td><td>" +
+          escapeHTML(oneLineNote(trial.note)) + "</td></tr>";
       }).join("");
       const section = document.createElement("section");
       section.className = "card";
@@ -1898,7 +1904,7 @@ const pageHTML = `<!doctype html>
         scoreHTML(battleCandidates[pair[1]].label, counts[pair[1]], averageBattlePESQ(pair[1])) +
         scoreHTML("Tie / unsure", counts.tie) +
         "</div>" +
-        "<table class=\"metric-table\"><thead><tr><th>#</th><th>File</th><th>Left was</th><th>Left metrics</th><th>Right was</th><th>Right metrics</th><th>Picked</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+        "<table class=\"metric-table\"><thead><tr><th>#</th><th>File</th><th>Left was</th><th>Left metrics</th><th>Right was</th><th>Right metrics</th><th>Picked</th><th>Note</th></tr></thead><tbody>" + rows + "</tbody></table>" +
         "<div class=\"result-actions\"><button id=\"copyBattleResult\" type=\"button\">Copy result summary</button></div>" +
         "<textarea id=\"battleResultText\" class=\"result-text\" readonly></textarea>" +
         "<button id=\"battleAgain\" type=\"button\">Run another blind test</button>";
@@ -1954,7 +1960,7 @@ const pageHTML = `<!doctype html>
       lines.push(battleCandidates[pair[1]].label + ": " + counts[pair[1]] + " (PESQ avg " + fmtMaybe(averageBattlePESQ(pair[1]), 3) + ")");
       lines.push("Tie / unsure: " + counts.tie);
       lines.push("");
-      lines.push(["#", "File", "Left was", "Left metrics", "Right was", "Right metrics", "Picked"].join("\t"));
+      lines.push(["#", "File", "Left was", "Left metrics", "Right was", "Right metrics", "Picked", "Note"].join("\t"));
       battleState.trials.forEach((trial, i) => {
         const picked = trial.winnerKey === "tie" ? "Tie / unsure" : battleCandidates[trial.winnerKey].label;
         lines.push([
@@ -1964,10 +1970,15 @@ const pageHTML = `<!doctype html>
           metricSummary(battleMetric(trial, trial.leftKey), battleNoise(trial, trial.leftKey)),
           battleCandidates[trial.rightKey].label,
           metricSummary(battleMetric(trial, trial.rightKey), battleNoise(trial, trial.rightKey)),
-          picked
+          picked,
+          oneLineNote(trial.note)
         ].join("\t"));
       });
       return lines.join("\n");
+    }
+
+    function oneLineNote(note) {
+      return String(note || "").replace(/\s+/g, " ").trim();
     }
 
     async function copyBattleResultText() {
