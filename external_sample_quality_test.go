@@ -137,9 +137,11 @@ func TestExternalSamplePESQMatrixDiagnostic(t *testing.T) {
 	ourRaw := readFile(t, ourRawPath)
 	bcgRaw := readFile(t, bcgRawPath)
 	ourLocal := decodeRawG729WithLocal(t, ourRaw)
+	ourBlend50 := decodeRawG729WithLocalPostfilterBlend(t, ourRaw, 1, 2)
 	ourEnhanced := decodeRawG729WithLocalEnhanced(t, ourRaw)
 	ourFFmpeg := s16leToSamples(readFile(t, ourFFmpegPath))
 	bcgLocal := decodeRawG729WithLocal(t, bcgRaw)
+	bcgBlend50 := decodeRawG729WithLocalPostfilterBlend(t, bcgRaw, 1, 2)
 	bcgEnhanced := decodeRawG729WithLocalEnhanced(t, bcgRaw)
 	bcgFFmpeg := s16leToSamples(readFile(t, bcgFFmpegPath))
 
@@ -150,9 +152,11 @@ func TestExternalSamplePESQMatrixDiagnostic(t *testing.T) {
 		pesq    float64
 	}{
 		{path: "our encode -> local decode", samples: ourLocal, metrics: externalQualityMetricsFor(src, ourLocal, 240)},
+		{path: "our encode -> blend50 local decode", samples: ourBlend50, metrics: externalQualityMetricsFor(src, ourBlend50, 240)},
 		{path: "our encode -> enhanced local decode", samples: ourEnhanced, metrics: externalQualityMetricsFor(src, ourEnhanced, 240)},
 		{path: "our encode -> ffmpeg decode", samples: ourFFmpeg, metrics: externalQualityMetricsFor(src, ourFFmpeg, 240)},
 		{path: "bcg729 encode -> local decode", samples: bcgLocal, metrics: externalQualityMetricsFor(src, bcgLocal, 240)},
+		{path: "bcg729 encode -> blend50 local decode", samples: bcgBlend50, metrics: externalQualityMetricsFor(src, bcgBlend50, 240)},
 		{path: "bcg729 encode -> enhanced local decode", samples: bcgEnhanced, metrics: externalQualityMetricsFor(src, bcgEnhanced, 240)},
 		{path: "bcg729 encode -> ffmpeg decode", samples: bcgFFmpeg, metrics: externalQualityMetricsFor(src, bcgFFmpeg, 240)},
 	}
@@ -174,11 +178,81 @@ func TestExternalSamplePESQMatrixDiagnostic(t *testing.T) {
 			row.metrics.peak,
 			row.metrics.nearClip)
 	}
-	t.Logf("decoder gap on bcg729 payload: local-vs-ffmpeg PESQ delta %+0.4f", rows[3].pesq-rows[5].pesq)
-	t.Logf("enhanced decoder gap on bcg729 payload: enhanced-vs-ffmpeg PESQ delta %+0.4f", rows[4].pesq-rows[5].pesq)
-	t.Logf("encoder gap under ffmpeg decode: our-vs-bcg729 PESQ delta %+0.4f", rows[2].pesq-rows[5].pesq)
-	t.Logf("end-to-end gap: our local-vs-bcg729 ffmpeg PESQ delta %+0.4f", rows[0].pesq-rows[5].pesq)
-	t.Logf("enhanced end-to-end gap: our enhanced-vs-bcg729 ffmpeg PESQ delta %+0.4f", rows[1].pesq-rows[5].pesq)
+	scoreByPath := make(map[string]float64, len(rows))
+	for _, row := range rows {
+		scoreByPath[row.path] = row.pesq
+	}
+	bcgFFmpegScore := scoreByPath["bcg729 encode -> ffmpeg decode"]
+	t.Logf("decoder gap on bcg729 payload: local-vs-ffmpeg PESQ delta %+0.4f", scoreByPath["bcg729 encode -> local decode"]-bcgFFmpegScore)
+	t.Logf("blend50 decoder gap on bcg729 payload: blend50-vs-ffmpeg PESQ delta %+0.4f", scoreByPath["bcg729 encode -> blend50 local decode"]-bcgFFmpegScore)
+	t.Logf("enhanced decoder gap on bcg729 payload: enhanced-vs-ffmpeg PESQ delta %+0.4f", scoreByPath["bcg729 encode -> enhanced local decode"]-bcgFFmpegScore)
+	t.Logf("encoder gap under ffmpeg decode: our-vs-bcg729 PESQ delta %+0.4f", scoreByPath["our encode -> ffmpeg decode"]-bcgFFmpegScore)
+	t.Logf("end-to-end gap: our local-vs-bcg729 ffmpeg PESQ delta %+0.4f", scoreByPath["our encode -> local decode"]-bcgFFmpegScore)
+	t.Logf("blend50 end-to-end gap: our blend50-vs-bcg729 ffmpeg PESQ delta %+0.4f", scoreByPath["our encode -> blend50 local decode"]-bcgFFmpegScore)
+	t.Logf("enhanced end-to-end gap: our enhanced-vs-bcg729 ffmpeg PESQ delta %+0.4f", scoreByPath["our encode -> enhanced local decode"]-bcgFFmpegScore)
+}
+
+func TestExternalSamplePostfilterBlendSweepDiagnostic(t *testing.T) {
+	if os.Getenv("G729_EXTERNAL_SAMPLE_BLEND_SWEEP") != "1" {
+		t.Skip("set G729_EXTERNAL_SAMPLE_BLEND_SWEEP=1 to sweep postfilter-blend decoder ratios")
+	}
+	path := externalSampleQualityPath()
+	if path == "" {
+		t.Skip("set G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav, or add testdata/external/user_quality_input.{wav,mp3,pcm,raw,sln,s16le,in}")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skipf("ffmpeg unavailable: %v", err)
+	}
+
+	src := readExternalQualitySamples(t, path)
+	if len(src) < FrameSamples {
+		t.Fatalf("%s produced %d samples; need at least one 80-sample frame", path, len(src))
+	}
+	originalSamples := len(src)
+	if rem := len(src) % FrameSamples; rem != 0 {
+		src = append(src, make([]int16, FrameSamples-rem)...)
+	}
+
+	tmp := t.TempDir()
+	type payloadCase struct {
+		name string
+		raw  []byte
+		ff   []int16
+	}
+	writePayload := func(name string, write func(string)) payloadCase {
+		rawPath := filepath.Join(tmp, name+".g729")
+		pcmPath := filepath.Join(tmp, name+".ffmpeg.s16le")
+		write(rawPath)
+		ffmpegDecodeRawG729(t, rawPath, pcmPath)
+		return payloadCase{
+			name: name,
+			raw:  readFile(t, rawPath),
+			ff:   s16leToSamples(readFile(t, pcmPath)),
+		}
+	}
+	cases := []payloadCase{
+		writePayload("our", func(path string) { writeOurEncodedRawG729(t, src, path) }),
+		writePayload("bcg729", func(path string) { writeBCGEncodedRawG729(t, src, path) }),
+	}
+
+	t.Logf("external postfilter-blend sweep: %s", path)
+	t.Logf("samples=%d padded=%d frames=%d", originalSamples, len(src)-originalSamples, len(src)/FrameSamples)
+	t.Logf("%-8s,%10s,%8s,%10s,%10s,%8s,%8s,%7s,%8s", "Payload", "SynthShare", "PESQ_NB", "DeltaFF", "GlobalSNR", "Corr", "RMS/ref", "Peak", "NearClip")
+	for _, tc := range cases {
+		ffPESQ := pesqNBScore(t, tmp, tc.name+"-ffmpeg", src, tc.ff)
+		ffMetrics := externalQualityMetricsFor(src, tc.ff, 240)
+		t.Logf("%-8s,%10s,%8.4f,%10s,%10.2f,%8.4f,%8.4f,%7d,%8d",
+			tc.name, "ffmpeg", ffPESQ, "anchor",
+			ffMetrics.globalSNR, ffMetrics.corr, ffMetrics.rmsRatio, ffMetrics.peak, ffMetrics.nearClip)
+		for synthNum := 0; synthNum <= 8; synthNum++ {
+			decoded := decodeRawG729WithLocalPostfilterBlend(t, tc.raw, synthNum, 8)
+			score := pesqNBScore(t, tmp, fmt.Sprintf("%s-blend-%02d", tc.name, synthNum), src, decoded)
+			metrics := externalQualityMetricsFor(src, decoded, 240)
+			t.Logf("%-8s,%10.3f,%8.4f,%+10.4f,%10.2f,%8.4f,%8.4f,%7d,%8d",
+				tc.name, float64(synthNum)/8.0, score, score-ffPESQ,
+				metrics.globalSNR, metrics.corr, metrics.rmsRatio, metrics.peak, metrics.nearClip)
+		}
+	}
 }
 
 func TestExternalSampleProfileCompareDiagnostic(t *testing.T) {

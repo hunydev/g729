@@ -1746,6 +1746,22 @@ func decodeRawG729WithLocalEnhanced(t *testing.T, raw []byte) []int16 {
 	return out
 }
 
+func decodeRawG729WithLocalPostfilterBlend(t *testing.T, raw []byte, synthNum, den int) []int16 {
+	t.Helper()
+	if len(raw)%FrameBytes != 0 {
+		t.Fatalf("raw G.729 length %d not divisible by %d", len(raw), FrameBytes)
+	}
+	dec := NewDecoder()
+	out := make([]int16, (len(raw)/FrameBytes)*FrameSamples)
+	for off := 0; off < len(raw); off += FrameBytes {
+		frame := off / FrameBytes
+		if err := dec.DecodeFramePostfilterBlend(raw[off:off+FrameBytes], out[frame*FrameSamples:(frame+1)*FrameSamples], synthNum, den); err != nil {
+			t.Fatalf("local DecodeFramePostfilterBlend frame %d: %v", frame, err)
+		}
+	}
+	return out
+}
+
 func scaleSamplesForDiagnostic(in []int16, num, den int) []int16 {
 	out := make([]int16, len(in))
 	for i, v := range in {
