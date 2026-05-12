@@ -275,6 +275,12 @@ const (
 	// search, gain clip repair, and fixed-codebook residual reranking. It is
 	// intended to A/B test the current PESQ-leading repository-local candidate.
 	EncoderProfileQualityPESQ
+
+	// EncoderProfileQualityPESQDegrit is a listening-diagnostic variant of the
+	// PESQ candidate that also enables bounded gain MSE/noise repair. It usually
+	// gives up PESQ score for lower high-residual energy, so it exists only for
+	// blind tests around the user-reported gritty/smoky artifact.
+	EncoderProfileQualityPESQDegrit
 )
 
 type encoderQualityTuning uint32
@@ -324,7 +330,7 @@ func NewEncoderWithProfile(profile EncoderProfile) *Encoder {
 
 func normalizeEncoderProfile(profile EncoderProfile) EncoderProfile {
 	switch profile {
-	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep, EncoderProfileQualityCleanFCBRerank, EncoderProfileQualityPESQ:
+	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep, EncoderProfileQualityCleanFCBRerank, EncoderProfileQualityPESQ, EncoderProfileQualityPESQDegrit:
 		return profile
 	default:
 		return EncoderProfileQuality
@@ -341,6 +347,8 @@ func encoderQualityTuningForProfile(profile EncoderProfile) encoderQualityTuning
 		return (encoderQualityTuningAll &^ encoderTuningNormalizedAdaptivePitchSearch) | encoderTuningFCBNoiseRerank
 	case EncoderProfileQualityPESQ:
 		return encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningFCBNoiseRerank
+	case EncoderProfileQualityPESQDegrit:
+		return encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningGainMSERepair | encoderTuningGainNoiseRepair | encoderTuningFCBNoiseRerank
 	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep:
 		return encoderQualityTuningAll &^ encoderTuningNormalizedAdaptivePitchSearch
 	default:

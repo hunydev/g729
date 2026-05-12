@@ -231,7 +231,8 @@ func TestExternalSamplePostfilterBlendSweepDiagnostic(t *testing.T) {
 		}
 	}
 	cases := []payloadCase{
-		writePayload("our", func(path string) { writeOurEncodedRawG729(t, src, path) }),
+		writePayload("quality", func(path string) { writeOurEncodedRawG729(t, src, path) }),
+		writePayload("pesq", func(path string) { writeOurEncodedRawG729WithProfile(t, src, path, EncoderProfileQualityPESQ) }),
 		writePayload("bcg729", func(path string) { writeBCGEncodedRawG729(t, src, path) }),
 	}
 
@@ -611,6 +612,7 @@ func TestExternalSampleEncoderCandidatePESQDiagnostic(t *testing.T) {
 		{name: "quality", profile: EncoderProfileQuality},
 		{name: "clean-fcb", profile: EncoderProfileQualityCleanFCBRerank},
 		{name: "pesq", profile: EncoderProfileQualityPESQ},
+		{name: "pesq-degrit", profile: EncoderProfileQualityPESQDegrit},
 		{name: "core+gainclip+fcbrerank", profile: EncoderProfileCore, tuning: encoderTuningGainClipRepair | encoderTuningFCBNoiseRerank},
 		{name: "core+nativegain+gainclip+fcbrerank", profile: EncoderProfileCore, tuning: encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningFCBNoiseRerank},
 		{name: "core+nativegain+gainclip+mse+noise+fcbrerank", profile: EncoderProfileCore, tuning: encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningGainMSERepair | encoderTuningGainNoiseRepair | encoderTuningFCBNoiseRerank},

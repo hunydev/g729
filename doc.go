@@ -67,6 +67,8 @@
 // combines native reconstructed-gain search, gain clip repair, and
 // fixed-codebook residual reranking while leaving the broader quality
 // heuristic set disabled.
+// EncoderProfileQualityPESQDegrit is a PESQ-candidate variant that also enables
+// bounded gain MSE/noise repair for blind tests targeting high-residual grit.
 //
 // EncodeFrame and DecodeFrame are zero-allocation in steady state; see the
 // v0.1.0-rc1 release verification log for hot-path benchmarks.

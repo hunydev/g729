@@ -128,3 +128,24 @@ The numeric gates are satisfied, but the active goal also requires that the
 user-reported grit/smoky/mic-rub artifact becomes difficult to distinguish from
 bcg729 in blind listening. That requirement needs the user's Blind 1:1 result
 summary from the 8000 web app before the goal can be closed.
+
+## Addendum: PESQ-Degrit Blind Candidate
+
+`EncoderProfileQualityPESQDegrit` was added as a listening diagnostic, not as a
+replacement for `EncoderProfileQualityPESQ`. It uses the PESQ candidate's
+native reconstructed-gain search, gain clip repair, and FCB residual reranking,
+then also enables bounded gain MSE/noise repair to test whether lower
+high-residual energy reduces the user-reported grit.
+
+Current PESQ evidence says it is not the numeric leader:
+
+| Sample | Path | PESQ NB | Gap vs bcg729+FFmpeg | NearClip |
+| --- | --- | ---: | ---: | ---: |
+| `user_quality_audio.m4a` | PESQ-degrit -> local decode | 3.483080 | -0.214406 | 0 |
+| `user_quality_audio.m4a` | PESQ-degrit -> FFmpeg decode | 3.488838 | -0.208648 | 2 |
+| `user_quality_input.m4a` | PESQ-degrit -> local decode | 3.3570 | -0.2987 | 0 |
+| `user_quality_input.m4a` | PESQ-degrit -> FFmpeg decode | 3.3517 | -0.3040 | 0 |
+
+The 8000 web app exposes `PESQ candidate vs PESQ-degrit candidate` and
+`PESQ-degrit candidate vs bcg729` blind pairs so this tradeoff can be judged by
+listening rather than promoted on PESQ alone.

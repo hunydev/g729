@@ -262,6 +262,30 @@ func TestEncoderProfiles(t *testing.T) {
 			pesqEnc.coreFCBThresholdScanEnabled())
 	}
 
+	pesqDegritEnc := NewEncoderWithProfile(EncoderProfileQualityPESQDegrit)
+	if pesqDegritEnc.profile != EncoderProfileQualityPESQDegrit ||
+		!pesqDegritEnc.qualityHeuristicsEnabled() ||
+		pesqDegritEnc.qualityExpandedLSPSearchEnabled() ||
+		pesqDegritEnc.qualityNormalizedAdaptivePitchSearchEnabled() ||
+		!pesqDegritEnc.qualityNativeGainSearchEnabled() ||
+		!pesqDegritEnc.qualityGainClipRepairEnabled() ||
+		!pesqDegritEnc.qualityGainMSERepairEnabled() ||
+		!pesqDegritEnc.qualityGainNoiseRepairEnabled() ||
+		!pesqDegritEnc.qualityFCBNoiseRerankEnabled() ||
+		pesqDegritEnc.coreFCBThresholdScanEnabled() {
+		t.Fatalf("NewEncoderWithProfile(QualityPESQDegrit) profile=%v quality=%t lspx=%t normPitch=%t nativeGain=%t gainClip=%t gainMSE=%t gainNoise=%t fcbRerank=%t coreFCB=%t, want PESQ degrit tuning",
+			pesqDegritEnc.profile,
+			pesqDegritEnc.qualityHeuristicsEnabled(),
+			pesqDegritEnc.qualityExpandedLSPSearchEnabled(),
+			pesqDegritEnc.qualityNormalizedAdaptivePitchSearchEnabled(),
+			pesqDegritEnc.qualityNativeGainSearchEnabled(),
+			pesqDegritEnc.qualityGainClipRepairEnabled(),
+			pesqDegritEnc.qualityGainMSERepairEnabled(),
+			pesqDegritEnc.qualityGainNoiseRepairEnabled(),
+			pesqDegritEnc.qualityFCBNoiseRerankEnabled(),
+			pesqDegritEnc.coreFCBThresholdScanEnabled())
+	}
+
 	invalidEnc := NewEncoderWithProfile(EncoderProfile(99))
 	if invalidEnc.profile != EncoderProfileQuality || !invalidEnc.qualityHeuristicsEnabled() {
 		t.Fatalf("invalid profile normalized to %v quality=%t, want EncoderProfileQuality enabled",
