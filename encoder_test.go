@@ -238,6 +238,30 @@ func TestEncoderProfiles(t *testing.T) {
 			cleanFCBEnc.qualityGainMSERepairThreshold())
 	}
 
+	pesqEnc := NewEncoderWithProfile(EncoderProfileQualityPESQ)
+	if pesqEnc.profile != EncoderProfileQualityPESQ ||
+		!pesqEnc.qualityHeuristicsEnabled() ||
+		pesqEnc.qualityExpandedLSPSearchEnabled() ||
+		pesqEnc.qualityNormalizedAdaptivePitchSearchEnabled() ||
+		!pesqEnc.qualityNativeGainSearchEnabled() ||
+		!pesqEnc.qualityGainClipRepairEnabled() ||
+		pesqEnc.qualityGainMSERepairEnabled() ||
+		pesqEnc.qualityGainNoiseRepairEnabled() ||
+		!pesqEnc.qualityFCBNoiseRerankEnabled() ||
+		pesqEnc.coreFCBThresholdScanEnabled() {
+		t.Fatalf("NewEncoderWithProfile(QualityPESQ) profile=%v quality=%t lspx=%t normPitch=%t nativeGain=%t gainClip=%t gainMSE=%t gainNoise=%t fcbRerank=%t coreFCB=%t, want focused PESQ candidate tuning",
+			pesqEnc.profile,
+			pesqEnc.qualityHeuristicsEnabled(),
+			pesqEnc.qualityExpandedLSPSearchEnabled(),
+			pesqEnc.qualityNormalizedAdaptivePitchSearchEnabled(),
+			pesqEnc.qualityNativeGainSearchEnabled(),
+			pesqEnc.qualityGainClipRepairEnabled(),
+			pesqEnc.qualityGainMSERepairEnabled(),
+			pesqEnc.qualityGainNoiseRepairEnabled(),
+			pesqEnc.qualityFCBNoiseRerankEnabled(),
+			pesqEnc.coreFCBThresholdScanEnabled())
+	}
+
 	invalidEnc := NewEncoderWithProfile(EncoderProfile(99))
 	if invalidEnc.profile != EncoderProfileQuality || !invalidEnc.qualityHeuristicsEnabled() {
 		t.Fatalf("invalid profile normalized to %v quality=%t, want EncoderProfileQuality enabled",

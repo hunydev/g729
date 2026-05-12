@@ -269,9 +269,15 @@ const (
 	// that keeps the clean pitch policy and reranks a small fixed-codebook
 	// candidate set with the decoder-in-loop residual score before gain repair.
 	EncoderProfileQualityCleanFCBRerank
+
+	// EncoderProfileQualityPESQ is a listening-diagnostic profile that keeps a
+	// smaller encoder-side search set but enables native reconstructed-gain
+	// search, gain clip repair, and fixed-codebook residual reranking. It is
+	// intended to A/B test the current PESQ-leading repository-local candidate.
+	EncoderProfileQualityPESQ
 )
 
-type encoderQualityTuning uint16
+type encoderQualityTuning uint32
 
 const (
 	encoderTuningPitchCenterCandidate encoderQualityTuning = 1 << iota
@@ -289,6 +295,7 @@ const (
 	encoderTuningClippedInputOpenLoopRange2
 	encoderTuningNormalizedOpenLoopSearch
 	encoderTuningGainNoiseRepair
+	encoderTuningFCBNoiseRerank
 
 	encoderQualityTuningAll = encoderTuningNormalizedAdaptivePitchSearch |
 		encoderTuningGainClipRepair |
@@ -317,7 +324,7 @@ func NewEncoderWithProfile(profile EncoderProfile) *Encoder {
 
 func normalizeEncoderProfile(profile EncoderProfile) EncoderProfile {
 	switch profile {
-	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep, EncoderProfileQualityCleanFCBRerank:
+	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep, EncoderProfileQualityCleanFCBRerank, EncoderProfileQualityPESQ:
 		return profile
 	default:
 		return EncoderProfileQuality
@@ -330,7 +337,11 @@ func encoderQualityTuningForProfile(profile EncoderProfile) encoderQualityTuning
 		return encoderQualityTuningAll
 	case EncoderProfileQualityAnnexALSP:
 		return encoderQualityTuningAll &^ encoderTuningExpandedLSPSearch
-	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep, EncoderProfileQualityCleanFCBRerank:
+	case EncoderProfileQualityCleanFCBRerank:
+		return (encoderQualityTuningAll &^ encoderTuningNormalizedAdaptivePitchSearch) | encoderTuningFCBNoiseRerank
+	case EncoderProfileQualityPESQ:
+		return encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningFCBNoiseRerank
+	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep:
 		return encoderQualityTuningAll &^ encoderTuningNormalizedAdaptivePitchSearch
 	default:
 		return 0
@@ -475,7 +486,7 @@ func (e *Encoder) qualityGainHarmonicPreferenceParams() (minGp, minStep, gammaDr
 }
 
 func (e *Encoder) qualityFCBNoiseRerankEnabled() bool {
-	return e.profile == EncoderProfileQualityCleanFCBRerank
+	return e.qualityTuning&encoderTuningFCBNoiseRerank != 0
 }
 
 func (e *Encoder) qualityGainNoiseRepairEnabled() bool {

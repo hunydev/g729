@@ -719,6 +719,8 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanHarmonicDeep)
 		case "fcb":
 			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityCleanFCBRerank)
+		case "pesq":
+			payload, err = encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityPESQ)
 		case "external":
 			payload, err = encodeWithBCG729(paddedPCM)
 		default:
@@ -859,6 +861,10 @@ func selectedMetricPath(key string) string {
 		return "our FCB-clean encode -> local decode"
 	case "fcb_ffmpeg":
 		return "our FCB-clean encode -> ffmpeg decode"
+	case "pesq_local":
+		return "our PESQ candidate encode -> local decode"
+	case "pesq_ffmpeg":
+		return "our PESQ candidate encode -> ffmpeg decode"
 	case "soft_our_ffmpeg":
 		return "our encode -> softened FFmpeg decode"
 	case "soft_clean_ffmpeg":
@@ -926,6 +932,10 @@ func selectedAudioPipeline(key string) (pipeline, decoder string, soft bool, ok 
 		return "fcb", "local", false, true
 	case "fcb_ffmpeg":
 		return "fcb", "ffmpeg", false, true
+	case "pesq_local":
+		return "pesq", "local", false, true
+	case "pesq_ffmpeg":
+		return "pesq", "ffmpeg", false, true
 	case "soft_our_ffmpeg":
 		return "our", "ffmpeg", true, true
 	case "soft_clean_ffmpeg":
@@ -1571,6 +1581,11 @@ const pageHTML = `<!doctype html>
           <label>Audio files<input id="battleFiles" type="file" multiple accept="audio/*,.wav,.mp3,.pcm,.raw,.sln,.s16le"></label>
           <label>Input mode<select id="battleMode"><option value="audio">WAV/MP3/browser audio</option><option value="raw">Raw 8 kHz mono s16le PCM</option></select></label>
           <label>Battle pair<select id="battlePair">
+            <option value="pesq_ffmpeg|external_ffmpeg">PESQ candidate vs bcg729</option>
+            <option value="pesq_local|external_ffmpeg">PESQ candidate local decode vs bcg729 FFmpeg</option>
+            <option value="pesq_ffmpeg|fcb_ffmpeg">PESQ candidate vs FCB-clean candidate</option>
+            <option value="pesq_ffmpeg|core_ffmpeg">PESQ candidate vs core profile</option>
+            <option value="pesq_ffmpeg|our_ffmpeg">PESQ candidate vs current quality</option>
             <option value="core_ffmpeg|fcb_ffmpeg">Core profile vs FCB-clean candidate</option>
             <option value="core_ffmpeg|external_ffmpeg">Core profile vs bcg729</option>
             <option value="core_ffmpeg|our_ffmpeg">Core profile vs current quality</option>
@@ -1638,6 +1653,8 @@ const pageHTML = `<!doctype html>
       harmonic_deep_ffmpeg: "our harmonic-deep candidate -> FFmpeg decode",
       fcb_local: "our FCB-clean candidate -> our decode",
       fcb_ffmpeg: "our FCB-clean candidate -> FFmpeg decode",
+      pesq_local: "our PESQ candidate -> our decode",
+      pesq_ffmpeg: "our PESQ candidate -> FFmpeg decode",
       soft_our_ffmpeg: "our encode -> softened FFmpeg decode",
       soft_clean_ffmpeg: "our clean candidate -> softened FFmpeg decode",
       external_local: "bcg729 encode -> our decode",
@@ -1656,6 +1673,7 @@ const pageHTML = `<!doctype html>
       harmonic_strong_ffmpeg: { label: "Harmonic-strong candidate -> FFmpeg decode" },
       harmonic_deep_ffmpeg: { label: "Harmonic-deep candidate -> FFmpeg decode" },
       fcb_ffmpeg: { label: "FCB-clean candidate -> FFmpeg decode" },
+      pesq_ffmpeg: { label: "PESQ candidate -> FFmpeg decode" },
       soft_our_ffmpeg: { label: "Current quality -> softened FFmpeg decode" },
       soft_clean_ffmpeg: { label: "Clean candidate -> softened FFmpeg decode" },
       external_ffmpeg: { label: "bcg729 -> FFmpeg decode" },
@@ -1672,6 +1690,7 @@ const pageHTML = `<!doctype html>
       harmonic_strong_local: { label: "Harmonic-strong candidate -> local decode" },
       harmonic_deep_local: { label: "Harmonic-deep candidate -> local decode" },
       fcb_local: { label: "FCB-clean candidate -> local decode" },
+      pesq_local: { label: "PESQ candidate -> local decode" },
       external_blend50: { label: "bcg729 -> blend50 local decode" },
       external_local: { label: "bcg729 -> local decode" }
     };

@@ -63,6 +63,10 @@
 // EncoderProfileQualityCleanHarmonicDeep, and
 // EncoderProfileQualityCleanFCBRerank are listening-diagnostic variants of
 // that clean pitch policy for clarity-vs-smoothness A/B tests.
+// EncoderProfileQualityPESQ is a separate listening-diagnostic candidate that
+// combines native reconstructed-gain search, gain clip repair, and
+// fixed-codebook residual reranking while leaving the broader quality
+// heuristic set disabled.
 //
 // EncodeFrame and DecodeFrame are zero-allocation in steady state; see the
 // v0.1.0-rc1 release verification log for hot-path benchmarks.

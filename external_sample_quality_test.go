@@ -37,7 +37,7 @@ import (
 // It makes qualityHeuristicsEnabled true while none of the named heuristic
 // predicates match, isolating the bounded PredictedGcQ12/Reconstruct path from
 // the core profile's default wide predictor path.
-const encoderDiagnosticBoundedGainPredictorTuning encoderQualityTuning = 1 << 15
+const encoderDiagnosticBoundedGainPredictorTuning encoderQualityTuning = 1 << 31
 
 // TestExternalSampleQualityDiagnostic is an opt-in harness for user-provided
 // problem audio. It converts WAV/MP3/etc. with the local ffmpeg executable
@@ -467,13 +467,17 @@ func TestExternalSampleQualityTuningAblationDiagnostic(t *testing.T) {
 		{name: "gain+wide", tuning: encoderTuningGainSearchBias | encoderTuningWideGainPredictor},
 		{name: "nativegain", tuning: encoderTuningNativeGainSearch},
 		{name: "nativegain+gainclip", tuning: encoderTuningNativeGainSearch | encoderTuningGainClipRepair},
+		{name: "gainclip+fcbrerank", tuning: encoderTuningGainClipRepair | encoderTuningFCBNoiseRerank},
 		{name: "nativegain+gainclip+mse", tuning: encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningGainMSERepair},
+		{name: "nativegain+gainclip+fcbrerank", tuning: encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningFCBNoiseRerank},
+		{name: "nativegain+gainclip+mse+noise+fcbrerank", tuning: encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningGainMSERepair | encoderTuningGainNoiseRepair | encoderTuningFCBNoiseRerank},
 		{name: "early", tuning: encoderTuningEarlyClosedLoopSpeechWindow},
 		{name: "early+wide", tuning: encoderTuningEarlyClosedLoopSpeechWindow | encoderTuningWideGainPredictor},
 		{name: "norm", tuning: encoderTuningNormalizedAdaptivePitchSearch},
 		{name: "norm+wide", tuning: encoderTuningNormalizedAdaptivePitchSearch | encoderTuningWideGainPredictor},
 		{name: "norm+nativegain", tuning: encoderTuningNormalizedAdaptivePitchSearch | encoderTuningNativeGainSearch},
 		{name: "norm+nativegain+gainclip", tuning: encoderTuningNormalizedAdaptivePitchSearch | encoderTuningNativeGainSearch | encoderTuningGainClipRepair},
+		{name: "norm+nativegain+gainclip+fcbrerank", tuning: encoderTuningNormalizedAdaptivePitchSearch | encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningFCBNoiseRerank},
 		{name: "norm+nativegain+pitchclip", tuning: encoderTuningNormalizedAdaptivePitchSearch | encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningPitchClipRepair},
 		{name: "norm+nativegain+gainclip+mse", tuning: encoderTuningNormalizedAdaptivePitchSearch | encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningGainMSERepair},
 		{name: "norm+nativegain+gainclip+mse+noise", tuning: encoderTuningNormalizedAdaptivePitchSearch | encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningGainMSERepair | encoderTuningGainNoiseRepair},
@@ -570,6 +574,121 @@ func TestExternalSampleQualityTuningAblationDiagnostic(t *testing.T) {
 			payloadEqualPercent(coreRaw, r.raw),
 			payloadEqualPercent(qualityRaw, r.raw),
 		)
+	}
+}
+
+func TestExternalSampleEncoderCandidatePESQDiagnostic(t *testing.T) {
+	if os.Getenv("G729_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ") != "1" {
+		t.Skip("set G729_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1 to compare focused encoder candidates with PESQ")
+	}
+	path := externalSampleQualityPath()
+	if path == "" {
+		t.Skip("set G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav, or add testdata/external/user_quality_input.{wav,mp3,pcm,raw,sln,s16le,in}")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skipf("ffmpeg unavailable: %v", err)
+	}
+
+	src := readExternalQualitySamples(t, path)
+	if len(src) < FrameSamples {
+		t.Fatalf("%s produced %d samples; need at least one 80-sample frame", path, len(src))
+	}
+	originalSamples := len(src)
+	if rem := len(src) % FrameSamples; rem != 0 {
+		src = append(src, make([]int16, FrameSamples-rem)...)
+	}
+	ref := src[:originalSamples]
+
+	type candidate struct {
+		name    string
+		profile EncoderProfile
+		tuning  encoderQualityTuning
+		bcg     bool
+	}
+	candidates := []candidate{
+		{name: "bcg729", bcg: true},
+		{name: "core", profile: EncoderProfileCore},
+		{name: "quality", profile: EncoderProfileQuality},
+		{name: "clean-fcb", profile: EncoderProfileQualityCleanFCBRerank},
+		{name: "pesq", profile: EncoderProfileQualityPESQ},
+		{name: "core+gainclip+fcbrerank", profile: EncoderProfileCore, tuning: encoderTuningGainClipRepair | encoderTuningFCBNoiseRerank},
+		{name: "core+nativegain+gainclip+fcbrerank", profile: EncoderProfileCore, tuning: encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningFCBNoiseRerank},
+		{name: "core+nativegain+gainclip+mse+noise+fcbrerank", profile: EncoderProfileCore, tuning: encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningGainMSERepair | encoderTuningGainNoiseRepair | encoderTuningFCBNoiseRerank},
+		{name: "core+norm+nativegain+gainclip+fcbrerank", profile: EncoderProfileCore, tuning: encoderTuningNormalizedAdaptivePitchSearch | encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningFCBNoiseRerank},
+		{name: "quality+fcbrerank", profile: EncoderProfileCore, tuning: encoderQualityTuningAll | encoderTuningFCBNoiseRerank},
+		{name: "quality-no-norm+fcbrerank", profile: EncoderProfileCore, tuning: (encoderQualityTuningAll &^ encoderTuningNormalizedAdaptivePitchSearch) | encoderTuningFCBNoiseRerank},
+	}
+
+	tmp := t.TempDir()
+	type row struct {
+		name      string
+		raw       []byte
+		localPESQ float64
+		ffPESQ    float64
+		localm    externalQualityMetrics
+		ffm       externalQualityMetrics
+	}
+	rows := make([]row, 0, len(candidates))
+	var bcgRaw []byte
+	bcgFFPESQ := math.NaN()
+	for _, c := range candidates {
+		base := sanitizeExternalSampleName(c.name)
+		rawPath := filepath.Join(tmp, base+".g729")
+		pcmPath := filepath.Join(tmp, base+".ffmpeg.s16le")
+		if c.bcg {
+			writeBCGEncodedRawG729(t, src, rawPath)
+		} else if c.tuning != 0 {
+			writeOurEncodedRawG729WithTuning(t, src, rawPath, c.profile, c.tuning)
+		} else {
+			writeOurEncodedRawG729WithProfile(t, src, rawPath, c.profile)
+		}
+		ffmpegDecodeRawG729(t, rawPath, pcmPath)
+
+		raw := readFile(t, rawPath)
+		ff := s16leToSamples(readFile(t, pcmPath))
+		local := decodeRawG729WithLocal(t, raw)
+		if len(ff) > originalSamples {
+			ff = ff[:originalSamples]
+		}
+		if len(local) > originalSamples {
+			local = local[:originalSamples]
+		}
+		if len(ff) < originalSamples || len(local) < originalSamples {
+			t.Fatalf("%s decoded output too short: ffmpeg=%d local=%d want >= %d", c.name, len(ff), len(local), originalSamples)
+		}
+		ffPESQ := pesqNBScore(t, tmp, base+"-ffmpeg", ref, ff)
+		localPESQ := pesqNBScore(t, tmp, base+"-local", ref, local)
+		if c.bcg {
+			bcgRaw = raw
+			bcgFFPESQ = ffPESQ
+		}
+		rows = append(rows, row{
+			name:      c.name,
+			raw:       raw,
+			localPESQ: localPESQ,
+			ffPESQ:    ffPESQ,
+			localm:    externalQualityMetricsFor(ref, local, 240),
+			ffm:       externalQualityMetricsFor(ref, ff, 240),
+		})
+	}
+
+	t.Logf("external sample focused encoder PESQ diagnostic: %s", path)
+	t.Logf("samples=%d padded=%d frames=%d", originalSamples, len(src)-originalSamples, len(src)/FrameSamples)
+	t.Logf("%-48s %10s %10s %12s %12s %10s %8s %8s", "Candidate", "LocalPESQ", "FFPESQ", "LocalΔBCG", "FFΔBCG", "PayloadEq", "LocClip", "FFClip")
+	t.Logf("%-48s %10s %10s %12s %12s %10s %8s %8s", "---------", "---------", "------", "---------", "------", "---------", "-------", "------")
+	for _, r := range rows {
+		localDelta := math.NaN()
+		ffDelta := math.NaN()
+		if !math.IsNaN(bcgFFPESQ) {
+			localDelta = r.localPESQ - bcgFFPESQ
+			ffDelta = r.ffPESQ - bcgFFPESQ
+		}
+		payloadEq := math.NaN()
+		if len(bcgRaw) > 0 {
+			payloadEq = payloadEqualPercent(r.raw, bcgRaw)
+		}
+		t.Logf("%-48s %10.4f %10.4f %+12.4f %+12.4f %9.2f%% %8d %8d",
+			r.name, r.localPESQ, r.ffPESQ, localDelta, ffDelta, payloadEq, r.localm.nearClip, r.ffm.nearClip)
 	}
 }
 
