@@ -34,11 +34,10 @@ import (
 // Decode never panics and performs no heap allocations on the steady-state
 // path.
 //
-// Spec-conformance caveat: a small number of frames in the published ITU-T
-// Annex A test vectors intentionally produce LSB-level differences from the
-// PST reference output. These are spec-conformant per the published
-// G.729 / Annex A PDF; the documented cases are pinned by
-// itu_vector_pstdomain_test.go.
+// Conformance caveat: this decoder is not currently claimed to be ITU-vector
+// byte-exact. Use TestDecoderITUVectorValidation for the current sample-level
+// matrix against the Annex A .BIT/.PST vectors. Bad-frame concealment and
+// parity handling are also not fully wired yet.
 func (d *Decoder) Decode(packed []byte, bad bool, out []int16) error {
 	if len(packed) < bitstream.FrameBytes {
 		return ErrShortInput

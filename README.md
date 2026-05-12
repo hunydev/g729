@@ -64,8 +64,8 @@ undesirable.
 | Opt-in `DecodeFrameEnhanced` listening aid | **Experimental; not a conformance claim** |
 | Streaming `Encoder.Write` / `Encoder.Flush` | **Supported** |
 | Hot-path 0-allocation steady state | **Verified** |
-| ITU reference byte-exact conformance | **Not claimed** (see Known limitations) |
-| ITU vector full byte-EQ | **Not claimed** |
+| ITU reference byte-exact conformance | **Not claimed** (explicit decoder vector gate exists; see Known limitations) |
+| ITU vector full byte-EQ | **Not passing yet** |
 | G.729 Annex B (SID / CNG / DTX) | **Not supported** |
 | G.729.1 (wideband / scalable) | **Not supported** |
 | G.729D / G.729E | **Not supported** |
@@ -327,13 +327,59 @@ Concretely:
    after clean-room numeric handoff audits. These measurements remain
    informational and are not sufficient to certify audio quality.
    Excluded from the default test suite via the `conformance` build tag.
-5. **5 decoder PSTdomain PASS-by-design FAIL pins** (Phase 1o D-3,
-   sample 40-41 drift). Documented; identical pre/post Phase 3.
-   Excluded from the default test suite via the `diagnostic` build
-   tag.
+5. **Decoder ITU vector exact gate is explicit and not passing yet.**
+   For decoder credibility, the direct gate is fixed ITU `.BIT` payloads
+   decoded by this repository compared sample-by-sample against companion
+   `.PST` reference PCM, not PESQ/MOS. The opt-in matrix currently shows
+   `0.00%` exact frames and `7.15%` exact samples across the Annex A
+   ordinary-good vector scope, so this remains the main decoder
+   conformance blocker. Older PSTdomain PASS-by-design diagnostic pins are
+   retained as history, not as a public conformance claim.
 6. **`TestDiagnostic_SinglePulseChain`** is retained as a
    diagnostic-only instrumentation log and currently PASSes. Excluded
    from the default test suite via the `diagnostic` build tag.
+
+### ITU decoder vector validation
+
+Decoder validation is stronger when it uses fixed ITU bitstreams:
+`.BIT -> local decoder -> PCM` compared directly against the companion
+`.PST` reference PCM. PESQ/POLQA/MOS are useful listening-quality metrics,
+but they are secondary for decoder conformance because the input bitstream is
+already fixed.
+
+Run the current sample-level matrix:
+
+```sh
+G729_DECODER_ITU_VECTOR_VALIDATION=1 \
+go test ./internal/decoder -run TestDecoderITUVectorValidation -count=1 -v
+```
+
+When the matrix reaches exact equality, promote it to a hard gate:
+
+```sh
+G729_DECODER_ITU_VECTOR_VALIDATION=1 \
+G729_REQUIRE_DECODER_ITU_VECTOR_EXACT=1 \
+go test ./internal/decoder -run TestDecoderITUVectorValidation -count=1 -v
+```
+
+To localize the first or largest vector divergence without adding a default
+test cost:
+
+```sh
+G729_DECODER_ITU_VECTOR_TRACE=1 \
+G729_DECODER_ITU_VECTOR_TRACE_VECTOR=ALGTHM \
+G729_DECODER_ITU_VECTOR_TRACE_MODE=worst-frame \
+go test ./internal/decoder -run TestDecoderITUVectorFirstDiffTrace -count=1 -v
+```
+
+The default scope is `annexa-good` (`ALGTHM`, `SPEECH`, `FIXED`, `LSP`,
+`PITCH`, `TAME`, `TEST`, `OVERFLOW`). Set
+`G729_DECODER_ITU_VECTOR_SCOPE=all` to include `ERASURE` and `PARITY`, which
+belong to the separate bad-frame concealment/parity behavior surface.
+
+See `docs/superpowers/diagnostics/2026-05-12-decoder-vector-validation.md`
+for the current matrix and why this gate supersedes PESQ for decoder
+credibility.
 
 ### FFmpeg black-box quality gate
 

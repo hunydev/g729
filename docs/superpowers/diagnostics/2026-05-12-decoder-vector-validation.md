@@ -1,0 +1,181 @@
+# Decoder ITU Vector Validation
+
+Date: 2026-05-12
+
+Scope: decoder credibility gate based on fixed ITU Annex A test-vector
+bitstreams and companion reference PCM outputs.
+
+Clean-room boundary:
+
+- No ITU reference C, bcg729, FFmpeg, Sipro, or other G.729 implementation
+  source is inspected.
+- This gate consumes only ITU test-vector data files already present under
+  `testdata/itu/G729_Release3/g729AnnexA/test_vectors`.
+- The comparison target is numeric PCM output, not implementation code.
+
+## Why This Supersedes PESQ For Decoder Validation
+
+For decoder validation, the input bitstream is fixed. The strongest practical
+test is therefore:
+
+```text
+ITU .BIT -> local decoder -> PCM
+ITU .PST reference PCM
+```
+
+and then sample-level comparison. If output is bit-exact, or if any accepted
+delta is explicitly justified by a documented fixed/floating-point tolerance,
+the decoder has much stronger evidence than a MOS-style quality score.
+
+PESQ/POLQA remain useful as end-to-end listening-quality diagnostics, but they
+are not the primary decoder conformance gate:
+
+- ITU's P.862 pages state that P.862/P.862.1/P.862.2/P.862.3 were deleted on
+  2024-01-05 and point users to P.863/P.863.1/P.863.2.
+- ITU-T P.863.1 documents comparison guidance between older P.862/PESQ results
+  and P.863 narrowband mode, including standard-codec average-score context.
+- Therefore PESQ NB can remain a legacy VoIP quality diagnostic, but public
+  decoder credibility should be based on vector PCM equality first.
+
+References:
+
+- <https://www.itu.int/rec/t-rec-p.862>
+- <https://www.itu.int/rec/T-REC-P.863/>
+- <https://www.itu.int/rec/dologin_pub.asp?id=T-REC-P.863.1-201305-S%21%21PDF-E&lang=e&type=items>
+
+## Harness
+
+The new opt-in test is:
+
+```sh
+G729_DECODER_ITU_VECTOR_VALIDATION=1 \
+go test ./internal/decoder -run TestDecoderITUVectorValidation -count=1 -v
+```
+
+Hard-gate mode:
+
+```sh
+G729_DECODER_ITU_VECTOR_VALIDATION=1 \
+G729_REQUIRE_DECODER_ITU_VECTOR_EXACT=1 \
+go test ./internal/decoder -run TestDecoderITUVectorValidation -count=1 -v
+```
+
+Stage trace:
+
+```sh
+G729_DECODER_ITU_VECTOR_TRACE=1 \
+G729_DECODER_ITU_VECTOR_TRACE_VECTOR=ALGTHM \
+G729_DECODER_ITU_VECTOR_TRACE_MODE=first-diff \
+go test ./internal/decoder -run TestDecoderITUVectorFirstDiffTrace -count=1 -v
+```
+
+Trace modes:
+
+- `first-diff`: first non-exact frame/sample.
+- `worst-frame`: frame with the largest squared-error sum.
+- `max-sample`: frame containing the largest single absolute sample delta.
+
+Default scope:
+
+```text
+G729_DECODER_ITU_VECTOR_SCOPE=annexa-good
+```
+
+This includes:
+
+- `ALGTHM`
+- `SPEECH`
+- `FIXED`
+- `LSP`
+- `PITCH`
+- `TAME`
+- `TEST`
+- `OVERFLOW`
+
+`G729_DECODER_ITU_VECTOR_SCOPE=all` also includes `ERASURE` and `PARITY`.
+Those belong to the separate bad-frame concealment/parity behavior surface and
+should not block the ordinary-good-frame decoder gate.
+
+## Current Result
+
+Command:
+
+```sh
+G729_DECODER_ITU_VECTOR_VALIDATION=1 \
+go test ./internal/decoder -run TestDecoderITUVectorValidation -count=1 -v
+```
+
+Result:
+
+| Vector | Frames | Bad frames | Exact frames | Exact samples | First diff | Max abs delta | Mean abs delta | RMS delta |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: |
+| `ALGTHM` | 35 | 0 | 0.00% | 2.54% | 0:2 | 13858 | 834.57 | 2084.65 |
+| `SPEECH` | 3750 | 0 | 0.00% | 13.47% | 0:0 | 5291 | 66.84 | 168.12 |
+| `FIXED` | 120 | 0 | 0.00% | 16.66% | 0:1 | 491 | 11.00 | 30.83 |
+| `LSP` | 2232 | 0 | 0.00% | 2.58% | 0:40 | 1208 | 33.93 | 65.71 |
+| `PITCH` | 1835 | 0 | 0.00% | 1.27% | 0:1 | 9254 | 426.72 | 900.01 |
+| `TAME` | 128 | 0 | 0.00% | 0.35% | 0:1 | 32234 | 12791.34 | 15384.80 |
+| `TEST` | 176 | 0 | 0.00% | 6.22% | 0:40 | 2223 | 41.00 | 107.88 |
+| `OVERFLOW` | 384 | 0 | 0.00% | 0.16% | 0:1 | 65535 | 16132.96 | 19851.10 |
+| `TOTAL` | 8660 | 0 | 0.00% | 7.15% | 0:0 | 65535 | 1108.89 | 4770.37 |
+
+Interpretation:
+
+- The decoder is not yet ITU-vector bit-exact.
+- This is a stronger blocker than any PESQ/POLQA score for decoder credibility.
+- Existing FFmpeg black-box and listening-quality gates remain useful
+  interoperability/quality checks, but they do not replace vector equality.
+
+## First Trace Result
+
+ALGTHM `first-diff` mode currently points to frame 0 sample 2:
+
+```text
+first diff sample=2 got=4 want=3 delta=+1
+frame exact=61.25% maxAbs=4 meanAbs=1.55 rms=1.83
+hp_x2 exact=61.25% near1=90.00%
+hp_raw vs PST>>1 exact=62.50% near1=92.50%
+```
+
+Interpretation: ALGTHM frame 0 is not the highest-value first fix target.
+The first surface is mostly final-domain rounding / scaling around the HP
+output, not a large upstream synthesis failure.
+
+ALGTHM `worst-frame` mode currently points to frame 15:
+
+```text
+first diff sample=0 got=10242 want=18565 delta=-8323
+frame exact=0.00% maxAbs=13820 meanAbs=5300.49 rms=6682.73
+```
+
+ALGTHM `max-sample` mode currently points to frame 14:
+
+```text
+first diff sample=0 got=3730 want=7886 delta=-4156
+frame exact=0.00% maxAbs=13858 meanAbs=5876.21 rms=6633.74
+```
+
+Interpretation: after the validation gate exists, the next engineering work
+should target the material mid-vector state drift rather than spending the
+first fix cycle on the frame-0 ±1-style boundary differences.
+
+## Next Engineering Goal
+
+Promote this matrix from opt-in diagnostic to release gate only after
+`annexa-good` reaches one of these states:
+
+- preferred: `100.00%` exact frames and `100.00%` exact samples;
+- fallback only with strong evidence: all remaining deltas are bounded by a
+  documented fixed/floating-point tolerance and supported by independent numeric
+  oracle artifacts.
+
+Recommended order:
+
+1. Start with the smallest ordinary-good vector whose first diff is early and
+   low-complexity.
+2. Diagnose the first divergent frame at stage level against the `.PST`
+   output, using numeric traces only.
+3. Fix one spec-aligned decoder issue at a time.
+4. Re-run the full `annexa-good` matrix after every fix.
+5. Leave `ERASURE` and `PARITY` for a separate robustness goal after ordinary
+   good-frame decode reaches the gate.

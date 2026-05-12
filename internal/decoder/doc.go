@@ -52,15 +52,13 @@
 // Decoder is not safe for concurrent use; for a new stream either
 // allocate a fresh value or call Reset.
 //
-// # Spec-conformance caveat
+// # Conformance caveat
 //
-// A small number of frames in the published ITU-T Annex A test vectors
-// intentionally produce LSB-level differences from the PST reference
-// output. These are spec-conformant per the published G.729 / Annex A
-// PDF and are pinned by `internal/decoder/itu_vector_pstdomain_test.go`,
-// which records the seven affected vectors (TAME, SPEECH, FIXED, LSP,
-// PITCH, TEST, OVERFLOW frame 0) along with the production output that
-// the decoder is contracted to emit.
+// The decoder is not currently claimed to be ITU-vector byte-exact. The
+// opt-in TestDecoderITUVectorValidation gate compares local output against the
+// Annex A .BIT/.PST vectors at sample level and records the current matrix.
+// Bad-frame concealment and parity handling are separate robustness surfaces
+// and are not yet release-gated.
 //
 // # Spec
 //
