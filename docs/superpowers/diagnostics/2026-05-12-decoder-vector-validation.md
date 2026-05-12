@@ -114,10 +114,10 @@ Result:
 | `FIXED` | 120 | 0 | 0.00% | 16.66% | 0:1 | 491 | 11.00 | 30.83 |
 | `LSP` | 2232 | 0 | 0.00% | 2.58% | 0:40 | 1208 | 33.93 | 65.71 |
 | `PITCH` | 1835 | 0 | 0.00% | 1.27% | 0:1 | 9254 | 426.72 | 900.01 |
-| `TAME` | 128 | 0 | 0.00% | 0.35% | 0:1 | 32234 | 12791.34 | 15384.80 |
+| `TAME` | 128 | 0 | 0.00% | 0.35% | 0:1 | 32234 | 12789.95 | 15384.01 |
 | `TEST` | 176 | 0 | 0.00% | 6.22% | 0:40 | 2223 | 41.00 | 107.88 |
-| `OVERFLOW` | 384 | 0 | 0.00% | 0.16% | 0:1 | 65535 | 16132.96 | 19851.10 |
-| `TOTAL` | 8660 | 0 | 0.00% | 7.15% | 0:0 | 65535 | 1108.89 | 4770.37 |
+| `OVERFLOW` | 384 | 0 | 0.00% | 0.14% | 0:1 | 36943 | 10913.38 | 14016.57 |
+| `TOTAL` | 8660 | 0 | 0.00% | 7.14% | 0:0 | 36943 | 860.12 | 3651.96 |
 
 Interpretation:
 
@@ -125,6 +125,17 @@ Interpretation:
 - This is a stronger blocker than any PESQ/POLQA score for decoder credibility.
 - Existing FFmpeg black-box and listening-quality gates remain useful
   interoperability/quality checks, but they do not replace vector equality.
+
+Update after the synthesis overflow recovery fix:
+
+- `internal/synth` now follows the §3.10 divide-by-4 / multiply-by-4 recovery
+  path instead of the previous divide-by-2 / multiply-by-2 fallback.
+- SPEECH and Asterisk/FFmpeg black-box localization metrics were unchanged in
+  the ordinary speech path.
+- The stress-vector surface improved: `OVERFLOW` max abs delta dropped from
+  `65535` to `36943`, and total RMS delta dropped from `4770.37` to `3651.96`.
+- The decoder is still not ITU-vector exact; this is a blocker reduction, not
+  conformance completion.
 
 ## First Trace Result
 

@@ -2,6 +2,8 @@ package synth
 
 import (
 	"testing"
+
+	"github.com/hunydev/g729/internal/fixed"
 )
 
 // With a = [4096, 0, 0, ..., 0] (i.e. A(z) = 1, synthesis is identity),
@@ -236,6 +238,39 @@ func TestFilter_GuardUsesFixedOverflowFlag(t *testing.T) {
 	}
 }
 
+func TestFilter_OverflowRecoveryUsesQuarterScale(t *testing.T) {
+	a1Cases := []int16{-32768, -30000, -20000, -12000, -8192, -4096, 4096, 8192, 12000, 20000, 30000}
+	ampCases := []int16{2000, 4000, 8000, 12000, 16000, 20000, 24000, 30000}
+	seedCases := []int16{0, 4000, 10000, 20000, 30000}
+
+	for _, a1 := range a1Cases {
+		a := [11]int16{4096, a1, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+		for _, amp := range ampCases {
+			var u [40]int16
+			for i := range u {
+				u[i] = amp
+			}
+			for _, seed := range seedCases {
+				var quarterScale Synthesizer
+				var legacyHalfScale Synthesizer
+				for i := range quarterScale.pastSynth {
+					quarterScale.pastSynth[i] = seed
+					legacyHalfScale.pastSynth[i] = seed
+				}
+
+				var got, legacy [40]int16
+				quarterScale.Filter(&a, &u, &got)
+				filterSubframeHalfScaleForRegression(&legacyHalfScale, &a, &u, &legacy)
+				if got != legacy {
+					t.Logf("quarter-scale differs from legacy half-scale at a1=%d amp=%d seed=%d", a1, amp, seed)
+					return
+				}
+			}
+		}
+	}
+	t.Fatal("overflow recovery matched legacy half-scale fallback for all stress cases; want §3.10 quarter-scale recovery")
+}
+
 // TestFilter_ImpulseResponse_OnePoleClosedForm: A(z)=1−0.5·z^-1 (Q12
 // a[1]=−2048)의 1/A(z) 임펄스 응 0.5^n 폐형식과 일치하는지 검증.
 //
@@ -269,8 +304,9 @@ func TestFilter_ImpulseResponse_OnePoleClosedForm(t *testing.T) {
 // is multiplied by 4 with saturation."
 //
 // 자극 설계: A(z)=1−0.99·z^-1 강한 IIR 누적.
-// 현 구현 ÷2 + ×2를 적용 → spec ÷4 + ×4 와 불일치.
-// 본 어서션은 observation-only (t.Logf). F-fix가 promote.
+// 이 pathological 입력은 올바른 ÷4 + ×4 recovery 후에도 일부 sample이
+// saturation될 수 있으므로 headroom 관측은 log로 남긴다. 실제 scale-factor
+// 회귀는 TestFilter_OverflowRecoveryUsesQuarterScale이 잡는다.
 func TestFilter_SaturationRecovery_ScalingFactorMatchesSpec(t *testing.T) {
 	var sy Synthesizer
 	a := [11]int16{4096, -4055, 0, 0, 0, 0, 0, 0, 0, 0, 0}
@@ -291,10 +327,38 @@ func TestFilter_SaturationRecovery_ScalingFactorMatchesSpec(t *testing.T) {
 	t.Logf("s[36..39] = %v (sample-late overflow region)", s[36:40])
 	if nSat > 5 {
 		t.Logf("OBSERVATION (F-prep-2 Q-saturation): Pass-2 saturation count = %d "+
-			"(samples == ±max). ITU-T G.729 §3.10 specifies divide-by-4 + multiply-by-4 "+
-			"saturation recovery; current implementation uses ÷2 + ×2 (filter.go:33-51), "+
-			"which exceeds Word16 range under this stimulus. F-fix promotes to t.Errorf.", nSat)
+			"(samples == ±max). This stress input still reaches Word16 range even with "+
+			"the §3.10 divide-by-4 + multiply-by-4 recovery path.", nSat)
 	}
+}
+
+func filterSubframeHalfScaleForRegression(syn *Synthesizer, a *[11]int16, u, out *[40]int16) {
+	var work [50]int16
+	copy(work[:10], syn.pastSynth[:])
+
+	fixed.ClearOverflow()
+	syn.onePass(a, u, &work)
+	if !fixed.Overflow() {
+		copy(out[:], work[10:])
+		copy(syn.pastSynth[:], work[40:])
+		return
+	}
+
+	var work2 [50]int16
+	for i, v := range syn.pastSynth {
+		work2[i] = int16(int32(v) >> 1)
+	}
+	var uScaled [40]int16
+	for i, v := range u {
+		uScaled[i] = int16(int32(v) >> 1)
+	}
+	fixed.ClearOverflow()
+	syn.onePass(a, &uScaled, &work2)
+	for i := 10; i < 50; i++ {
+		work2[i] = fixed.Shl(work2[i], 1)
+	}
+	copy(out[:], work2[10:])
+	copy(syn.pastSynth[:], work2[40:])
 }
 
 // TestALGTHMFrame0SF0_SynthFilter_PerSampleBoundary: F-prep-2 Pass-1/Pass-2

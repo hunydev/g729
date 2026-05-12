@@ -331,7 +331,7 @@ Concretely:
    For decoder credibility, the direct gate is fixed ITU `.BIT` payloads
    decoded by this repository compared sample-by-sample against companion
    `.PST` reference PCM, not PESQ/MOS. The opt-in matrix currently shows
-   `0.00%` exact frames and `7.15%` exact samples across the Annex A
+   `0.00%` exact frames and `7.14%` exact samples across the Annex A
    ordinary-good vector scope, so this remains the main decoder
    conformance blocker. Older PSTdomain PASS-by-design diagnostic pins are
    retained as history, not as a public conformance claim.

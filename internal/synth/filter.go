@@ -28,27 +28,21 @@ func (synth *Synthesizer) filterSubframe(a *[11]int16, u, s *[40]int16) {
 		return
 	}
 
-	// Pass 2: scale input and past state by 1/2.
+	// Pass 2: scale input and past state by 1/4.
 	var work2 [50]int16
 	for i, v := range synth.pastSynth {
-		work2[i] = int16(int32(v) >> 1)
+		work2[i] = int16(int32(v) >> 2)
 	}
 	var uScaled [40]int16
 	for i, v := range u {
-		uScaled[i] = int16(int32(v) >> 1)
+		uScaled[i] = int16(int32(v) >> 2)
 	}
 	fixed.ClearOverflow()
 	synth.onePass(a, &uScaled, &work2)
 
-	// Scale back up by ×2 with Word16 saturation.
+	// Scale back up by ×4 with Word16 saturation.
 	for i := 10; i < 50; i++ {
-		v := int32(work2[i]) << 1
-		if v > 32767 {
-			v = 32767
-		} else if v < -32768 {
-			v = -32768
-		}
-		work2[i] = int16(v)
+		work2[i] = fixed.Shl(work2[i], 2)
 	}
 	copy(s[:], work2[10:])
 	copy(synth.pastSynth[:], work2[40:])
