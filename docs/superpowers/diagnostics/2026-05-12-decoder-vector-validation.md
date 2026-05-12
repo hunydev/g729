@@ -137,6 +137,47 @@ Update after the synthesis overflow recovery fix:
 - The decoder is still not ITU-vector exact; this is a blocker reduction, not
   conformance completion.
 
+## TAME FFmpeg/PST Localization Update
+
+Command:
+
+```sh
+G729_DECODER_FFMPEG_ENVELOPE_AUDIT=1 \
+G729_DECODER_FFMPEG_ENVELOPE_VECTOR=TAME \
+go test ./internal/decoder -run TestPhase3oFFmpegEnvelopeAudit_SPEECH -count=1 -v
+```
+
+Key result:
+
+- `TAME.BIT -> FFmpeg` matches `TAME.PST` strongly:
+  `gSNR=29.13`, `seg=29.09`, `corr=0.999`.
+- `TAME.BIT -> local` does not:
+  `gSNR=-3.11`, `seg=0.71`, `corr=0.922`.
+- Local-vs-FFmpeg active-frame envelope ratio median is `2.609`, with
+  `100/127` active frames above `1.5x`.
+- Stage ratios show the over-amplification is upstream of postfilter/HP:
+  `pitch/u=1.00`, `fixed/u=0.05`, `s/u=20.00`, `spf/s=1.00`,
+  `hp/spf=0.97`, `out/hp=1.41`.
+- Worst-frame detail at frame `118` has `61/80` clipped output samples.
+  Both subframes are mostly adaptive-loop driven:
+  `gp≈0.984/0.987`, direct fixed contribution remains small, while synthesis
+  output is already near saturation.
+
+The companion upstream perturbation command:
+
+```sh
+G729_DECODER_FFMPEG_UPSTREAM_AUDIT=1 \
+G729_DECODER_FFMPEG_ENVELOPE_VECTOR=TAME \
+go test ./internal/decoder -run TestPhase3sFFmpegUpstreamVariantAudit_SPEECH -count=1 -v
+```
+
+shows `reset_gain_each_frame` as the best diagnostic variant
+(`gSNR=-3.20 -> 3.27`), but it is not a production fix: on `SPEECH.BIT` it
+destroys ordinary-path agreement. The current interpretation is that TAME's
+large error is a gain-predictor / excitation-history / synthesis-envelope
+coupling issue, not an FFmpeg oracle mismatch and not a postfilter/HP-only
+defect.
+
 ## First Trace Result
 
 ALGTHM `first-diff` mode currently points to frame 0 sample 2:
