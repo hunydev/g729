@@ -201,14 +201,14 @@ type Encoder struct {
 type EncoderProfile uint8
 
 const (
-	// EncoderProfileCore disables repository-local quality heuristics that
-	// widen or bias the encoder search. It is intended for diagnostics and
-	// clean-room algorithm work, not as a quality recommendation.
+	// EncoderProfileCore is the product default profile. It disables
+	// repository-local quality heuristics that widen or bias the encoder search
+	// while preserving normal 10-byte G.729 frame compatibility.
 	EncoderProfileCore EncoderProfile = iota
 
 	// EncoderProfileQuality enables the older broad standard-compatible encoder
 	// search heuristics tuned by black-box executable decode metrics. It remains
-	// available for diagnostics; the product default is EncoderProfileQualityPESQ.
+	// available only for diagnostics; the product default is EncoderProfileCore.
 	EncoderProfileQuality
 
 	// EncoderProfileQualityAnnexALSP explicitly selects the quality profile
@@ -270,7 +270,7 @@ const (
 	// candidate set with the decoder-in-loop residual score before gain repair.
 	EncoderProfileQualityCleanFCBRerank
 
-	// EncoderProfileQualityPESQ is the product default profile. It keeps a
+	// EncoderProfileQualityPESQ is a numeric diagnostic profile. It keeps a
 	// smaller encoder-side search set but enables native reconstructed-gain
 	// search, gain clip repair, and fixed-codebook residual reranking.
 	EncoderProfileQualityPESQ
@@ -287,7 +287,7 @@ const (
 	EncoderProfileCoreClipRepair
 )
 
-const defaultEncoderProfile = EncoderProfileQualityPESQ
+const defaultEncoderProfile = EncoderProfileCore
 
 type encoderQualityTuning uint32
 

@@ -39,17 +39,15 @@
 //
 //   - SampleRate (8000), FrameSamples (80), FrameBytes (10)
 //
-// NewEncoder and NewStreamingEncoder use EncoderProfileQualityPESQ, which
-// keeps the emitted bitstream standard-compatible while enabling native
-// reconstructed-gain residual search, gain clip repair, and fixed-codebook
-// residual reranking, tuned by black-box executable decode metrics.
-// EncoderProfileCore is available for diagnostics and clean-room algorithm
-// work. It keeps the focused fixed-codebook threshold-search frame budget and
-// sequential Annex A LSP VQ path, applies the open-loop submultiple lift across
-// all lower ranges using the Core lift, and evaluates encodable closed-loop
-// pitch boundary codepoints. Its gain path keeps Annex A's 4x8 GA/GB
-// preselection breadth while preserving wider fixed-point precision for the
-// preselect-center solve. It is not an ITU byte-exact conformance mode.
+// NewEncoder and NewStreamingEncoder use EncoderProfileCore, which keeps the
+// emitted bitstream standard-compatible while avoiding repository-local
+// quality heuristics that can sound processed in blind listening. It keeps the
+// focused fixed-codebook threshold-search frame budget and sequential Annex A
+// LSP VQ path, applies the open-loop submultiple lift across all lower ranges
+// using the Core lift, and evaluates encodable closed-loop pitch boundary
+// codepoints. Its gain path keeps Annex A's 4x8 GA/GB preselection breadth
+// while preserving wider fixed-point precision for the preselect-center solve.
+// It is not an ITU byte-exact conformance mode.
 // EncoderProfileCoreClipRepair is a listening-diagnostic Core variant that
 // keeps that Core search policy but permits decoder-in-loop gain clip repair
 // with a lower pre-clip threshold.
@@ -66,9 +64,11 @@
 // EncoderProfileQualityCleanFCBRerank are listening-diagnostic variants of
 // that clean pitch policy for clarity-vs-smoothness A/B tests.
 // EncoderProfileQuality remains available as the older broad quality-heuristic
-// profile for diagnostics. EncoderProfileQualityPESQ is the product default.
-// EncoderProfileQualityPESQDegrit is a PESQ-candidate variant that also enables
-// bounded gain MSE/noise repair for blind tests targeting high-residual grit.
+// profile for diagnostics. EncoderProfileQualityPESQ is a numeric diagnostic
+// profile that enables native reconstructed-gain residual search, gain clip
+// repair, and fixed-codebook residual reranking. EncoderProfileQualityPESQDegrit
+// is a PESQ-candidate variant that also enables bounded gain MSE/noise repair
+// for blind tests targeting high-residual grit.
 //
 // EncodeFrame and DecodeFrame are zero-allocation in steady state; see the
 // v0.1.0-rc1 release verification log for hot-path benchmarks.

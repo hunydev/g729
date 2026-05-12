@@ -22,20 +22,24 @@ func TestEncoder_NewEncoder_NotNil(t *testing.T) {
 }
 
 func TestEncoderProfiles(t *testing.T) {
+	if defaultEncoderProfile != EncoderProfileCore {
+		t.Fatalf("defaultEncoderProfile = %v, want EncoderProfileCore", defaultEncoderProfile)
+	}
+
 	defaultEnc := NewEncoder()
 	if defaultEnc.profile != defaultEncoderProfile ||
-		!defaultEnc.qualityHeuristicsEnabled() ||
+		defaultEnc.qualityHeuristicsEnabled() ||
 		defaultEnc.qualityExpandedLSPSearchEnabled() ||
 		defaultEnc.qualityFCBThresholdScanActive() ||
 		defaultEnc.qualityNormalizedOpenLoopSearchEnabled() ||
 		defaultEnc.qualityNormalizedAdaptivePitchSearchEnabled() ||
-		!defaultEnc.qualityNativeGainSearchEnabled() ||
-		!defaultEnc.qualityGainClipRepairEnabled() ||
+		defaultEnc.qualityNativeGainSearchEnabled() ||
+		defaultEnc.qualityGainClipRepairEnabled() ||
 		defaultEnc.qualityGainMSERepairEnabled() ||
 		defaultEnc.qualityGainNoiseRepairEnabled() ||
-		!defaultEnc.qualityFCBNoiseRerankEnabled() ||
-		defaultEnc.coreFCBThresholdScanEnabled() {
-		t.Fatalf("NewEncoder profile = %v quality=%t lspx=%t qualityFCB=%t normOpenLoop=%t normPitch=%t nativeGain=%t gainClip=%t gainMSE=%t gainNoise=%t fcbRerank=%t coreFCB=%t, want product default PESQ tuning",
+		defaultEnc.qualityFCBNoiseRerankEnabled() ||
+		!defaultEnc.coreFCBThresholdScanEnabled() {
+		t.Fatalf("NewEncoder profile = %v quality=%t lspx=%t qualityFCB=%t normOpenLoop=%t normPitch=%t nativeGain=%t gainClip=%t gainMSE=%t gainNoise=%t fcbRerank=%t coreFCB=%t, want product default Core tuning",
 			defaultEnc.profile,
 			defaultEnc.qualityHeuristicsEnabled(),
 			defaultEnc.qualityExpandedLSPSearchEnabled(),
@@ -311,9 +315,11 @@ func TestEncoderProfiles(t *testing.T) {
 	}
 
 	invalidEnc := NewEncoderWithProfile(EncoderProfile(99))
-	if invalidEnc.profile != defaultEncoderProfile || !invalidEnc.qualityHeuristicsEnabled() {
-		t.Fatalf("invalid profile normalized to %v quality=%t, want default profile enabled",
-			invalidEnc.profile, invalidEnc.qualityHeuristicsEnabled())
+	if invalidEnc.profile != defaultEncoderProfile || invalidEnc.qualityHeuristicsEnabled() || !invalidEnc.coreFCBThresholdScanEnabled() {
+		t.Fatalf("invalid profile normalized to %v quality=%t coreFCB=%t, want Core default profile",
+			invalidEnc.profile,
+			invalidEnc.qualityHeuristicsEnabled(),
+			invalidEnc.coreFCBThresholdScanEnabled())
 	}
 }
 

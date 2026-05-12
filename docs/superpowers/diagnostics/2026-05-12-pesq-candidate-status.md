@@ -2,9 +2,9 @@
 
 Date: 2026-05-12
 
-Scope: final status for the active end-to-end G.729 quality goal after the
-decoder postfilter alignment work and the PESQ-led encoder candidate was
-promoted to the product default.
+Scope: status for the end-to-end G.729 quality work after decoder postfilter
+alignment, PESQ-led candidate testing, and the later blind-listening decision
+that returned the product default to Core.
 
 Clean-room boundary:
 
@@ -20,21 +20,29 @@ Clean-room boundary:
 The current product default encoder profile is:
 
 ```text
-EncoderProfileQualityPESQ
+EncoderProfileCore
 ```
 
-It emits normal 10-byte G.729 frames. It keeps the broader Quality heuristic
-surface disabled, but enables:
+It emits normal 10-byte G.729 frames and keeps repository-local quality
+heuristics disabled. It was selected as the default after the latest
+blind-listening gate:
+
+- previous default/PESQ path vs `bcg729`: `bcg729` won `3:0`, with `1` tie;
+- Core vs `bcg729`: Core won `3:0`, with `1` tie.
+
+`EncoderProfileQualityPESQ` remains available as a numeric diagnostic profile.
+It keeps the broader Quality heuristic surface disabled, but enables:
 
 - native reconstructed-gain residual search;
 - gain clip repair;
 - fixed-codebook residual reranking.
 
-This profile was introduced for A/B testing because it is the first local
-candidate in this cycle that reaches the active PESQ target on both main user
-samples while keeping decoded near-clips at zero. It is now the default used by
-`NewEncoder` and `NewStreamingEncoder`; the older broad
-`EncoderProfileQuality` remains available as a diagnostic profile.
+The PESQ profile was introduced for A/B testing because it was the first local
+candidate in this cycle that reached the active PESQ target on both main user
+samples while keeping decoded near-clips at zero. It is not the product default
+because blind listening later found it slightly muffled compared with Core.
+The older broad `EncoderProfileQuality` also remains available as a diagnostic
+profile.
 
 ## Current Numeric Evidence
 
@@ -86,10 +94,10 @@ End-to-end status:
 
 The 8000 app exposes:
 
-- full Compare rows for the default encoder, Core, Core-clip, and bcg729
-  black-box anchor paths;
-- Blind 1:1 options for default-vs-Core, default-vs-bcg729, Core-vs-bcg729,
-  and local-vs-FFmpeg decoder checks;
+- full Compare rows for the default encoder, explicit Core, Core-clip, and
+  bcg729 black-box anchor paths;
+- Blind 1:1 options for default/Core-vs-bcg729, Core-clip checks, and
+  local-vs-FFmpeg decoder checks;
 - trial result rows with `PESQ`, `SNR`, `Corr`, `Clip`, residual `High`, and
   residual `Worst`;
 - a copyable blind-result summary text area for preserving listening results.
@@ -127,17 +135,12 @@ go test ./... -count=1
 
 ## Completion Status
 
-Complete.
+Complete, with a later default correction.
 
-The numeric gates are satisfied, and the blind-listening gate is now satisfied
-by the user's 2026-05-12 report:
-
-- no audible difference among `our PESQ/default encode -> local decode`,
-  `our core encode -> local decode`, and `bcg729 encode -> FFmpeg decode`;
-- no audible grit, muffling, or bcg729-relative roughness in the current local
-  encode/decode output;
-- no audible difference between `bcg729 encode -> FFmpeg decode` and
-  `bcg729 encode -> local decode`.
+The PESQ numeric gate was satisfied, but the final product default is now Core
+because the latest blind-listening report preferred Core over both the previous
+PESQ/default path and the `bcg729` black-box anchor. PESQ remains useful as a
+legacy narrowband metric, but it is not the release default selector.
 
 ## Addendum: PESQ-Degrit Blind Candidate
 
@@ -215,23 +218,17 @@ Default-gate interpretation:
 
 - `EncoderProfileQualityPESQ` still satisfies the PESQ target on both main
   samples and keeps near-clips at zero.
-- The current default `EncoderProfileQuality` (`our_local`/`our_ffmpeg` in the
-  web app) does not satisfy the PESQ target on these samples.
-- No default promotion has been made because the active goal requires blind
-  listening to confirm that the user-reported grit/smoky/mic-rub artifact is
-  hard to distinguish from bcg729.
+- Core is the current default because the later blind-listening gate found the
+  PESQ/default path slightly muffled and preferred Core.
+- The older broad `EncoderProfileQuality` remains diagnostic-only.
 
-Current blocker:
+## Addendum: Historical PESQ Default Promotion Audit
 
-- Resolved. Final blind listening reported no meaningful audible difference
-  between the promoted default, Core, and the bcg729+FFmpeg anchor. The PESQ
-  candidate was promoted because it satisfies the numeric release gate while
-  also passing the user's subjective gate.
+This section records the temporary PESQ default promotion. It is superseded by
+the later Core default decision above.
 
-## Addendum: Final Default Promotion Audit
-
-`EncoderProfileQualityPESQ` is promoted to the default encoder profile used by
-the public constructors. The 8000 web app now labels this path as `our encode`
+`EncoderProfileQualityPESQ` was promoted to the default encoder profile used by
+the public constructors. The 8000 web app labeled this path as `our encode`
 instead of exposing it as a separate PESQ candidate.
 
 Current 8000 API evidence after default promotion:
@@ -253,6 +250,21 @@ Current 8000 API evidence after default promotion:
 | `our_ffmpeg` | 3.555439 | -0.100230 | 0 | 40 | 30366 |
 | `external_local` | 3.605134 | -0.050535 | 0 | 40 | 26136 |
 | `external_ffmpeg` | 3.655669 | 0.000000 | 0 | 40 | 25881 |
+
+## Addendum: Current Core Default Reversal
+
+Later 2026-05-12 blind-listening evidence reversed the temporary PESQ default:
+
+- previous current default/PESQ path vs `bcg729`: `bcg729` won `3:0`, with
+  `1` tie;
+- Core vs `bcg729`: Core won `3:0`, with `1` tie.
+
+Decision:
+
+- `defaultEncoderProfile` is `EncoderProfileCore`.
+- `EncoderProfileQualityPESQ` stays available for PESQ/NB numeric diagnostics.
+- The 8000 web app labels the default path as `Current default (Core)` and no
+  longer offers a redundant Core-vs-default blind pair.
 
 Verification:
 

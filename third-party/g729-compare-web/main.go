@@ -473,13 +473,13 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		equalPercent = float64(equal) * 100 / float64(den)
 	}
 
-	ourLocalMetric := qualityMetric("our encode -> local decode", paddedPCM, localOurPCM)
+	ourLocalMetric := qualityMetric("our default (Core) encode -> local decode", paddedPCM, localOurPCM)
 	coreLocalMetric := qualityMetric("our core encode -> local decode", paddedPCM, localCorePCM)
 	coreFFmpegMetric := qualityMetric("our core encode -> ffmpeg decode", paddedPCM, ffmpegCorePCM)
 	coreClipLocalMetric := qualityMetric("our core-clip encode -> local decode", paddedPCM, localCoreClipPCM)
 	coreClipFFmpegMetric := qualityMetric("our core-clip encode -> ffmpeg decode", paddedPCM, ffmpegCoreClipPCM)
-	ourBlend50Metric := qualityMetric("our encode -> local postfilter-blend50 decode", paddedPCM, blendOurPCM)
-	ourFFmpegMetric := qualityMetric("our encode -> ffmpeg decode", paddedPCM, ffmpegOurPCM)
+	ourBlend50Metric := qualityMetric("our default (Core) encode -> local postfilter-blend50 decode", paddedPCM, blendOurPCM)
+	ourFFmpegMetric := qualityMetric("our default (Core) encode -> ffmpeg decode", paddedPCM, ffmpegOurPCM)
 	cleanLocalMetric := qualityMetric("our clean encode -> local decode", paddedPCM, localCleanPCM)
 	cleanBlend50Metric := qualityMetric("our clean encode -> local postfilter-blend50 decode", paddedPCM, blendCleanPCM)
 	cleanFFmpegMetric := qualityMetric("our clean encode -> ffmpeg decode", paddedPCM, ffmpegCleanPCM)
@@ -504,7 +504,7 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	pesqFFmpegMetric := qualityMetric("our PESQ candidate encode -> ffmpeg decode", paddedPCM, ffmpegPESQPCM)
 	pesqDegritLocalMetric := qualityMetric("our PESQ-degrit candidate encode -> local decode", paddedPCM, localPESQDegritPCM)
 	pesqDegritFFmpegMetric := qualityMetric("our PESQ-degrit candidate encode -> ffmpeg decode", paddedPCM, ffmpegPESQDegritPCM)
-	softOurFFmpegMetric := qualityMetric("our encode -> softened FFmpeg decode", paddedPCM, softOurFFmpegPCM)
+	softOurFFmpegMetric := qualityMetric("our default (Core) encode -> softened FFmpeg decode", paddedPCM, softOurFFmpegPCM)
 	softCleanFFmpegMetric := qualityMetric("our clean encode -> softened FFmpeg decode", paddedPCM, softCleanFFmpegPCM)
 	externalLocalMetric := qualityMetric("bcg729 encode -> local decode", paddedPCM, localExternalPCM)
 	externalBlend50Metric := qualityMetric("bcg729 encode -> local postfilter-blend50 decode", paddedPCM, blendExternalPCM)
@@ -585,6 +585,7 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		"FCB-clean candidate keeps clean pitch and reranks a small fixed-codebook candidate set with decoder-in-loop residual scoring.",
 		"PESQ candidate keeps the broader quality heuristics disabled but enables native reconstructed-gain search, gain clip repair, and fixed-codebook residual reranking.",
 		"PESQ-degrit candidate adds bounded gain MSE/noise repair to the PESQ candidate; it is for blind tests of lower high-residual grit, not a PESQ-leading default.",
+		"Current default now aliases EncoderProfileCore after the latest blind-listening gate; PESQ candidates remain numeric diagnostics.",
 		"Core-clip candidate keeps Core's narrow search policy and only enables decoder-in-loop gain clip repair with a lower pre-clip threshold.",
 		"Softened candidates are playback-only diagnostics that apply a mild zero-phase PCM smoother after FFmpeg decode; they do not represent a G.729 payload.",
 		"FFmpeg is used only as a black-box G.729 decoder.",
@@ -768,13 +769,13 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			ffmpegPESQDegritPayloadMetric,
 		},
 		Noise: []noiseRow{
-			residualNoiseMetric("our encode -> local residual vs source", "our_local", paddedPCM, localOurPCM, ourLocalMetric.LagSamples),
+			residualNoiseMetric("our default (Core) encode -> local residual vs source", "our_local", paddedPCM, localOurPCM, ourLocalMetric.LagSamples),
 			residualNoiseMetric("our core encode -> local residual vs source", "core_local", paddedPCM, localCorePCM, coreLocalMetric.LagSamples),
 			residualNoiseMetric("our core encode -> ffmpeg residual vs source", "core_ffmpeg", paddedPCM, ffmpegCorePCM, coreFFmpegMetric.LagSamples),
 			residualNoiseMetric("our core-clip encode -> local residual vs source", "core_clip_local", paddedPCM, localCoreClipPCM, coreClipLocalMetric.LagSamples),
 			residualNoiseMetric("our core-clip encode -> ffmpeg residual vs source", "core_clip_ffmpeg", paddedPCM, ffmpegCoreClipPCM, coreClipFFmpegMetric.LagSamples),
-			residualNoiseMetric("our encode -> postfilter-blend50 local residual vs source", "our_blend50", paddedPCM, blendOurPCM, ourBlend50Metric.LagSamples),
-			residualNoiseMetric("our encode -> ffmpeg residual vs source", "our_ffmpeg", paddedPCM, ffmpegOurPCM, ourFFmpegMetric.LagSamples),
+			residualNoiseMetric("our default (Core) encode -> postfilter-blend50 local residual vs source", "our_blend50", paddedPCM, blendOurPCM, ourBlend50Metric.LagSamples),
+			residualNoiseMetric("our default (Core) encode -> ffmpeg residual vs source", "our_ffmpeg", paddedPCM, ffmpegOurPCM, ourFFmpegMetric.LagSamples),
 			residualNoiseMetric("our clean encode -> local residual vs source", "clean_local", paddedPCM, localCleanPCM, cleanLocalMetric.LagSamples),
 			residualNoiseMetric("our clean encode -> postfilter-blend50 local residual vs source", "clean_blend50", paddedPCM, blendCleanPCM, cleanBlend50Metric.LagSamples),
 			residualNoiseMetric("our clean encode -> ffmpeg residual vs source", "clean_ffmpeg", paddedPCM, ffmpegCleanPCM, cleanFFmpegMetric.LagSamples),
@@ -799,7 +800,7 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			residualNoiseMetric("our PESQ candidate encode -> ffmpeg residual vs source", "pesq_ffmpeg", paddedPCM, ffmpegPESQPCM, pesqFFmpegMetric.LagSamples),
 			residualNoiseMetric("our PESQ-degrit candidate encode -> local residual vs source", "pesq_degrit_local", paddedPCM, localPESQDegritPCM, pesqDegritLocalMetric.LagSamples),
 			residualNoiseMetric("our PESQ-degrit candidate encode -> ffmpeg residual vs source", "pesq_degrit_ffmpeg", paddedPCM, ffmpegPESQDegritPCM, pesqDegritFFmpegMetric.LagSamples),
-			residualNoiseMetric("our encode -> softened FFmpeg residual vs source", "soft_our_ffmpeg", paddedPCM, softOurFFmpegPCM, softOurFFmpegMetric.LagSamples),
+			residualNoiseMetric("our default (Core) encode -> softened FFmpeg residual vs source", "soft_our_ffmpeg", paddedPCM, softOurFFmpegPCM, softOurFFmpegMetric.LagSamples),
 			residualNoiseMetric("our clean encode -> softened FFmpeg residual vs source", "soft_clean_ffmpeg", paddedPCM, softCleanFFmpegPCM, softCleanFFmpegMetric.LagSamples),
 			residualNoiseMetric("bcg729 encode -> local residual vs source", "external_local", paddedPCM, localExternalPCM, externalLocalMetric.LagSamples),
 			residualNoiseMetric("bcg729 encode -> postfilter-blend50 local residual vs source", "external_blend50", paddedPCM, blendExternalPCM, externalBlend50Metric.LagSamples),
@@ -1055,11 +1056,11 @@ func selectedMetricPath(key string) string {
 	case "core_clip_ffmpeg":
 		return "our core-clip encode -> ffmpeg decode"
 	case "our_local":
-		return "our encode -> local decode"
+		return "our default (Core) encode -> local decode"
 	case "our_blend50":
-		return "our encode -> local postfilter-blend50 decode"
+		return "our default (Core) encode -> local postfilter-blend50 decode"
 	case "our_ffmpeg":
-		return "our encode -> ffmpeg decode"
+		return "our default (Core) encode -> ffmpeg decode"
 	case "clean_local":
 		return "our clean encode -> local decode"
 	case "clean_blend50":
@@ -1109,7 +1110,7 @@ func selectedMetricPath(key string) string {
 	case "pesq_degrit_ffmpeg":
 		return "our PESQ-degrit candidate encode -> ffmpeg decode"
 	case "soft_our_ffmpeg":
-		return "our encode -> softened FFmpeg decode"
+		return "our default (Core) encode -> softened FFmpeg decode"
 	case "soft_clean_ffmpeg":
 		return "our clean encode -> softened FFmpeg decode"
 	case "external_local":
@@ -1843,13 +1844,12 @@ const pageHTML = `<!doctype html>
           <label>Battle pair<select id="battlePair">
             <option value="core_local|external_ffmpeg">Core local decode vs bcg729 FFmpeg</option>
             <option value="core_local|external_local">Core local decode vs bcg729 local decode</option>
-            <option value="core_local|our_local">Core local decode vs current default local decode</option>
             <option value="core_local|core_clip_local">Core local decode vs core-clip local decode</option>
             <option value="core_local|core_ffmpeg">Core local decode vs Core FFmpeg decode</option>
             <option value="core_clip_local|external_ffmpeg">Core-clip local decode vs bcg729 FFmpeg</option>
-            <option value="our_local|external_ffmpeg">Current default local decode vs bcg729 FFmpeg</option>
-            <option value="our_ffmpeg|external_ffmpeg">Current default FFmpeg decode vs bcg729 FFmpeg</option>
-            <option value="our_local|our_ffmpeg">Current default local decode vs FFmpeg decode</option>
+            <option value="our_local|external_ffmpeg">Current default (Core) local decode vs bcg729 FFmpeg</option>
+            <option value="our_ffmpeg|external_ffmpeg">Current default (Core) FFmpeg decode vs bcg729 FFmpeg</option>
+            <option value="our_local|our_ffmpeg">Current default (Core) local decode vs FFmpeg decode</option>
             <option value="core_ffmpeg|core_clip_ffmpeg">Core profile vs core-clip profile</option>
             <option value="core_ffmpeg|external_ffmpeg">Core profile vs bcg729</option>
           </select></label>
@@ -1868,8 +1868,8 @@ const pageHTML = `<!doctype html>
       core_ffmpeg: "our core profile -> FFmpeg decode",
       core_clip_local: "our core-clip profile -> our decode",
       core_clip_ffmpeg: "our core-clip profile -> FFmpeg decode",
-      our_local: "our default encode -> our decode",
-      our_ffmpeg: "our default encode -> FFmpeg decode",
+      our_local: "our default (Core) encode -> our decode",
+      our_ffmpeg: "our default (Core) encode -> FFmpeg decode",
       external_local: "bcg729 encode -> our decode",
       external_ffmpeg: "bcg729 encode -> FFmpeg decode"
     };
@@ -1878,8 +1878,8 @@ const pageHTML = `<!doctype html>
       core_ffmpeg: { label: "Core profile -> FFmpeg decode" },
       core_clip_local: { label: "Core-clip profile -> local decode" },
       core_clip_ffmpeg: { label: "Core-clip profile -> FFmpeg decode" },
-      our_local: { label: "Current default -> local decode" },
-      our_ffmpeg: { label: "Current default -> FFmpeg decode" },
+      our_local: { label: "Current default (Core) -> local decode" },
+      our_ffmpeg: { label: "Current default (Core) -> FFmpeg decode" },
       external_local: { label: "bcg729 -> local decode" },
       external_ffmpeg: { label: "bcg729 -> FFmpeg decode" }
     };

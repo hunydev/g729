@@ -132,25 +132,35 @@ conformance claim.
 
 ### Encoder profiles
 
-`NewEncoder()` and `NewStreamingEncoder()` use `EncoderProfileQualityPESQ`.
-This profile emits normal 10-byte G.729 frames, keeps the broader historical
-Quality heuristic surface disabled, and enables native reconstructed-gain
-residual search, gain clip repair, and fixed-codebook residual reranking.
-It is a product-quality choice tuned by black-box executable decode metrics,
-not an ITU byte-exact encoder claim.
-The core open-loop path follows Annex A's raw-correlation per-range maxima
+`NewEncoder()` and `NewStreamingEncoder()` use `EncoderProfileCore`. This
+profile emits normal 10-byte G.729 frames and is the current product default
+because the latest blind-listening gate preferred it over both the previous
+PESQ-led default and the `bcg729` black-box anchor. It is not an ITU byte-exact
+encoder claim.
+The Core open-loop path follows Annex A's raw-correlation per-range maxima
 before the normalized three-range merge, and range-3 override checks every
 lower-range submultiple with the Core `11/10` lift instead of only the current
 pairwise winner.
 Core closed-loop pitch refinement also evaluates the encodable P1/P2 fractional
 boundary codepoints rather than silently restricting the search to only the
 three fractions around the integer winner.
-The focused fixed-codebook threshold scan and clipped-input open-loop rescue
-remain available as diagnostics, but are not part of the default Quality
-profile because the current black-box sample set favours the smaller heuristic
-surface above.
-Quality uses the sequential Annex A LSP VQ path by default; the broader
-second-stage LSP search remains available only as an internal diagnostic knob.
+Its fixed-codebook path uses the K3=0.4 focused threshold search from §3.8.1
+with a 180-entry frame cap across the two subframes; subframe 0 is
+conservatively capped at 90 so it cannot consume the whole frame budget. Its
+LSP VQ path uses the sequential Annex A search rather than the broader
+diagnostic second-stage search. Its gain predictor keeps the wider int32
+§3.9.1 math path and the Annex A GA/GB preselection search.
+
+`EncoderProfileQualityPESQ` remains available as a numeric diagnostic profile.
+It keeps the broader historical Quality heuristic surface disabled, and enables
+native reconstructed-gain residual search, gain clip repair, and fixed-codebook
+residual reranking. It has strong PESQ NB scores on the current sample set, but
+the latest blind tests found it slightly more muffled than Core, so it is no
+longer the default.
+`EncoderProfileQuality` remains available as the older broad quality-heuristic
+profile for diagnostics. Quality uses the sequential Annex A LSP VQ path by
+default; the broader second-stage LSP search remains available only as an
+internal diagnostic knob.
 `EncoderProfileQualityAnnexALSP` is kept as an explicit alias for that LSP path
 in listening diagnostics.
 `EncoderProfileQualityClean` is a listening-diagnostic profile for comparing a
@@ -179,27 +189,15 @@ beyond the strong candidate to locate the grit-vs-muffling boundary.
 `EncoderProfileQualityCleanFCBRerank` keeps the clean pitch policy while
 reranking a small fixed-codebook candidate set with decoder-in-loop residual
 scoring for grit/noise listening diagnostics.
-`EncoderProfileQuality` remains available as the older broad quality-heuristic
-profile for diagnostics. `EncoderProfileQualityPESQ` is the current default
-because it satisfies the active PESQ/near-clip gates and the user reported no
-blind-listening difference versus Core or the `bcg729` black-box anchor.
-
-For clean-room diagnostics and algorithm work, use
+For clean-room algorithm comparisons, use
 `NewEncoderWithProfile(EncoderProfileCore)` or
 `NewStreamingEncoderWithProfile(w, EncoderProfileCore)`. The core profile
 disables those local quality heuristics while preserving the same public frame
-shape and decoder compatibility. Its gain predictor keeps the wider int32
-§3.9.1 math path and the Annex A GA/GB preselection search. The Core
-preselect center solve preserves the maximum zero-allocation-safe correlation
-precision used by this implementation, but it still keeps Annex A's 4x8
-GA/GB preselect breadth. The quality profile may evaluate all 128 standard
-gain-index pairs using the exact reconstructed-gain residual before applying
-decoder-in-loop clipping repair.
-Its fixed-codebook path uses the K3=0.4 focused threshold search from §3.8.1
-with a 180-entry frame cap across the two subframes; subframe 0 is
-conservatively capped at 90 so it cannot consume the whole frame budget. Its
-LSP VQ path uses the sequential Annex A search rather than the broader
-diagnostic second-stage search.
+shape and decoder compatibility. The Core preselect center solve preserves the
+maximum zero-allocation-safe correlation precision used by this implementation,
+but it still keeps Annex A's 4x8 GA/GB preselect breadth. Diagnostic quality
+profiles may evaluate all 128 standard gain-index pairs using the exact
+reconstructed-gain residual before applying decoder-in-loop clipping repair.
 
 `EncoderProfileCoreClipRepair` is a listening-diagnostic variant of Core. It
 keeps the Core LSP/FCB/gain-preselect policy and only adds decoder-in-loop gain
@@ -454,7 +452,7 @@ This prints `input -> our encoder -> ffmpeg`,
 `input -> our encoder -> local`, and `local decoder vs ffmpeg` on the
 same aligned SNR scale used by the web and release diagnostics.
 
-To reproduce the current PESQ-led encoder candidate matrix, run:
+To reproduce the PESQ-led encoder candidate matrix, run:
 
 ```sh
 G729_PESQ_PYTHON=/tmp/g729-pesq-venv/bin/python \
@@ -464,8 +462,8 @@ go test -run TestExternalSampleEncoderCandidatePESQDiagnostic -count=1 -v
 ```
 
 See `docs/superpowers/diagnostics/2026-05-12-pesq-candidate-status.md` for
-the current `EncoderProfileQualityPESQ` default status, web-app checks, and
-blind-listening completion evidence.
+the PESQ candidate evidence, web-app checks, and the later blind-listening
+decision that returned the product default to `EncoderProfileCore`.
 
 To separate clipping from "muffled" spectral-shape complaints, run the
 spectral tilt diagnostic. It compares source, `EncoderProfileCore`,

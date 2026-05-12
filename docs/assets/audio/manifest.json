@@ -12,7 +12,7 @@
     "g729_frames": 804,
     "notes": [
       "FFmpeg was used as a black-box converter/decoder executable.",
-      "The local repository encoder generated g729-encode.g729.",
+      "The local repository encoder generated g729-encode.g729 with the EncoderProfileCore product default.",
       "FFmpeg reference-encoder samples are not present because the release VM FFmpeg build is decoder-only for G.729."
     ]
   },
