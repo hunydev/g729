@@ -149,3 +149,72 @@ Current PESQ evidence says it is not the numeric leader:
 The 8000 web app exposes `PESQ candidate vs PESQ-degrit candidate` and
 `PESQ-degrit candidate vs bcg729` blind pairs so this tradeoff can be judged by
 listening rather than promoted on PESQ alone.
+
+## Addendum: Core Listening Candidate and Default-Gate Status
+
+After user listening feedback, `EncoderProfileCore` became an important
+subjective candidate: it disables the repository-local Quality/PESQ heuristics
+and can sound less processed even when its PESQ is lower. The 8000 web app now
+exposes Core-centered blind pairs, including:
+
+- `Core local decode vs bcg729 FFmpeg`
+- `Core local decode vs bcg729 local decode`
+- `Core local decode vs PESQ candidate local decode`
+- `Core local decode vs core-clip local decode`
+- `Core local decode vs Core FFmpeg decode`
+
+`EncoderProfileCoreClipRepair` was added as a listening diagnostic. It keeps
+Core's search policy and only adds decoder-in-loop gain clip repair with a
+lower pre-clip threshold. On `user_quality_audio.m4a`, this removes the
+Core+FFmpeg near-clip markers but lowers PESQ/SNR, so it is not a numeric
+promotion candidate by itself.
+
+Current selected 8000 API evidence:
+
+`testdata/external/user_quality_audio.m4a`:
+
+| Key | PESQ NB | Gap vs bcg729+FFmpeg | NearClip | Peak |
+| --- | ---: | ---: | ---: | ---: |
+| `our_local` | 3.279689 | -0.417797 | 0 | 30736 |
+| `our_ffmpeg` | 3.271727 | -0.425759 | 4 | 32767 |
+| `core_local` | 3.403904 | -0.293582 | 0 | 30888 |
+| `core_ffmpeg` | 3.444327 | -0.253159 | 2 | 32768 |
+| `core_clip_local` | 3.366384 | -0.331102 | 0 | 29004 |
+| `core_clip_ffmpeg` | 3.414424 | -0.283062 | 0 | 31386 |
+| `pesq_local` | 3.558455 | -0.139031 | 0 | 31978 |
+| `pesq_ffmpeg` | 3.601664 | -0.095822 | 0 | 31847 |
+| `external_local` | 3.649558 | -0.047928 | 0 | 32622 |
+| `external_ffmpeg` | 3.697486 | 0.000000 | 0 | 32614 |
+
+`testdata/external/user_quality_input.m4a`:
+
+| Key | PESQ NB | Gap vs bcg729+FFmpeg | NearClip | Peak |
+| --- | ---: | ---: | ---: | ---: |
+| `our_local` | 3.135855 | -0.519814 | 0 | 26456 |
+| `our_ffmpeg` | 3.139509 | -0.516160 | 0 | 28942 |
+| `core_local` | 3.466861 | -0.188808 | 0 | 25932 |
+| `core_ffmpeg` | 3.489401 | -0.166268 | 0 | 26283 |
+| `core_clip_local` | 3.466861 | -0.188808 | 0 | 25932 |
+| `core_clip_ffmpeg` | 3.489401 | -0.166268 | 0 | 26283 |
+| `pesq_local` | 3.545760 | -0.109909 | 0 | 27326 |
+| `pesq_ffmpeg` | 3.555439 | -0.100230 | 0 | 30366 |
+| `external_local` | 3.605134 | -0.050535 | 0 | 26136 |
+| `external_ffmpeg` | 3.655669 | 0.000000 | 0 | 25881 |
+
+Default-gate interpretation:
+
+- `EncoderProfileQualityPESQ` still satisfies the PESQ target on both main
+  samples and keeps near-clips at zero.
+- The current default `EncoderProfileQuality` (`our_local`/`our_ffmpeg` in the
+  web app) does not satisfy the PESQ target on these samples.
+- No default promotion has been made because the active goal requires blind
+  listening to confirm that the user-reported grit/smoky/mic-rub artifact is
+  hard to distinguish from bcg729.
+
+Current blocker:
+
+- Need user-provided Blind 1:1 results, starting with
+  `Core local decode vs bcg729 FFmpeg`.
+  If Core wins or ties convincingly, the next engineering decision is whether
+  to promote a Core-derived profile despite lower PESQ. If Core loses, the
+  PESQ candidate is the stronger numeric release candidate.
