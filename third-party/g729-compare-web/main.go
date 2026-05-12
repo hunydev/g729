@@ -812,12 +812,14 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 	}
 	sort.Strings(metricKeys)
 	metrics := make([]metricRow, 0, len(metricKeys))
+	noise := make([]noiseRow, 0, len(metricKeys))
 	pesqPairs := make([]pesqPair, 0, len(metricKeys))
 	for _, key := range metricKeys {
 		decoded := decodedByKey[key]
 		row := qualityMetric(selectedMetricPath(key), paddedPCM, decoded)
 		row.Key = key
 		metrics = append(metrics, row)
+		noise = append(noise, residualNoiseMetric(selectedMetricPath(key)+" residual vs source", key, paddedPCM, decoded, row.LagSamples))
 		pesqPairs = append(pesqPairs, pesqPair{
 			Row:    &metrics[len(metrics)-1],
 			RefPCM: paddedPCM,
@@ -842,6 +844,7 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 		},
 		Audio:   audio,
 		Metrics: metrics,
+		Noise:   noise,
 		Notes:   notes,
 	}
 	_ = json.NewEncoder(w).Encode(resp)
@@ -1875,11 +1878,13 @@ const pageHTML = `<!doctype html>
         const picked = trial.winnerKey === "tie" ? "Tie / unsure" : battleCandidates[trial.winnerKey].label;
         const leftMetric = battleMetric(trial, trial.leftKey);
         const rightMetric = battleMetric(trial, trial.rightKey);
+        const leftNoise = battleNoise(trial, trial.leftKey);
+        const rightNoise = battleNoise(trial, trial.rightKey);
         return "<tr><td>" + (i + 1) + "</td><td>" + escapeHTML(trial.fileName) + "</td><td>" +
           escapeHTML(battleCandidates[trial.leftKey].label) + "</td><td>" +
-          metricSummary(leftMetric) + "</td><td>" +
+          metricSummary(leftMetric, leftNoise) + "</td><td>" +
           escapeHTML(battleCandidates[trial.rightKey].label) + "</td><td>" +
-          metricSummary(rightMetric) + "</td><td>" + escapeHTML(picked) + "</td></tr>";
+          metricSummary(rightMetric, rightNoise) + "</td><td>" + escapeHTML(picked) + "</td></tr>";
       }).join("");
       const section = document.createElement("section");
       section.className = "card";
@@ -1906,9 +1911,23 @@ const pageHTML = `<!doctype html>
       return ((trial.data && trial.data.metrics) || []).find((m) => m.key === key) || null;
     }
 
-    function metricSummary(metric) {
+    function battleNoise(trial, key) {
+      return ((trial.data && trial.data.noise) || []).find((m) => m.key === key) || null;
+    }
+
+    function metricSummary(metric, noise = null) {
       if (!metric) return "PESQ n/a";
-      return "PESQ " + fmtMaybe(metric.pesq, 3) + " / SNR " + fmt(metric.snrDb) + " / Corr " + fmt(metric.corr, 4);
+      const parts = [
+        "PESQ " + fmtMaybe(metric.pesq, 3),
+        "SNR " + fmt(metric.snrDb),
+        "Corr " + fmt(metric.corr, 4),
+        "Clip " + metric.nearClip
+      ];
+      if (noise) {
+        parts.push("High " + fmt(noise.highErrorDb));
+        parts.push("Worst " + fmtMaybe(noise.worstTimeSec, 3) + "s");
+      }
+      return parts.join(" / ");
     }
 
     function averageBattlePESQ(key) {
