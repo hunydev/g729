@@ -203,6 +203,11 @@ conservatively capped at 90 so it cannot consume the whole frame budget. Its
 LSP VQ path uses the sequential Annex A search rather than the broader
 diagnostic second-stage search.
 
+`EncoderProfileCoreClipRepair` is a listening-diagnostic variant of Core. It
+keeps the Core LSP/FCB/gain-preselect policy and only adds decoder-in-loop gain
+clip repair with a lower pre-clip threshold. Use it for A/B tests of the Core
+sound with a minimal clipping safety valve, not as a conformance claim.
+
 ---
 
 ## RTP packetization

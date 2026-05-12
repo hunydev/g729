@@ -281,6 +281,11 @@ const (
 	// gives up PESQ score for lower high-residual energy, so it exists only for
 	// blind tests around the user-reported gritty/smoky artifact.
 	EncoderProfileQualityPESQDegrit
+
+	// EncoderProfileCoreClipRepair is a listening-diagnostic variant of Core.
+	// It keeps Core's narrow search policy and only enables decoder-in-loop gain
+	// clip repair when the selected gain would produce near-clipped output.
+	EncoderProfileCoreClipRepair
 )
 
 type encoderQualityTuning uint32
@@ -330,7 +335,7 @@ func NewEncoderWithProfile(profile EncoderProfile) *Encoder {
 
 func normalizeEncoderProfile(profile EncoderProfile) EncoderProfile {
 	switch profile {
-	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep, EncoderProfileQualityCleanFCBRerank, EncoderProfileQualityPESQ, EncoderProfileQualityPESQDegrit:
+	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep, EncoderProfileQualityCleanFCBRerank, EncoderProfileQualityPESQ, EncoderProfileQualityPESQDegrit, EncoderProfileCoreClipRepair:
 		return profile
 	default:
 		return EncoderProfileQuality
@@ -349,6 +354,8 @@ func encoderQualityTuningForProfile(profile EncoderProfile) encoderQualityTuning
 		return encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningFCBNoiseRerank
 	case EncoderProfileQualityPESQDegrit:
 		return encoderTuningNativeGainSearch | encoderTuningGainClipRepair | encoderTuningGainMSERepair | encoderTuningGainNoiseRepair | encoderTuningFCBNoiseRerank
+	case EncoderProfileCoreClipRepair:
+		return encoderTuningGainClipRepair
 	case EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep:
 		return encoderQualityTuningAll &^ encoderTuningNormalizedAdaptivePitchSearch
 	default:
@@ -380,12 +387,23 @@ func (e *Encoder) qualityFCBThresholdScanActive() bool {
 	return e.qualityFCBThresholdScanEnabled() && e.qualityFCBClipCooldown == 0
 }
 
+func (e *Encoder) coreSearchPolicyEnabled() bool {
+	switch e.profile {
+	case EncoderProfileCore:
+		return e.qualityTuning == 0
+	case EncoderProfileCoreClipRepair:
+		return e.qualityTuning == encoderTuningGainClipRepair
+	default:
+		return false
+	}
+}
+
 func (e *Encoder) coreFCBThresholdScanEnabled() bool {
-	return e.profile == EncoderProfileCore && e.qualityTuning == 0
+	return e.coreSearchPolicyEnabled()
 }
 
 func (e *Encoder) coreGainPreselectPrecisionEnabled() bool {
-	return e.profile == EncoderProfileCore && e.qualityTuning == 0
+	return e.coreSearchPolicyEnabled()
 }
 
 func (e *Encoder) coreFCBThresholdScanLimit(sub int) int {
@@ -421,6 +439,13 @@ func (e *Encoder) qualityResidualExtensionAdaptiveVectorEnabled() bool {
 
 func (e *Encoder) qualityGainClipRepairEnabled() bool {
 	return e.qualityTuning&encoderTuningGainClipRepair != 0
+}
+
+func (e *Encoder) qualityGainClipRepairThreshold() int {
+	if e.profile == EncoderProfileCoreClipRepair {
+		return qualityCoreClipGainRepairThreshold
+	}
+	return qualityGainClipRepairThreshold
 }
 
 func (e *Encoder) qualityGainMSERepairEnabled() bool {
@@ -599,6 +624,11 @@ const (
 // gain repair trigger. Keep this below hard clip so the repair has enough
 // decoder-side headroom before FFmpeg/local output reaches saturation.
 var qualityGainClipRepairThreshold = 32300
+
+// qualityCoreClipGainRepairThreshold is deliberately lower because the Core
+// local mirror can sit below the standard near-clip trigger while FFmpeg decode
+// of the same payload reaches full-scale on user problem samples.
+var qualityCoreClipGainRepairThreshold = 28000
 
 // qualityGainMSERepairThreshold is stricter than the hard clip-repair
 // trigger because this path can change otherwise non-clipping gain fields.
@@ -1597,7 +1627,7 @@ func (e *Encoder) fcbStep(
 	// so encoder local state must mirror the receiver rather than reusing
 	// the sparse eq. 45 vector for gain prediction.
 	useNativeGainSearch := e.qualityNativeGainSearchEnabled()
-	useWideGainPredictor := !e.qualityHeuristicsEnabled() || e.qualityWideGainPredictorEnabled() || useNativeGainSearch
+	useWideGainPredictor := e.coreSearchPolicyEnabled() || !e.qualityHeuristicsEnabled() || e.qualityWideGainPredictorEnabled() || useNativeGainSearch
 	gpcPredQ12 := gainquant.PredictedGcQ12(&e.pastQuaEn, &c)
 	if useWideGainPredictor {
 		gpcPredQ12 = gainquant.PredictedGcQ12Wide(&e.pastQuaEn, &c)
@@ -1775,7 +1805,7 @@ func (e *Encoder) scoreFCBRerankPosition(
 	fcbsearch.FilterCode(&c, h, &z)
 
 	useNativeGainSearch := e.qualityNativeGainSearchEnabled()
-	useWideGainPredictor := !e.qualityHeuristicsEnabled() || e.qualityWideGainPredictorEnabled() || useNativeGainSearch
+	useWideGainPredictor := e.coreSearchPolicyEnabled() || !e.qualityHeuristicsEnabled() || e.qualityWideGainPredictorEnabled() || useNativeGainSearch
 	gpcPredQ12 := gainquant.PredictedGcQ12(&e.pastQuaEn, &c)
 	if useWideGainPredictor {
 		gpcPredQ12 = gainquant.PredictedGcQ12Wide(&e.pastQuaEn, &c)
@@ -1807,7 +1837,7 @@ func (e *Encoder) scoreFCBRerankPosition(
 	cPacked := fcbsearch.PackC(positions)
 	sPacked := fcbsearch.PackS(positions, signs)
 	_, out := simulateEncoderQualityDecodeOutput(initialState, aHat, int(intLag), int(tFrac), cPacked, sPacked, gaBits, gbBits)
-	return scoreEncoderQualityOutput(out[:], ref[:], qualityGainClipRepairThreshold)
+	return scoreEncoderQualityOutput(out[:], ref[:], e.qualityGainClipRepairThreshold())
 }
 
 func encoderQualityFCBRerankScoreLess(candidate, best encoderQualityOutputScore) bool {
@@ -1919,7 +1949,8 @@ func (e *Encoder) qualityRepairGainClip(
 	}
 	gaBits, gbBits := gainquant.PackGains(gaPhys, gbPhys)
 	bestState, bestOut := simulateEncoderQualityDecodeOutput(initialState, aHat, int(intLag), int(tFrac), cPacked, sPacked, gaBits, gbBits)
-	bestScore := scoreEncoderQualityOutput(bestOut[:], ref[:], qualityGainClipRepairThreshold)
+	clipThreshold := e.qualityGainClipRepairThreshold()
+	bestScore := scoreEncoderQualityOutput(bestOut[:], ref[:], clipThreshold)
 
 	bestGA, bestGB := gaPhys, gbPhys
 	bestGp := gpQ14
@@ -1928,7 +1959,7 @@ func (e *Encoder) qualityRepairGainClip(
 	bestGcMant := gcMantQ14
 	bestGcExp := gcExp
 
-	searchThreshold := qualityGainClipRepairThreshold
+	searchThreshold := clipThreshold
 	searchAll := bestScore.nearClip > 0
 	mseRepair := false
 	if !searchAll && e.qualityGainMSERepairEnabled() {
@@ -2005,7 +2036,7 @@ func (e *Encoder) qualityRepairGainClip(
 		}
 	}
 
-	e.qualityLastOutput = scoreEncoderQualityOutput(bestOut[:], ref[:], qualityGainClipRepairThreshold)
+	e.qualityLastOutput = scoreEncoderQualityOutput(bestOut[:], ref[:], clipThreshold)
 	e.qualityGainDec = bestState.gainDec
 	e.qualitySynth = bestState.synth
 	e.qualityPostfilter = bestState.pf

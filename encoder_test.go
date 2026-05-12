@@ -60,6 +60,28 @@ func TestEncoderProfiles(t *testing.T) {
 			coreEnc.coreFCBThresholdScanEnabled())
 	}
 
+	coreClipEnc := NewEncoderWithProfile(EncoderProfileCoreClipRepair)
+	if coreClipEnc.profile != EncoderProfileCoreClipRepair ||
+		!coreClipEnc.qualityHeuristicsEnabled() ||
+		!coreClipEnc.qualityGainClipRepairEnabled() ||
+		coreClipEnc.qualityNativeGainSearchEnabled() ||
+		coreClipEnc.qualityGainMSERepairEnabled() ||
+		coreClipEnc.qualityGainNoiseRepairEnabled() ||
+		coreClipEnc.qualityGainClipRepairThreshold() != qualityCoreClipGainRepairThreshold ||
+		!coreClipEnc.coreFCBThresholdScanEnabled() ||
+		!coreClipEnc.coreGainPreselectPrecisionEnabled() {
+		t.Fatalf("NewEncoderWithProfile(CoreClipRepair) profile = %v quality=%t gainClip=%t nativeGain=%t gainMSE=%t gainNoise=%t clipThreshold=%d coreFCB=%t coreGainPreselect=%t, want Core search with gain clip repair only",
+			coreClipEnc.profile,
+			coreClipEnc.qualityHeuristicsEnabled(),
+			coreClipEnc.qualityGainClipRepairEnabled(),
+			coreClipEnc.qualityNativeGainSearchEnabled(),
+			coreClipEnc.qualityGainMSERepairEnabled(),
+			coreClipEnc.qualityGainNoiseRepairEnabled(),
+			coreClipEnc.qualityGainClipRepairThreshold(),
+			coreClipEnc.coreFCBThresholdScanEnabled(),
+			coreClipEnc.coreGainPreselectPrecisionEnabled())
+	}
+
 	annexALSPEnc := NewEncoderWithProfile(EncoderProfileQualityAnnexALSP)
 	if annexALSPEnc.profile != EncoderProfileQualityAnnexALSP ||
 		!annexALSPEnc.qualityHeuristicsEnabled() ||

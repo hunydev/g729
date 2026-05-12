@@ -51,6 +51,9 @@
 // pitch boundary codepoints. Its gain path keeps Annex A's 4x8 GA/GB
 // preselection breadth while preserving wider fixed-point precision for the
 // preselect-center solve. It is not an ITU byte-exact conformance mode.
+// EncoderProfileCoreClipRepair is a listening-diagnostic Core variant that
+// keeps that Core search policy but permits decoder-in-loop gain clip repair
+// with a lower pre-clip threshold.
 // EncoderProfileQualityAnnexALSP is available for listening diagnostics that
 // keep the quality profile while using the sequential Annex A LSP VQ path.
 // EncoderProfileQualityClean is available for listening diagnostics that keep
