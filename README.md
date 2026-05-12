@@ -180,6 +180,11 @@ beyond the strong candidate to locate the grit-vs-muffling boundary.
 `EncoderProfileQualityCleanFCBRerank` keeps the clean pitch policy while
 reranking a small fixed-codebook candidate set with decoder-in-loop residual
 scoring for grit/noise listening diagnostics.
+`EncoderProfileQualityPESQ` is a separate listening-diagnostic candidate that
+keeps the broader Quality heuristic surface disabled while enabling native
+reconstructed-gain residual search, gain clip repair, and fixed-codebook
+residual reranking. It is the current PESQ-led A/B candidate, not the default
+encoder profile.
 
 For clean-room diagnostics and algorithm work, use
 `NewEncoderWithProfile(EncoderProfileCore)` or
@@ -399,6 +404,19 @@ for the current local problem sample at
 This prints `input -> our encoder -> ffmpeg`,
 `input -> our encoder -> local`, and `local decoder vs ffmpeg` on the
 same aligned SNR scale used by the web and release diagnostics.
+
+To reproduce the current PESQ-led encoder candidate matrix, run:
+
+```sh
+G729_PESQ_PYTHON=/tmp/g729-pesq-venv/bin/python \
+G729_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1 \
+G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav \
+go test -run TestExternalSampleEncoderCandidatePESQDiagnostic -count=1 -v
+```
+
+See `docs/superpowers/diagnostics/2026-05-12-pesq-candidate-status.md` for
+the current `EncoderProfileQualityPESQ` status, web-app checks, and the
+remaining blind-listening completion gate.
 
 To separate clipping from "muffled" spectral-shape complaints, run the
 spectral tilt diagnostic. It compares source, `EncoderProfileCore`,
