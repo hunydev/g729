@@ -1565,6 +1565,8 @@ const pageHTML = `<!doctype html>
     .battle-choice.right { background:#334155; }
     .battle-choice.tie { background:#8a5a16; }
     .battle-result { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; }
+    .result-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .result-text { width:100%; min-height:170px; padding:12px; border:1px solid var(--line); border-radius:8px; background:#f8fafc; color:var(--ink); font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize:vertical; }
     .score { padding:16px; border:1px solid var(--line); border-radius:8px; background:#f8fafc; }
     .score strong { display:block; font-size:30px; margin-top:8px; }
     .score small { display:block; color:var(--muted); margin-top:4px; }
@@ -1874,6 +1876,7 @@ const pageHTML = `<!doctype html>
       battleState.trials.forEach((trial) => {
         if (trial.winnerKey && Object.prototype.hasOwnProperty.call(counts, trial.winnerKey)) counts[trial.winnerKey]++;
       });
+      const summaryText = buildBattleResultText(pair, counts);
       const rows = battleState.trials.map((trial, i) => {
         const picked = trial.winnerKey === "tie" ? "Tie / unsure" : battleCandidates[trial.winnerKey].label;
         const leftMetric = battleMetric(trial, trial.leftKey);
@@ -1896,9 +1899,13 @@ const pageHTML = `<!doctype html>
         scoreHTML("Tie / unsure", counts.tie) +
         "</div>" +
         "<table class=\"metric-table\"><thead><tr><th>#</th><th>File</th><th>Left was</th><th>Left metrics</th><th>Right was</th><th>Right metrics</th><th>Picked</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+        "<div class=\"result-actions\"><button id=\"copyBattleResult\" type=\"button\">Copy result summary</button></div>" +
+        "<textarea id=\"battleResultText\" class=\"result-text\" readonly></textarea>" +
         "<button id=\"battleAgain\" type=\"button\">Run another blind test</button>";
       arena.replaceChildren(section);
+      $("battleResultText").value = summaryText;
       $("battleStatus").textContent = "완료: " + battleState.trials.length + " trials.";
+      $("copyBattleResult").addEventListener("click", copyBattleResultText);
       $("battleAgain").addEventListener("click", startBattle);
     }
 
@@ -1937,6 +1944,45 @@ const pageHTML = `<!doctype html>
       }).filter((v) => typeof v === "number" && Number.isFinite(v));
       if (!values.length) return null;
       return values.reduce((sum, v) => sum + v, 0) / values.length;
+    }
+
+    function buildBattleResultText(pair, counts) {
+      const lines = [];
+      lines.push("Blind test result");
+      lines.push("Generated: " + new Date().toISOString());
+      lines.push(battleCandidates[pair[0]].label + ": " + counts[pair[0]] + " (PESQ avg " + fmtMaybe(averageBattlePESQ(pair[0]), 3) + ")");
+      lines.push(battleCandidates[pair[1]].label + ": " + counts[pair[1]] + " (PESQ avg " + fmtMaybe(averageBattlePESQ(pair[1]), 3) + ")");
+      lines.push("Tie / unsure: " + counts.tie);
+      lines.push("");
+      lines.push(["#", "File", "Left was", "Left metrics", "Right was", "Right metrics", "Picked"].join("\t"));
+      battleState.trials.forEach((trial, i) => {
+        const picked = trial.winnerKey === "tie" ? "Tie / unsure" : battleCandidates[trial.winnerKey].label;
+        lines.push([
+          String(i + 1),
+          trial.fileName,
+          battleCandidates[trial.leftKey].label,
+          metricSummary(battleMetric(trial, trial.leftKey), battleNoise(trial, trial.leftKey)),
+          battleCandidates[trial.rightKey].label,
+          metricSummary(battleMetric(trial, trial.rightKey), battleNoise(trial, trial.rightKey)),
+          picked
+        ].join("\t"));
+      });
+      return lines.join("\n");
+    }
+
+    async function copyBattleResultText() {
+      const text = $("battleResultText").value;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          $("battleResultText").select();
+          document.execCommand("copy");
+        }
+        $("battleStatus").textContent = "결과 요약을 클립보드에 복사했습니다.";
+      } catch (err) {
+        $("battleStatus").textContent = "복사 실패: 텍스트 박스를 직접 선택해서 복사하세요.";
+      }
     }
 
     function render(data) {
