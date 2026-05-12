@@ -1784,6 +1784,12 @@ const pageHTML = `<!doctype html>
           <label>Audio files<input id="battleFiles" type="file" multiple accept="audio/*,.wav,.mp3,.pcm,.raw,.sln,.s16le"></label>
           <label>Input mode<select id="battleMode"><option value="audio">WAV/MP3/browser audio</option><option value="raw">Raw 8 kHz mono s16le PCM</option></select></label>
           <label>Battle pair<select id="battlePair">
+            <option value="core_local|external_ffmpeg">Core local decode vs bcg729 FFmpeg</option>
+            <option value="core_local|external_local">Core local decode vs bcg729 local decode</option>
+            <option value="core_local|pesq_local">Core local decode vs PESQ candidate local decode</option>
+            <option value="core_local|core_clip_local">Core local decode vs core-clip local decode</option>
+            <option value="core_local|core_ffmpeg">Core local decode vs Core FFmpeg decode</option>
+            <option value="core_clip_local|external_ffmpeg">Core-clip local decode vs bcg729 FFmpeg</option>
             <option value="pesq_ffmpeg|external_ffmpeg">PESQ candidate vs bcg729</option>
             <option value="pesq_local|external_ffmpeg">PESQ candidate local decode vs bcg729 FFmpeg</option>
             <option value="pesq_blend50|external_ffmpeg">PESQ candidate blend50 local decode vs bcg729 FFmpeg</option>
