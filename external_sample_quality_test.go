@@ -2,6 +2,7 @@ package g729
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -99,6 +100,85 @@ func TestExternalSampleQualityDiagnostic(t *testing.T) {
 	logExternalQualityMetrics(t, "input -> our encoder -> ffmpeg", ffMetrics)
 	logExternalQualityMetrics(t, "input -> our encoder -> local", localMetrics)
 	logExternalQualityMetrics(t, "local decoder vs ffmpeg", localVsFFMetrics)
+}
+
+func TestExternalSamplePESQMatrixDiagnostic(t *testing.T) {
+	if os.Getenv("G729_EXTERNAL_SAMPLE_PESQ_MATRIX") != "1" {
+		t.Skip("set G729_EXTERNAL_SAMPLE_PESQ_MATRIX=1 to compute the four-path PESQ NB baseline")
+	}
+	path := externalSampleQualityPath()
+	if path == "" {
+		t.Skip("set G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav, or add testdata/external/user_quality_input.{wav,mp3,pcm,raw,sln,s16le,in}")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skipf("ffmpeg unavailable: %v", err)
+	}
+
+	src := readExternalQualitySamples(t, path)
+	if len(src) < FrameSamples {
+		t.Fatalf("%s produced %d samples; need at least one 80-sample frame", path, len(src))
+	}
+	originalSamples := len(src)
+	if rem := len(src) % FrameSamples; rem != 0 {
+		src = append(src, make([]int16, FrameSamples-rem)...)
+	}
+
+	tmp := t.TempDir()
+	ourRawPath := filepath.Join(tmp, "our.g729")
+	bcgRawPath := filepath.Join(tmp, "bcg.g729")
+	ourFFmpegPath := filepath.Join(tmp, "our.ffmpeg.s16le")
+	bcgFFmpegPath := filepath.Join(tmp, "bcg.ffmpeg.s16le")
+
+	writeOurEncodedRawG729(t, src, ourRawPath)
+	writeBCGEncodedRawG729(t, src, bcgRawPath)
+	ffmpegDecodeRawG729(t, ourRawPath, ourFFmpegPath)
+	ffmpegDecodeRawG729(t, bcgRawPath, bcgFFmpegPath)
+
+	ourRaw := readFile(t, ourRawPath)
+	bcgRaw := readFile(t, bcgRawPath)
+	ourLocal := decodeRawG729WithLocal(t, ourRaw)
+	ourEnhanced := decodeRawG729WithLocalEnhanced(t, ourRaw)
+	ourFFmpeg := s16leToSamples(readFile(t, ourFFmpegPath))
+	bcgLocal := decodeRawG729WithLocal(t, bcgRaw)
+	bcgEnhanced := decodeRawG729WithLocalEnhanced(t, bcgRaw)
+	bcgFFmpeg := s16leToSamples(readFile(t, bcgFFmpegPath))
+
+	rows := []struct {
+		path    string
+		samples []int16
+		metrics externalQualityMetrics
+		pesq    float64
+	}{
+		{path: "our encode -> local decode", samples: ourLocal, metrics: externalQualityMetricsFor(src, ourLocal, 240)},
+		{path: "our encode -> enhanced local decode", samples: ourEnhanced, metrics: externalQualityMetricsFor(src, ourEnhanced, 240)},
+		{path: "our encode -> ffmpeg decode", samples: ourFFmpeg, metrics: externalQualityMetricsFor(src, ourFFmpeg, 240)},
+		{path: "bcg729 encode -> local decode", samples: bcgLocal, metrics: externalQualityMetricsFor(src, bcgLocal, 240)},
+		{path: "bcg729 encode -> enhanced local decode", samples: bcgEnhanced, metrics: externalQualityMetricsFor(src, bcgEnhanced, 240)},
+		{path: "bcg729 encode -> ffmpeg decode", samples: bcgFFmpeg, metrics: externalQualityMetricsFor(src, bcgFFmpeg, 240)},
+	}
+	for i := range rows {
+		rows[i].pesq = pesqNBScore(t, tmp, fmt.Sprintf("pesq-%02d", i), src, rows[i].samples)
+	}
+
+	t.Logf("external sample PESQ NB matrix: %s", path)
+	t.Logf("samples=%d padded=%d frames=%d", originalSamples, len(src)-originalSamples, len(src)/FrameSamples)
+	t.Logf("%-34s,%8s,%10s,%10s,%8s,%8s,%7s,%8s", "Path", "PESQ_NB", "GlobalSNR", "SegSNR", "Corr", "RMS/ref", "Peak", "NearClip")
+	for _, row := range rows {
+		t.Logf("%-34s,%8.4f,%10.2f,%10.2f,%8.4f,%8.4f,%7d,%8d",
+			row.path,
+			row.pesq,
+			row.metrics.globalSNR,
+			row.metrics.segSNR,
+			row.metrics.corr,
+			row.metrics.rmsRatio,
+			row.metrics.peak,
+			row.metrics.nearClip)
+	}
+	t.Logf("decoder gap on bcg729 payload: local-vs-ffmpeg PESQ delta %+0.4f", rows[3].pesq-rows[5].pesq)
+	t.Logf("enhanced decoder gap on bcg729 payload: enhanced-vs-ffmpeg PESQ delta %+0.4f", rows[4].pesq-rows[5].pesq)
+	t.Logf("encoder gap under ffmpeg decode: our-vs-bcg729 PESQ delta %+0.4f", rows[2].pesq-rows[5].pesq)
+	t.Logf("end-to-end gap: our local-vs-bcg729 ffmpeg PESQ delta %+0.4f", rows[0].pesq-rows[5].pesq)
+	t.Logf("enhanced end-to-end gap: our enhanced-vs-bcg729 ffmpeg PESQ delta %+0.4f", rows[1].pesq-rows[5].pesq)
 }
 
 func TestExternalSampleProfileCompareDiagnostic(t *testing.T) {
@@ -13145,4 +13225,82 @@ func readExternalQualitySamples(t *testing.T, path string) []int16 {
 		}
 		return s16leToSamples(out)
 	}
+}
+
+func pesqNBScore(t *testing.T, tmp, name string, ref, deg []int16) float64 {
+	t.Helper()
+	python := strings.TrimSpace(os.Getenv("G729_PESQ_PYTHON"))
+	if python == "" {
+		var err error
+		python, err = exec.LookPath("python3")
+		if err != nil {
+			t.Skipf("python3 unavailable for PESQ diagnostic: %v", err)
+		}
+	}
+	if out, err := exec.Command(python, "-c", "import numpy, pesq").CombinedOutput(); err != nil {
+		t.Skipf("PESQ Python modules unavailable for %s: %v: %s", python, err, strings.TrimSpace(string(out)))
+	}
+	refPath := filepath.Join(tmp, name+".ref.wav")
+	degPath := filepath.Join(tmp, name+".deg.wav")
+	if err := os.WriteFile(refPath, wavBytesFromSamples(ref), 0o600); err != nil {
+		t.Fatalf("write PESQ ref WAV %s: %v", refPath, err)
+	}
+	if err := os.WriteFile(degPath, wavBytesFromSamples(deg), 0o600); err != nil {
+		t.Fatalf("write PESQ deg WAV %s: %v", degPath, err)
+	}
+	out, err := exec.Command(python, "-c", pesqNBPythonScript, refPath, degPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("PESQ NB failed: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	score, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
+	if err != nil || math.IsNaN(score) || math.IsInf(score, 0) {
+		t.Fatalf("invalid PESQ NB output %q: %v", strings.TrimSpace(string(out)), err)
+	}
+	return score
+}
+
+const pesqNBPythonScript = `
+import sys
+import wave
+
+import numpy as np
+from pesq import pesq
+
+def read_wav(path):
+    with wave.open(path, "rb") as f:
+        if f.getnchannels() != 1 or f.getsampwidth() != 2:
+            raise ValueError("expected mono 16-bit WAV")
+        rate = f.getframerate()
+        data = f.readframes(f.getnframes())
+    return rate, np.frombuffer(data, dtype="<i2").astype(np.float32)
+
+ref_rate, ref = read_wav(sys.argv[1])
+deg_rate, deg = read_wav(sys.argv[2])
+n = min(ref.shape[0], deg.shape[0])
+if ref_rate != deg_rate or ref_rate != 8000 or n <= 0:
+    raise SystemExit("expected non-empty 8 kHz WAV pair")
+print("{:.6f}".format(float(pesq(ref_rate, ref[:n], deg[:n], "nb"))))
+`
+
+func wavBytesFromSamples(samples []int16) []byte {
+	var b bytes.Buffer
+	dataLen := uint32(len(samples) * 2)
+	riffLen := uint32(36) + dataLen
+	b.WriteString("RIFF")
+	_ = binary.Write(&b, binary.LittleEndian, riffLen)
+	b.WriteString("WAVE")
+	b.WriteString("fmt ")
+	_ = binary.Write(&b, binary.LittleEndian, uint32(16))
+	_ = binary.Write(&b, binary.LittleEndian, uint16(1))
+	_ = binary.Write(&b, binary.LittleEndian, uint16(1))
+	_ = binary.Write(&b, binary.LittleEndian, uint32(SampleRate))
+	_ = binary.Write(&b, binary.LittleEndian, uint32(SampleRate*2))
+	_ = binary.Write(&b, binary.LittleEndian, uint16(2))
+	_ = binary.Write(&b, binary.LittleEndian, uint16(16))
+	b.WriteString("data")
+	_ = binary.Write(&b, binary.LittleEndian, dataLen)
+	for _, sample := range samples {
+		_ = binary.Write(&b, binary.LittleEndian, sample)
+	}
+	return b.Bytes()
 }
