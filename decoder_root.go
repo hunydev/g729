@@ -55,3 +55,20 @@ func (d *Decoder) DecodeFrameEnhanced(bits []byte, out []int16) error {
 	}
 	return d.inner.DecodeEnvelopeRecovered(bits, false, out)
 }
+
+// DecodeFramePostfilterBlend is an opt-in, non-strict listening diagnostic.
+// It blends the decoder postfilter output with the pre-postfilter synthesis
+// before the output high-pass filter. synthNum/den controls the synthesis
+// share; for example 1/2 means 50% postfilter + 50% synthesis.
+//
+// Use DecodeFrame for the strict decoder path. This method exists to A/B test
+// decoder-side grit/noise reduction without changing the emitted G.729 payload.
+func (d *Decoder) DecodeFramePostfilterBlend(bits []byte, out []int16, synthNum, den int) error {
+	if len(bits) != FrameBytes {
+		return ErrShortBitstream
+	}
+	if len(out) < FrameSamples {
+		return ErrShortOutput
+	}
+	return d.inner.DecodePostfilterBlend(bits, false, out, synthNum, den)
+}

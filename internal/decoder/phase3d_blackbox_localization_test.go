@@ -170,6 +170,8 @@ func TestPhase3dBlackBoxLocalization_SPEECHAndAsterisk(t *testing.T) {
 type blackboxStages struct {
 	production     []int16
 	hpPreScale     []int16
+	pfShortTermX2  []int16
+	pfTiltX2       []int16
 	postfilterX2   []int16
 	synthX2        []int16
 	excitationX2   []int16
@@ -183,6 +185,8 @@ func blackboxDecodeSpeechStages(t *testing.T, bitData []byte, frames int) blackb
 	out := blackboxStages{
 		production:     make([]int16, total),
 		hpPreScale:     make([]int16, total),
+		pfShortTermX2:  make([]int16, total),
+		pfTiltX2:       make([]int16, total),
 		postfilterX2:   make([]int16, total),
 		synthX2:        make([]int16, total),
 		excitationX2:   make([]int16, total),
@@ -207,6 +211,8 @@ func blackboxDecodeSpeechStages(t *testing.T, bitData []byte, frames int) blackb
 			sub := &taps.Sub[sf]
 			off := base + sf*subframeLen
 			copy(out.hpPreScale[off:off+subframeLen], sub.HpOut[:])
+			blackboxScale2Into(out.pfShortTermX2[off:off+subframeLen], sub.PFST[:])
+			blackboxScale2Into(out.pfTiltX2[off:off+subframeLen], sub.PFT[:])
 			blackboxScale2Into(out.postfilterX2[off:off+subframeLen], sub.SPf[:])
 			blackboxScale2Into(out.synthX2[off:off+subframeLen], sub.S[:])
 			blackboxScale2Into(out.excitationX2[off:off+subframeLen], sub.U[:])
@@ -249,6 +255,8 @@ func blackboxDecodeRawStages(t *testing.T, raw []byte, frames int) blackboxStage
 	out := blackboxStages{
 		production:     make([]int16, total),
 		hpPreScale:     make([]int16, total),
+		pfShortTermX2:  make([]int16, total),
+		pfTiltX2:       make([]int16, total),
 		postfilterX2:   make([]int16, total),
 		synthX2:        make([]int16, total),
 		excitationX2:   make([]int16, total),
@@ -269,6 +277,8 @@ func blackboxDecodeRawStages(t *testing.T, raw []byte, frames int) blackboxStage
 			sub := &taps.Sub[sf]
 			off := base + sf*subframeLen
 			copy(out.hpPreScale[off:off+subframeLen], sub.HpOut[:])
+			blackboxScale2Into(out.pfShortTermX2[off:off+subframeLen], sub.PFST[:])
+			blackboxScale2Into(out.pfTiltX2[off:off+subframeLen], sub.PFT[:])
 			blackboxScale2Into(out.postfilterX2[off:off+subframeLen], sub.SPf[:])
 			blackboxScale2Into(out.synthX2[off:off+subframeLen], sub.S[:])
 			blackboxScale2Into(out.excitationX2[off:off+subframeLen], sub.U[:])

@@ -50,6 +50,17 @@ func TestDecoder_DecodeFrameEnhanced_AcceptsValidShape(t *testing.T) {
 	}
 }
 
+func TestDecoder_DecodeFramePostfilterBlend_AcceptsValidShape(t *testing.T) {
+	d := NewDecoder()
+	var (
+		bits [FrameBytes]byte
+		out  [FrameSamples]int16
+	)
+	if err := d.DecodeFramePostfilterBlend(bits[:], out[:], 1, 2); err != nil {
+		t.Fatalf("unexpected error on zero frame: %v", err)
+	}
+}
+
 func TestDecoder_ResetRestoresFreshFrameOutput(t *testing.T) {
 	var bits [FrameBytes]byte
 	for i := range bits {

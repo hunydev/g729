@@ -22,6 +22,10 @@ type Phase3DiagSubframeTaps struct {
 	C     [40]int16           // fixed codebook vector     (Q13)
 	U     [40]int16           // total excitation          (Q0, after BuildExcitation)
 	S     [40]int16           // post 1/Â(z)               (Q0, pre-postfilter)
+	PFR   [40]int16           // postfilter residual       (Q0)
+	PFLT  [40]int16           // postfilter long-term      (Q0, residual domain)
+	PFST  [40]int16           // postfilter short-term     (Q0)
+	PFT   [40]int16           // postfilter tilt           (Q0)
 	SPf   [40]int16           // post postfilter           (Q0)
 	HpOut [40]int16           // post HP filter            (Q0, pre final output scaling)
 
@@ -104,7 +108,12 @@ func (d *Decoder) decodeSubframeWithTaps(
 
 	d.syn.Filter(sfA, &taps.U, &taps.S)
 
-	d.pst.Filter(sfA, tInt, &taps.S, &taps.SPf)
+	pfTaps := d.pst.FilterWithTaps(sfA, tInt, &taps.S)
+	taps.PFR = pfTaps.Residual
+	taps.PFLT = pfTaps.LongTerm
+	taps.PFST = pfTaps.ShortTerm
+	taps.PFT = pfTaps.Tilt
+	taps.SPf = pfTaps.Output
 
 	d.hpFilter(&taps.SPf, taps.HpOut[:])
 	copy(out[:subframeLen], taps.HpOut[:])

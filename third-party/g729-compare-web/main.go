@@ -746,6 +746,8 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 		switch decoder {
 		case "local":
 			decoded, err = decodeWithLocal(payload)
+		case "blend50":
+			decoded, err = decodeWithLocalPostfilterBlend(payload, 1, 2)
 		case "ffmpeg":
 			decoded, err = decodeWithFFmpeg(tmp, key, payload)
 		default:
@@ -809,10 +811,14 @@ func selectedMetricPath(key string) string {
 	switch key {
 	case "our_local":
 		return "our encode -> local decode"
+	case "our_blend50":
+		return "our encode -> local postfilter-blend50 decode"
 	case "our_ffmpeg":
 		return "our encode -> ffmpeg decode"
 	case "clean_local":
 		return "our clean encode -> local decode"
+	case "clean_blend50":
+		return "our clean encode -> local postfilter-blend50 decode"
 	case "clean_ffmpeg":
 		return "our clean encode -> ffmpeg decode"
 	case "snr_local":
@@ -853,6 +859,8 @@ func selectedMetricPath(key string) string {
 		return "our clean encode -> softened FFmpeg decode"
 	case "external_local":
 		return "bcg729 encode -> local decode"
+	case "external_blend50":
+		return "bcg729 encode -> local postfilter-blend50 decode"
 	case "external_ffmpeg":
 		return "bcg729 encode -> ffmpeg decode"
 	default:
@@ -866,10 +874,14 @@ func selectedAudioPipeline(key string) (pipeline, decoder string, soft bool, ok 
 		return "source", "", false, true
 	case "our_local":
 		return "our", "local", false, true
+	case "our_blend50":
+		return "our", "blend50", false, true
 	case "our_ffmpeg":
 		return "our", "ffmpeg", false, true
 	case "clean_local":
 		return "clean", "local", false, true
+	case "clean_blend50":
+		return "clean", "blend50", false, true
 	case "clean_ffmpeg":
 		return "clean", "ffmpeg", false, true
 	case "snr_local":
@@ -910,6 +922,8 @@ func selectedAudioPipeline(key string) (pipeline, decoder string, soft bool, ok 
 		return "clean", "ffmpeg", true, true
 	case "external_local":
 		return "external", "local", false, true
+	case "external_blend50":
+		return "external", "blend50", false, true
 	case "external_ffmpeg":
 		return "external", "ffmpeg", false, true
 	default:
@@ -990,6 +1004,23 @@ func decodeWithLocal(payload []byte) ([]byte, error) {
 	var pair [2]byte
 	for off := 0; off < len(payload); off += g729.FrameBytes {
 		if err := dec.DecodeFrame(payload[off:off+g729.FrameBytes], frame); err != nil {
+			return nil, err
+		}
+		for _, sample := range frame {
+			binary.LittleEndian.PutUint16(pair[:], uint16(sample))
+			out = append(out, pair[:]...)
+		}
+	}
+	return out, nil
+}
+
+func decodeWithLocalPostfilterBlend(payload []byte, synthNum, den int) ([]byte, error) {
+	dec := g729.NewDecoder()
+	out := make([]byte, 0, len(payload)/g729.FrameBytes*g729.FrameSamples*2)
+	frame := make([]int16, g729.FrameSamples)
+	var pair [2]byte
+	for off := 0; off < len(payload); off += g729.FrameBytes {
+		if err := dec.DecodeFramePostfilterBlend(payload[off:off+g729.FrameBytes], frame, synthNum, den); err != nil {
 			return nil, err
 		}
 		for _, sample := range frame {
@@ -1543,6 +1574,8 @@ const pageHTML = `<!doctype html>
             <option value="fcb_ffmpeg|external_ffmpeg">FCB-clean candidate vs bcg729</option>
             <option value="our_ffmpeg|clean_ffmpeg">Current quality vs clean candidate</option>
             <option value="clean_ffmpeg|external_ffmpeg">Clean candidate vs bcg729</option>
+            <option value="clean_blend50|external_ffmpeg">Clean blend50 local decode vs bcg729</option>
+            <option value="clean_blend50|clean_ffmpeg">Clean blend50 local decode vs clean FFmpeg</option>
             <option value="clean_ffmpeg|snr_ffmpeg">Clean candidate vs SNR-clean candidate</option>
             <option value="clean_ffmpeg|smooth_ffmpeg">Clean candidate vs smooth-clean candidate</option>
             <option value="clean_ffmpeg|voiced_ffmpeg">Clean candidate vs voiced-clean candidate</option>
@@ -1552,6 +1585,9 @@ const pageHTML = `<!doctype html>
             <option value="voiced_ffmpeg|external_ffmpeg">Voiced-clean candidate vs bcg729</option>
             <option value="degrit_ffmpeg|external_ffmpeg">Degrit-clean candidate vs bcg729</option>
             <option value="our_ffmpeg|external_ffmpeg">Current quality vs bcg729</option>
+            <option value="our_blend50|our_ffmpeg">Current blend50 local decode vs current FFmpeg</option>
+            <option value="external_blend50|external_ffmpeg">bcg729 blend50 local decode vs bcg729 FFmpeg</option>
+            <option value="external_blend50|external_local">bcg729 blend50 local decode vs strict local decode</option>
             <option value="our_local|clean_local">Current quality local vs clean local</option>
           </select></label>
           <button id="battleStart">Start blind test</button>
@@ -1566,8 +1602,10 @@ const pageHTML = `<!doctype html>
     const labels = {
       source: "Converted source PCM",
       our_local: "our encode -> our decode",
+      our_blend50: "our encode -> postfilter-blend50 decode",
       our_ffmpeg: "our encode -> FFmpeg decode",
       clean_local: "our clean candidate -> our decode",
+      clean_blend50: "our clean candidate -> postfilter-blend50 decode",
       clean_ffmpeg: "our clean candidate -> FFmpeg decode",
       snr_local: "our SNR-clean candidate -> our decode",
       snr_ffmpeg: "our SNR-clean candidate -> FFmpeg decode",
@@ -1588,6 +1626,7 @@ const pageHTML = `<!doctype html>
       soft_our_ffmpeg: "our encode -> softened FFmpeg decode",
       soft_clean_ffmpeg: "our clean candidate -> softened FFmpeg decode",
       external_local: "bcg729 encode -> our decode",
+      external_blend50: "bcg729 encode -> postfilter-blend50 decode",
       external_ffmpeg: "bcg729 encode -> FFmpeg decode"
     };
     const battleCandidates = {
@@ -1605,7 +1644,9 @@ const pageHTML = `<!doctype html>
       soft_clean_ffmpeg: { label: "Clean candidate -> softened FFmpeg decode" },
       external_ffmpeg: { label: "bcg729 -> FFmpeg decode" },
       our_local: { label: "Current quality -> local decode" },
+      our_blend50: { label: "Current quality -> blend50 local decode" },
       clean_local: { label: "Clean candidate -> local decode" },
+      clean_blend50: { label: "Clean candidate -> blend50 local decode" },
       snr_local: { label: "SNR-clean candidate -> local decode" },
       smooth_local: { label: "Smooth-clean candidate -> local decode" },
       voiced_local: { label: "Voiced-clean candidate -> local decode" },
@@ -1614,6 +1655,7 @@ const pageHTML = `<!doctype html>
       harmonic_strong_local: { label: "Harmonic-strong candidate -> local decode" },
       harmonic_deep_local: { label: "Harmonic-deep candidate -> local decode" },
       fcb_local: { label: "FCB-clean candidate -> local decode" },
+      external_blend50: { label: "bcg729 -> blend50 local decode" },
       external_local: { label: "bcg729 -> local decode" }
     };
     const battleState = { trials: [], index: 0, pair: [] };

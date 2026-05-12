@@ -26,6 +26,8 @@
 //   - Encoder, NewEncoder, NewEncoderWithProfile,
 //     (*Encoder).EncodeFrame, (*Encoder).Reset
 //   - Decoder, NewDecoder, (*Decoder).DecodeFrame, (*Decoder).Reset
+//   - (*Decoder).DecodeFrameEnhanced and
+//     (*Decoder).DecodeFramePostfilterBlend for listening diagnostics
 //   - EncodeFrame, DecodeFrame (top-level convenience wrappers)
 //
 // Streaming (encoder side only; the decoder is naturally frame-driven):
