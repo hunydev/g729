@@ -57,6 +57,16 @@ These files are not oracle artifacts and are intentionally ignored by the option
 - `FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md`: copyable prompt for an
   isolated clean-room verifier that will fill only numeric `expected`
   cells in the user-audio FCB tree-search template.
+- `decoder_itu_stage_got.csv`: this implementation's selected ITU decoder
+  vector stage trace for ALGTHM, TAME, and OVERFLOW localization frames.
+- `decoder_itu_stage_expected_template.csv`: verifier-owned template for the
+  selected decoder stage trace rows.
+- `decoder_itu_stage_expected.csv`: partial verifier-filled decoder stage
+  artifact. It is useful for localization, but it still contains blank
+  `expected` cells and is not a complete strict gate.
+- `DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md`: copyable prompt for an
+  isolated clean-room verifier to clarify the three unresolved fixed-codebook
+  fourth-pulse position decompositions from the partial decoder stage artifact.
 - `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md`: consolidated verifier
   request for the currently unfilled encoder closed-loop stage
   conformance handoff template, with completed FCB status noted.

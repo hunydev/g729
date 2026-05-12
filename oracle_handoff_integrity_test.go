@@ -482,8 +482,8 @@ func TestOracleHandoff_GoalCompletionAuditMapsObjectiveToArtifacts(t *testing.T)
 	}
 
 	for _, tc := range []struct {
-		name string
-		rows int
+		name  string
+		rows  int
 		blank bool
 	}{
 		{name: "fcb_tree_search_expected_template.csv", rows: 10194, blank: false},
@@ -559,7 +559,7 @@ func TestOracleHandoff_BundleScriptPinsDeterministicInputs(t *testing.T) {
 }
 
 func TestOracleHandoff_BundleScriptBuildsDocumentedArchive(t *testing.T) {
-	const wantSHA256 = "784bb0b21a2d17868871ea6e6e60b83dd88e5d8f6bf5cff8047cc0fa30866397"
+	const wantSHA256 = "3cc33c03830abdbbcdf791536f762fb966bf8bc9aea2ab2ff85c1abe61645772"
 	scriptPath := filepath.Join("testdata", "oracle", "handoff", "create_verifier_bundle.sh")
 	tmp := t.TempDir()
 	bundleDir := filepath.Join(tmp, "g729-fcb-verifier-handoff")

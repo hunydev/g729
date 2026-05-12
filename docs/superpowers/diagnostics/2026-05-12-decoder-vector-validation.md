@@ -229,6 +229,21 @@ completed verifier artifact should be saved as:
 testdata/oracle/handoff/decoder_itu_stage_expected.csv
 ```
 
+Partial verifier artifact status:
+
+- `decoder_itu_stage_expected.csv` currently has `1562` filled numeric cells
+  and `8929` blank cells.
+- Bitstream parameter fields, selected pitch delays, and selected adaptive
+  gains match exactly on filled rows.
+- Filled `fixed_c_q13` rows match `297/303`; the remaining six disagreements
+  all move the fourth fixed-codebook pulse for `C=4099`, `C=3587`, or `C=4183`.
+- The fourth-pulse disagreements are isolated enough that they should not be
+  used as a production decoder fix without verifier clarification. The prompt
+  for that narrow clean-room clarification is
+  `testdata/oracle/handoff/DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md`.
+- Filled final `pcm_q0` rows are still far from exact, so the partial artifact
+  is useful for localization but is not a completed oracle gate.
+
 Comparison command:
 
 ```sh

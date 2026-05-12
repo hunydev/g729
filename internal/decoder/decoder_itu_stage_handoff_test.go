@@ -74,21 +74,40 @@ func TestOracleHandoff_CompareDecoderITUStageHandoff(t *testing.T) {
 	}
 
 	var exact, blankExpected, missingGot, mismatches int
+	var filledExact, filledMissing, filledMismatches, filledTotal int
 	fieldTotal := make(map[string]int)
 	fieldExact := make(map[string]int)
+	filledFieldTotal := make(map[string]int)
+	filledFieldExact := make(map[string]int)
 	first := make([]decoderStageMismatch, 0, 12)
+	firstFilled := make([]decoderStageMismatch, 0, 12)
 
 	for _, want := range expected {
 		key := decoderStageRowKey(want)
 		fieldTotal[key.field]++
 		if !want.hasValue {
 			blankExpected++
+		} else {
+			filledTotal++
+			filledFieldTotal[key.field]++
 		}
 
 		gotRow, ok := gotByKey[key]
 		if !ok {
 			missingGot++
 			mismatches++
+			if want.hasValue {
+				filledMissing++
+				filledMismatches++
+				if len(firstFilled) < cap(firstFilled) {
+					firstFilled = append(firstFilled, decoderStageMismatch{
+						key:  key,
+						want: decoderStageValueString(want),
+						got:  "",
+						note: "missing got",
+					})
+				}
+			}
 			if len(first) < cap(first) {
 				first = append(first, decoderStageMismatch{
 					key:  key,
@@ -102,10 +121,25 @@ func TestOracleHandoff_CompareDecoderITUStageHandoff(t *testing.T) {
 		if want.hasValue == gotRow.hasValue && want.value == gotRow.value {
 			exact++
 			fieldExact[key.field]++
+			if want.hasValue {
+				filledExact++
+				filledFieldExact[key.field]++
+			}
 			continue
 		}
 
 		mismatches++
+		if want.hasValue {
+			filledMismatches++
+			if len(firstFilled) < cap(firstFilled) {
+				firstFilled = append(firstFilled, decoderStageMismatch{
+					key:  key,
+					want: decoderStageValueString(want),
+					got:  decoderStageValueString(gotRow),
+					note: "mismatch",
+				})
+			}
+		}
 		if len(first) < cap(first) {
 			first = append(first, decoderStageMismatch{
 				key:  key,
@@ -119,11 +153,20 @@ func TestOracleHandoff_CompareDecoderITUStageHandoff(t *testing.T) {
 	total := len(expected)
 	t.Logf("decoder_itu_stage handoff: exact %d/%d %.2f%% mismatches=%d blank_expected=%d missing_got=%d",
 		exact, total, percent(exact, total), mismatches, blankExpected, missingGot)
+	t.Logf("decoder_itu_stage filled cells: exact %d/%d %.2f%% mismatches=%d missing_got=%d",
+		filledExact, filledTotal, percent(filledExact, filledTotal), filledMismatches, filledMissing)
 	for _, line := range decoderStageFieldSummary(fieldTotal, fieldExact, 16) {
 		t.Log(line)
 	}
+	for _, line := range decoderStageFieldSummary(filledFieldTotal, filledFieldExact, 16) {
+		t.Log("filled " + line)
+	}
 	for i, m := range first {
 		t.Logf("mismatch[%d]: source=%s frame=%d sub=%d field=%s index=%d expected=%s got=%s notes=%s",
+			i, m.key.source, m.key.frame, m.key.sub, m.key.field, m.key.index, m.want, m.got, m.note)
+	}
+	for i, m := range firstFilled {
+		t.Logf("filled_mismatch[%d]: source=%s frame=%d sub=%d field=%s index=%d expected=%s got=%s notes=%s",
 			i, m.key.source, m.key.frame, m.key.sub, m.key.field, m.key.index, m.want, m.got, m.note)
 	}
 

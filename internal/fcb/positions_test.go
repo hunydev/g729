@@ -32,6 +32,24 @@ func TestDecodePositions_Jx1SelectsUpperHalfOfTrack3(t *testing.T) {
 	}
 }
 
+func TestDecodePositions_TAMEVerifierClarificationCodes(t *testing.T) {
+	tests := []struct {
+		code uint16
+		want [4]int
+	}{
+		{code: 4099, want: [4]int{15, 1, 2, 23}},
+		{code: 3587, want: [4]int{15, 1, 2, 19}},
+		{code: 4183, want: [4]int{35, 11, 7, 23}},
+	}
+
+	for _, tc := range tests {
+		got := decodePositions(tc.code)
+		if got != tc.want {
+			t.Fatalf("decodePositions(%d) = %v, want %v", tc.code, got, tc.want)
+		}
+	}
+}
+
 func TestDecodePositions_TrackMembershipExhaustive(t *testing.T) {
 	track0 := [8]int{0, 5, 10, 15, 20, 25, 30, 35}
 	track1 := [8]int{1, 6, 11, 16, 21, 26, 31, 36}

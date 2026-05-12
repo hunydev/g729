@@ -1,6 +1,6 @@
 # Oracle Handoff Manifest
 
-Date: 2026-05-06
+Date: 2026-05-12
 
 This manifest identifies the clean-room verifier handoff inputs and
 the current verifier-filled outputs. The pre-fill hashes identify the
@@ -38,6 +38,9 @@ identify the current files after numeric `expected` cells were filled.
 | `FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md` | n/a | n/a | `102cfaccf8bc984507294b2d4ddee7272cd20befdeb513765b0989fb8fa1ada5` |
 | `fcb_tree_search_user_audio_expected_template.csv` | `field,frame,sub,index,expected` | 10194 | `4644b4330f2401496de267fd2f33c33d6e245715e1460accecb1cd51a3164d40` |
 | `fcb_tree_search_user_audio_got.csv` | `field,frame,sub,index,got` | 10194 | `742386389e98025580a32a1105ddaa8995b38731b233a6a1948ed3eb5b6b46e5` |
+| `decoder_itu_stage_expected_template.csv` | `source,frame,sub,field,index,expected` | 10491 | `a06d13af94cb2d1b60c6d6f13caeb6567a559e0b6a5d6959d56a6225f1a522a7` |
+| `decoder_itu_stage_got.csv` | `source,frame,sub,field,index,got` | 10491 | `8358a260b67f0551fa7a84280ca97e1106ae236bb44e5252c9fcc42ee4b4bdda` |
+| `DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md` | n/a | n/a | `0954f507bb54f51d901c3a911edc5b51f7daa750d99dea9e9bd2ef72939333a5` |
 | `EXTERNAL_VERIFIER_REQUEST.md` | n/a | n/a | `d65189e31ed3189ada680e26efd2e934d71d8286023d0c27cef5499df66aa725` |
 | `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md` | n/a | n/a | `0da88d8dc36ccedc36906df62ce781c04056f2e5bd5597187e6ec26b3dd5eadc` |
 | `create_verifier_bundle.sh` | n/a | n/a | `05460c982ec487ec894bcb31b1200be4ab0542fd335bbabd08f8a21cb0651faf` |
@@ -56,6 +59,12 @@ identify the current files after numeric `expected` cells were filled.
 | `tame_gain_taming_expected_template.csv` | 8962 | `ab66f67c7f498cf41858f15c45faafaf949e36dcd1319054e69ef14580b85dd4` |
 | `fcb_tree_search_expected_template.csv` | 10194 | `9662f8e6de7eb5e4d0d99ce0fae2770e7ee43b42f61b7a25f813fc297ffd98fa` |
 | `fcb_tree_search_user_audio_expected_template.csv` | 10194 | `8043447cd725636836fe496018e373171b8ad87258604b7297920f5e6d22b260` |
+
+## Partially Filled Files
+
+| File | Filled `expected` cells | Blank `expected` cells | SHA-256 | Next action |
+| --- | ---: | ---: | --- | --- |
+| `decoder_itu_stage_expected.csv` | 1562 | 8929 | `158a1c310206163f60022a00d0e3002a23ee525d3dfd9955cfd4e8b0b3be261b` | Use as a localization artifact only; resolve the fixed-codebook fourth-pulse clarification, then request additional LP/synthesis state rows before promoting to a strict gate. |
 
 ## Currently Unfilled Files
 
