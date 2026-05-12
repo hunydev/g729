@@ -220,6 +220,11 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	corePayload, err := encodeWithLocalProfile(paddedPCM, g729.EncoderProfileCore)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	cleanPayload, err := encodeWithLocalProfile(paddedPCM, g729.EncoderProfileQualityClean)
 	if err != nil {
 		writeError(w, err)
@@ -279,6 +284,11 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	localOurPCM, err := decodeWithLocal(ourPayload)
 	if err != nil {
 		writeError(w, fmt.Errorf("local decode of our payload: %w", err))
+		return
+	}
+	localCorePCM, err := decodeWithLocal(corePayload)
+	if err != nil {
+		writeError(w, fmt.Errorf("local decode of core payload: %w", err))
 		return
 	}
 	localCleanPCM, err := decodeWithLocal(cleanPayload)
@@ -341,6 +351,11 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fmt.Errorf("ffmpeg decode of our payload: %w", err))
 		return
 	}
+	ffmpegCorePCM, err := decodeWithFFmpeg(tmp, "core", corePayload)
+	if err != nil {
+		writeError(w, fmt.Errorf("ffmpeg decode of core payload: %w", err))
+		return
+	}
 	ffmpegCleanPCM, err := decodeWithFFmpeg(tmp, "clean", cleanPayload)
 	if err != nil {
 		writeError(w, fmt.Errorf("ffmpeg decode of clean payload: %w", err))
@@ -398,6 +413,26 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	}
 	softOurFFmpegPCM := softenPCM16(ffmpegOurPCM)
 	softCleanFFmpegPCM := softenPCM16(ffmpegCleanPCM)
+	blendOurPCM, err := decodeWithLocalPostfilterBlend(ourPayload, 1, 2)
+	if err != nil {
+		writeError(w, fmt.Errorf("blend50 local decode of our payload: %w", err))
+		return
+	}
+	blendCleanPCM, err := decodeWithLocalPostfilterBlend(cleanPayload, 1, 2)
+	if err != nil {
+		writeError(w, fmt.Errorf("blend50 local decode of clean payload: %w", err))
+		return
+	}
+	blendPESQPCM, err := decodeWithLocalPostfilterBlend(pesqPayload, 1, 2)
+	if err != nil {
+		writeError(w, fmt.Errorf("blend50 local decode of PESQ candidate payload: %w", err))
+		return
+	}
+	blendExternalPCM, err := decodeWithLocalPostfilterBlend(externalPayload, 1, 2)
+	if err != nil {
+		writeError(w, fmt.Errorf("blend50 local decode of external payload: %w", err))
+		return
+	}
 
 	equal, firstDiff := byteEquality(ourPayload, externalPayload)
 	den := maxInt(len(ourPayload), len(externalPayload))
@@ -407,8 +442,12 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ourLocalMetric := qualityMetric("our encode -> local decode", paddedPCM, localOurPCM)
+	coreLocalMetric := qualityMetric("our core encode -> local decode", paddedPCM, localCorePCM)
+	coreFFmpegMetric := qualityMetric("our core encode -> ffmpeg decode", paddedPCM, ffmpegCorePCM)
+	ourBlend50Metric := qualityMetric("our encode -> local postfilter-blend50 decode", paddedPCM, blendOurPCM)
 	ourFFmpegMetric := qualityMetric("our encode -> ffmpeg decode", paddedPCM, ffmpegOurPCM)
 	cleanLocalMetric := qualityMetric("our clean encode -> local decode", paddedPCM, localCleanPCM)
+	cleanBlend50Metric := qualityMetric("our clean encode -> local postfilter-blend50 decode", paddedPCM, blendCleanPCM)
 	cleanFFmpegMetric := qualityMetric("our clean encode -> ffmpeg decode", paddedPCM, ffmpegCleanPCM)
 	snrLocalMetric := qualityMetric("our SNR-clean encode -> local decode", paddedPCM, localSNRPCM)
 	snrFFmpegMetric := qualityMetric("our SNR-clean encode -> ffmpeg decode", paddedPCM, ffmpegSNRPCM)
@@ -427,10 +466,12 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	fcbLocalMetric := qualityMetric("our FCB-clean encode -> local decode", paddedPCM, localFCBPCM)
 	fcbFFmpegMetric := qualityMetric("our FCB-clean encode -> ffmpeg decode", paddedPCM, ffmpegFCBPCM)
 	pesqLocalMetric := qualityMetric("our PESQ candidate encode -> local decode", paddedPCM, localPESQPCM)
+	pesqBlend50Metric := qualityMetric("our PESQ candidate encode -> local postfilter-blend50 decode", paddedPCM, blendPESQPCM)
 	pesqFFmpegMetric := qualityMetric("our PESQ candidate encode -> ffmpeg decode", paddedPCM, ffmpegPESQPCM)
 	softOurFFmpegMetric := qualityMetric("our encode -> softened FFmpeg decode", paddedPCM, softOurFFmpegPCM)
 	softCleanFFmpegMetric := qualityMetric("our clean encode -> softened FFmpeg decode", paddedPCM, softCleanFFmpegPCM)
 	externalLocalMetric := qualityMetric("bcg729 encode -> local decode", paddedPCM, localExternalPCM)
+	externalBlend50Metric := qualityMetric("bcg729 encode -> local postfilter-blend50 decode", paddedPCM, blendExternalPCM)
 	externalFFmpegMetric := qualityMetric("bcg729 encode -> ffmpeg decode", paddedPCM, ffmpegExternalPCM)
 	localPayloadMetric := qualityMetric("local decoder: our payload vs bcg729 payload", localOurPCM, localExternalPCM)
 	ffmpegPayloadMetric := qualityMetric("ffmpeg decoder: our payload vs bcg729 payload", ffmpegOurPCM, ffmpegExternalPCM)
@@ -457,8 +498,12 @@ func compare(w http.ResponseWriter, r *http.Request) {
 
 	pesqNote := addPESQScores(tmp, []pesqPair{
 		{Row: &ourLocalMetric, RefPCM: paddedPCM, OutPCM: localOurPCM},
+		{Row: &coreLocalMetric, RefPCM: paddedPCM, OutPCM: localCorePCM},
+		{Row: &coreFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegCorePCM},
+		{Row: &ourBlend50Metric, RefPCM: paddedPCM, OutPCM: blendOurPCM},
 		{Row: &ourFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegOurPCM},
 		{Row: &cleanLocalMetric, RefPCM: paddedPCM, OutPCM: localCleanPCM},
+		{Row: &cleanBlend50Metric, RefPCM: paddedPCM, OutPCM: blendCleanPCM},
 		{Row: &cleanFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegCleanPCM},
 		{Row: &snrLocalMetric, RefPCM: paddedPCM, OutPCM: localSNRPCM},
 		{Row: &snrFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegSNRPCM},
@@ -477,10 +522,12 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		{Row: &fcbLocalMetric, RefPCM: paddedPCM, OutPCM: localFCBPCM},
 		{Row: &fcbFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegFCBPCM},
 		{Row: &pesqLocalMetric, RefPCM: paddedPCM, OutPCM: localPESQPCM},
+		{Row: &pesqBlend50Metric, RefPCM: paddedPCM, OutPCM: blendPESQPCM},
 		{Row: &pesqFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegPESQPCM},
 		{Row: &softOurFFmpegMetric, RefPCM: paddedPCM, OutPCM: softOurFFmpegPCM},
 		{Row: &softCleanFFmpegMetric, RefPCM: paddedPCM, OutPCM: softCleanFFmpegPCM},
 		{Row: &externalLocalMetric, RefPCM: paddedPCM, OutPCM: localExternalPCM},
+		{Row: &externalBlend50Metric, RefPCM: paddedPCM, OutPCM: blendExternalPCM},
 		{Row: &externalFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegExternalPCM},
 	})
 	notes := []string{
@@ -521,9 +568,13 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		},
 		Audio: map[string]string{
 			"source":                 wavDataURL(paddedPCM),
+			"core_local":             wavDataURL(localCorePCM),
+			"core_ffmpeg":            wavDataURL(ffmpegCorePCM),
 			"our_local":              wavDataURL(localOurPCM),
+			"our_blend50":            wavDataURL(blendOurPCM),
 			"our_ffmpeg":             wavDataURL(ffmpegOurPCM),
 			"clean_local":            wavDataURL(localCleanPCM),
+			"clean_blend50":          wavDataURL(blendCleanPCM),
 			"clean_ffmpeg":           wavDataURL(ffmpegCleanPCM),
 			"snr_local":              wavDataURL(localSNRPCM),
 			"snr_ffmpeg":             wavDataURL(ffmpegSNRPCM),
@@ -542,13 +593,16 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			"fcb_local":              wavDataURL(localFCBPCM),
 			"fcb_ffmpeg":             wavDataURL(ffmpegFCBPCM),
 			"pesq_local":             wavDataURL(localPESQPCM),
+			"pesq_blend50":           wavDataURL(blendPESQPCM),
 			"pesq_ffmpeg":            wavDataURL(ffmpegPESQPCM),
 			"soft_our_ffmpeg":        wavDataURL(softOurFFmpegPCM),
 			"soft_clean_ffmpeg":      wavDataURL(softCleanFFmpegPCM),
 			"external_local":         wavDataURL(localExternalPCM),
+			"external_blend50":       wavDataURL(blendExternalPCM),
 			"external_ffmpeg":        wavDataURL(ffmpegExternalPCM),
 		},
 		Downloads: map[string]string{
+			"core_g729":            payloadDataURL(corePayload),
 			"our_g729":             payloadDataURL(ourPayload),
 			"clean_g729":           payloadDataURL(cleanPayload),
 			"snr_g729":             payloadDataURL(snrPayload),
@@ -564,9 +618,13 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		},
 		Clips: map[string][]clipEvent{
 			"source":                 clipEvents(paddedPCM, maxClipMarkers),
+			"core_local":             clipEvents(localCorePCM, maxClipMarkers),
+			"core_ffmpeg":            clipEvents(ffmpegCorePCM, maxClipMarkers),
 			"our_local":              clipEvents(localOurPCM, maxClipMarkers),
+			"our_blend50":            clipEvents(blendOurPCM, maxClipMarkers),
 			"our_ffmpeg":             clipEvents(ffmpegOurPCM, maxClipMarkers),
 			"clean_local":            clipEvents(localCleanPCM, maxClipMarkers),
+			"clean_blend50":          clipEvents(blendCleanPCM, maxClipMarkers),
 			"clean_ffmpeg":           clipEvents(ffmpegCleanPCM, maxClipMarkers),
 			"snr_local":              clipEvents(localSNRPCM, maxClipMarkers),
 			"snr_ffmpeg":             clipEvents(ffmpegSNRPCM, maxClipMarkers),
@@ -585,16 +643,22 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			"fcb_local":              clipEvents(localFCBPCM, maxClipMarkers),
 			"fcb_ffmpeg":             clipEvents(ffmpegFCBPCM, maxClipMarkers),
 			"pesq_local":             clipEvents(localPESQPCM, maxClipMarkers),
+			"pesq_blend50":           clipEvents(blendPESQPCM, maxClipMarkers),
 			"pesq_ffmpeg":            clipEvents(ffmpegPESQPCM, maxClipMarkers),
 			"soft_our_ffmpeg":        clipEvents(softOurFFmpegPCM, maxClipMarkers),
 			"soft_clean_ffmpeg":      clipEvents(softCleanFFmpegPCM, maxClipMarkers),
 			"external_local":         clipEvents(localExternalPCM, maxClipMarkers),
+			"external_blend50":       clipEvents(blendExternalPCM, maxClipMarkers),
 			"external_ffmpeg":        clipEvents(ffmpegExternalPCM, maxClipMarkers),
 		},
 		Metrics: []metricRow{
 			ourLocalMetric,
+			coreLocalMetric,
+			coreFFmpegMetric,
+			ourBlend50Metric,
 			ourFFmpegMetric,
 			cleanLocalMetric,
+			cleanBlend50Metric,
 			cleanFFmpegMetric,
 			snrLocalMetric,
 			snrFFmpegMetric,
@@ -613,10 +677,12 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			fcbLocalMetric,
 			fcbFFmpegMetric,
 			pesqLocalMetric,
+			pesqBlend50Metric,
 			pesqFFmpegMetric,
 			softOurFFmpegMetric,
 			softCleanFFmpegMetric,
 			externalLocalMetric,
+			externalBlend50Metric,
 			externalFFmpegMetric,
 			localPayloadMetric,
 			ffmpegPayloadMetric,
@@ -643,8 +709,12 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		},
 		Noise: []noiseRow{
 			residualNoiseMetric("our encode -> local residual vs source", "our_local", paddedPCM, localOurPCM, ourLocalMetric.LagSamples),
+			residualNoiseMetric("our core encode -> local residual vs source", "core_local", paddedPCM, localCorePCM, coreLocalMetric.LagSamples),
+			residualNoiseMetric("our core encode -> ffmpeg residual vs source", "core_ffmpeg", paddedPCM, ffmpegCorePCM, coreFFmpegMetric.LagSamples),
+			residualNoiseMetric("our encode -> postfilter-blend50 local residual vs source", "our_blend50", paddedPCM, blendOurPCM, ourBlend50Metric.LagSamples),
 			residualNoiseMetric("our encode -> ffmpeg residual vs source", "our_ffmpeg", paddedPCM, ffmpegOurPCM, ourFFmpegMetric.LagSamples),
 			residualNoiseMetric("our clean encode -> local residual vs source", "clean_local", paddedPCM, localCleanPCM, cleanLocalMetric.LagSamples),
+			residualNoiseMetric("our clean encode -> postfilter-blend50 local residual vs source", "clean_blend50", paddedPCM, blendCleanPCM, cleanBlend50Metric.LagSamples),
 			residualNoiseMetric("our clean encode -> ffmpeg residual vs source", "clean_ffmpeg", paddedPCM, ffmpegCleanPCM, cleanFFmpegMetric.LagSamples),
 			residualNoiseMetric("our SNR-clean encode -> local residual vs source", "snr_local", paddedPCM, localSNRPCM, snrLocalMetric.LagSamples),
 			residualNoiseMetric("our SNR-clean encode -> ffmpeg residual vs source", "snr_ffmpeg", paddedPCM, ffmpegSNRPCM, snrFFmpegMetric.LagSamples),
@@ -663,10 +733,12 @@ func compare(w http.ResponseWriter, r *http.Request) {
 			residualNoiseMetric("our FCB-clean encode -> local residual vs source", "fcb_local", paddedPCM, localFCBPCM, fcbLocalMetric.LagSamples),
 			residualNoiseMetric("our FCB-clean encode -> ffmpeg residual vs source", "fcb_ffmpeg", paddedPCM, ffmpegFCBPCM, fcbFFmpegMetric.LagSamples),
 			residualNoiseMetric("our PESQ candidate encode -> local residual vs source", "pesq_local", paddedPCM, localPESQPCM, pesqLocalMetric.LagSamples),
+			residualNoiseMetric("our PESQ candidate encode -> postfilter-blend50 local residual vs source", "pesq_blend50", paddedPCM, blendPESQPCM, pesqBlend50Metric.LagSamples),
 			residualNoiseMetric("our PESQ candidate encode -> ffmpeg residual vs source", "pesq_ffmpeg", paddedPCM, ffmpegPESQPCM, pesqFFmpegMetric.LagSamples),
 			residualNoiseMetric("our encode -> softened FFmpeg residual vs source", "soft_our_ffmpeg", paddedPCM, softOurFFmpegPCM, softOurFFmpegMetric.LagSamples),
 			residualNoiseMetric("our clean encode -> softened FFmpeg residual vs source", "soft_clean_ffmpeg", paddedPCM, softCleanFFmpegPCM, softCleanFFmpegMetric.LagSamples),
 			residualNoiseMetric("bcg729 encode -> local residual vs source", "external_local", paddedPCM, localExternalPCM, externalLocalMetric.LagSamples),
+			residualNoiseMetric("bcg729 encode -> postfilter-blend50 local residual vs source", "external_blend50", paddedPCM, blendExternalPCM, externalBlend50Metric.LagSamples),
 			residualNoiseMetric("bcg729 encode -> ffmpeg residual vs source", "external_ffmpeg", paddedPCM, ffmpegExternalPCM, externalFFmpegMetric.LagSamples),
 			residualNoiseMetric("local decoder delta on our payload", "our_local", ffmpegOurPCM, localOurPCM, 0),
 			residualNoiseMetric("local decoder delta on clean payload", "clean_local", ffmpegCleanPCM, localCleanPCM, 0),
