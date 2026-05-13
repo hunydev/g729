@@ -59,7 +59,7 @@ func (d *Decoder) decodeSubframePostfilterBlend(
 	out []int16,
 	synthNum, den int,
 ) {
-	betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
+	betaQ14 := d.pitchEnhancementBetaQ14()
 
 	var v [subframeLen]int16
 	decodeAdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v)
@@ -91,7 +91,7 @@ func (d *Decoder) decodeSubframePostfilterBlend(
 	copy(d.pastExc[:pastExcLen-subframeLen], d.pastExc[subframeLen:])
 	copy(d.pastExc[pastExcLen-subframeLen:], u[:])
 
-	d.prevGpQ14 = gpQ14
+	d.rememberPitchGain(gpQ14)
 }
 
 func blendPostfilterSample(postfiltered, synth int16, postNum, synthNum, den int) int16 {

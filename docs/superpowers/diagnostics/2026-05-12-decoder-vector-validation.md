@@ -109,15 +109,15 @@ Result:
 
 | Vector | Frames | Bad frames | Exact frames | Exact samples | First diff | Max abs delta | Mean abs delta | RMS delta |
 | --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: |
-| `ALGTHM` | 35 | 0 | 0.00% | 2.54% | 0:2 | 13858 | 834.57 | 2084.65 |
-| `SPEECH` | 3750 | 0 | 0.00% | 13.47% | 0:0 | 5291 | 66.84 | 168.12 |
-| `FIXED` | 120 | 0 | 0.00% | 16.66% | 0:1 | 491 | 11.00 | 30.83 |
-| `LSP` | 2232 | 0 | 0.00% | 2.58% | 0:40 | 1208 | 33.93 | 65.71 |
-| `PITCH` | 1835 | 0 | 0.00% | 1.27% | 0:1 | 9254 | 426.72 | 900.01 |
-| `TAME` | 128 | 0 | 0.00% | 0.35% | 0:1 | 32234 | 12789.95 | 15384.01 |
-| `TEST` | 176 | 0 | 0.00% | 6.22% | 0:40 | 2223 | 41.00 | 107.88 |
-| `OVERFLOW` | 384 | 0 | 0.00% | 0.14% | 0:1 | 36943 | 10913.38 | 14016.57 |
-| `TOTAL` | 8660 | 0 | 0.00% | 7.14% | 0:0 | 36943 | 860.12 | 3651.96 |
+| `ALGTHM` | 35 | 0 | 0.00% | 2.61% | 0:2 | 13862 | 834.89 | 2095.61 |
+| `SPEECH` | 3750 | 0 | 0.00% | 13.89% | 0:0 | 5801 | 52.20 | 154.58 |
+| `FIXED` | 120 | 0 | 0.00% | 16.91% | 0:1 | 491 | 10.87 | 30.77 |
+| `LSP` | 2232 | 0 | 0.00% | 2.54% | 0:20 | 1202 | 34.28 | 65.97 |
+| `PITCH` | 1835 | 0 | 0.00% | 1.26% | 0:2 | 9432 | 420.26 | 894.11 |
+| `TAME` | 128 | 0 | 0.00% | 0.36% | 0:1 | 14039 | 3780.52 | 5091.07 |
+| `TEST` | 176 | 0 | 0.00% | 6.21% | 0:20 | 2223 | 39.80 | 107.31 |
+| `OVERFLOW` | 384 | 0 | 0.00% | 0.14% | 0:1 | 65535 | 6742.60 | 10403.43 |
+| `TOTAL` | 8660 | 0 | 0.00% | 7.32% | 0:0 | 65535 | 511.89 | 2406.89 |
 
 Interpretation:
 
@@ -257,6 +257,21 @@ Partial verifier artifact status:
 - Filled final `pcm_q0` rows are still far from exact, so the partial artifact
   is useful for localization but is not a completed oracle gate.
 
+Frame-0 chain follow-up:
+
+- `decoder_itu_stage_frame0_chain_expected.csv` is a verifier-filled numeric
+  artifact for ALGTHM, TAME, and OVERFLOW frame `0`.
+- The artifact confirmed the frame-0 subframe-0 `fixed_c_q13` rows require the
+  stream-start pitch-sharpening beta to use the upper value before any previous
+  decoded pitch gain exists.
+- After that production fix, local frame-0 subframe-0 `fixed_c_q13` exact
+  matches the verifier artifact: `120/120`.
+- The final PCM gate remains non-exact: the same artifact's inverse HP
+  candidate check has local `hp_q0` within the PST-derived final-output range
+  for `158/240` rows. Remaining work is therefore downstream of fixed-codebook
+  pulse reconstruction: gain, excitation/synthesis, postfilter, HP, or PST
+  rounding/domain reconciliation.
+
 TAME wide-stage artifact status:
 
 - `decoder_tame_stage_wide_expected.csv` is a verifier-filled numeric artifact
@@ -278,8 +293,8 @@ TAME wide-stage artifact status:
   repetition.
 - After applying that production fix, the TAME-wide comparison still has
   `444/1518` exact cells, but the dominant adaptive-codebook error shrank:
-  `adaptive_v_q0` max absolute delta `2994 -> 437`,
-  `pitch_contrib_q0` / `excitation_u_q0` max absolute delta `3102 -> 443`.
+  `adaptive_v_q0` max absolute delta `2994 -> 441`,
+  `pitch_contrib_q0` / `excitation_u_q0` max absolute delta `3102 -> 447`.
   Remaining synthesis mismatch is now more tied to LP/gain/history deltas than
   to the original short-pitch direct-repeat bug.
 

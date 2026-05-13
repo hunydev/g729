@@ -42,9 +42,9 @@
 //
 // This package holds no state. The previous-subframe pitch gain
 // that derives β is owned by the top-level decoder. The decoder's
-// zero-value state starts with no previous decoded pitch gain, so
-// ClampPitchGainForEnhancement applies the lower clamp until the first
-// subframe gain has been decoded.
+// stream-start state starts with no previous decoded pitch gain, so
+// the decoder supplies InitialPitchEnhancementQ14 for the first subframe
+// and ClampPitchGainForEnhancement for subsequent subframes.
 //
 // # Scratch-from-spec
 //

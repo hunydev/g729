@@ -25,7 +25,7 @@ func (d *Decoder) decodeSubframe(
 	GA, GB uint8,
 	out []int16,
 ) {
-	betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
+	betaQ14 := d.pitchEnhancementBetaQ14()
 
 	var v [subframeLen]int16
 	decodeAdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v)
@@ -51,7 +51,19 @@ func (d *Decoder) decodeSubframe(
 	copy(d.pastExc[:pastExcLen-subframeLen], d.pastExc[subframeLen:])
 	copy(d.pastExc[pastExcLen-subframeLen:], u[:])
 
+	d.rememberPitchGain(gpQ14)
+}
+
+func (d *Decoder) pitchEnhancementBetaQ14() int16 {
+	if !d.havePrevGpQ14 {
+		return fcb.InitialPitchEnhancementQ14
+	}
+	return fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
+}
+
+func (d *Decoder) rememberPitchGain(gpQ14 int16) {
 	d.prevGpQ14 = gpQ14
+	d.havePrevGpQ14 = true
 }
 
 func decodeAdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[subframeLen]int16) {

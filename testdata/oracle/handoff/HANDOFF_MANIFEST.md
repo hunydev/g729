@@ -39,7 +39,7 @@ identify the current files after numeric `expected` cells were filled.
 | `fcb_tree_search_user_audio_expected_template.csv` | `field,frame,sub,index,expected` | 10194 | `4644b4330f2401496de267fd2f33c33d6e245715e1460accecb1cd51a3164d40` |
 | `fcb_tree_search_user_audio_got.csv` | `field,frame,sub,index,got` | 10194 | `88412b695175e48192a6f1f50fedc9647d56417d3e9682623406b2d1ef904ac8` |
 | `decoder_itu_stage_expected_template.csv` | `source,frame,sub,field,index,expected` | 10491 | `a06d13af94cb2d1b60c6d6f13caeb6567a559e0b6a5d6959d56a6225f1a522a7` |
-| `decoder_itu_stage_got.csv` | `source,frame,sub,field,index,got` | 10491 | `8358a260b67f0551fa7a84280ca97e1106ae236bb44e5252c9fcc42ee4b4bdda` |
+| `decoder_itu_stage_got.csv` | `source,frame,sub,field,index,got` | 10491 | `4ec339672a8abd05d94b9aee060f696b75416d40b1dcc1158128ffc4270a4492` |
 | `DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md` | n/a | n/a | `adf86bb920b590d25103bb4b1982aba459e1380a9886e3526f8ee535d7cb6790` |
 | `decoder_itu_fcb_position_clarification_expected_template.csv` | `C,i0,i1,i2,i3,jx,m0,m1,m2,m3,note` | 3 | `33b5766a587219fedc26a7d6e8b757eade3dd03f31f9394834bd4602968ca450` |
 | `EXTERNAL_VERIFIER_REQUEST.md` | n/a | n/a | `d65189e31ed3189ada680e26efd2e934d71d8286023d0c27cef5499df66aa725` |
@@ -68,6 +68,7 @@ identify the current files after numeric `expected` cells were filled.
 | File | Data rows | SHA-256 | Note |
 | --- | ---: | --- | --- |
 | `tame_short_pitch_relation.csv` | 48 | `9d73b5aea66fa153b2d26353e750d9beddae4cc1b8a2df33c35bc80fb111560c` | Verifier-produced relation table for TAME short-pitch `T_frac=0`; supports the phase-0 FIR adaptive-codebook fix. |
+| `decoder_itu_stage_frame0_chain_expected.csv` | 840 | `4841ce9825263051d33a96234ef5f3a578e4be25785cb2153a9ccbda04eefcab` | Verifier-produced frame-0 chain artifact for ALGTHM, TAME, and OVERFLOW; fixed-codebook subframe-0 rows exact-match after the stream-start pitch-sharpening fix. |
 
 ## Partially Filled Files
 

@@ -97,7 +97,7 @@ func (d *Decoder) decodeSubframeEnvelopeRecovered(
 	stats *envelopeRecoveryStats,
 	ecQCorrection, gammaQCorrection int,
 ) {
-	betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
+	betaQ14 := d.pitchEnhancementBetaQ14()
 
 	var v [subframeLen]int16
 	decodeAdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v)
@@ -138,7 +138,7 @@ func (d *Decoder) decodeSubframeEnvelopeRecovered(
 	copy(d.pastExc[:pastExcLen-subframeLen], d.pastExc[subframeLen:])
 	copy(d.pastExc[pastExcLen-subframeLen:], u[:])
 
-	d.prevGpQ14 = gpQ14
+	d.rememberPitchGain(gpQ14)
 }
 
 func applyEnvelopeRecovery(out []int16, stats *envelopeRecoveryStats) {

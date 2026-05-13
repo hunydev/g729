@@ -76,6 +76,11 @@ These files are not oracle artifacts and are intentionally ignored by the option
   decoder-stage artifact for TAME frames 117 through 119. It contains
   subframe LP, adaptive/fixed gain, adaptive vector, fixed codebook,
   pitch/fixed contribution, excitation, and synthesis cells for localization.
+- `decoder_itu_stage_frame0_chain_expected.csv`: verifier-filled frame-0
+  chain artifact for ALGTHM, TAME, and OVERFLOW. It contains subframe-0
+  `fixed_c_q13`, final PST PCM, and inverse final-output-scale HP candidates;
+  the `fixed_c_q13` rows exact-match after stream-start pitch sharpening uses
+  the upper beta value before the first decoded pitch gain exists.
 - `tame_short_pitch_relation.csv`: verifier-produced numeric relation table
   derived from the TAME wide artifact. It documents the short-pitch
   `T_frac=0` relation used to justify the phase-0 FIR adaptive-codebook fix.

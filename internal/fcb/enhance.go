@@ -7,6 +7,10 @@ import "github.com/hunydev/g729/internal/fixed"
 const (
 	betaLowerQ14 = 3277  // round(0.2 · 2^14)
 	betaUpperQ14 = 13107 // round(0.8 · 2^14)
+
+	// InitialPitchEnhancementQ14 is the stream-start pitch sharpening
+	// coefficient used before any previous decoded pitch gain exists.
+	InitialPitchEnhancementQ14 = betaUpperQ14
 )
 
 // ClampPitchGainForEnhancement returns the pitch enhancement filter

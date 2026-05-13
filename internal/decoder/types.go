@@ -34,7 +34,8 @@ type Decoder struct {
 
 	pastExc [pastExcLen]int16
 
-	prevGpQ14 int16
+	prevGpQ14     int16
+	havePrevGpQ14 bool
 
 	hpX [2]int16
 	hpY [2]int32

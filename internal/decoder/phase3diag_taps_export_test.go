@@ -91,7 +91,7 @@ func (d *Decoder) decodeSubframeWithTaps(
 	taps.TFrac = tFrac
 	taps.A = *sfA
 
-	betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
+	betaQ14 := d.pitchEnhancementBetaQ14()
 
 	decodeAdaptiveCodebook(tInt, tFrac, d.pastExc[:], &taps.V)
 
@@ -121,5 +121,5 @@ func (d *Decoder) decodeSubframeWithTaps(
 	copy(d.pastExc[:pastExcLen-subframeLen], d.pastExc[subframeLen:])
 	copy(d.pastExc[pastExcLen-subframeLen:], taps.U[:])
 
-	d.prevGpQ14 = gpQ14
+	d.rememberPitchGain(gpQ14)
 }

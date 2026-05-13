@@ -3,6 +3,7 @@ package decoder
 import (
 	"testing"
 
+	"github.com/hunydev/g729/internal/fcb"
 	"github.com/hunydev/g729/internal/pitch"
 )
 
@@ -47,11 +48,24 @@ func TestDecodeSubframe_PastExcFIFOSlides(t *testing.T) {
 func TestDecodeSubframe_PrevGpUpdated(t *testing.T) {
 	var d Decoder
 	d.prevGpQ14 = 12345
+	d.havePrevGpQ14 = true
 	sfA := [11]int16{4096, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	var out [40]int16
 	d.decodeSubframe(&sfA, 40, 0, 0, 0, 0, 0, out[:])
 	if d.prevGpQ14 == 12345 {
 		t.Fatal("prevGpQ14 not updated")
+	}
+}
+
+func TestPitchEnhancementBetaStartsAtUpperBound(t *testing.T) {
+	var d Decoder
+	if got, want := d.pitchEnhancementBetaQ14(), int16(fcb.InitialPitchEnhancementQ14); got != want {
+		t.Fatalf("initial pitch enhancement beta = %d, want %d", got, want)
+	}
+
+	d.rememberPitchGain(0)
+	if got, want := d.pitchEnhancementBetaQ14(), int16(3277); got != want {
+		t.Fatalf("post-first-subframe beta = %d, want lower clamp %d", got, want)
 	}
 }
 

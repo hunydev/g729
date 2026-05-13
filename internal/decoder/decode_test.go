@@ -24,7 +24,7 @@ func TestResetAfterUse(t *testing.T) {
 	d.hpY[1] = 99
 	d.pastExc[0] = 7
 	d.Reset()
-	if d.prevGpQ14 != 0 || d.hpX[0] != 0 || d.hpY[1] != 0 || d.pastExc[0] != 0 {
+	if d.prevGpQ14 != 0 || d.havePrevGpQ14 || d.hpX[0] != 0 || d.hpY[1] != 0 || d.pastExc[0] != 0 {
 		t.Fatalf("Reset did not clear state: %+v", d)
 	}
 }
@@ -148,6 +148,9 @@ func TestDecode_SubStatesZeroedByReset(t *testing.T) {
 
 	if d.prevGpQ14 != 0 {
 		t.Errorf("prevGpQ14 = %d after Reset", d.prevGpQ14)
+	}
+	if d.havePrevGpQ14 {
+		t.Error("havePrevGpQ14 = true after Reset")
 	}
 	if d.hpX != ([2]int16{}) {
 		t.Errorf("hpX = %v after Reset", d.hpX)
