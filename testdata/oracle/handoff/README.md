@@ -81,6 +81,13 @@ These files are not oracle artifacts and are intentionally ignored by the option
   `fixed_c_q13`, final PST PCM, and inverse final-output-scale HP candidates;
   the `fixed_c_q13` rows exact-match after stream-start pitch sharpening uses
   the upper beta value before the first decoded pitch gain exists.
+- `decoder_itu_frame0_hp_input_inverse_expected_template.csv`: verifier-owned
+  template for frame-0 inverse HP-input ranges. It maps the verifier-owned
+  final PST PCM rows to candidate `postfilter_s_q0` ranges before the decoder
+  output HP filter.
+- `DECODER_ITU_FRAME0_HP_INPUT_INVERSE_PROMPT.md`: copyable prompt for an
+  isolated clean-room verifier that fills only numeric `expected` cells in the
+  frame-0 HP-input inverse template.
 - `tame_short_pitch_relation.csv`: verifier-produced numeric relation table
   derived from the TAME wide artifact. It documents the short-pitch
   `T_frac=0` relation used to justify the phase-0 FIR adaptive-codebook fix.
@@ -176,6 +183,11 @@ Filled verifier output intake:
    G729_COMPARE_DECODER_TAME_STAGE_WIDE=1 \
    G729_REQUIRE_EXACT_DECODER_TAME_STAGE_WIDE=1 \
    go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEStageWide -count=1 -v
+
+   G729_COMPARE_DECODER_ITU_FRAME0_HP_INPUT_INVERSE=1 \
+   G729_REQUIRE_COMPLETE_DECODER_ITU_FRAME0_HP_INPUT_INVERSE=1 \
+   G729_REQUIRE_EXACT_DECODER_ITU_FRAME0_HP_INPUT_INVERSE=1 \
+   go test ./internal/decoder -run TestOracleHandoff_CompareDecoderITUFrame0HPInputInverse -count=1 -v
    ```
 
 6. If strict compare passes, update `HANDOFF_MANIFEST.md` and the
@@ -283,6 +295,35 @@ User-audio FCB tree-search workflow:
 
    ```sh
    G729_COMPARE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 G729_REQUIRE_COMPLETE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 G729_REQUIRE_EXACT_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 go test -run TestOracleHandoff_CompareFCBTreeSearchUserAudioHandoff -v
+   ```
+
+Decoder frame-0 HP-input inverse workflow:
+
+1. Refresh the blank template from the existing verifier-filled frame-0 chain
+   artifact:
+
+   ```sh
+   G729_WRITE_DECODER_ITU_FRAME0_HP_INPUT_INVERSE_TEMPLATE=1 \
+   go test ./internal/decoder -run TestDecoderITUFrame0HPInputInverseTemplate -count=1 -v
+   ```
+
+2. Give the verifier both `decoder_itu_stage_frame0_chain_expected.csv` and
+   `decoder_itu_frame0_hp_input_inverse_expected_template.csv`, then ask it to
+   fill `expected` using
+   `DECODER_ITU_FRAME0_HP_INPUT_INVERSE_PROMPT.md`.
+3. Compare only numeric scalar values keyed by:
+
+   ```csv
+   source,frame,sub,field,index
+   ```
+
+4. After the verifier fills numeric `expected` cells, compare locally:
+
+   ```sh
+   G729_COMPARE_DECODER_ITU_FRAME0_HP_INPUT_INVERSE=1 \
+   G729_REQUIRE_COMPLETE_DECODER_ITU_FRAME0_HP_INPUT_INVERSE=1 \
+   G729_REQUIRE_EXACT_DECODER_ITU_FRAME0_HP_INPUT_INVERSE=1 \
+   go test ./internal/decoder -run TestOracleHandoff_CompareDecoderITUFrame0HPInputInverse -count=1 -v
    ```
 
 LSP table workflow:

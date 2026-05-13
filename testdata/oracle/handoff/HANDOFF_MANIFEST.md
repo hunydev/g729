@@ -1,6 +1,6 @@
 # Oracle Handoff Manifest
 
-Date: 2026-05-12
+Date: 2026-05-13
 
 This manifest identifies the clean-room verifier handoff inputs and
 the current verifier-filled outputs. The pre-fill hashes identify the
@@ -42,10 +42,12 @@ identify the current files after numeric `expected` cells were filled.
 | `decoder_itu_stage_got.csv` | `source,frame,sub,field,index,got` | 10491 | `4ec339672a8abd05d94b9aee060f696b75416d40b1dcc1158128ffc4270a4492` |
 | `DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md` | n/a | n/a | `adf86bb920b590d25103bb4b1982aba459e1380a9886e3526f8ee535d7cb6790` |
 | `decoder_itu_fcb_position_clarification_expected_template.csv` | `C,i0,i1,i2,i3,jx,m0,m1,m2,m3,note` | 3 | `33b5766a587219fedc26a7d6e8b757eade3dd03f31f9394834bd4602968ca450` |
+| `DECODER_ITU_FRAME0_HP_INPUT_INVERSE_PROMPT.md` | n/a | n/a | `b5cf97ca846b7f164b50b3dc65bad54ff0379cba7912b2de55e701ae341951ea` |
+| `decoder_itu_frame0_hp_input_inverse_expected_template.csv` | `source,frame,sub,field,index,expected` | 480 | `c821398c859954af18c4c9f448c85bfbb923a366906692dccd9011f2675bd814` |
 | `EXTERNAL_VERIFIER_REQUEST.md` | n/a | n/a | `d65189e31ed3189ada680e26efd2e934d71d8286023d0c27cef5499df66aa725` |
 | `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md` | n/a | n/a | `0da88d8dc36ccedc36906df62ce781c04056f2e5bd5597187e6ec26b3dd5eadc` |
 | `create_verifier_bundle.sh` | n/a | n/a | `05460c982ec487ec894bcb31b1200be4ab0542fd335bbabd08f8a21cb0651faf` |
-| `validate_verifier_output.sh` | n/a | n/a | `fcb983b16c6c4f33398a4b80ba3fa501e0de1e001e11ffc496f5a4fb45840c1c` |
+| `validate_verifier_output.sh` | n/a | n/a | `699329e3948d9fee83bc0a87d242d83f20c4037bb69719d2aeb696e365efa1fe` |
 
 ## Verifier-filled Files
 
@@ -81,6 +83,7 @@ identify the current files after numeric `expected` cells were filled.
 | File | Blank `expected` cells | Next action |
 | --- | ---: | --- |
 | `encoder_closedloop_stage_expected_template.csv` | 100848 | Fill from `ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md` if a broader closed-loop stage oracle is required. |
+| `decoder_itu_frame0_hp_input_inverse_expected_template.csv` | 480 | Fill from `DECODER_ITU_FRAME0_HP_INPUT_INVERSE_PROMPT.md` to separate decoder HP-filter disagreement from upstream postfilter/synthesis disagreement. |
 
 ## Verification Commands
 
@@ -112,6 +115,8 @@ sha256sum \
   testdata/oracle/handoff/FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md \
   testdata/oracle/handoff/fcb_tree_search_user_audio_expected_template.csv \
   testdata/oracle/handoff/fcb_tree_search_user_audio_got.csv \
+  testdata/oracle/handoff/DECODER_ITU_FRAME0_HP_INPUT_INVERSE_PROMPT.md \
+  testdata/oracle/handoff/decoder_itu_frame0_hp_input_inverse_expected_template.csv \
   testdata/oracle/handoff/EXTERNAL_VERIFIER_REQUEST.md \
   testdata/oracle/handoff/REMAINING_CONFORMANCE_VERIFIER_PROMPT.md \
   testdata/oracle/handoff/create_verifier_bundle.sh \
@@ -139,7 +144,8 @@ awk -F, 'FNR==1 {print FILENAME ": header=" $0} FNR>1 {rows++} ENDFILE {print FI
   testdata/oracle/handoff/fcb_tree_search_expected_template.csv \
   testdata/oracle/handoff/fcb_tree_search_got.csv \
   testdata/oracle/handoff/fcb_tree_search_user_audio_expected_template.csv \
-  testdata/oracle/handoff/fcb_tree_search_user_audio_got.csv
+  testdata/oracle/handoff/fcb_tree_search_user_audio_got.csv \
+  testdata/oracle/handoff/decoder_itu_frame0_hp_input_inverse_expected_template.csv
 ```
 
 ## Completion Rule

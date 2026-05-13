@@ -201,7 +201,7 @@ The current repo-external verifier bundle is:
 
 ```text
 /tmp/g729-fcb-verifier-handoff-2026-05-10.tar.gz
-sha256 86a24c2ee449f022c9f3d6a7ca90ed6272cd1d67792b8f8097da2d5d39c1d6b6
+sha256 0328a9edcec03c0e19e390a61afa31831c25d599737255fbb6fa4ab0d31aeb16
 ```
 
 When sending the bundle to another AI or engineer, ask them to start with
