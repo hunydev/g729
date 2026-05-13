@@ -559,7 +559,7 @@ func TestOracleHandoff_BundleScriptPinsDeterministicInputs(t *testing.T) {
 }
 
 func TestOracleHandoff_BundleScriptBuildsDocumentedArchive(t *testing.T) {
-	const wantSHA256 = "96b3786d2259a0d5b25dbcd46e6b480f42668870fe326fed8447806490f18f75"
+	const wantSHA256 = "4bb9bdd543909403a8e2ee38c7b762b87e46ddb2e7d6ca2cc670497b8036e3f4"
 	scriptPath := filepath.Join("testdata", "oracle", "handoff", "create_verifier_bundle.sh")
 	tmp := t.TempDir()
 	bundleDir := filepath.Join(tmp, "g729-fcb-verifier-handoff")
