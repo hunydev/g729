@@ -81,13 +81,20 @@ These files are not oracle artifacts and are intentionally ignored by the option
   `fixed_c_q13`, final PST PCM, and inverse final-output-scale HP candidates;
   the `fixed_c_q13` rows exact-match after stream-start pitch sharpening uses
   the upper beta value before the first decoded pitch gain exists.
-- `decoder_itu_frame0_hp_input_inverse_expected_template.csv`: verifier-owned
-  template for frame-0 inverse HP-input ranges. It maps the verifier-owned
-  final PST PCM rows to candidate `postfilter_s_q0` ranges before the decoder
-  output HP filter.
+- `decoder_itu_frame0_hp_input_inverse_expected_template.csv`: verifier-filled
+  frame-0 inverse HP-input ranges. It maps the verifier-owned final PST PCM
+  rows to candidate `postfilter_s_q0` ranges before the decoder output HP
+  filter. Local compare currently matches `170/240`, which localizes remaining
+  disagreement before the HP filter input rather than to final scaling alone.
 - `DECODER_ITU_FRAME0_HP_INPUT_INVERSE_PROMPT.md`: copyable prompt for an
   isolated clean-room verifier that fills only numeric `expected` cells in the
   frame-0 HP-input inverse template.
+- `decoder_tame_pre_acb_history_expected_template.csv`: verifier-owned
+  template for the 153-sample TAME frame 117 subframe 0 past-excitation FIFO
+  immediately before adaptive-codebook reconstruction.
+- `DECODER_TAME_PRE_ACB_HISTORY_PROMPT.md`: copyable prompt for an isolated
+  clean-room verifier that fills only numeric `expected` cells in the TAME
+  pre-ACB history template.
 - `tame_short_pitch_relation.csv`: verifier-produced numeric relation table
   derived from the TAME wide artifact. It documents the short-pitch
   `T_frac=0` relation used to justify the phase-0 FIR adaptive-codebook fix.
@@ -188,6 +195,11 @@ Filled verifier output intake:
    G729_REQUIRE_COMPLETE_DECODER_ITU_FRAME0_HP_INPUT_INVERSE=1 \
    G729_REQUIRE_EXACT_DECODER_ITU_FRAME0_HP_INPUT_INVERSE=1 \
    go test ./internal/decoder -run TestOracleHandoff_CompareDecoderITUFrame0HPInputInverse -count=1 -v
+
+   G729_COMPARE_DECODER_TAME_PRE_ACB_HISTORY=1 \
+   G729_REQUIRE_COMPLETE_DECODER_TAME_PRE_ACB_HISTORY=1 \
+   G729_REQUIRE_EXACT_DECODER_TAME_PRE_ACB_HISTORY=1 \
+   go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEPreACBHistory -count=1 -v
    ```
 
 6. If strict compare passes, update `HANDOFF_MANIFEST.md` and the
@@ -324,6 +336,38 @@ Decoder frame-0 HP-input inverse workflow:
    G729_REQUIRE_COMPLETE_DECODER_ITU_FRAME0_HP_INPUT_INVERSE=1 \
    G729_REQUIRE_EXACT_DECODER_ITU_FRAME0_HP_INPUT_INVERSE=1 \
    go test ./internal/decoder -run TestOracleHandoff_CompareDecoderITUFrame0HPInputInverse -count=1 -v
+   ```
+
+   Current result: complete numeric oracle, non-exact local compare
+   (`170/240` within range). Use it as a localization artifact showing that
+   the remaining frame-0 mismatch enters before the output HP filter.
+
+Decoder TAME pre-ACB history workflow:
+
+1. Refresh the blank template:
+
+   ```sh
+   G729_WRITE_DECODER_TAME_PRE_ACB_HISTORY_TEMPLATE=1 \
+   go test ./internal/decoder -run TestDecoderTAMEPreACBHistoryTemplate -count=1 -v
+   ```
+
+2. Give the verifier `decoder_tame_pre_acb_history_expected_template.csv`,
+   `decoder_tame_stage_wide_expected.csv`, and `tame_short_pitch_relation.csv`,
+   then ask it to fill `expected` using
+   `DECODER_TAME_PRE_ACB_HISTORY_PROMPT.md`.
+3. Compare only numeric scalar values keyed by:
+
+   ```csv
+   source,frame,sub,field,index
+   ```
+
+4. After the verifier fills numeric `expected` cells, compare locally:
+
+   ```sh
+   G729_COMPARE_DECODER_TAME_PRE_ACB_HISTORY=1 \
+   G729_REQUIRE_COMPLETE_DECODER_TAME_PRE_ACB_HISTORY=1 \
+   G729_REQUIRE_EXACT_DECODER_TAME_PRE_ACB_HISTORY=1 \
+   go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEPreACBHistory -count=1 -v
    ```
 
 LSP table workflow:

@@ -239,6 +239,7 @@ allowed_file() {
     fcb_tree_search_user_audio_expected_template.csv|\
     encoder_closedloop_stage_expected_template.csv|\
     decoder_itu_frame0_hp_input_inverse_expected_template.csv|\
+    decoder_tame_pre_acb_history_expected_template.csv|\
     decoder_itu_fcb_position_clarification_expected.csv|\
     decoder_tame_stage_wide_expected.csv)
       return 0
@@ -275,6 +276,7 @@ validate_expected "fcb_tree_search_expected_template.csv" 4
 validate_expected "fcb_tree_search_user_audio_expected_template.csv" 4
 validate_expected "encoder_closedloop_stage_expected_template.csv" 6
 validate_expected "decoder_itu_frame0_hp_input_inverse_expected_template.csv" 5
+validate_expected "decoder_tame_pre_acb_history_expected_template.csv" 5
 validate_fcb_position_clarification
 validate_decoder_tame_stage_wide
 
