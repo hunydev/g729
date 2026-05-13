@@ -271,6 +271,18 @@ Frame-0 chain follow-up:
   for `158/240` rows. Remaining work is therefore downstream of fixed-codebook
   pulse reconstruction: gain, excitation/synthesis, postfilter, HP, or PST
   rounding/domain reconciliation.
+- The artifact is now covered by an opt-in regression/localization harness:
+
+  ```sh
+  G729_COMPARE_DECODER_ITU_FRAME0_CHAIN=1 \
+  G729_REQUIRE_EXACT_DECODER_ITU_FRAME0_CHAIN_FIXED_C=1 \
+  go test ./internal/decoder -run TestOracleHandoff_CompareDecoderITUFrame0Chain -count=1 -v
+  ```
+
+  Current result: `fixed_c_q13` exact `120/120`, final `pst_pcm_q0` exact
+  `116/240`, and local `hp_q0` within the PST-derived inverse range
+  `158/240`. Per-vector HP range counts are ALGTHM `68/80`, TAME `45/80`,
+  and OVERFLOW `45/80`.
 
 TAME wide-stage artifact status:
 
