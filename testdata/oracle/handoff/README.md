@@ -107,7 +107,10 @@ These files are not oracle artifacts and are intentionally ignored by the option
   TAME excitation-history template.
 - `decoder_support_tables_expected_template.csv`: verifier-owned template for
   small decoder support tables and scalar constants required before broader
-  forward traces can be independently generated.
+  forward traces can be independently generated. Full completion is currently
+  blocked under the clean-room boundary because some gain VQ/map values are
+  only available as simulation-software numeric tables, not Recommendation
+  text/math.
 - `DECODER_SUPPORT_TABLES_PROMPT.md`: copyable prompt for an isolated
   clean-room verifier that fills only numeric `expected` cells in the decoder
   support-table template.
@@ -430,8 +433,8 @@ Decoder TAME excitation-history workflow:
 
    Current status: the verifier reported this cannot be filled from the
    previously provided inputs because the full forward decode also requires
-   independently verified support tables. Run the decoder support-table
-   workflow first.
+   independently verified support tables and state that are not present in the
+   current clean-room artifacts.
 
 Decoder support-table workflow:
 
@@ -458,6 +461,11 @@ Decoder support-table workflow:
    G729_REQUIRE_EXACT_DECODER_SUPPORT_TABLES=1 \
    go test -run TestOracleHandoff_CompareDecoderSupportTables -count=1 -v
    ```
+
+   Current status: the verifier reported the full 264-row file cannot be
+   completed under the current clean-room boundary. Spec text independently
+   covers only a subset of scalar constants; the gain VQ/map tables are
+   simulation-software numeric tables and should not be guessed.
 
 LSP table workflow:
 

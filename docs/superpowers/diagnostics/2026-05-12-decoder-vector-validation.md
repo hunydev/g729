@@ -369,7 +369,10 @@ TAME wide-stage artifact status:
 - The current replacement gate is
   `decoder_support_tables_expected_template.csv`: 264 numeric rows for the
   small LSP cosine, pitch interpolation, gain VQ/map, log/pow, and gain
-  predictor tables needed before asking for broad decoder forward traces.
+  predictor tables needed before asking for broad decoder forward traces. The
+  verifier reported that this cannot be fully completed under the current
+  clean-room boundary because some gain VQ/map values are available only as
+  simulation-software numeric tables, not Recommendation text/math.
 
 Comparison command:
 

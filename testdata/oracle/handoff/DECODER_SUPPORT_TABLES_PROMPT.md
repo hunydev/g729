@@ -16,6 +16,12 @@ forward decoder traces such as TAME frame `0..116` `excitation_u_q0`. Previous
 forward-trace requests were blocked because these support tables were not
 included as independent clean-room numeric inputs.
 
+Known limitation: if the values exist only in ITU simulation-software data
+tables or other implementation source, and cannot be derived from ITU-T G.729
+Recommendation text/math under the clean-room boundary below, do not fill
+those rows. In that case return an incomplete note outside the CSV instead of
+guessing.
+
 ## Required Output
 
 Return the same filename with exactly this header and row order:
@@ -49,10 +55,12 @@ The template covers:
 - `GainMeanEnergyQ10`: scalar mean log-energy constant.
 - `GainPastErrorsDefaultQ10`: scalar decoder gain-predictor initial error.
 
-Use only ITU-T G.729 specification material and clean-room mathematical
+Use only ITU-T G.729 Recommendation text and clean-room mathematical
 derivation for these numeric values. If a value cannot be independently
-derived from spec material, do not guess; leave the CSV unfilled and return a
-short incomplete note outside the CSV.
+derived from that material, do not guess; leave the CSV unfilled and return a
+short incomplete note outside the CSV. Do not use ITU simulation-software
+source/data files as an oracle unless a future repository policy explicitly
+allows those numeric artifacts.
 
 ## Local Compare Command
 
