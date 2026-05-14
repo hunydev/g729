@@ -557,6 +557,53 @@ Interpretation:
   `pastExc` history, not from current-subframe gain application, fixed-codebook
   vector construction, or `BuildExcitation`.
 
+## PastExc Source Backtrace
+
+The filled `past_exc_pre_acb_q0` oracle rows can be mapped from pastExc buffer
+index back to the previous `U` subframe that populated each sample. This checks
+whether the late oracle gives enough coverage to trace the fault backward.
+
+Command:
+
+```sh
+env GOCACHE=/tmp/go-build \
+  G729_DECODER_TAME_PAST_EXC_SOURCE_BACKTRACE=1 \
+  go test ./internal/decoder -run TestDecoderTAMEPastExcSourceBacktraceAudit -count=1 -v
+```
+
+Aggregate result:
+
+```text
+candidate                   count   refRMS   gotRMS   errRMS    scErr    corr   scale  maxAbs
+production                    546   204.01   386.68   232.02   100.48  0.8703  0.4592     442
+fixed_half_f26_120            546   204.01   292.82   186.10   128.64  0.7762  0.5407     406
+fixed_half_sf52_239           546   204.01   292.82   186.10   128.64  0.7762  0.5407     406
+pitch_cap_f49_72              546   204.01   196.52   107.17   104.97  0.8575  0.8902     199
+zero_adaptive_f49_72          546   204.01   218.11   175.99   154.30  0.6542  0.6119     332
+```
+
+Source coverage:
+
+```text
+production by source U subframe:
+srcSF 234..238 only
+```
+
+Interpretation:
+
+- `pitch_cap_f49_72` gives the closest late `pastExc` envelope, but earlier
+  PST diagnostics show it damages the immediate voiced window. It remains a
+  localization probe only.
+- `fixed_gain_half` reduces the over-large local history but does not recover
+  the oracle shape as well as the targeted pitch cap.
+- The filled oracle rows only backtrace to source `U` subframes `234..238`
+  (frames `117..119`). They do not cover the older source `U` subframes
+  `230..233` from frames `115..116`, nor the earlier root region around
+  frames `49..72`.
+- This confirms the current verifier artifacts are enough to prove the late
+  mismatch is inherited through `pastExc`, but not enough to independently
+  locate the earlier subframe where the history first diverges.
+
 ## Interpretation
 
 `pitch_gain_cap_0p95` is a strong localization probe: limiting adaptive gain
@@ -606,6 +653,7 @@ env GOCACHE=/tmp/go-build G729_DECODER_TAME_STATE_CARRY_RESET_AUDIT=1 go test ./
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_FEEDBACK_COMPONENT_WINDOW_AUDIT=1 go test ./internal/decoder -run TestDecoderTAMEFeedbackComponentWindowAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_EXCITATION_ORACLE_REPLAY=1 go test ./internal/decoder -run TestDecoderTAMEExcitationOracleReplay -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_ACB_ORACLE_SHAPE=1 G729_DECODER_HISTORY_START_SUBFRAME=52 G729_DECODER_HISTORY_END_SUBFRAME=240 G729_DECODER_UPSTREAM_WINDOW_CANDIDATE=fixed_gain_half go test ./internal/decoder -run TestDecoderTAMEACBOracleShape -count=1 -v
+env GOCACHE=/tmp/go-build G729_DECODER_TAME_PAST_EXC_SOURCE_BACKTRACE=1 go test ./internal/decoder -run TestDecoderTAMEPastExcSourceBacktraceAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_TAME_ONSET_FRAME26=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEOnsetFrame26 -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_PITCH_INSTABILITY_DECISION=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderPitchInstabilityDecision -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_TAME_ACB_CHECKPOINT=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEACBCheckpoint -count=1 -v
