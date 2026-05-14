@@ -521,6 +521,63 @@ Interpretation:
 - Disabling FCB pitch enhancement makes TAME worse, so the current issue is not
   an over-applied FCB pitch-sharpening loop.
 
+## Fixed-Gain Feedback Propagation Audit
+
+The `fixed_gain_half` probe needed one more check: does it help only by
+reducing immediate fixed-codebook output, or does that reduction propagate
+through the recurrent excitation history?
+
+Command:
+
+```sh
+env GOCACHE=/tmp/go-build \
+  G729_DECODER_TAME_FIXED_FEEDBACK_AUDIT=1 \
+  go test ./internal/decoder -run TestDecoderTAMEFixedFeedbackPropagationAudit -count=1 -v
+```
+
+PST-level result:
+
+```text
+candidate       range                 gSNR    deltaG    outRMS    errRMS      corr
+production      all                   6.50     +0.00   14830.6    5081.9     0.972
+production      window-start         25.09     +0.00   11338.2     603.3     1.000
+production      root-49-72            9.42     +0.00   14346.9    3654.5     0.997
+production      late-oracle           1.38     +0.00   19976.9    9226.5     0.997
+fixed_gain_half all                  19.12    +12.63   10750.3    1187.8     0.994
+fixed_gain_half window-start         20.40     -4.69   10883.0    1035.7     0.995
+fixed_gain_half root-49-72           21.38    +11.96   10787.1     922.3     0.996
+fixed_gain_half late-oracle          16.69    +15.31   12173.4    1583.6     0.997
+```
+
+Internal RMS propagation:
+
+```text
+window          subfrm     fixR       uR    pastR       vR   pitchR     dFix       dU       dV
+pre-window           8    1.000    1.000    1.000    1.000    1.000      0.0      0.0      0.0
+window-start        16    0.500    0.963    0.970    0.969    0.969     20.2      8.4      7.0
+root-49-72          46    0.500    0.803    0.806    0.804    0.804     21.6     56.8     55.8
+first-1.50          24    0.500    0.788    0.792    0.791    0.791     23.4     68.8     66.9
+pre-late             8    0.502    0.764    0.766    0.765    0.765     21.6     87.0     85.4
+late-oracle         24    0.834    0.777    0.776    0.779    0.779      7.8     89.4     87.9
+full-window        188    0.500    0.813    0.817    0.815    0.815     22.1     60.4     59.1
+```
+
+Interpretation:
+
+- At the diagnostic window start, fixed contribution is directly halved
+  (`fixR=0.500`), but `U`, `pastExc`, and adaptive-vector RMS are still close
+  to production (`0.96..0.97`). This also explains why the immediate
+  `window-start` PST range regresses.
+- By frames `49..72`, the same fixed damping has propagated through
+  `U -> pastExc -> adaptive_v`; `U`, `pastExc`, `v`, and pitch contribution are
+  all around `0.80x` production.
+- In the late oracle range, the fixed contribution is no longer halved after
+  the probe window ends, but the history/adaptive path remains around `0.78x`.
+  The improvement is therefore a recurrent feedback-history effect, not a
+  direct fixed-codebook output correction.
+- This remains a localization probe only. It does not identify a
+  Recommendation-backed production rule for halving fixed gain.
+
 ## Late ACB/Excitation Oracle Replay
 
 The filled verifier oracle for TAME frames `117..119` separates current-subframe
@@ -636,6 +693,9 @@ Therefore:
   localization probes and break immediate continuity.
 - Do not treat component-window perturbations as candidate decoder behavior;
   they rank sensitivity but intentionally change the excitation trajectory.
+- Do not treat `fixed_gain_half` as a candidate decoder gain rule; the latest
+  audit shows it helps by long-term feedback damping, not by correcting an
+  independently verified scalar formula.
 - Next useful work is earlier prior-excitation/history localization before
   frame `117`, focused on the upstream excitation feedback path around frames
   `49..72` and `115..116`.
@@ -651,6 +711,7 @@ env GOCACHE=/tmp/go-build G729_DECODER_TAME_GAIN_VARIANT_CROSS_VECTOR=1 go test 
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_ONSET_CANDIDATE_RANGE_AUDIT=1 go test ./internal/decoder -run TestDecoderTAMEOnsetCandidateRangeAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_STATE_CARRY_RESET_AUDIT=1 go test ./internal/decoder -run TestDecoderTAMEStateCarryResetAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_FEEDBACK_COMPONENT_WINDOW_AUDIT=1 go test ./internal/decoder -run TestDecoderTAMEFeedbackComponentWindowAudit -count=1 -v
+env GOCACHE=/tmp/go-build G729_DECODER_TAME_FIXED_FEEDBACK_AUDIT=1 go test ./internal/decoder -run TestDecoderTAMEFixedFeedbackPropagationAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_EXCITATION_ORACLE_REPLAY=1 go test ./internal/decoder -run TestDecoderTAMEExcitationOracleReplay -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_ACB_ORACLE_SHAPE=1 G729_DECODER_HISTORY_START_SUBFRAME=52 G729_DECODER_HISTORY_END_SUBFRAME=240 G729_DECODER_UPSTREAM_WINDOW_CANDIDATE=fixed_gain_half go test ./internal/decoder -run TestDecoderTAMEACBOracleShape -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_PAST_EXC_SOURCE_BACKTRACE=1 go test ./internal/decoder -run TestDecoderTAMEPastExcSourceBacktraceAudit -count=1 -v
