@@ -4,8 +4,8 @@ package fcb
 // one subframe, per ITU-T G.729 §3.8 / §4.1.5:
 //
 //  1. Decode 4 pulse positions from idx.Positions (13 bits).
-//  2. Apply 4 signs from idx.Signs (4 bits) and place pulses at
-//     ±PulseAmplitude (Q13).
+//  2. Apply 4 signs from idx.Signs (4 bits) and place pulses at the
+//     canonical Q13 endpoints (+8191 or -8192).
 //  3. Apply the pitch pre-emphasis filter
 //     c(n) ← c(n) + β·c(n − t), for n = t..39,
 //     using the already-clamped betaQ14 (see

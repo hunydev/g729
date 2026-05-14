@@ -9,6 +9,11 @@ type Indices struct {
 	Signs     uint8  //  4 bits — eq. (61): S=s0+2*s1+4*s2+8*s3
 }
 
-// PulseAmplitude is the unit-pulse magnitude used for the ACELP
-// algebraic codebook vector c[], expressed in Q13 (+1.0 exactly).
-const PulseAmplitude = 8192
+// PulseAmplitude is the positive unit-pulse magnitude used for the ACELP
+// algebraic codebook vector c[], expressed in Q13. The negative pulse uses
+// -8192 so the two signs map to the canonical positive/negative Q13 endpoints.
+const PulseAmplitude = 8191
+
+const NegativePulseAmplitude = -8192
+
+const negativePulseAmplitude = NegativePulseAmplitude

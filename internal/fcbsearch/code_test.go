@@ -15,11 +15,14 @@ import (
 //
 // The encoder maintains pulse signs in the §3.8.1 sign-decomposition
 // form (signs[40] ∈ {−1,+1}, indexed by absolute pulse position) — the
-// same convention CB-3 SignsFromD produces. PulseAmplitude is +1.0 in
-// Q13 (= 8192). Harmonic enhancement filter is in-place (IIR), so for
-// T < 40 the c[n−T] term reads the post-updated value.
+// same convention CB-3 SignsFromD produces. Positive and negative pulse
+// amplitudes use the canonical Q13 endpoints. Harmonic enhancement filter is
+// in-place (IIR), so for T < 40 the c[n−T] term reads the post-updated value.
 
-const pAmp = fcb.PulseAmplitude // 8192, Q13
+const (
+	pAmp = fcb.PulseAmplitude
+	nAmp = fcb.NegativePulseAmplitude
+)
 
 // TestBuildCode_PulsesNoEnhancement covers eq. 45 only (T=40 ⇒ enhancement
 // is bypassed per eq. 48 / §3.8.1 boundary).
@@ -36,7 +39,7 @@ func TestBuildCode_PulsesNoEnhancement(t *testing.T) {
 
 	want := [40]int16{}
 	want[0] = +pAmp
-	want[6] = -pAmp
+	want[6] = nAmp
 	want[12] = +pAmp
 	want[23] = +pAmp
 	if c != want {
@@ -57,7 +60,7 @@ func TestBuildSparseCode_PulsesOnly(t *testing.T) {
 
 	want := [40]int16{}
 	want[0] = +pAmp
-	want[6] = -pAmp
+	want[6] = nAmp
 	want[12] = +pAmp
 	want[23] = +pAmp
 	if c != want {
@@ -97,20 +100,20 @@ func TestBuildCode_EnhancementT20(t *testing.T) {
 	fcbsearch.BuildCode(&positions, &signs, 20, 8192, &c)
 
 	// Pulses at original positions retained.
-	if c[0] != +pAmp || c[6] != -pAmp || c[12] != +pAmp || c[23] != +pAmp {
+	if c[0] != +pAmp || c[6] != nAmp || c[12] != +pAmp || c[23] != +pAmp {
 		t.Fatalf("base pulses corrupted: c[0..23]=%d,%d,%d,%d", c[0], c[6], c[12], c[23])
 	}
 	// Eq. 46 contributions for n in 20..39 (T=20). c[n−20]=±pAmp at
 	// {0,6,12} → contributions land at {20,26,32}; c[n−20]=0 elsewhere.
-	// δ = round(LShl(LMult(8192, ±8192), 1)) = ±round(2^29 / 2^16) = ±8192/2 = ±4096.
-	if c[20] != +4096 {
-		t.Fatalf("c[20] = %d, want +4096 (β·c[0])", c[20])
+	// δ = ExtractH(LShl(LMult(beta, c[n-T]), 1)).
+	if c[20] != +4095 {
+		t.Fatalf("c[20] = %d, want +4095 (β·c[0])", c[20])
 	}
 	if c[26] != -4096 {
 		t.Fatalf("c[26] = %d, want -4096 (β·c[6])", c[26])
 	}
-	if c[32] != +4096 {
-		t.Fatalf("c[32] = %d, want +4096 (β·c[12])", c[32])
+	if c[32] != +4095 {
+		t.Fatalf("c[32] = %d, want +4095 (β·c[12])", c[32])
 	}
 	// Spot-check zeros where neither a pulse nor an enhancement
 	// contribution lands: n=21,22,24,25 (no pulse, c[n−20]=0).
@@ -123,7 +126,7 @@ func TestBuildCode_EnhancementT20(t *testing.T) {
 
 // TestBuildCode_BetaCeilingClamp verifies eq. 47 upper bound: β is
 // clamped to 0.8 (Q14 13107) when prevGpQ14 exceeds it. With β=0.8 and
-// c[0]=+8192, the n=20 update yields round(13107·8192·2·2 / 2^16) = 6554.
+// c[0]=+8191, the n=20 update yields ExtractH(13107·8191·2·2) = 6552.
 func TestBuildCode_BetaCeilingClamp(t *testing.T) {
 	positions := [4]int8{0, 1, 2, 3}
 	var signs [40]int16
@@ -135,14 +138,14 @@ func TestBuildCode_BetaCeilingClamp(t *testing.T) {
 	var c [40]int16
 	fcbsearch.BuildCode(&positions, &signs, 20, 16000, &c) // 16000 > 13107
 
-	if c[20] != 6554 {
-		t.Fatalf("c[20] = %d, want 6554 (β clamped to 0.8 ceiling)", c[20])
+	if c[20] != 6552 {
+		t.Fatalf("c[20] = %d, want 6552 (β clamped to 0.8 ceiling)", c[20])
 	}
 }
 
 // TestBuildCode_BetaFloorClamp verifies eq. 47 lower bound: β is
 // clamped to 0.2 (Q14 3277) when prevGpQ14 is below it. With β=0.2
-// and c[0]=+8192, n=20 → ExtractH((3277·8192·2·2) + 0x8000) = 1639.
+// and c[0]=+8191, n=20 → ExtractH(3277·8191·2·2) = 1638.
 func TestBuildCode_BetaFloorClamp(t *testing.T) {
 	positions := [4]int8{0, 1, 2, 3}
 	var signs [40]int16
@@ -154,8 +157,8 @@ func TestBuildCode_BetaFloorClamp(t *testing.T) {
 	var c [40]int16
 	fcbsearch.BuildCode(&positions, &signs, 20, 1000, &c) // 1000 < 3277
 
-	if c[20] != 1639 {
-		t.Fatalf("c[20] = %d, want 1639 (β clamped to 0.2 floor)", c[20])
+	if c[20] != 1638 {
+		t.Fatalf("c[20] = %d, want 1638 (β clamped to 0.2 floor)", c[20])
 	}
 }
 
@@ -181,7 +184,7 @@ func TestBuildCode_LagAtSubframeBoundary(t *testing.T) {
 	want := [40]int16{}
 	want[2] = +pAmp
 	want[7] = +pAmp
-	want[17] = -pAmp
+	want[17] = nAmp
 	want[27] = +pAmp
 	if cWith != want {
 		t.Fatalf("c mismatch\n got=%v\nwant=%v", cWith, want)
@@ -193,9 +196,9 @@ func TestBuildCode_LagAtSubframeBoundary(t *testing.T) {
 // pulse position q, the enhancement contribution at q reads the
 // post-updated c[q−T] (cascaded). With T=6 and pulses at {0,6,12,23}
 // signed {+,−,+,+}:
-//   - n=6:  c'(6)  = c(6) + β·c'(0)  = −8192 + 0.5·8192  = −4096
-//   - n=12: c'(12) = c(12)+ β·c'(6)  = +8192 + 0.5·(−4096) = +6144
-//   - n=18: c'(18) = 0     + β·c'(12) = 0    + 0.5·6144   = +3072
+//   - n=6:  c'(6)  = c(6) + β·c'(0)  = −8192 + 4095 = −4097
+//   - n=12: c'(12) = c(12)+ β·c'(6)  = +8191 − 2049 = +6142
+//   - n=18: c'(18) = 0     + β·c'(12) = +3071
 func TestBuildCode_OverlappingIIR(t *testing.T) {
 	positions := [4]int8{0, 6, 12, 23}
 	var signs [40]int16
@@ -207,14 +210,14 @@ func TestBuildCode_OverlappingIIR(t *testing.T) {
 	var c [40]int16
 	fcbsearch.BuildCode(&positions, &signs, 6, 8192, &c)
 
-	if c[6] != -4096 {
-		t.Fatalf("c[6] = %d, want -4096 (IIR step 1)", c[6])
+	if c[6] != -4097 {
+		t.Fatalf("c[6] = %d, want -4097 (IIR step 1)", c[6])
 	}
-	if c[12] != 6144 {
-		t.Fatalf("c[12] = %d, want 6144 (IIR step 2; cascaded from c[6])", c[12])
+	if c[12] != 6142 {
+		t.Fatalf("c[12] = %d, want 6142 (IIR step 2; cascaded from c[6])", c[12])
 	}
-	if c[18] != 3072 {
-		t.Fatalf("c[18] = %d, want 3072 (IIR step 3; cascaded from c[12])", c[18])
+	if c[18] != 3071 {
+		t.Fatalf("c[18] = %d, want 3071 (IIR step 3; cascaded from c[12])", c[18])
 	}
 }
 

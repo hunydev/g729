@@ -9,8 +9,11 @@ func TestIndicesZeroValue(t *testing.T) {
 	}
 }
 
-func TestPulseAmplitudeIsOneQ13(t *testing.T) {
-	if PulseAmplitude != 8192 {
-		t.Fatalf("PulseAmplitude = %d, want 8192 (= +1.0 Q13)", PulseAmplitude)
+func TestPulseAmplitudeEndpoints(t *testing.T) {
+	if PulseAmplitude != 8191 {
+		t.Fatalf("PulseAmplitude = %d, want 8191", PulseAmplitude)
+	}
+	if negativePulseAmplitude != -8192 {
+		t.Fatalf("negativePulseAmplitude = %d, want -8192", negativePulseAmplitude)
 	}
 }

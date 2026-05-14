@@ -37,7 +37,7 @@ func TestClampPitchGainForEnhancement(t *testing.T) {
 func TestApplyPitchEnhancement_IdentityAtBetaZero(t *testing.T) {
 	var c [40]int16
 	c[5] = PulseAmplitude
-	c[10] = -PulseAmplitude
+	c[10] = negativePulseAmplitude
 	original := c
 	ApplyPitchEnhancement(&c, 20, 0)
 	if c != original {
@@ -48,14 +48,14 @@ func TestApplyPitchEnhancement_IdentityAtBetaZero(t *testing.T) {
 func TestApplyPitchEnhancement_BelowLagUnchanged(t *testing.T) {
 	var c [40]int16
 	c[5] = PulseAmplitude
-	c[10] = -PulseAmplitude
+	c[10] = negativePulseAmplitude
 	ApplyPitchEnhancement(&c, 20, 8192)
 	for n := 0; n < 20; n++ {
 		want := int16(0)
 		if n == 5 {
 			want = PulseAmplitude
 		} else if n == 10 {
-			want = -PulseAmplitude
+			want = negativePulseAmplitude
 		}
 		if c[n] != want {
 			t.Errorf("c[%d] = %d, want %d (unchanged below lag)", n, c[n], want)

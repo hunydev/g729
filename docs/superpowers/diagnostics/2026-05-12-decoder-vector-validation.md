@@ -253,6 +253,101 @@ stateful: reducing earlier fixed contribution changes the subsequent
 past-excitation/adaptive vector trajectory, rather than merely subtracting a
 large direct fixed contribution in the listed frame.
 
+## External Reference-Execution Numeric Oracle
+
+Date: 2026-05-14
+
+A separate private verifier workspace may execute the ITU reference decoder and
+export only numeric CSV artifacts. The repository must not import reference C
+source, implementation names, branch descriptions, or magic-number provenance.
+The current external output directory is:
+
+```text
+/home/exedev/g729_untracked/verifier-output
+```
+
+Generated files:
+
+| File | Rows | Filled expected | Blanks | SHA256 |
+| --- | ---: | ---: | ---: | --- |
+| `decoder_final_pcm_expected.csv` | `740800` | `740800` | `0` | `70efc4c2b17722815f7aefeaa7f5aeaa473874077f01b7b57fe3a70d8e5af4d8` |
+| `decoder_final_pcm_pst_compare.csv` | `10` | `0` | `0` | `8f4eb6edf4697c2f2d15ba86e4dfe7ce0526abebee13babcb384aaa236e387ba` |
+| `decoder_tame_full_stage_expected.csv` | `122112` | `122112` | `0` | `2e7bb08284f6526d04d05fcf0813559c548b6d19eb170aa6233e3f4d2a9b6bfc` |
+
+The verifier reported that final PCM produced by the reference decoder matched
+the official Annex A `.PST` files exactly for all 10 sources:
+
+```text
+ALGTHM ERASURE FIXED LSP OVERFLOW PARITY PITCH SPEECH TAME TEST
+mismatches=0, max_abs_delta=0
+```
+
+This means the final-PCM oracle is equivalent to the official `.PST` files, but
+the stage oracle adds a stronger TAME localization surface for fields that are
+not present in `.PST`.
+
+Opt-in gates:
+
+```sh
+G729_COMPARE_DECODER_REFERENCE_FINAL_PCM=1 \
+go test ./internal/decoder -run TestOracleHandoff_CompareDecoderReferenceFinalPCM -count=1 -v
+```
+
+```sh
+G729_COMPARE_DECODER_REFERENCE_TAME_STAGE=1 \
+go test ./internal/decoder -run TestOracleHandoff_CompareDecoderReferenceTAMEFullStage -count=1 -v
+```
+
+Strict modes:
+
+```text
+G729_REQUIRE_EXACT_DECODER_REFERENCE_FINAL_PCM=1
+G729_REQUIRE_EXACT_DECODER_REFERENCE_TAME_STAGE=1
+```
+
+Path override:
+
+```text
+G729_DECODER_REFERENCE_ORACLE_DIR=/path/to/verifier-output
+```
+
+The large CSVs are intentionally not committed. They are verifier-produced
+numeric artifacts and should remain outside the MIT repository unless there is
+an explicit release decision to publish only the numeric vectors.
+
+Current non-strict compare against the external reference oracle:
+
+| Gate | Exact | Mismatches | First mismatch | Max abs | Interpretation |
+| --- | ---: | ---: | --- | ---: | --- |
+| Final PCM, all 10 vectors | `56597/740800` (`7.64%`) | `684203` | `0:0` | `65535` | Same failure surface as the official `.PST` vector gate. |
+| TAME full stage | `21261/122112` (`17.41%`) | `100851` | frame `0` sub `0` | `13929` | Stage oracle is now complete enough for direct localization. |
+
+TAME stage field summary:
+
+| Field | Exact | Mismatches | Max abs | Note |
+| --- | ---: | ---: | ---: | --- |
+| `pitch_t_int` | `256/256` | `0` | `0` | Pitch integer decode matches. |
+| `pitch_t_frac` | `256/256` | `0` | `0` | Pitch fraction decode matches. |
+| `adaptive_gain_q14` | `256/256` | `0` | `0` | Adaptive gain decode matches. |
+| `fixed_c_q13` | `9904/10240` | `336` | `45` | Improved by canonical `+8191/-8192` pulse endpoints, lower stream-start beta, and truncating pitch-sharpening arithmetic. |
+| `fixed_gain_q14` | `0/256` | `256` | `6433792` | Fixed gain reconstruction is the clearest scalar mismatch. |
+| `fixed_contrib_q0` | `9215/10240` | `1025` | `392` | Follows fixed codebook/gain differences. |
+| `adaptive_v_q0` | `131/10240` | `10109` | `519` | Drifts after prior excitation diverges. |
+| `excitation_u_q0` | `126/10240` | `10114` | `523` | Drifts with fixed contribution and past-excitation feedback. |
+| `synth_s_q0` | `52/10240` | `10188` | `7140` | Downstream synthesis result. |
+| `postfilter_s_q0` | `42/10240` | `10198` | `7176` | Downstream postfilter result. |
+| `pcm_q0` | `39/10240` | `10201` | `13929` | Final output for TAME. |
+
+Immediate decoder-exact target:
+
+- The verifier has removed the previous blank-oracle blocker.
+- Since pitch parameters and adaptive gain already match, and the first FCB
+  endpoint/sharpening defects are fixed, the next strict local target is
+  fixed-gain reconstruction at frame 0/subframe 0.
+- Once those first-frame fixed-path scalar/vector mismatches are resolved,
+  re-run the full TAME stage oracle to see whether later `past_exc` and ACB
+  drift collapses.
+
 Additional gain-reconstruction candidate probes:
 
 ```sh

@@ -42,8 +42,8 @@ import (
 //     spec-side reconstructions are recomputed inline.
 //   - measurement-only (E5): hard-asserts only spec-derivable existence
 //     invariants (track-residue invariant from Table 7 — pos[i] mod 5
-//     ∈ {i, i+1} only for i=3, exactly i otherwise; ±PulseAmplitude
-//     amplitude from eq. (45)). Cell verdicts are reported via t.Logf;
+//     ∈ {i, i+1} only for i=3, exactly i otherwise; canonical Q13 pulse
+//     endpoint amplitude from eq. (45)). Cell verdicts are reported via t.Logf;
 //     t.Errorf is reserved for cells that violate a verbatim-present
 //     invariant with NO documented spec ambiguity.
 //   - verdicts are EQ / NE / UNDETERMINED. UNDETERMINED is reserved for
@@ -91,8 +91,8 @@ import (
 //	     ∈ {i} for i=0,1,2 and ∈ {3,4} for i=3.
 //	   This is a HARD invariant — every production-decoded c[] vector
 //	   must satisfy: exactly four nonzero entries; pos[i] mod 5 == i
-//	   for i ∈ {0,1,2}; pos[3] mod 5 ∈ {3,4}; |c[pos[i]]| ==
-//	   PulseAmplitude (Q13 ±1.0).
+//	   for i ∈ {0,1,2}; pos[3] mod 5 ∈ {3,4}; c[pos[i]] is one of
+//	   the canonical Q13 endpoints (+8191 or -8192).
 //
 // (2) §3.8.2 "Codeword computation of the fixed codebook"
 //
@@ -386,7 +386,7 @@ func TestDiagnostic_Phase1mCe2PositionSignVerbatim(t *testing.T) {
 				if specSigns[i] > 0 {
 					specC[specPositions[i]] = PulseAmplitude
 				} else {
-					specC[specPositions[i]] = -PulseAmplitude
+					specC[specPositions[i]] = negativePulseAmplitude
 				}
 			}
 
@@ -428,14 +428,14 @@ func TestDiagnostic_Phase1mCe2PositionSignVerbatim(t *testing.T) {
 				"[0,1,2,3 or 4]",
 				cellTVerdict, cellTNotes})
 
-			// ---- HARD invariant: 4 nonzero entries with ±PulseAmplitude (eq. 45) ----
+			// ---- HARD invariant: 4 nonzero entries with canonical Q13 endpoints ----
 			nonZeroCount := 0
 			for n := 0; n < 40; n++ {
 				if prodC[n] != 0 {
 					nonZeroCount++
-					if prodC[n] != PulseAmplitude && prodC[n] != -PulseAmplitude {
-						t.Errorf("%s eq.(45) HARD: c[%d]=%d, want ±%d",
-							v.name, n, prodC[n], PulseAmplitude)
+					if prodC[n] != PulseAmplitude && prodC[n] != negativePulseAmplitude {
+						t.Errorf("%s eq.(45) HARD: c[%d]=%d, want +%d or %d",
+							v.name, n, prodC[n], PulseAmplitude, negativePulseAmplitude)
 					}
 				}
 			}

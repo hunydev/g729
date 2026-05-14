@@ -30,8 +30,8 @@ func TestPlacePulses_AllNegative(t *testing.T) {
 	positions := [4]int{5, 6, 7, 8}
 	placePulses(positions, 0x00, &c)
 	for _, p := range positions {
-		if c[p] != -PulseAmplitude {
-			t.Errorf("c[%d] = %d, want -%d", p, c[p], PulseAmplitude)
+		if c[p] != negativePulseAmplitude {
+			t.Errorf("c[%d] = %d, want %d", p, c[p], negativePulseAmplitude)
 		}
 	}
 }
@@ -42,9 +42,9 @@ func TestPlacePulses_MixedSignsLSBFirst(t *testing.T) {
 	placePulses(positions, 0b1010, &c)
 
 	want := map[int]int16{
-		10: -PulseAmplitude,
+		10: negativePulseAmplitude,
 		15: +PulseAmplitude,
-		20: -PulseAmplitude,
+		20: negativePulseAmplitude,
 		25: +PulseAmplitude,
 	}
 	for p, w := range want {

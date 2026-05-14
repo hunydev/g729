@@ -10,8 +10,8 @@
 //	    Bit-field indices delivered by the bitstream unpacker
 //	    (C1/S1 or C2/S2 from bitstream.Frame).
 //
-//	PulseAmplitude = 8192
-//	    Unit pulse magnitude in Q13 (= +1.0).
+//	PulseAmplitude = 8191
+//	    Positive unit pulse endpoint in Q13. Negative pulses use -8192.
 //
 //	ClampPitchGainForEnhancement(gpPrevQ14 int16) int16
 //	    Per §4.1.5. Clamps the previous subframe's decoded pitch
@@ -28,9 +28,9 @@
 //	Signs:     4-bit uint8, packed per §3.8.2 eq. (61):
 //	           S = s0 + 2*s1 + 4*s2 + 8*s3.
 //	           Bit 1 = +1, bit 0 = -1.
-//	c:         Q13 int16 on output. |c[n]| ≤ PulseAmplitude before
-//	           enhancement; after enhancement |c[n]| can grow
-//	           modestly (bounded by int16 saturation).
+//	c:         Q13 int16 on output. Before enhancement, positive pulses
+//	           are +8191 and negative pulses are -8192; after enhancement
+//	           |c[n]| can grow modestly (bounded by int16 saturation).
 //	t:         integer pitch lag of the current subframe
 //	           (from internal/pitch). t < 1 or t ≥ 40 is a no-op
 //	           enhancement.

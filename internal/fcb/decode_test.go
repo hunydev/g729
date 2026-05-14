@@ -23,8 +23,8 @@ func TestDecode_MixedSignsNoEnhancement(t *testing.T) {
 
 	want := map[int]int16{
 		20: +PulseAmplitude,
-		36: -PulseAmplitude,
-		22: -PulseAmplitude,
+		36: negativePulseAmplitude,
+		22: negativePulseAmplitude,
 		8:  +PulseAmplitude,
 	}
 	for p, w := range want {

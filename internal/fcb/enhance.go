@@ -10,7 +10,7 @@ const (
 
 	// InitialPitchEnhancementQ14 is the stream-start pitch sharpening
 	// coefficient used before any previous decoded pitch gain exists.
-	InitialPitchEnhancementQ14 = betaUpperQ14
+	InitialPitchEnhancementQ14 = betaLowerQ14
 )
 
 // ClampPitchGainForEnhancement returns the pitch enhancement filter
@@ -36,7 +36,7 @@ func ClampPitchGainForEnhancement(gpPrevQ14 int16) int16 {
 //
 // prod32 = LMult(βQ14, c[n-t])     →  Q28 (LMult doubles)
 // prod32 = LShl(prod32, 1)          →  Q29
-// delta  = Round(prod32)            →  Q13 (saturating)
+// delta  = ExtractH(prod32)         →  Q13
 // c[n]   = Add(c[n], delta)         →  Q13 (saturating)
 //
 // In-place update means c[n-t] for n in [t..39] is the post-filtered
@@ -52,7 +52,7 @@ func ApplyPitchEnhancement(c *[40]int16, t int, betaQ14 int16) {
 	for n := t; n < 40; n++ {
 		prod := fixed.LMult(bQ14, fixed.Word16(c[n-t]))
 		prod = fixed.LShl(prod, 1)
-		delta := fixed.Round(prod)
+		delta := fixed.ExtractH(prod)
 		c[n] = int16(fixed.Add(fixed.Word16(c[n]), delta))
 	}
 }

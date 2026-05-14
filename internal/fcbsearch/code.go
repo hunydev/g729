@@ -13,8 +13,8 @@ import "github.com/hunydev/g729/internal/fcb"
 // per-position signs are read from signs[positions[i]] in the §3.8.1
 // sign-decomposition convention (signs ∈ {−1,+1}, indexed by absolute
 // position) — i.e. the same shape produced by SignsFromD (CB-3) and
-// consumed by SearchDepthFirst (CB-2). Positive sign places +1.0 in
-// Q13 (= fcb.PulseAmplitude); non-positive places −1.0 in Q13.
+// consumed by SearchDepthFirst (CB-2). Positive sign places the positive
+// Q13 endpoint; non-positive places the negative Q13 endpoint.
 //
 // intLag is the integer pitch lag T of the current subframe (eq. 46);
 // the harmonic enhancement is bypassed when T ≥ 40 per eq. 48 / §3.8
@@ -44,7 +44,7 @@ func BuildSparseCode(positions *[4]int8, signs *[SubframeLen]int16, c *[Subframe
 		if signs[p] > 0 {
 			c[p] = fcb.PulseAmplitude
 		} else {
-			c[p] = -fcb.PulseAmplitude
+			c[p] = fcb.NegativePulseAmplitude
 		}
 	}
 }

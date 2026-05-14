@@ -1,7 +1,7 @@
 package fcb
 
-// placePulses zeros c[] then writes ±PulseAmplitude at each of the
-// four pulse positions, where the sign of pulse i is taken from bit i
+// placePulses zeros c[] then writes the canonical positive/negative Q13
+// endpoints at each pulse position, where the sign of pulse i is taken from bit i
 // of the signs field per ITU-T G.729 §3.8.2 eq. (61):
 //
 //	S = s0 + 2*s1 + 4*s2 + 8*s3
@@ -20,7 +20,7 @@ func placePulses(positions [4]int, signs uint8, c *[40]int16) {
 		if (signs>>uint(i))&1 == 1 {
 			c[positions[i]] = PulseAmplitude
 		} else {
-			c[positions[i]] = -PulseAmplitude
+			c[positions[i]] = negativePulseAmplitude
 		}
 	}
 }
