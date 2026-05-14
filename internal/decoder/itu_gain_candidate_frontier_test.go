@@ -659,8 +659,14 @@ func decoderUpstreamWindowVariant(t *testing.T) phase3eVariant {
 		return phase3eVariant{name: "no_fcb_pitch_enhancement", noFCBEnhancement: true}
 	case "gain_unenhanced_c":
 		return phase3eVariant{name: "gain_unenhanced_c", gainUnenhancedC: true}
+	case "pitch_gain_cap_0p95":
+		return phase3eVariant{name: "pitch_gain_cap_0p95", pitchCapQ14: 15565}
+	case "pitch_gain_cap_0p90":
+		return phase3eVariant{name: "pitch_gain_cap_0p90", pitchCapQ14: 14746}
+	case "pitch_gain_half":
+		return phase3eVariant{name: "pitch_gain_half", pitchScaleNum: 1, pitchScaleDen: 2}
 	default:
-		t.Fatalf("unknown G729_DECODER_UPSTREAM_WINDOW_CANDIDATE; supported: fixed_gain_half, fixed_gain_double, force_pitch_frac_zero, flip_pitch_frac_sign, no_fcb_pitch_enhancement, gain_unenhanced_c")
+		t.Fatalf("unknown G729_DECODER_UPSTREAM_WINDOW_CANDIDATE; supported: fixed_gain_half, fixed_gain_double, force_pitch_frac_zero, flip_pitch_frac_sign, no_fcb_pitch_enhancement, gain_unenhanced_c, pitch_gain_cap_0p95, pitch_gain_cap_0p90, pitch_gain_half")
 	}
 	return phase3eVariant{}
 }

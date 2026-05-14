@@ -2,6 +2,7 @@ package decoder
 
 import (
 	"os"
+	"sort"
 	"strconv"
 	"testing"
 
@@ -55,6 +56,92 @@ func TestDecoderTAMEPastExcVariantProbe(t *testing.T) {
 		candStats.scale()-prodStats.scale())
 }
 
+func TestDecoderTAMEPastExcVariantWindowScan(t *testing.T) {
+	if os.Getenv("G729_DECODER_TAME_PAST_EXC_VARIANT_WINDOW_SCAN") != "1" {
+		t.Skip("set G729_DECODER_TAME_PAST_EXC_VARIANT_WINDOW_SCAN=1 to run TAME past-excitation variant window scan")
+	}
+
+	expectedPath := os.Getenv("G729_DECODER_TAME_PAST_EXC_VARIANT_EXPECTED")
+	if expectedPath == "" {
+		expectedPath = decoderTAMEStageWideOnsetExpectedTemplatePath
+	}
+	expected, err := readDecoderTAMEPastExcAgeRows(expectedPath)
+	if err != nil {
+		t.Fatalf("read decoder TAME past-excitation expected: %v", err)
+	}
+	expected = decoderTAMEFilledPastExcRows(expected)
+	if len(expected) == 0 {
+		t.Fatalf("no filled past_exc_pre_acb_q0 rows in %s", expectedPath)
+	}
+
+	scanStart := decoderTAMEVariantProbeEnvInt("G729_DECODER_TAME_PAST_EXC_SCAN_START", 112)
+	scanEnd := decoderTAMEVariantProbeEnvInt("G729_DECODER_TAME_PAST_EXC_SCAN_END", 144)
+	if scanStart < 0 || scanEnd <= scanStart {
+		t.Fatalf("invalid TAME past-excitation scan window [%d,%d)", scanStart, scanEnd)
+	}
+
+	candidate := decoderTAMEPastExcProbeVariant(t)
+	productionGot, err := collectDecoderTAMEACBCheckpointRows(t, expected)
+	if err != nil {
+		t.Fatalf("collect production TAME past-excitation rows: %v", err)
+	}
+	prodStats := decoderTAMEPastExcCompareStats(expected, productionGot)
+
+	rows := make([]decoderTAMEPastExcVariantWindowRow, 0, (scanEnd-scanStart)*(scanEnd-scanStart+1)/2)
+	for start := scanStart; start < scanEnd; start++ {
+		for end := start + 1; end <= scanEnd; end++ {
+			got, err := collectDecoderTAMEPastExcRowsWithSubframeWindow(t, expected, start, end, candidate)
+			if err != nil {
+				t.Fatalf("collect candidate TAME past-excitation rows [%d,%d): %v", start, end, err)
+			}
+			stats := decoderTAMEPastExcCompareStats(expected, got)
+			rows = append(rows, decoderTAMEPastExcVariantWindowRow{
+				start: start,
+				end:   end,
+				stats: stats,
+			})
+		}
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].stats.sumErrSq != rows[j].stats.sumErrSq {
+			return rows[i].stats.sumErrSq < rows[j].stats.sumErrSq
+		}
+		if rows[i].start != rows[j].start {
+			return rows[i].start < rows[j].start
+		}
+		return rows[i].end < rows[j].end
+	})
+
+	topN := decoderITUFrontierTopN()
+	if topN > len(rows) {
+		topN = len(rows)
+	}
+	t.Logf("decoder TAME pastExc variant window scan: path=%s filled=%d candidate=%s scan=[%d,%d)",
+		expectedPath, len(expected), candidate.name, scanStart, scanEnd)
+	decoderTAMELogPastExcProbeStats(t, "production", prodStats)
+	t.Logf("%-8s %-8s %-8s %8s %8s %8s %8s %8s %8s",
+		"start", "end", "len", "exact", "errRMS", "meanAbs", "maxAbs", "corr", "scale")
+	for _, row := range rows[:topN] {
+		t.Logf("%-8d %-8d %-8d %8d %8.2f %8.2f %8d %8.4f %8.4f",
+			row.start,
+			row.end,
+			row.end-row.start,
+			row.stats.exact,
+			row.stats.errRMS(),
+			row.stats.meanAbs(),
+			row.stats.maxAbsDiff,
+			row.stats.corr(),
+			row.stats.scale())
+	}
+}
+
+type decoderTAMEPastExcVariantWindowRow struct {
+	start int
+	end   int
+	stats decoderPastExcAgeGroup
+}
+
 func decoderTAMEVariantProbeEnvInt(name string, def int) int {
 	value := os.Getenv(name)
 	if value == "" {
@@ -82,6 +169,12 @@ func decoderTAMEPastExcProbeVariant(t testing.TB) phase3eVariant {
 		return phase3eVariant{name: "force_pitch_frac_zero", forceTFracZero: true}
 	case "flip_pitch_frac_sign":
 		return phase3eVariant{name: "flip_pitch_frac_sign", flipTFracSign: true}
+	case "pitch_gain_cap_0p95":
+		return phase3eVariant{name: "pitch_gain_cap_0p95", pitchCapQ14: 15565}
+	case "pitch_gain_cap_0p90":
+		return phase3eVariant{name: "pitch_gain_cap_0p90", pitchCapQ14: 14746}
+	case "pitch_gain_half":
+		return phase3eVariant{name: "pitch_gain_half", pitchScaleNum: 1, pitchScaleDen: 2}
 	default:
 		t.Fatalf("unknown G729_DECODER_TAME_PAST_EXC_VARIANT")
 	}
