@@ -775,6 +775,52 @@ Interpretation:
   pitch/ACB feedback and the `pastExc` FIFO update over frames `26..53`, not on
   widening `fixedCodebookEnergy`.
 
+TAME ACB/FIFO feedback audit:
+
+```sh
+G729_DECODER_PITCH_ACB_AUDIT=1 \
+G729_DECODER_PITCH_ACB_VECTOR=TAME \
+go test ./internal/decoder -run TestPhase3hPitchACBVariantAudit_SPEECH -count=1 -v
+
+G729_DECODER_TAME_FIFO_BALANCE=1 \
+G729_DECODER_ITU_VECTOR_FRONTIER_TOP=8 \
+go test ./internal/decoder -run TestDecoderTAMEPastExcFIFOBalanceAudit -count=1 -v
+```
+
+Current ACB variant result:
+
+- TAME pitch subframes: `256` total; `255` have `T_frac=0`; `152` have
+  `T_int<40`.
+- Production gSNR is `6.50 dB`.
+- Best simple ACB variant is only `acb_frac_sign_flip` at `6.76 dB`, and this
+  is not material.
+- Removing short-pitch periodic/current-subframe feedback
+  (`acb_short_no_periodic`) collapses agreement to `0.39 dB`.
+
+Current FIFO balance result:
+
+| Window | Subframes | Grow rows | Sum dPost | Avg dPost | First preRMS | Last postRMS |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `cold-start` | `8` | `7` | `301.05` | `37.63` | `0.0` | `301.1` |
+| `pre-onset` (`26..53`) | `54` | `26` | `45.60` | `0.84` | `221.6` | `267.2` |
+| `first-1.25x` (`53..72`) | `38` | `23` | `60.60` | `1.59` | `267.2` | `327.7` |
+| `severe-rise` (`72..117`) | `90` | `51` | `72.07` | `0.80` | `327.7` | `399.8` |
+| `checkpoint` (`117..127`) | `22` | `12` | `17.69` | `0.80` | `399.8` | `417.5` |
+
+Interpretation:
+
+- The FIFO copy/update operation is not behaving like a discrete bug. Each
+  growth step is explained by incoming `U` RMS being larger than the 40 samples
+  shifted out.
+- The short-pitch feedback path is required; disabling it globally makes TAME
+  much worse. This aligns with the separate oracle replay result where local
+  ACB interpolation is exact when supplied with oracle `pastExc`.
+- The local failure is therefore a long recurrent energy-balance problem:
+  `pastExc` is already high after cold start, then continues to drift upward
+  through `26..117`. A production fix still needs a spec-backed reason why the
+  local incoming `U` trajectory differs from the reference, not an arbitrary
+  FIFO or ACB damping rule.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
