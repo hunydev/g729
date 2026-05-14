@@ -543,6 +543,38 @@ inclusive (`[52,239)` in global subframe numbering). Excluding frame `119`
 subframe `1` slightly improves the frame-window best. This keeps the target on
 subframe-wise gain/excitation history rather than a frame-output artifact.
 
+History timeline:
+
+```sh
+G729_DECODER_TAME_HISTORY_TIMELINE=1 \
+G729_DECODER_UPSTREAM_WINDOW_CANDIDATE=fixed_gain_half \
+G729_DECODER_ITU_VECTOR_FRONTIER_TOP=8 \
+go test ./internal/decoder -run TestDecoderTAMEHistoryTimeline -count=1 -v
+```
+
+Current summary:
+
+- Window: `[52,239)` global subframes (`26/0` through `119/0`).
+- Output RMS: production `5081.86`, candidate `1185.18`.
+- At window start, direct fixed contribution is exactly halved, but total
+  excitation barely changes: frame `26/0` has `fixed c/p=0.500`, `u c/p=0.990`,
+  and `s c/p=0.997`.
+- By late TAME frames, the accumulated FIFO/ACB effect dominates: frame `118/1`
+  has `past c/p=0.762`, `v c/p=0.753`, `u c/p=0.745`, and `s c/p=0.606`.
+- After the window is disabled, direct fixed contribution returns to `1.000x`,
+  but the reduced past-excitation/adaptive vector persists into frames
+  `120..127`, keeping `v/u` around `0.77..0.82x` and `s` around `0.60..0.62x`.
+
+Interpretation:
+
+- The late TAME improvement is not caused by halving the direct fixed
+  contribution in those late frames; it persists after the candidate is off.
+- The candidate works by slowly reducing the excitation FIFO and therefore the
+  adaptive-codebook vector seen by later subframes.
+- This keeps the next debug target on gain/fixed contribution accumulation into
+  `pastExc`, especially why the spec-shaped production gain trajectory lets
+  TAME's FIFO climb about `25%` higher than the damping probe.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
