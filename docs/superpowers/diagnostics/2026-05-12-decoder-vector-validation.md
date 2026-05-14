@@ -708,6 +708,43 @@ Interpretation:
   fixed-codebook scaling. It is the earlier mechanism that made `pastExc`
   approximately `2x` too large before `117/0`.
 
+TAME history onset audit:
+
+```sh
+G729_DECODER_TAME_HISTORY_ONSET=1 \
+G729_DECODER_ITU_VECTOR_FRONTIER_TOP=12 \
+go test ./internal/decoder -run TestDecoderTAMEHistoryOnsetAudit -count=1 -v
+```
+
+Current result:
+
+- First sample with frame max abs delta `>=4096`: frame `2`.
+- First active frame with local output RMS / PST RMS `>=1.25`: frame `53`.
+- First active frame with local output RMS / PST RMS `>=1.50`: frame `72`.
+- First 4-frame persistent local output RMS / PST RMS `>=1.50`: frame `76`.
+- At the fixed-gain diagnostic window start (`26/0`), output ratio is still
+  near unity (`frame 26 out/PST=1.003`) and direct fixed contribution is small
+  relative to pitch/excitation.
+- By frame `53`, the ratio has grown to `1.279`, with `pastRMS≈267`,
+  `vRMS≈263`, and `uRMS≈255`.
+- By frame `72`, the ratio has grown to `1.514`, with `pastRMS≈331`,
+  `vRMS≈331`, and `uRMS≈331`.
+- In the verifier checkpoint zone (`117..127`), the ratio is already
+  `1.787..1.921`, and local pre-ACB history / ACB / excitation RMS are all in
+  the `~385..430` range.
+
+Interpretation:
+
+- Frame `117` is not the onset. It is where the verifier has enough numeric
+  checkpoint rows to observe the already-accumulated failure.
+- The local amplitude drift starts as a slow history accumulation after the
+  frame-`26` diagnostic window boundary, becomes material around frame `53`,
+  and becomes severe/persistent around frames `72..76`.
+- This further argues against fixing late TAME by changing ACB interpolation,
+  current-subframe gain summing, postfilter, HP, or final scaling. The next
+  useful production audit should target the state transition that begins the
+  `pastExc` growth between frames `26` and `53`.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
