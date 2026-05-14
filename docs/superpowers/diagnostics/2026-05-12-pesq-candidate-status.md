@@ -273,3 +273,33 @@ go test ./... -count=1
 (cd third-party/g729-compare-web && go test . -count=1)
 curl -fsS http://127.0.0.1:8000/healthz
 ```
+
+## Addendum: Current 8000 Web-App Baseline
+
+The 8000 comparison app now keeps the default Full compare table focused on the
+release-relevant paths:
+
+- `core_local`
+- `core_ffmpeg`
+- `external_local`
+- `external_ffmpeg`
+
+The older `Current default (Core)` aliases, Core-clip path, PESQ candidate
+paths, and clean/harmonic listening probes remain backend-selectable via the
+`want=` API for diagnostics, but they are no longer shown in the default Full
+compare table or the Blind 1:1 dropdown. This keeps routine listening checks
+focused on Core vs the `bcg729` black-box anchor.
+
+PESQ NB remains optional. The app resolves the scorer in this order:
+
+1. `G729_PESQ_PYTHON`
+2. `/tmp/g729-pesq-venv/bin/python`
+3. `python3` from `PATH`
+
+If none of those Python executables has both `numpy` and `pesq`, the UI leaves
+PESQ as `n/a` and prints a metric note. In the exe.dev VM, the active scorer is
+expected to be:
+
+```sh
+/tmp/g729-pesq-venv/bin/python
+```

@@ -856,14 +856,10 @@ func parseWantedAudio(spec string) map[string]bool {
 
 func essentialCompareAudio() map[string]bool {
 	return map[string]bool{
-		"our_local":        true,
-		"our_ffmpeg":       true,
-		"core_local":       true,
-		"core_ffmpeg":      true,
-		"core_clip_local":  true,
-		"core_clip_ffmpeg": true,
-		"external_local":   true,
-		"external_ffmpeg":  true,
+		"core_local":      true,
+		"core_ffmpeg":     true,
+		"external_local":  true,
+		"external_ffmpeg": true,
 	}
 }
 
@@ -1442,16 +1438,12 @@ func addPESQScores(tmp string, pairs []pesqPair) string {
 	if os.Getenv("G729_PESQ_DISABLE") == "1" {
 		return "PESQ NB is disabled by G729_PESQ_DISABLE=1."
 	}
-	python := os.Getenv("G729_PESQ_PYTHON")
+	python, source := detectPESQPython()
 	if python == "" {
-		var err error
-		python, err = exec.LookPath("python3")
-		if err != nil {
-			return "PESQ NB is n/a because python3 is not available."
-		}
+		return "PESQ NB is n/a because no Python scorer is available. Set G729_PESQ_PYTHON to a venv python with numpy and pesq."
 	}
 	if out, err := exec.Command(python, "-c", "import numpy, pesq").CombinedOutput(); err != nil {
-		return "PESQ NB is n/a because Python modules numpy/pesq are unavailable. Install them in a venv and set G729_PESQ_PYTHON to that python. " + compactNote(out)
+		return fmt.Sprintf("PESQ NB is n/a because Python modules numpy/pesq are unavailable in %s (%s). Install them in a venv and set G729_PESQ_PYTHON to that python. %s", python, source, compactNote(out))
 	}
 
 	args := []string{"-c", pesqBatchPython}
@@ -1484,6 +1476,21 @@ func addPESQScores(tmp string, pairs []pesqPair) string {
 		pairs[i].Row.PESQ = &scoreCopy
 	}
 	return "PESQ NB is an optional legacy P.862-style narrowband diagnostic computed against the converted source PCM; candidate-vs-bcg delta rows remain n/a. P.863/POLQA is the successor family."
+}
+
+func detectPESQPython() (python, source string) {
+	if python := strings.TrimSpace(os.Getenv("G729_PESQ_PYTHON")); python != "" {
+		return python, "G729_PESQ_PYTHON"
+	}
+	for _, candidate := range []string{"/tmp/g729-pesq-venv/bin/python"} {
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+			return candidate, "default venv"
+		}
+	}
+	if python, err := exec.LookPath("python3"); err == nil {
+		return python, "PATH"
+	}
+	return "", ""
 }
 
 const pesqBatchPython = `
@@ -1844,13 +1851,7 @@ const pageHTML = `<!doctype html>
           <label>Battle pair<select id="battlePair">
             <option value="core_local|external_ffmpeg">Core local decode vs bcg729 FFmpeg</option>
             <option value="core_local|external_local">Core local decode vs bcg729 local decode</option>
-            <option value="core_local|core_clip_local">Core local decode vs core-clip local decode</option>
             <option value="core_local|core_ffmpeg">Core local decode vs Core FFmpeg decode</option>
-            <option value="core_clip_local|external_ffmpeg">Core-clip local decode vs bcg729 FFmpeg</option>
-            <option value="our_local|external_ffmpeg">Current default (Core) local decode vs bcg729 FFmpeg</option>
-            <option value="our_ffmpeg|external_ffmpeg">Current default (Core) FFmpeg decode vs bcg729 FFmpeg</option>
-            <option value="our_local|our_ffmpeg">Current default (Core) local decode vs FFmpeg decode</option>
-            <option value="core_ffmpeg|core_clip_ffmpeg">Core profile vs core-clip profile</option>
             <option value="core_ffmpeg|external_ffmpeg">Core profile vs bcg729</option>
           </select></label>
           <button id="battleStart">Start blind test</button>
