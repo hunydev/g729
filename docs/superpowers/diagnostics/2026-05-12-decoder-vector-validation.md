@@ -681,6 +681,33 @@ Interpretation:
   TAME root cause. The remaining target is the upstream generation of
   excitation history before `117/0`.
 
+Excitation replay from oracle ACB:
+
+```sh
+G729_DECODER_TAME_EXCITATION_ORACLE_REPLAY=1 \
+go test ./internal/decoder -run TestDecoderTAMEExcitationOracleReplay -count=1 -v
+```
+
+Current aggregate:
+
+| Path | ref RMS | got RMS | err RMS | scaled err | corr | scale | max abs |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| local `u` vs oracle `u` | `205.62` | `386.08` | `232.78` | `103.58` | `0.8639` | `0.4601` | `447` |
+| oracle `v` replay through local gain/fixed | `205.62` | `205.67` | `0.33` | `0.32` | `1.0000` | `0.9997` | `2` |
+| implied fixed contribution vs local fixed | `58.54` | `58.81` | `0.34` | `0.21` | `1.0000` | `0.9954` | `2` |
+
+Interpretation:
+
+- Once `adaptive_v_q0` is replaced by the oracle, local gain decode, fixed
+  codebook contribution, and `BuildExcitation` reproduce oracle
+  `excitation_u_q0` within rounding noise.
+- This rules out the current subframe's gain/fixed/excitation summing path as
+  the material TAME mismatch. The remaining failure is inherited from the
+  earlier `pastExc` history that feeds ACB.
+- The next production-relevant target is therefore not `BuildExcitation` or
+  fixed-codebook scaling. It is the earlier mechanism that made `pastExc`
+  approximately `2x` too large before `117/0`.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
