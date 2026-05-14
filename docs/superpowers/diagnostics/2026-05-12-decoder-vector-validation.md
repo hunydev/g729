@@ -575,6 +575,34 @@ Interpretation:
   `pastExc`, especially why the spec-shaped production gain trajectory lets
   TAME's FIFO climb about `25%` higher than the damping probe.
 
+ACB oracle shape audit:
+
+```sh
+G729_DECODER_TAME_ACB_ORACLE_SHAPE=1 \
+G729_DECODER_UPSTREAM_WINDOW_CANDIDATE=fixed_gain_half \
+go test ./internal/decoder -run TestDecoderTAMEACBOracleShape -count=1 -v
+```
+
+Aggregate result against the numeric `adaptive_v_q0` rows in
+`decoder_tame_stage_wide_expected.csv`:
+
+| Variant | ref RMS | got RMS | err RMS | scaled err | corr | scale |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| production | `203.36` | `383.97` | `231.30` | `101.59` | `0.8663` | `0.4588` |
+| `[52,239)` fixed-gain-half | `203.36` | `291.74` | `184.49` | `127.52` | `0.7790` | `0.5430` |
+
+Interpretation:
+
+- Production's ACB vector shape is closer to the oracle than the damping
+  candidate (`corr 0.8663` vs `0.7790`), but its amplitude is almost `1.9x`
+  high (`got RMS 383.97` vs `ref RMS 203.36`).
+- The damping candidate improves raw ACB error by reducing amplitude, but it
+  worsens shape after scale normalization (`scaled err 127.52` vs `101.59`).
+- This argues against changing the ACB interpolation formula as the next
+  production fix. The sharper target is an earlier excitation-history amplitude
+  accumulation issue, preferably a shape-preserving one rather than a broad
+  fixed-gain damping rule.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:

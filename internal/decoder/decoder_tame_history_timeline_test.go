@@ -139,6 +139,7 @@ type decoderHistorySubframeMetrics struct {
 	pastEnergy     int64
 	pastRMS        float64
 	pastTailRMS    float64
+	v              [subframeLen]int16
 	vRMS           float64
 	pitchRMS       float64
 	fixedRMS       float64
@@ -260,6 +261,7 @@ func (d *Decoder) decodeSubframeHistory(
 
 	var v [subframeLen]int16
 	decodeAdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v)
+	metric.v = v
 	metric.vRMS = envelopeRMS(v[:])
 
 	var c [subframeLen]int16
