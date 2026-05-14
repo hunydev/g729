@@ -137,6 +137,58 @@ Update after the synthesis overflow recovery fix:
 - The decoder is still not ITU-vector exact; this is a blocker reduction, not
   conformance completion.
 
+## PST Output Failure Frontier
+
+When stage-level verifier rows cannot be independently completed, the next
+clean-room fallback is to localize against only final ITU output:
+
+```text
+ITU .BIT -> local decoder -> PCM
+ITU .PST reference PCM
+```
+
+The opt-in frontier harness is:
+
+```sh
+G729_DECODER_ITU_VECTOR_FRONTIER=1 \
+go test ./internal/decoder -run TestDecoderITUVectorFailureFrontier -count=1 -v
+```
+
+Optional controls:
+
+- `G729_DECODER_ITU_VECTOR_SCOPE`, default `annexa-good`.
+- `G729_DECODER_ITU_VECTOR_FRONTIER_TOP`, default `3`, capped at `20`.
+
+The report keeps the first tiny mismatch visible, but also reports the first
+sample crossing material absolute-delta thresholds and the worst frames by
+frame RMS. This prevents the debug loop from over-focusing on frame-0
+rounding/HP-domain differences when larger state drift appears later.
+
+Current frontier summary:
+
+| Vector | First diff | First >=1024 | First >=4096 | Worst RMS frame | Worst max frame |
+| --- | --- | --- | --- | --- | --- |
+| `ALGTHM` | `0:2 d=1` | `12:1 d=2248` | `12:40 d=4622` | `15:6684.31` | `14:13862` |
+| `SPEECH` | `0:0 d=2` | `43:23 d=1164` | `2732:48 d=5801` | `1841:1364.48` | `1841:3886` |
+| `FIXED` | `0:1 d=2` | `-` | `-` | `118:113.05` | `97:491` |
+| `LSP` | `0:20 d=2` | `564:41 d=1121` | `-` | `1705:596.88` | `564:1202` |
+| `PITCH` | `0:2 d=1` | `2:41 d=1785` | `21:50 d=4481` | `282:2707.98` | `282:8594` |
+| `TAME` | `0:1 d=2` | `1:42 d=1068` | `2:34 d=4273` | `123:10069.57` | `126:14039` |
+| `TEST` | `0:20 d=2` | `78:60 d=1230` | `-` | `79:611.53` | `79:2223` |
+| `OVERFLOW` | `0:1 d=2` | `2:10 d=1105` | `19:6 d=6716` | `236:38434.16` | `237:62595` |
+
+Interpretation:
+
+- `FIXED`, `LSP`, and `TEST` remain useful because their worst-frame deltas are
+  bounded compared with the severe vectors.
+- `TAME`, `OVERFLOW`, and `PITCH` are the strongest local debug targets because
+  large deltas appear early and dominate RMS/max-error surfaces.
+- `SPEECH` still matters as the ordinary-path credibility gate, but its first
+  `>=1024` delta appears much later than the synthetic stress vectors.
+- This frontier test is not an oracle replacement. It is a clean-room triage
+  tool for choosing the next decoder fix when independent stage oracles are
+  unavailable.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
