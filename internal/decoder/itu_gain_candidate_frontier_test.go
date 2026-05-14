@@ -166,6 +166,120 @@ func TestDecoderITUGainCandidateCutover(t *testing.T) {
 	}
 }
 
+// TestDecoderITUGainCandidateWindow scans finite frame windows where the
+// selected candidate is applied only for [start,end). Decoder state is not
+// reset at window boundaries, so any lasting excitation/synthesis effects are
+// preserved after the candidate switches back to the production formula.
+func TestDecoderITUGainCandidateWindow(t *testing.T) {
+	if os.Getenv("G729_DECODER_GAIN_CANDIDATE_WINDOW") != "1" {
+		t.Skip("set G729_DECODER_GAIN_CANDIDATE_WINDOW=1 to run gain candidate window scan")
+	}
+
+	tc := phase3eSelectedITUVector(t, "G729_DECODER_GAIN_CANDIDATE_VECTOR", "TAME")
+	candidate := decoderGainCandidateFrontierVariant(t)
+
+	bitPath := vectorPath(tc.bitFile)
+	pstPath := vectorPath(tc.pstFile)
+	ensureTestdataPresent(t, bitPath, pstPath)
+
+	bitData, err := os.ReadFile(bitPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", tc.bitFile, err)
+	}
+	frames, bads := readG192Frames(t, bitPath)
+	want := readPSTFrames(t, pstPath)
+	if len(frames) != len(want) {
+		t.Fatalf("%s: frame count mismatch bit=%d pst=%d", tc.name, len(frames), len(want))
+	}
+	if len(bads) != len(frames) {
+		t.Fatalf("%s: bad flag count mismatch bads=%d frames=%d", tc.name, len(bads), len(frames))
+	}
+	if len(frames) > 256 {
+		t.Fatalf("%s has %d frames; window scan is intentionally bounded to <=256 frames", tc.name, len(frames))
+	}
+
+	prodOut := phase3eDecodeVariant(t, bitData, len(frames), phase3eVariant{name: "production"})
+	prodSumSq := decoderGainCandidateOutputSumSq(prodOut, want)
+
+	rows := make([]decoderGainCandidateWindowRow, 0, len(frames)*(len(frames)+1)/2)
+	for start := 0; start < len(frames); start++ {
+		for end := start + 1; end <= len(frames); end++ {
+			out := phase3jDecodeVariantWindow(t, bitData, len(frames), start, end, candidate)
+			sumSq := decoderGainCandidateOutputSumSq(out, want)
+			rows = append(rows, decoderGainCandidateWindowRow{
+				start:       start,
+				end:         end,
+				sumSq:       sumSq,
+				improvement: prodSumSq - sumSq,
+			})
+		}
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].sumSq != rows[j].sumSq {
+			return rows[i].sumSq < rows[j].sumSq
+		}
+		if rows[i].start != rows[j].start {
+			return rows[i].start < rows[j].start
+		}
+		return rows[i].end < rows[j].end
+	})
+
+	topN := decoderITUFrontierTopN()
+	if topN > len(rows) {
+		topN = len(rows)
+	}
+
+	t.Logf("decoder ITU gain candidate window: vector=%s candidate=%s topN=%d productionRMS=%.2f",
+		tc.name,
+		candidate.name,
+		topN,
+		decoderGainCandidateRMS(prodSumSq, len(frames)*frameSamples))
+	t.Logf("%-8s %-8s %-8s %10s %10s", "start", "end", "len", "candRMS", "dSumSq")
+	for _, row := range rows[:topN] {
+		t.Logf("%-8d %-8d %-8d %10.2f %10d",
+			row.start,
+			row.end,
+			row.end-row.start,
+			decoderGainCandidateRMS(row.sumSq, len(frames)*frameSamples),
+			row.improvement)
+	}
+
+	best := rows[0]
+	bestOut := phase3jDecodeVariantWindow(t, bitData, len(frames), best.start, best.end, candidate)
+	tapsByFrame := decoderGainFrontierTaps(t, frames)
+	frameRows := make([]decoderGainCandidateFrontierRow, 0, len(frames))
+	for frame := range frames {
+		prodStats := decoderGainFrontierCompareFrame(prodOut[frame*frameSamples:(frame+1)*frameSamples], &want[frame])
+		candStats := decoderGainFrontierCompareFrame(bestOut[frame*frameSamples:(frame+1)*frameSamples], &want[frame])
+		frameRows = append(frameRows, decoderGainCandidateFrontierRow{
+			frame:       frame,
+			prod:        prodStats,
+			candidate:   candStats,
+			improvement: prodStats.sumSqDelta - candStats.sumSqDelta,
+			taps:        tapsByFrame[frame],
+		})
+	}
+
+	sort.Slice(frameRows, func(i, j int) bool {
+		if frameRows[i].improvement != frameRows[j].improvement {
+			return frameRows[i].improvement > frameRows[j].improvement
+		}
+		return frameRows[i].frame < frameRows[j].frame
+	})
+	t.Logf("best window largest improvements")
+	decoderGainCandidateLogRows(t, frameRows[:topN])
+
+	sort.Slice(frameRows, func(i, j int) bool {
+		if frameRows[i].improvement != frameRows[j].improvement {
+			return frameRows[i].improvement < frameRows[j].improvement
+		}
+		return frameRows[i].frame < frameRows[j].frame
+	})
+	t.Logf("best window largest regressions")
+	decoderGainCandidateLogRows(t, frameRows[:topN])
+}
+
 type decoderGainCandidateFrontierRow struct {
 	frame       int
 	prod        decoderITUFrameStats
@@ -180,7 +294,19 @@ type decoderGainCandidateCutoverRow struct {
 	improvement int64
 }
 
+type decoderGainCandidateWindowRow struct {
+	start       int
+	end         int
+	sumSq       int64
+	improvement int64
+}
+
 func phase3jDecodeVariantCutover(t *testing.T, bitData []byte, frames, cutover int, candidate phase3jVariant) []int16 {
+	t.Helper()
+	return phase3jDecodeVariantWindow(t, bitData, frames, cutover, frames, candidate)
+}
+
+func phase3jDecodeVariantWindow(t *testing.T, bitData []byte, frames, start, end int, candidate phase3jVariant) []int16 {
 	t.Helper()
 	out := make([]int16, frames*frameSamples)
 	var dec Decoder
@@ -189,14 +315,14 @@ func phase3jDecodeVariantCutover(t *testing.T, bitData []byte, frames, cutover i
 	r := bytes.NewReader(bitData)
 	for f := 0; f < frames; f++ {
 		if _, err := bitstream.ReadG192FrameLenient(r, packed[:]); err != nil {
-			t.Fatalf("ReadG192Frame[cutover=%d] frame %d: %v", cutover, f, err)
+			t.Fatalf("ReadG192Frame[window=%d:%d] frame %d: %v", start, end, f, err)
 		}
 		variant := phase3jVariant{name: "gain_mirror_default"}
-		if f >= cutover {
+		if f >= start && f < end {
 			variant = candidate
 		}
 		if err := dec.decodeFramePhase3jVariant(packed[:], out[f*frameSamples:(f+1)*frameSamples], &gd, variant); err != nil {
-			t.Fatalf("decodeFramePhase3jVariant[cutover=%d/%s] frame %d: %v", cutover, variant.name, f, err)
+			t.Fatalf("decodeFramePhase3jVariant[window=%d:%d/%s] frame %d: %v", start, end, variant.name, f, err)
 		}
 	}
 	return out

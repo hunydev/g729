@@ -415,6 +415,7 @@ func logDecoderITUVectorTrace(t *testing.T, tc decoderITUValidationCase, trace d
 	}{
 		{name: "synth_x2", data: stages.synthX2},
 		{name: "postfilter_x2", data: stages.postfilterX2},
+		{name: "hp_raw", data: stages.hpRaw},
 		{name: "hp_x2", data: stages.hpX2},
 		{name: "output", data: trace.taps.Output},
 	} {

@@ -329,6 +329,57 @@ Follow-up verifier result for that full numeric oracle request:
   next decoder work should proceed with PST-only frontier/cutover diagnostics
   plus direct spec/Q-format audit of local code.
 
+Frame-window scan update:
+
+```sh
+G729_DECODER_GAIN_CANDIDATE_WINDOW=1 \
+G729_DECODER_GAIN_CANDIDATE_VECTOR=TAME \
+G729_DECODER_GAIN_CANDIDATE=gain_gamma_q14 \
+G729_DECODER_ITU_VECTOR_FRONTIER_TOP=5 \
+go test ./internal/decoder -run TestDecoderITUGainCandidateWindow -count=1 -v
+```
+
+The best finite `gain_gamma_q14` window is `[26,120)`, with aggregate RMS
+`1187.84`. It slightly beats the `[26,128)` cutover (`1189.85`). The window
+still regresses early affected frames such as `27..34`, but it dramatically
+reduces the late high-energy frames `122..127`. This reinforces the current
+interpretation: the candidate is a long-state damping probe, not a valid
+replacement gain formula.
+
+Output-domain audit:
+
+```sh
+G729_DECODER_ITU_OUTPUT_DOMAIN_AUDIT=1 \
+go test ./internal/decoder -run TestDecoderITUOutputDomainAudit -count=1 -v
+```
+
+Current result:
+
+| Vector | Output RMS delta | HP raw RMS delta | Best domain |
+| --- | ---: | ---: | --- |
+| `ALGTHM` | `2068.11` | `3785.84` | output |
+| `FIXED` | `28.05` | `81.35` | output |
+| `LSP` | `65.13` | `337.96` | output |
+| `OVERFLOW` | `10396.15` | `9629.71` | `hp_raw` |
+| `PITCH` | `888.43` | `2652.20` | output |
+| `SPEECH` | `143.44` | `1074.60` | output |
+| `TAME` | `5081.86` | `3943.11` | `hp_raw` |
+| `TEST` | `103.93` | `732.28` | output |
+
+Interpretation:
+
+- A global final-output scale change is disqualified: ordinary vectors
+  (`SPEECH`, `PITCH`, `FIXED`, `LSP`, `TEST`, `ALGTHM`) prefer the current
+  final output domain.
+- TAME/OVERFLOW are stress-vector exceptions where `hp_raw` is closer to the
+  `.PST` file than the final `ScaleUpSat` output.
+- The TAME worst-frame trace now logs `hp_raw` directly against the PST final
+  domain. On frame `123`, `hp_raw` RMS delta is only `712.97` while `output`
+  RMS delta is `10069.57`, so much of that specific late-frame error is output
+  domain/amplitude shaped.
+- This is still not a production fix. It narrows the next question to why the
+  stress-vector `.PST` agreement flips domain while ordinary vectors do not.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
@@ -344,16 +395,17 @@ Key result:
 - `TAME.BIT -> FFmpeg` matches `TAME.PST` strongly:
   `gSNR=29.13`, `seg=29.09`, `corr=0.999`.
 - `TAME.BIT -> local` does not:
-  `gSNR=-3.11`, `seg=0.71`, `corr=0.922`.
+  `gSNR=6.50`, `seg=11.04`, `corr=0.972`.
 - Local-vs-FFmpeg active-frame envelope ratio median is `2.609`, with
-  `100/127` active frames above `1.5x`.
-- Stage ratios show the over-amplification is upstream of postfilter/HP:
-  `pitch/u=1.00`, `fixed/u=0.05`, `s/u=20.00`, `spf/s=1.00`,
-  `hp/spf=0.97`, `out/hp=1.41`.
-- Worst-frame detail at frame `118` has `61/80` clipped output samples.
-  Both subframes are mostly adaptive-loop driven:
-  `gp≈0.984/0.987`, direct fixed contribution remains small, while synthesis
-  output is already near saturation.
+  `100/127` active frames above `1.5x` in the earlier pre-fix run. Current
+  production after decoder fixes is milder but still over-amplified:
+  ratio median `1.362`, mean `1.348`, and `56/127` active frames above `1.5x`.
+- Current stage ratios remain synthesis/final-output shaped:
+  `pitch/u=0.99`, `fixed/u=0.16`, `s/u=25.22`, `spf/s=1.00`,
+  `hp/spf=0.97`, `out/hp=2.00`.
+- Current worst-frame detail is frame `123`. It is mostly adaptive-loop driven
+  (`uRMS≈386..396`, direct fixed contribution much smaller), and its raw HP
+  output is close to PST while final `ScaleUpSat` doubles it away from PST.
 
 The companion upstream perturbation command:
 
