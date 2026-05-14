@@ -140,7 +140,7 @@ func decodeVariant(t *testing.T, bitData []byte, frames int, transform func(*bit
 	var repacked [bitstream.FrameBytes]byte
 	r := bytes.NewReader(bitData)
 	for i := 0; i < frames; i++ {
-		if _, err := bitstream.ReadG192Frame(r, packed[:]); err != nil {
+		if _, err := bitstream.ReadG192FrameLenient(r, packed[:]); err != nil {
 			t.Fatalf("ReadG192Frame frame %d: %v", i, err)
 		}
 		if packedTransform != nil {

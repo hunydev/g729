@@ -24,17 +24,18 @@ func TestPhase3hPitchACBVariantAudit_SPEECH(t *testing.T) {
 		t.Skip("set G729_DECODER_PITCH_ACB_AUDIT=1 to audit pitch ACB variants")
 	}
 
-	bitPath := vectorPath("SPEECH.BIT")
-	pstPath := vectorPath("SPEECH.PST")
+	tc := phase3eSelectedITUVector(t, "G729_DECODER_PITCH_ACB_VECTOR", "SPEECH")
+	bitPath := vectorPath(tc.bitFile)
+	pstPath := vectorPath(tc.pstFile)
 	ensureTestdataPresent(t, bitPath, pstPath)
 
 	bitData, err := os.ReadFile(bitPath)
 	if err != nil {
-		t.Fatalf("read SPEECH.BIT: %v", err)
+		t.Fatalf("read %s: %v", tc.bitFile, err)
 	}
 	pstData, err := os.ReadFile(pstPath)
 	if err != nil {
-		t.Fatalf("read SPEECH.PST: %v", err)
+		t.Fatalf("read %s: %v", tc.pstFile, err)
 	}
 
 	frames := len(pstData) / (2 * frameSamples)
@@ -76,7 +77,7 @@ func TestPhase3hPitchACBVariantAudit_SPEECH(t *testing.T) {
 	}
 	rows := make([]row, 0, len(variants))
 
-	t.Logf("Phase 3h pitch ACB variant audit - SPEECH.BIT/SPEECH.PST (%d frames)", frames)
+	t.Logf("Phase 3h pitch ACB variant audit - %s/%s (%d frames)", tc.bitFile, tc.pstFile, frames)
 	t.Logf("pitch subframes: total=%d frac[-1]=%d frac[0]=%d frac[+1]=%d short(T<40)=%d",
 		pitchStats.total, pitchStats.fracNeg, pitchStats.fracZero, pitchStats.fracPos, pitchStats.shortPitch)
 	t.Logf("baseline production: rms=%.2f peak=%d gSNR=%.2f seg=%.2f corr=%.3f bestLag=%+d bestSNR=%.2f",
@@ -154,7 +155,7 @@ func phase3hDecodeVariant(t *testing.T, bitData []byte, frames int, variant phas
 	var packed [bitstream.FrameBytes]byte
 	r := bytes.NewReader(bitData)
 	for f := 0; f < frames; f++ {
-		if _, err := bitstream.ReadG192Frame(r, packed[:]); err != nil {
+		if _, err := bitstream.ReadG192FrameLenient(r, packed[:]); err != nil {
 			t.Fatalf("ReadG192Frame[%s] frame %d: %v", variant.name, f, err)
 		}
 		if err := dec.decodeFramePhase3hVariant(packed[:], out[f*frameSamples:(f+1)*frameSamples], variant); err != nil {
@@ -203,7 +204,7 @@ func (d *Decoder) decodeSubframePhase3hVariant(
 	out []int16,
 	variant phase3hVariant,
 ) {
-	betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
+	betaQ14 := d.pitchEnhancementBetaQ14()
 
 	var v [subframeLen]int16
 	phase3hAdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v, variant.mode)
@@ -227,7 +228,7 @@ func (d *Decoder) decodeSubframePhase3hVariant(
 
 	copy(d.pastExc[:pastExcLen-subframeLen], d.pastExc[subframeLen:])
 	copy(d.pastExc[pastExcLen-subframeLen:], u[:])
-	d.prevGpQ14 = gpQ14
+	d.rememberPitchGain(gpQ14)
 }
 
 func phase3hAdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[subframeLen]int16, mode phase3hACBMode) {
@@ -352,7 +353,7 @@ func phase3hCollectPitchStats(t *testing.T, bitData []byte, frames int) phase3hP
 	var packed [bitstream.FrameBytes]byte
 	r := bytes.NewReader(bitData)
 	for f := 0; f < frames; f++ {
-		if _, err := bitstream.ReadG192Frame(r, packed[:]); err != nil {
+		if _, err := bitstream.ReadG192FrameLenient(r, packed[:]); err != nil {
 			t.Fatalf("ReadG192Frame[pitch stats] frame %d: %v", f, err)
 		}
 		var fr bitstream.Frame

@@ -189,6 +189,46 @@ Interpretation:
   tool for choosing the next decoder fix when independent stage oracles are
   unavailable.
 
+## PST Variant-Audit Reactivation
+
+After the stream-start fixed-codebook pitch-enhancement fix, several opt-in
+variant audits had stale production mirrors: their local test pipeline still
+computed the pitch-enhancement beta directly from `prevGpQ14`, so the first
+subframe used the lower clamp instead of the production stream-start upper
+value. The diagnostic mirrors now call the production beta helper and update
+the previous-gain state through the production helper.
+
+The ITU-vector variant probes also now use the same lenient G.192 loading
+policy as the vector-validation gate, so `OVERFLOW.BIT` frame `19` with
+`0x0000` softbit words can be audited consistently.
+
+Current PST-referenced upstream variant result:
+
+| Vector | Production gSNR | Best simple variant | Variant gSNR | Interpretation |
+| --- | ---: | --- | ---: | --- |
+| `SPEECH` | `23.29` | production | `23.29` | Simple stage removal/scale/reset is disqualified. |
+| `TAME` | `6.50` | `fixed_gain_half` | `8.71` | TAME pressure is fixed-gain / gain-history shaped, not ACB-shaped. |
+| `PITCH` | `14.14` | production | `14.14` | Simple ACB and gain-scale variants are disqualified. |
+| `OVERFLOW` | `-1.58` | `pitch_gain_cap_0p95` | `0.50` | Stress surface is pitch-gain/overflow shaped, but decoder-side re-taming is not a spec-safe production fix. |
+
+Current PST-referenced ACB-specific result:
+
+| Vector | Production gSNR | Best ACB variant | Variant gSNR | Interpretation |
+| --- | ---: | --- | ---: | --- |
+| `SPEECH` | `23.29` | production | `23.29` | Production ACB is best. |
+| `TAME` | `6.50` | `acb_frac_sign_flip` | `6.76` | Small movement only; not material enough for an ACB fix. |
+| `PITCH` | `14.14` | production | `14.14` | Production ACB is best even on the pitch vector. |
+| `OVERFLOW` | `-1.58` | `acb_short_no_periodic` | `-0.03` | Useful stress diagnostic, but conflicts with the already verified short-pitch interpolation relation. |
+
+Next local fix target:
+
+- Do not apply decoder-side gain re-taming as a production fix unless a
+  Recommendation-backed decoder clause is found; §4.1.5 reconstructs gains
+  directly from the received gain-codebook index.
+- Focus the next clean-room local diagnostic on TAME fixed-gain magnitude:
+  gain predictor state, fixed-codebook energy domain, and `gcMant/gcExp`
+  reconstruction around the high-error TAME frontier frames.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:

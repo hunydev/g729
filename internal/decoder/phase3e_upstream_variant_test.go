@@ -3,6 +3,7 @@ package decoder
 import (
 	"bytes"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/hunydev/g729/internal/bitstream"
@@ -26,17 +27,18 @@ func TestPhase3eUpstreamVariantLocalization_SPEECH(t *testing.T) {
 		t.Skip("set G729_DECODER_UPSTREAM_LOCALIZE=1 to run upstream decoder localization")
 	}
 
-	bitPath := vectorPath("SPEECH.BIT")
-	pstPath := vectorPath("SPEECH.PST")
+	tc := phase3eSelectedITUVector(t, "G729_DECODER_UPSTREAM_VECTOR", "SPEECH")
+	bitPath := vectorPath(tc.bitFile)
+	pstPath := vectorPath(tc.pstFile)
 	ensureTestdataPresent(t, bitPath, pstPath)
 
 	bitData, err := os.ReadFile(bitPath)
 	if err != nil {
-		t.Fatalf("read SPEECH.BIT: %v", err)
+		t.Fatalf("read %s: %v", tc.bitFile, err)
 	}
 	pstData, err := os.ReadFile(pstPath)
 	if err != nil {
-		t.Fatalf("read SPEECH.PST: %v", err)
+		t.Fatalf("read %s: %v", tc.pstFile, err)
 	}
 
 	frames := len(pstData) / (2 * frameSamples)
@@ -85,7 +87,7 @@ func TestPhase3eUpstreamVariantLocalization_SPEECH(t *testing.T) {
 	}
 	rows := make([]row, 0, len(variants))
 
-	t.Logf("Phase 3e upstream variant localization — SPEECH.BIT/SPEECH.PST (%d frames)", frames)
+	t.Logf("Phase 3e upstream variant localization — %s/%s (%d frames)", tc.bitFile, tc.pstFile, frames)
 	t.Logf("baseline production: rms=%.2f peak=%d gSNR=%.2f seg=%.2f corr=%.3f bestLag=%+d bestSNR=%.2f",
 		prodMetrics.rms, prodMetrics.peak, prodMetrics.globalSNR, prodMetrics.segSNR,
 		prodMetrics.corr, prodMetrics.bestSNRLag, prodMetrics.bestSNR)
@@ -125,6 +127,19 @@ func TestPhase3eUpstreamVariantLocalization_SPEECH(t *testing.T) {
 	t.Logf("verdict: %s", phase3eVerdict(prodMetrics, best, bestCorr))
 }
 
+func phase3eSelectedITUVector(t *testing.T, envName, defaultName string) decoderITUValidationCase {
+	t.Helper()
+	name := strings.TrimSpace(os.Getenv(envName))
+	if name == "" {
+		name = defaultName
+	}
+	tc, ok := decoderITUValidationCaseByName(name)
+	if !ok {
+		t.Fatalf("unknown decoder ITU vector %q", name)
+	}
+	return tc
+}
+
 type phase3eSynthMode int
 
 const (
@@ -160,7 +175,7 @@ func phase3eDecodeVariant(t *testing.T, bitData []byte, frames int, variant phas
 	var packed [bitstream.FrameBytes]byte
 	r := bytes.NewReader(bitData)
 	for f := 0; f < frames; f++ {
-		if _, err := bitstream.ReadG192Frame(r, packed[:]); err != nil {
+		if _, err := bitstream.ReadG192FrameLenient(r, packed[:]); err != nil {
 			t.Fatalf("ReadG192Frame[%s] frame %d: %v", variant.name, f, err)
 		}
 		if variant.resetSynthEachFrame {
@@ -169,6 +184,7 @@ func phase3eDecodeVariant(t *testing.T, bitData []byte, frames int, variant phas
 		if variant.resetPastExcEachFrame {
 			dec.pastExc = [pastExcLen]int16{}
 			dec.prevGpQ14 = 0
+			dec.havePrevGpQ14 = false
 		}
 		if variant.resetGainEachFrame {
 			dec.gn.Reset()
@@ -224,7 +240,7 @@ func (d *Decoder) decodeSubframePhase3eVariant(
 	out []int16,
 	variant phase3eVariant,
 ) {
-	betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
+	betaQ14 := d.pitchEnhancementBetaQ14()
 	if variant.noFCBEnhancement {
 		betaQ14 = 0
 	}
@@ -290,7 +306,7 @@ func (d *Decoder) decodeSubframePhase3eVariant(
 
 	// Keep the pitch-enhancement state tied to the decoded gain so
 	// current-subframe perturbations do not double-count the beta path.
-	d.prevGpQ14 = gainTaps.GpQ14Final
+	d.rememberPitchGain(gainTaps.GpQ14Final)
 }
 
 func phase3eAdjustTFrac(tFrac int, variant phase3eVariant) int {

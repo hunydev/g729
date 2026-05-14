@@ -230,7 +230,7 @@ func (d *Decoder) decodeSubframePhase3yVariant(
 	out []int16,
 	variant phase3yACBVariant,
 ) {
-	betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
+	betaQ14 := d.pitchEnhancementBetaQ14()
 
 	var v [subframeLen]int16
 	phase3yAdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v, variant.mode)
@@ -255,7 +255,7 @@ func (d *Decoder) decodeSubframePhase3yVariant(
 
 	copy(d.pastExc[:pastExcLen-subframeLen], d.pastExc[subframeLen:])
 	copy(d.pastExc[pastExcLen-subframeLen:], u[:])
-	d.prevGpQ14 = gpQ14
+	d.rememberPitchGain(gpQ14)
 }
 
 func phase3yAdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[subframeLen]int16, mode phase3yACBMode) {
