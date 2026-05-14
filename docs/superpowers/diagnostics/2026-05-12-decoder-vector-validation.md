@@ -362,9 +362,14 @@ TAME wide-stage artifact status:
   `adaptive_v_q0` rows do not uniquely determine the source FIFO.
 - The replacement forward-trace handoff is
   `decoder_tame_excitation_history_expected_template.csv`: 9360 numeric rows
-  for TAME frame `0..116` decoded `excitation_u_q0`. If filled, it directly
-  supplies the frame 117 pre-ACB FIFO and reveals the earliest excitation
-  divergence before frame 117.
+  for TAME frame `0..116` decoded `excitation_u_q0`. The verifier reported
+  that this also cannot be independently derived from the provided inputs
+  because full forward decode requires support tables that were not yet part
+  of the handoff.
+- The current replacement gate is
+  `decoder_support_tables_expected_template.csv`: 264 numeric rows for the
+  small LSP cosine, pitch interpolation, gain VQ/map, log/pow, and gain
+  predictor tables needed before asking for broad decoder forward traces.
 
 Comparison command:
 
@@ -400,6 +405,15 @@ G729_COMPARE_DECODER_TAME_EXCITATION_HISTORY=1 \
 G729_REQUIRE_COMPLETE_DECODER_TAME_EXCITATION_HISTORY=1 \
 G729_REQUIRE_EXACT_DECODER_TAME_EXCITATION_HISTORY=1 \
 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEExcitationHistory -count=1 -v
+```
+
+Decoder support-table comparison command:
+
+```sh
+G729_COMPARE_DECODER_SUPPORT_TABLES=1 \
+G729_REQUIRE_COMPLETE_DECODER_SUPPORT_TABLES=1 \
+G729_REQUIRE_EXACT_DECODER_SUPPORT_TABLES=1 \
+go test -run TestOracleHandoff_CompareDecoderSupportTables -count=1 -v
 ```
 
 Before the independent expected values exist, the template-only comparison is

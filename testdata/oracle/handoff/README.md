@@ -100,10 +100,17 @@ These files are not oracle artifacts and are intentionally ignored by the option
 - `decoder_tame_excitation_history_expected_template.csv`: verifier-owned
   template for TAME frame `0..116` decoded `excitation_u_q0` samples. This
   forward trace supplies the prior excitation needed to derive frame 117
-  subframe 0 pre-ACB history.
+  subframe 0 pre-ACB history. This is currently blocked until decoder support
+  tables are independently verified.
 - `DECODER_TAME_EXCITATION_HISTORY_PROMPT.md`: copyable prompt for an
   isolated clean-room verifier that fills only numeric `expected` cells in the
   TAME excitation-history template.
+- `decoder_support_tables_expected_template.csv`: verifier-owned template for
+  small decoder support tables and scalar constants required before broader
+  forward traces can be independently generated.
+- `DECODER_SUPPORT_TABLES_PROMPT.md`: copyable prompt for an isolated
+  clean-room verifier that fills only numeric `expected` cells in the decoder
+  support-table template.
 - `tame_short_pitch_relation.csv`: verifier-produced numeric relation table
   derived from the TAME wide artifact. It documents the short-pitch
   `T_frac=0` relation used to justify the phase-0 FIR adaptive-codebook fix.
@@ -214,6 +221,11 @@ Filled verifier output intake:
    G729_REQUIRE_COMPLETE_DECODER_TAME_EXCITATION_HISTORY=1 \
    G729_REQUIRE_EXACT_DECODER_TAME_EXCITATION_HISTORY=1 \
    go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEExcitationHistory -count=1 -v
+
+   G729_COMPARE_DECODER_SUPPORT_TABLES=1 \
+   G729_REQUIRE_COMPLETE_DECODER_SUPPORT_TABLES=1 \
+   G729_REQUIRE_EXACT_DECODER_SUPPORT_TABLES=1 \
+   go test -run TestOracleHandoff_CompareDecoderSupportTables -count=1 -v
    ```
 
 6. If strict compare passes, update `HANDOFF_MANIFEST.md` and the
@@ -414,6 +426,37 @@ Decoder TAME excitation-history workflow:
    G729_REQUIRE_COMPLETE_DECODER_TAME_EXCITATION_HISTORY=1 \
    G729_REQUIRE_EXACT_DECODER_TAME_EXCITATION_HISTORY=1 \
    go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEExcitationHistory -count=1 -v
+   ```
+
+   Current status: the verifier reported this cannot be filled from the
+   previously provided inputs because the full forward decode also requires
+   independently verified support tables. Run the decoder support-table
+   workflow first.
+
+Decoder support-table workflow:
+
+1. Refresh the blank template:
+
+   ```sh
+   G729_WRITE_DECODER_SUPPORT_TABLES_TEMPLATE=1 \
+   go test -run TestOracleHandoff_WriteDecoderSupportTablesTemplate -count=1 -v
+   ```
+
+2. Give the verifier `decoder_support_tables_expected_template.csv`, then ask
+   it to fill `expected` using `DECODER_SUPPORT_TABLES_PROMPT.md`.
+3. Compare only numeric scalar values keyed by:
+
+   ```csv
+   table,row,col
+   ```
+
+4. After the verifier fills numeric `expected` cells, compare locally:
+
+   ```sh
+   G729_COMPARE_DECODER_SUPPORT_TABLES=1 \
+   G729_REQUIRE_COMPLETE_DECODER_SUPPORT_TABLES=1 \
+   G729_REQUIRE_EXACT_DECODER_SUPPORT_TABLES=1 \
+   go test -run TestOracleHandoff_CompareDecoderSupportTables -count=1 -v
    ```
 
 LSP table workflow:
