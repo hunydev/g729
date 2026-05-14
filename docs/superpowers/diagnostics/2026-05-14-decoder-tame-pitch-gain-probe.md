@@ -64,6 +64,62 @@ oracle surface:
 best fixed_gain_half window [40,72): exact=11 errRMS=153.75 meanAbs=128.23 maxAbs=273 corr=0.9604 scale=0.5795
 ```
 
+## State Trigger Probe
+
+The fixed window is only a localization tool, so the next diagnostic searched
+for a runtime state trigger that reproduces the same effect without using the
+known TAME frame number.
+
+Command:
+
+```sh
+env GOCACHE=/tmp/go-build \
+  G729_DECODER_TAME_PITCH_CAP_TRIGGER_SEARCH=1 \
+  G729_DECODER_ITU_VECTOR_FRONTIER_TOP=12 \
+  go test ./internal/decoder -run TestDecoderTAMEPitchGainCapTriggerSearch -count=1 -v
+```
+
+Best trigger:
+
+```text
+production: count=918 exact=0 wantRMS=204.89 gotRMS=384.97 errRMS=232.73 meanAbs=194.62 maxAbs=447 corr=0.8622 scale=0.4589
+production pstRMS=5081.86
+gp>cap+past>=240: applied=19 errRMS=94.30 meanAbs=79.16 maxAbs=173 corr=0.8942 scale=0.8933 pstRMS=1156.72
+```
+
+This is close to the best fixed-window `pitch_gain_cap_0p95` result and strongly
+points at an adaptive-gain/history problem around the late TAME onset.
+
+## Cross-Vector Audit
+
+The same trigger was then applied across the good Annex A decoder vectors.
+
+Command:
+
+```sh
+env GOCACHE=/tmp/go-build \
+  G729_DECODER_PITCH_CAP_TRIGGER_CROSS_VECTOR=1 \
+  go test ./internal/decoder -run TestDecoderPitchGainCapTriggerCrossVectorAudit -count=1 -v
+```
+
+Result:
+
+```text
+vector    applied    prodRMS    candRMS   prodSNR   candSNR  prodCor  candCor
+ALGTHM         15    2068.11    2844.58      8.65      5.88   0.9810   0.9573
+SPEECH        463     143.44     699.68     23.29      9.53   0.9978   0.9553
+FIXED           0      28.05      28.05     14.14     14.14   0.9859   0.9859
+LSP             0      65.13      65.13     20.20     20.20   0.9952   0.9952
+PITCH        1387     888.43    1986.39     14.14      7.15   0.9925   0.9542
+TAME           19    5081.86    1156.72      6.50     19.35   0.9716   0.9950
+TEST            5     103.93     197.92     22.76     17.16   0.9975   0.9915
+OVERFLOW      146   10396.15    8040.17     -1.58      0.66   0.4340   0.3829
+```
+
+The trigger is therefore not production-safe. It isolates the TAME failure
+mode, but it overfires on normal voiced content and causes severe regressions
+on `SPEECH`, `PITCH`, `ALGTHM`, and `TEST`.
+
 ## Interpretation
 
 `pitch_gain_cap_0p95` is a strong localization probe: limiting adaptive gain
@@ -81,6 +137,7 @@ rule forbids inspecting that implementation source.
 Therefore:
 
 - Do not add an unconditional decoder `gp <= 0.95` clamp to production.
+- Do not add the current `gp>0.95 && pastExcRMS>=240` trigger to production.
 - Do not treat the incomplete 108..137 verifier CSV as a decoder oracle.
 - Next useful work is either a PDF-visible/state-machine derivation of
   decoder pitch-instability control, or a diagnostic-only stateful taming probe
@@ -93,4 +150,3 @@ Therefore:
 env GOCACHE=/tmp/go-build go test ./internal/decoder -count=1
 env GOCACHE=/tmp/go-build G729_COMPARE_TAME_GAIN_TAMING_HANDOFF=1 go test -run TestOracleHandoff_CompareTAMEGainTamingHandoff -count=1 -v
 ```
-

@@ -1,14 +1,18 @@
 package decoder
 
 import (
+	"fmt"
 	"os"
 	"sort"
 	"strconv"
 	"testing"
 
 	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/fcb"
+	"github.com/hunydev/g729/internal/gain"
 	"github.com/hunydev/g729/internal/lsp"
 	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/synth"
 )
 
 func TestDecoderTAMEPastExcVariantProbe(t *testing.T) {
@@ -140,6 +144,434 @@ type decoderTAMEPastExcVariantWindowRow struct {
 	start int
 	end   int
 	stats decoderPastExcAgeGroup
+}
+
+func TestDecoderTAMEPitchGainCapTriggerSearch(t *testing.T) {
+	if os.Getenv("G729_DECODER_TAME_PITCH_CAP_TRIGGER_SEARCH") != "1" {
+		t.Skip("set G729_DECODER_TAME_PITCH_CAP_TRIGGER_SEARCH=1 to run TAME pitch-gain cap trigger search")
+	}
+
+	expectedPath := os.Getenv("G729_DECODER_TAME_PAST_EXC_VARIANT_EXPECTED")
+	if expectedPath == "" {
+		expectedPath = decoderTAMEStageWideOnsetExpectedTemplatePath
+	}
+	expected, err := readDecoderTAMEPastExcAgeRows(expectedPath)
+	if err != nil {
+		t.Fatalf("read decoder TAME past-excitation expected: %v", err)
+	}
+	expected = decoderTAMEFilledPastExcRows(expected)
+	if len(expected) == 0 {
+		t.Fatalf("no filled past_exc_pre_acb_q0 rows in %s", expectedPath)
+	}
+
+	tc, ok := decoderITUValidationCaseByName("TAME")
+	if !ok {
+		t.Fatal(errUnknownTAMEVector())
+	}
+	bitPath := vectorPath(tc.bitFile)
+	pstPath := vectorPath(tc.pstFile)
+	ensureTestdataPresent(t, bitPath, pstPath)
+	frames, _ := readG192Frames(t, bitPath)
+	want := readPSTFrames(t, pstPath)
+
+	productionGot, err := collectDecoderTAMEACBCheckpointRows(t, expected)
+	if err != nil {
+		t.Fatalf("collect production TAME past-excitation rows: %v", err)
+	}
+	prodStats := decoderTAMEPastExcCompareStats(expected, productionGot)
+	bitData, err := os.ReadFile(bitPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", bitPath, err)
+	}
+	prodOut := phase3eDecodeVariant(t, bitData, len(frames), phase3eVariant{name: "production"})
+	prodSumSq := decoderGainCandidateOutputSumSq(prodOut, want)
+
+	rows := make([]decoderTAMEPitchCapTriggerSearchRow, 0)
+	for _, trigger := range decoderTAMEPitchCapTriggerGrid() {
+		got, out, applied, err := collectDecoderTAMEPastExcRowsWithPitchCapTrigger(t, expected, frames, trigger)
+		if err != nil {
+			t.Fatalf("collect trigger %s: %v", trigger.name(), err)
+		}
+		stats := decoderTAMEPastExcCompareStats(expected, got)
+		sumSq := decoderGainCandidateOutputSumSq(out, want)
+		rows = append(rows, decoderTAMEPitchCapTriggerSearchRow{
+			trigger: trigger,
+			applied: applied,
+			stats:   stats,
+			sumSq:   sumSq,
+		})
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].stats.sumErrSq != rows[j].stats.sumErrSq {
+			return rows[i].stats.sumErrSq < rows[j].stats.sumErrSq
+		}
+		if rows[i].sumSq != rows[j].sumSq {
+			return rows[i].sumSq < rows[j].sumSq
+		}
+		return rows[i].trigger.name() < rows[j].trigger.name()
+	})
+
+	topN := decoderITUFrontierTopN()
+	if topN > len(rows) {
+		topN = len(rows)
+	}
+	t.Logf("decoder TAME pitch-gain cap trigger search: path=%s filled=%d candidates=%d",
+		expectedPath, len(expected), len(rows))
+	decoderTAMELogPastExcProbeStats(t, "production", prodStats)
+	t.Logf("production pstRMS=%.2f", decoderGainCandidateRMS(prodSumSq, len(frames)*frameSamples))
+	t.Logf("%-42s %8s %8s %8s %8s %8s %8s %10s",
+		"trigger", "applied", "errRMS", "meanAbs", "maxAbs", "corr", "scale", "pstRMS")
+	for _, row := range rows[:topN] {
+		t.Logf("%-42s %8d %8.2f %8.2f %8d %8.4f %8.4f %10.2f",
+			row.trigger.name(),
+			row.applied,
+			row.stats.errRMS(),
+			row.stats.meanAbs(),
+			row.stats.maxAbsDiff,
+			row.stats.corr(),
+			row.stats.scale(),
+			decoderGainCandidateRMS(row.sumSq, len(frames)*frameSamples))
+	}
+}
+
+func TestDecoderPitchGainCapTriggerCrossVectorAudit(t *testing.T) {
+	if os.Getenv("G729_DECODER_PITCH_CAP_TRIGGER_CROSS_VECTOR") != "1" {
+		t.Skip("set G729_DECODER_PITCH_CAP_TRIGGER_CROSS_VECTOR=1 to run pitch cap trigger cross-vector audit")
+	}
+
+	trigger := decoderTAMEDiagnosticPitchCapTrigger()
+	t.Logf("decoder pitch-gain cap trigger cross-vector audit: trigger=%s", trigger.name())
+	t.Logf("%-8s %8s %10s %10s %9s %9s %8s %8s",
+		"vector", "applied", "prodRMS", "candRMS", "prodSNR", "candSNR", "prodCor", "candCor")
+	for _, tc := range decoderITUValidationCases() {
+		if !decoderITUValidationCaseSelected(tc, "annexa-good") {
+			continue
+		}
+		bitPath := vectorPath(tc.bitFile)
+		pstPath := vectorPath(tc.pstFile)
+		ensureTestdataPresent(t, bitPath, pstPath)
+		frames, _ := readG192Frames(t, bitPath)
+		want := readPSTFrames(t, pstPath)
+		n := len(frames)
+		if len(want) < n {
+			n = len(want)
+		}
+		if n == 0 {
+			t.Fatalf("%s reconciled to zero frames", tc.name)
+		}
+		frames = frames[:n]
+		want = want[:n]
+
+		bitData, err := os.ReadFile(bitPath)
+		if err != nil {
+			t.Fatalf("read %s: %v", bitPath, err)
+		}
+		prodOut := phase3eDecodeVariant(t, bitData, n, phase3eVariant{name: "production"})
+		_, candOut, applied, err := collectDecoderTAMEPastExcRowsWithPitchCapTrigger(t, nil, frames, trigger)
+		if err != nil {
+			t.Fatalf("%s trigger decode: %v", tc.name, err)
+		}
+
+		ref := decoderTAMEFlattenPST(want)
+		prodM := blackboxMeasure(ref, prodOut, 40)
+		candM := blackboxMeasure(ref, candOut, 40)
+		t.Logf("%-8s %8d %10.2f %10.2f %9.2f %9.2f %8.4f %8.4f",
+			tc.name,
+			applied,
+			decoderGainCandidateRMS(decoderGainCandidateOutputSumSq(prodOut, want), n*frameSamples),
+			decoderGainCandidateRMS(decoderGainCandidateOutputSumSq(candOut, want), n*frameSamples),
+			prodM.globalSNR,
+			candM.globalSNR,
+			prodM.corr,
+			candM.corr)
+	}
+}
+
+type decoderTAMEPitchCapTriggerSearchRow struct {
+	trigger decoderTAMEPitchCapTrigger
+	applied int
+	stats   decoderPastExcAgeGroup
+	sumSq   int64
+}
+
+type decoderTAMEPitchCapTrigger struct {
+	minPastRMS  float64
+	minTailRMS  float64
+	minVRMS     float64
+	minPitchRMS float64
+	maxFixedRMS float64
+	minGpQ14    int16
+	capGpQ14    int16
+}
+
+type decoderTAMEPitchCapTriggerFeature struct {
+	gpQ14    int16
+	pastRMS  float64
+	tailRMS  float64
+	vRMS     float64
+	pitchRMS float64
+	fixedRMS float64
+}
+
+func (tr decoderTAMEPitchCapTrigger) match(f decoderTAMEPitchCapTriggerFeature) bool {
+	minGp := tr.minGpQ14
+	if minGp == 0 {
+		minGp = tr.cap()
+	}
+	if f.gpQ14 <= minGp {
+		return false
+	}
+	if tr.minPastRMS > 0 && f.pastRMS < tr.minPastRMS {
+		return false
+	}
+	if tr.minTailRMS > 0 && f.tailRMS < tr.minTailRMS {
+		return false
+	}
+	if tr.minVRMS > 0 && f.vRMS < tr.minVRMS {
+		return false
+	}
+	if tr.minPitchRMS > 0 && f.pitchRMS < tr.minPitchRMS {
+		return false
+	}
+	if tr.maxFixedRMS > 0 && f.fixedRMS > tr.maxFixedRMS {
+		return false
+	}
+	return true
+}
+
+func (tr decoderTAMEPitchCapTrigger) cap() int16 {
+	if tr.capGpQ14 != 0 {
+		return tr.capGpQ14
+	}
+	return 15565
+}
+
+func (tr decoderTAMEPitchCapTrigger) name() string {
+	name := "gp>cap"
+	if tr.minPastRMS > 0 {
+		name += fmt.Sprintf("+past>=%.0f", tr.minPastRMS)
+	}
+	if tr.minTailRMS > 0 {
+		name += fmt.Sprintf("+tail>=%.0f", tr.minTailRMS)
+	}
+	if tr.minVRMS > 0 {
+		name += fmt.Sprintf("+v>=%.0f", tr.minVRMS)
+	}
+	if tr.minPitchRMS > 0 {
+		name += fmt.Sprintf("+pitch>=%.0f", tr.minPitchRMS)
+	}
+	if tr.maxFixedRMS > 0 {
+		name += fmt.Sprintf("+fixed<=%.0f", tr.maxFixedRMS)
+	}
+	return name
+}
+
+func decoderTAMEPitchCapTriggerGrid() []decoderTAMEPitchCapTrigger {
+	base := decoderTAMEPitchCapTrigger{capGpQ14: 15565}
+	triggers := []decoderTAMEPitchCapTrigger{base}
+	minThresholds := []float64{220, 240, 260, 280, 300, 320, 340}
+	fixedCeilings := []float64{40, 60, 80}
+
+	for _, threshold := range minThresholds {
+		tr := base
+		tr.minPastRMS = threshold
+		triggers = append(triggers, tr)
+
+		tr = base
+		tr.minTailRMS = threshold
+		triggers = append(triggers, tr)
+
+		tr = base
+		tr.minVRMS = threshold
+		triggers = append(triggers, tr)
+
+		tr = base
+		tr.minPitchRMS = threshold
+		triggers = append(triggers, tr)
+	}
+	for _, ceiling := range fixedCeilings {
+		tr := base
+		tr.maxFixedRMS = ceiling
+		triggers = append(triggers, tr)
+	}
+	for _, threshold := range minThresholds {
+		for _, ceiling := range fixedCeilings {
+			tr := base
+			tr.minPastRMS = threshold
+			tr.maxFixedRMS = ceiling
+			triggers = append(triggers, tr)
+
+			tr = base
+			tr.minVRMS = threshold
+			tr.maxFixedRMS = ceiling
+			triggers = append(triggers, tr)
+
+			tr = base
+			tr.minPitchRMS = threshold
+			tr.maxFixedRMS = ceiling
+			triggers = append(triggers, tr)
+		}
+	}
+	return triggers
+}
+
+func decoderTAMEDiagnosticPitchCapTrigger() decoderTAMEPitchCapTrigger {
+	// Diagnostic only: the cross-vector audit documents why this trigger is
+	// not production-safe even though it improves the late TAME checkpoint.
+	return decoderTAMEPitchCapTrigger{
+		capGpQ14:   15565,
+		minPastRMS: 240,
+	}
+}
+
+func decoderTAMEFlattenPST(frames [][frameSamples]int16) []int16 {
+	out := make([]int16, 0, len(frames)*frameSamples)
+	for frame := range frames {
+		out = append(out, frames[frame][:]...)
+	}
+	return out
+}
+
+func collectDecoderTAMEPastExcRowsWithPitchCapTrigger(
+	t testing.TB,
+	expected []stageRow,
+	frames [][]byte,
+	trigger decoderTAMEPitchCapTrigger,
+) ([]stageRow, []int16, int, error) {
+	t.Helper()
+
+	targets := make(map[int]map[int]struct{})
+	for _, row := range expected {
+		if row.source != "TAME" || row.field != "past_exc_pre_acb_q0" {
+			continue
+		}
+		if _, ok := targets[row.frame]; !ok {
+			targets[row.frame] = make(map[int]struct{})
+		}
+		targets[row.frame][row.sub] = struct{}{}
+	}
+
+	out := make([]int16, len(frames)*frameSamples)
+	var dec Decoder
+	var rows []stageRow
+	var applied int
+	for frame := range frames {
+		if err := dec.decodeFrameTAMEPitchCapTrigger(
+			frame,
+			frames[frame],
+			out[frame*frameSamples:(frame+1)*frameSamples],
+			trigger,
+			targets[frame],
+			&rows,
+			&applied,
+		); err != nil {
+			return nil, nil, 0, err
+		}
+	}
+	return rows, out, applied, nil
+}
+
+func (d *Decoder) decodeFrameTAMEPitchCapTrigger(
+	frame int,
+	packed []byte,
+	out []int16,
+	trigger decoderTAMEPitchCapTrigger,
+	targetSubs map[int]struct{},
+	rows *[]stageRow,
+	applied *int,
+) error {
+	if len(packed) < bitstream.FrameBytes {
+		return ErrShortInput
+	}
+	if len(out) < frameSamples {
+		return ErrShortOutput
+	}
+
+	var fr bitstream.Frame
+	if err := bitstream.Unpack(packed, &fr); err != nil {
+		return err
+	}
+
+	sf1A, sf2A := d.lsp.Decode(lsp.Indices{
+		L0: uint8(fr.L0),
+		L1: uint8(fr.L1),
+		L2: uint8(fr.L2),
+		L3: uint8(fr.L3),
+	})
+
+	tInt1, tFrac1 := pitch.DecodeDelaySubframe1(uint8(fr.P1))
+	_ = pitch.CheckParity(uint8(fr.P1), uint8(fr.P0))
+	tInt2, tFrac2 := pitch.DecodeDelaySubframe2(uint8(fr.P2), tInt1)
+
+	if _, ok := targetSubs[0]; ok {
+		appendDecoderTAMEPastExcRows(rows, frame, 0, d.pastExc[:])
+	}
+	d.decodeSubframeTAMEPitchCapTrigger(&sf1A, tInt1, tFrac1, fr.C1, uint8(fr.S1), uint8(fr.GA1), uint8(fr.GB1), out[:subframeLen], trigger, applied)
+
+	if _, ok := targetSubs[1]; ok {
+		appendDecoderTAMEPastExcRows(rows, frame, 1, d.pastExc[:])
+	}
+	d.decodeSubframeTAMEPitchCapTrigger(&sf2A, tInt2, tFrac2, fr.C2, uint8(fr.S2), uint8(fr.GA2), uint8(fr.GB2), out[subframeLen:frameSamples], trigger, applied)
+
+	scaleDecoderOutput(out[:frameSamples])
+	return nil
+}
+
+func (d *Decoder) decodeSubframeTAMEPitchCapTrigger(
+	sfA *[lpcOrder + 1]int16,
+	tInt, tFrac int,
+	C uint16, S uint8,
+	GA, GB uint8,
+	out []int16,
+	trigger decoderTAMEPitchCapTrigger,
+	applied *int,
+) {
+	betaQ14 := d.pitchEnhancementBetaQ14()
+
+	var v [subframeLen]int16
+	decodeAdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v)
+
+	var c [subframeLen]int16
+	fcb.Decode(fcb.Indices{Positions: C, Signs: S}, tInt, betaQ14, &c)
+
+	gainTaps := d.gn.DecodeWithFullTaps(gain.Indices{GA: GA, GB: GB}, &c)
+	gpQ14 := gainTaps.GpQ14Final
+	gcMantQ14 := gainTaps.GcMantQ14
+	gcExp := gainTaps.GcExp
+
+	var zero [subframeLen]int16
+	var pitchOnly [subframeLen]int16
+	var fixedOnly [subframeLen]int16
+	synth.BuildExcitation(gpQ14, 0, 0, &v, &zero, &pitchOnly)
+	synth.BuildExcitation(0, gcMantQ14, gcExp, &zero, &c, &fixedOnly)
+	feature := decoderTAMEPitchCapTriggerFeature{
+		gpQ14:    gpQ14,
+		pastRMS:  decoderHistoryRMS(d.pastExc[:]),
+		tailRMS:  decoderHistoryRMS(d.pastExc[pastExcLen-subframeLen:]),
+		vRMS:     envelopeRMS(v[:]),
+		pitchRMS: envelopeRMS(pitchOnly[:]),
+		fixedRMS: envelopeRMS(fixedOnly[:]),
+	}
+	if trigger.match(feature) {
+		gpQ14 = trigger.cap()
+		(*applied)++
+	}
+
+	var u [subframeLen]int16
+	synth.BuildExcitation(gpQ14, gcMantQ14, gcExp, &v, &c, &u)
+
+	var s [subframeLen]int16
+	d.syn.Filter(sfA, &u, &s)
+	var sPf [subframeLen]int16
+	d.pst.Filter(sfA, tInt, &s, &sPf)
+	var hpOut [subframeLen]int16
+	d.hpFilter(&sPf, hpOut[:])
+	copy(out[:subframeLen], hpOut[:])
+
+	copy(d.pastExc[:pastExcLen-subframeLen], d.pastExc[subframeLen:])
+	copy(d.pastExc[pastExcLen-subframeLen:], u[:])
+	d.rememberPitchGain(gainTaps.GpQ14Final)
 }
 
 func decoderTAMEVariantProbeEnvInt(name string, def int) int {
