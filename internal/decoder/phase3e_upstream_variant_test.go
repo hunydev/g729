@@ -62,6 +62,7 @@ func TestPhase3eUpstreamVariantLocalization_SPEECH(t *testing.T) {
 		{name: "zero_adaptive_contribution", zeroAdaptive: true},
 		{name: "zero_fixed_contribution", zeroFixed: true},
 		{name: "no_fcb_pitch_enhancement", noFCBEnhancement: true},
+		{name: "gain_unenhanced_c", gainUnenhancedC: true},
 		{name: "pitch_gain_tame_energy", pitchTameEnergy: true},
 		{name: "pitch_gain_cap_0p95", pitchCapQ14: 15565},
 		{name: "pitch_gain_cap_0p90", pitchCapQ14: 14746},
@@ -153,6 +154,7 @@ type phase3eVariant struct {
 	zeroAdaptive          bool
 	zeroFixed             bool
 	noFCBEnhancement      bool
+	gainUnenhancedC       bool
 	pitchTameEnergy       bool
 	pitchCapQ14           int16
 	pitchScaleNum         int
@@ -255,7 +257,14 @@ func (d *Decoder) decodeSubframePhase3eVariant(
 	var c [subframeLen]int16
 	fcb.Decode(fcb.Indices{Positions: C, Signs: S}, tInt, betaQ14, &c)
 
-	gainTaps := d.gn.DecodeWithFullTaps(gain.Indices{GA: GA, GB: GB}, &c)
+	gainC := &c
+	if variant.gainUnenhancedC {
+		var cRaw [subframeLen]int16
+		fcb.Decode(fcb.Indices{Positions: C, Signs: S}, tInt, 0, &cRaw)
+		gainC = &cRaw
+	}
+
+	gainTaps := d.gn.DecodeWithFullTaps(gain.Indices{GA: GA, GB: GB}, gainC)
 	gpQ14 := gainTaps.GpQ14Final
 	gcMantQ14 := gainTaps.GcMantQ14
 	gcExp := gainTaps.GcExp

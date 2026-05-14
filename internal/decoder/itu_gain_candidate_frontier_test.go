@@ -657,8 +657,10 @@ func decoderUpstreamWindowVariant(t *testing.T) phase3eVariant {
 		return phase3eVariant{name: "flip_pitch_frac_sign", flipTFracSign: true}
 	case "no_fcb_pitch_enhancement":
 		return phase3eVariant{name: "no_fcb_pitch_enhancement", noFCBEnhancement: true}
+	case "gain_unenhanced_c":
+		return phase3eVariant{name: "gain_unenhanced_c", gainUnenhancedC: true}
 	default:
-		t.Fatalf("unknown G729_DECODER_UPSTREAM_WINDOW_CANDIDATE; supported: fixed_gain_half, fixed_gain_double, force_pitch_frac_zero, flip_pitch_frac_sign, no_fcb_pitch_enhancement")
+		t.Fatalf("unknown G729_DECODER_UPSTREAM_WINDOW_CANDIDATE; supported: fixed_gain_half, fixed_gain_double, force_pitch_frac_zero, flip_pitch_frac_sign, no_fcb_pitch_enhancement, gain_unenhanced_c")
 	}
 	return phase3eVariant{}
 }
