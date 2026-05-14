@@ -35,11 +35,11 @@ func TestDecoderTAMEACBOracleShape(t *testing.T) {
 		t.Fatalf("invalid subframe window [%d,%d) for %d frames", startSubframe, endSubframe, len(frames))
 	}
 
-	expectedPath := os.Getenv("G729_DECODER_TAME_STAGE_WIDE_EXPECTED")
+	expectedPath := os.Getenv("G729_DECODER_TAME_ACB_ORACLE_EXPECTED")
 	if expectedPath == "" {
-		expectedPath = decoderTAMEStageWideExpectedPath
+		expectedPath = decoderTAMEACBCheckpointExpectedPath
 	}
-	oracle := decoderTAMEWideSubframeOverrides(t, expectedPath, "adaptive_v_q0")
+	oracle := decoderTAMEACBSubframeOverrides(t, expectedPath)
 	if len(oracle) == 0 {
 		t.Fatalf("no adaptive_v_q0 oracle rows in %s", expectedPath)
 	}

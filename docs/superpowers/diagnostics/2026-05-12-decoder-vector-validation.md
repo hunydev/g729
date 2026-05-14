@@ -603,6 +603,37 @@ Interpretation:
   accumulation issue, preferably a shape-preserving one rather than a broad
   fixed-gain damping rule.
 
+ACB checkpoint handoff:
+
+```sh
+G729_COMPARE_DECODER_TAME_ACB_CHECKPOINT=1 \
+go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEACBCheckpoint -count=1 -v
+```
+
+Current result for
+`testdata/oracle/handoff/decoder_tame_acb_checkpoint_expected.csv`:
+
+| Field | Exact | Filled | Blanks | Max abs |
+| --- | ---: | ---: | ---: | ---: |
+| `adaptive_gain_q14` | `6` | `6` | `182` | `0` |
+| `fixed_gain_q14` | `0` | `6` | `182` | `18432` |
+| `adaptive_v_q0` | `0` | `240` | `7280` | `441` |
+| `excitation_u_q0` | `0` | `240` | `7280` | `447` |
+| `past_exc_pre_acb_q0` | `0` | `546` | `28218` | `442` |
+
+Interpretation:
+
+- The checkpoint did not solve onset localization: frames `26..116` remain
+  blank because the verifier could not independently reconstruct the forward
+  excitation/history under the current clean-room inputs.
+- It does confirm that at frames `117..119`, local adaptive gain is exact while
+  fixed gain is close but not exact, and the larger failure is already present
+  in pre-ACB history, ACB vector, and final excitation.
+- The next useful oracle would need either earlier independent excitation
+  history or enough clean-room support-table data to forward-decode the missing
+  `26..116` range. Without that, a production damping change remains
+  under-justified.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
