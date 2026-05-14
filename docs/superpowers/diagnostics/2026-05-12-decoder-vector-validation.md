@@ -229,6 +229,30 @@ Next local fix target:
   gain predictor state, fixed-codebook energy domain, and `gcMant/gcExp`
   reconstruction around the high-error TAME frontier frames.
 
+The focused gain-frontier command is:
+
+```sh
+G729_DECODER_FIXED_GAIN_FRONTIER=1 \
+G729_DECODER_ITU_VECTOR_FRONTIER_TOP=5 \
+go test ./internal/decoder -run TestDecoderITUFixedGainFrontier -count=1 -v
+```
+
+Current `TAME` result:
+
+| Frame | Production RMS | Fixed-gain-half RMS | Production max | Half max |
+| ---: | ---: | ---: | ---: | ---: |
+| `123` | `10069.57` | `723.78` | `13949` | `1487` |
+| `127` | `9883.27` | `520.09` | `14016` | `962` |
+| `126` | `9824.08` | `1086.53` | `14039` | `1784` |
+| `122` | `9587.16` | `683.40` | `13686` | `1301` |
+| `125` | `9565.75` | `1178.91` | `13619` | `1849` |
+
+The per-subframe logs show `fixedRMS` is much smaller than `pitchRMS` at
+those already-bad frames. The fixed-gain-half improvement is therefore mostly
+stateful: reducing earlier fixed contribution changes the subsequent
+past-excitation/adaptive vector trajectory, rather than merely subtracting a
+large direct fixed contribution in the listed frame.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
