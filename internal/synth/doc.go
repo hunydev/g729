@@ -45,9 +45,8 @@
 // All arithmetic derives from ITU-T G.729 §3.10 / §4.1.2 / §4.1.6 directly.
 // No ITU reference C source, bcg729, Sipro Lab, or any other existing
 // G.729 implementation was consulted for algorithmic code. The synthesis
-// filter uses direct-form saturation arithmetic (no two-pass overflow
-// guard); the spec does not require two-pass, and perceptual tests in
-// Phase 1g will verify acceptability.
+// filter uses direct-form fixed-point saturation arithmetic with the §3.10
+// two-pass overflow recovery path implemented in filter.go.
 //
 // # Concurrency
 //

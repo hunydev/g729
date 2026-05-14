@@ -15,27 +15,26 @@ import (
 )
 
 // TestPhase3fSynthOverflowRecoveryAudit_SPEECH audits the §3.10 overflow
-// recovery branch in the synthesis filter. Production currently scales the
-// input/state by 1/2 and restores by x2; the spec note carried in repo docs says
-// overflow recovery should use 1/4 and x4. This diagnostic tests whether that
-// branch is active on SPEECH.BIT and whether the 1/4 candidate improves the
-// final black-box PCM metrics.
+// recovery branch in the synthesis filter. Production uses the quarter/x4
+// recovery path; the legacy half/x2 and no-recovery paths are kept only as
+// diagnostic probes.
 func TestPhase3fSynthOverflowRecoveryAudit_SPEECH(t *testing.T) {
 	if os.Getenv("G729_DECODER_SYNTH_OVERFLOW_AUDIT") != "1" {
 		t.Skip("set G729_DECODER_SYNTH_OVERFLOW_AUDIT=1 to audit synth overflow recovery")
 	}
 
-	bitPath := vectorPath("SPEECH.BIT")
-	pstPath := vectorPath("SPEECH.PST")
+	tc := phase3eSelectedITUVector(t, "G729_DECODER_SYNTH_OVERFLOW_VECTOR", "SPEECH")
+	bitPath := vectorPath(tc.bitFile)
+	pstPath := vectorPath(tc.pstFile)
 	ensureTestdataPresent(t, bitPath, pstPath)
 
 	bitData, err := os.ReadFile(bitPath)
 	if err != nil {
-		t.Fatalf("read SPEECH.BIT: %v", err)
+		t.Fatalf("read %s: %v", tc.bitFile, err)
 	}
 	pstData, err := os.ReadFile(pstPath)
 	if err != nil {
-		t.Fatalf("read SPEECH.PST: %v", err)
+		t.Fatalf("read %s: %v", tc.pstFile, err)
 	}
 
 	frames := len(pstData) / (2 * frameSamples)
@@ -45,11 +44,11 @@ func TestPhase3fSynthOverflowRecoveryAudit_SPEECH(t *testing.T) {
 	ref := blackboxReadPCM16LE(t, pstData, frames*frameSamples)
 
 	production := decodeVariant(t, bitData, frames, nil, nil)
-	half, halfStats := phase3fDecodeWithSynthRecovery(t, bitData, frames, 1)
-	if !phase3eEqualPCM(production, half) {
-		t.Fatalf("phase3f half-recovery decoder diverges from production Decode")
-	}
 	quarter, quarterStats := phase3fDecodeWithSynthRecovery(t, bitData, frames, 2)
+	if !phase3eEqualPCM(production, quarter) {
+		t.Fatalf("phase3f quarter-recovery decoder diverges from production Decode")
+	}
+	half, halfStats := phase3fDecodeWithSynthRecovery(t, bitData, frames, 1)
 	none, noneStats := phase3fDecodeWithSynthRecovery(t, bitData, frames, 0)
 
 	variants := []struct {
@@ -57,13 +56,13 @@ func TestPhase3fSynthOverflowRecoveryAudit_SPEECH(t *testing.T) {
 		out   []int16
 		stats phase3fSynthStats
 	}{
-		{name: "production_half_x2", out: half, stats: halfStats},
-		{name: "candidate_quarter_x4", out: quarter, stats: quarterStats},
+		{name: "production_quarter_x4", out: quarter, stats: quarterStats},
+		{name: "legacy_half_x2", out: half, stats: halfStats},
 		{name: "no_recovery_pass1_sat", out: none, stats: noneStats},
 	}
 
 	prodMetrics := blackboxMeasure(ref, production, 40)
-	t.Logf("Phase 3f synth overflow recovery audit — SPEECH.BIT/SPEECH.PST (%d frames)", frames)
+	t.Logf("Phase 3f synth overflow recovery audit — %s/%s (%d frames)", tc.bitFile, tc.pstFile, frames)
 	t.Logf("production baseline: rms=%.2f peak=%d gSNR=%.2f seg=%.2f corr=%.3f",
 		prodMetrics.rms, prodMetrics.peak, prodMetrics.globalSNR, prodMetrics.segSNR, prodMetrics.corr)
 	t.Logf("")
@@ -79,7 +78,7 @@ func TestPhase3fSynthOverflowRecoveryAudit_SPEECH(t *testing.T) {
 			m.globalSNR-prodMetrics.globalSNR, m.corr-prodMetrics.corr,
 			phase3fDiffSamples(production, v.out))
 	}
-	t.Logf("verdict: %s", phase3fOverflowVerdict(prodMetrics, blackboxMeasure(ref, quarter, 40), halfStats, quarterStats))
+	t.Logf("verdict: %s", phase3fOverflowVerdict(quarterStats))
 }
 
 type phase3fSynthStats struct {
@@ -100,7 +99,7 @@ func phase3fDecodeWithSynthRecovery(t *testing.T, bitData []byte, frames int, re
 	var packed [bitstream.FrameBytes]byte
 	r := bytes.NewReader(bitData)
 	for fr := 0; fr < frames; fr++ {
-		if _, err := bitstream.ReadG192Frame(r, packed[:]); err != nil {
+		if _, err := bitstream.ReadG192FrameLenient(r, packed[:]); err != nil {
 			t.Fatalf("ReadG192Frame[phase3f] frame %d: %v", fr, err)
 		}
 		if err := dec.decodeFramePhase3f(packed[:], out[fr*frameSamples:(fr+1)*frameSamples], &syn, recoveryShift); err != nil {
@@ -150,7 +149,7 @@ func (d *Decoder) decodeSubframePhase3f(
 	syn *phase3fSynth,
 	recoveryShift uint,
 ) {
-	betaQ14 := fcb.ClampPitchGainForEnhancement(d.prevGpQ14)
+	betaQ14 := d.pitchEnhancementBetaQ14()
 
 	var v [subframeLen]int16
 	decodeAdaptiveCodebook(tInt, tFrac, d.pastExc[:], &v)
@@ -176,7 +175,7 @@ func (d *Decoder) decodeSubframePhase3f(
 	copy(d.pastExc[:pastExcLen-subframeLen], d.pastExc[subframeLen:])
 	copy(d.pastExc[pastExcLen-subframeLen:], u[:])
 
-	d.prevGpQ14 = gpQ14
+	d.rememberPitchGain(gpQ14)
 }
 
 func (s *phase3fSynth) filter(a *[lpcOrder + 1]int16, u, out *[subframeLen]int16, recoveryShift uint) {
@@ -248,15 +247,12 @@ func phase3fDiffSamples(a, b []int16) int {
 	return diff
 }
 
-func phase3fOverflowVerdict(prod, quarter blackboxMetrics, halfStats, quarterStats phase3fSynthStats) string {
-	if halfStats.pass1Overflow == 0 {
-		return "synth overflow recovery is inactive on SPEECH; not the current quality defect"
+func phase3fOverflowVerdict(prodStats phase3fSynthStats) string {
+	if prodStats.pass1Overflow == 0 {
+		return "synth overflow recovery is inactive on the selected vector"
 	}
-	if quarter.globalSNR-prod.globalSNR > 1.0 || quarter.corr-prod.corr > 0.05 {
-		return "quarter recovery materially improves output; promote to production fix candidate"
-	}
-	if quarterStats.pass2Overflow > 0 {
+	if prodStats.pass2Overflow > 0 {
 		return "quarter recovery still overflows on pass2; need narrower synthesis arithmetic audit"
 	}
-	return "quarter recovery changes samples but does not improve black-box quality enough for a production fix"
+	return "production quarter recovery is active; if envelope still grows, inspect synthesis input/state rather than toggling recovery scale"
 }

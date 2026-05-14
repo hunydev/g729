@@ -446,6 +446,56 @@ Updated localization:
   amplitude, the next local target is the LP synthesis state and the
   excitation/gain history feeding it, not a postfilter or output writer fix.
 
+Synth overflow recovery check:
+
+```sh
+G729_DECODER_SYNTH_OVERFLOW_AUDIT=1 \
+G729_DECODER_SYNTH_OVERFLOW_VECTOR=TAME \
+go test ./internal/decoder -run TestPhase3fSynthOverflowRecoveryAudit_SPEECH -count=1 -v
+```
+
+Current result:
+
+| Variant | gSNR | Corr | Pass-1 overflow | Pass-2 overflow | Diff samples |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `production_quarter_x4` | `6.50` | `0.972` | `0` | `0` | `0` |
+| `legacy_half_x2` | `6.50` | `0.972` | `0` | `0` | `0` |
+| `no_recovery_pass1_sat` | `6.50` | `0.972` | `0` | `0` | `0` |
+
+The synthesis overflow-recovery branch is inactive on TAME and SPEECH, so the
+TAME over-amplification is not a recovery-scale bug.
+
+Verifier-numeric oracle injection probes:
+
+```sh
+G729_DECODER_TAME_ORACLE_LP_PROBE=1 \
+go test ./internal/decoder -run TestDecoderTAMEOracleLPCoeffProbe -count=1 -v
+
+G729_DECODER_TAME_ORACLE_ACB_PROBE=1 \
+go test ./internal/decoder -run TestDecoderTAMEOracleACBVectorProbe -count=1 -v
+```
+
+Current result:
+
+| Probe | Overridden rows | gSNR | Corr | Delta gSNR | Diff samples |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `oracle_lp` | `6` subframes | `6.49` | `0.972` | `-0.00` | `788` |
+| `oracle_acb` | `6` subframes | `7.95` | `0.974` | `+1.45` | `880` |
+
+Interpretation:
+
+- The verifier-provided `lp_a_q12` rows for TAME frames `117..119` do not move
+  final PST agreement, so the small LP coefficient drift in that artifact is
+  not the dominant late-envelope cause.
+- Injecting verifier-provided `adaptive_v_q0` rows for the same six subframes
+  gives a material improvement. This makes past-excitation/adaptive-codebook
+  history the strongest current local target.
+- Because the verifier could not independently derive frame `0..116`
+  excitation history under the current clean-room inputs, the next local work
+  should use PST-only and numeric-oracle injection probes to narrow which
+  earlier gain/fixed contribution changes first corrupt the past-excitation
+  FIFO.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
