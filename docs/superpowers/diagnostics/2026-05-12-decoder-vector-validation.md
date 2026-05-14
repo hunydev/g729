@@ -745,6 +745,36 @@ Interpretation:
   useful production audit should target the state transition that begins the
   `pastExc` growth between frames `26` and `53`.
 
+TAME gain-energy audit:
+
+```sh
+G729_DECODER_TAME_GAIN_ENERGY_AUDIT=1 \
+G729_DECODER_ITU_VECTOR_FRONTIER_TOP=6 \
+go test ./internal/decoder -run TestDecoderTAMEGainEnergyAudit -count=1 -v
+```
+
+Current result:
+
+- Fixed-codebook energy saturation: `0/256` subframes.
+- In the onset window (`26..53`), non-saturating int64 energy and the local
+  `gain.FixedCodebookEnergy` `Word32` result are identical.
+- Direct fixed contribution is much smaller than adaptive/pitch contribution
+  through the onset region. Example: frame `53/0` has `pitchRMS=258.2`,
+  `fixedRMS=44.7`, and `uRMS=254.7`.
+- The legacy diagnostic `GcQ12Final` is frequently saturated, but the active
+  excitation path uses the mantissa/exponent pair (`GcMantQ14`, `GcExp`), not
+  the clamped Q12 diagnostic value.
+
+Interpretation:
+
+- The TAME drift is not caused by fixed-codebook energy accumulator saturation.
+- The onset still looks ACB/past-excitation feedback dominated: small direct
+  fixed contribution changes can perturb the recurrent `pastExc` path, but the
+  immediate sample energy is mostly adaptive contribution.
+- The next verifier-independent local check should therefore focus on
+  pitch/ACB feedback and the `pastExc` FIFO update over frames `26..53`, not on
+  widening `fixedCodebookEnergy`.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
