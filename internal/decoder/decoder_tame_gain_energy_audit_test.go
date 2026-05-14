@@ -291,7 +291,7 @@ type decoderTAMEGainEnergyRow struct {
 	predDb          float64
 	logGainDb       float64
 	log2Gc          float64
-	gammaCQ13       int16
+	gammaCQ13       int32
 	gcMantQ14       int16
 	gcExp           int8
 	prodUnsatQ12    int32

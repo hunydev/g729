@@ -85,10 +85,10 @@ func TestDbPerLog2Q13_MatchesSpecDerivation(t *testing.T) {
 	}
 }
 
-func TestInvDbScaleQ15_MatchesSpecDerivation(t *testing.T) {
-	want := int16(math.Round(1 / (20 * math.Log10(2)) * 32768))
+func TestInvDbScaleQ15_MatchesDecoderFixedConstant(t *testing.T) {
+	const want int16 = 5439
 	if invDbScaleQ15 != want {
-		t.Fatalf("invDbScaleQ15 = %d; want %d (= round(1/(20·log10(2))·2^15))", invDbScaleQ15, want)
+		t.Fatalf("invDbScaleQ15 = %d; want %d", invDbScaleQ15, want)
 	}
 }
 

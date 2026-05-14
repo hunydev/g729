@@ -16,12 +16,12 @@ import (
 //  2. Integer part: log2(x) = (30 - s) + log2(mantissa) with
 //     mantissa = (x·2^s)/2^30 ∈ [1, 2).
 //
-//  3. Express mantissa as 1 + f, f ∈ [0, 1).  The top 15 bits of the
-//     30-bit fractional region give f in Q15.  Split f into a 5-bit
-//     index i and a 10-bit interpolation residual a:
+//  3. Express mantissa as 1 + f, f ∈ [0, 1). Split the 30-bit
+//     fractional region into a 5-bit table index and a 15-bit
+//     interpolation residual:
 //
 //     tables.Log2Table[i]   ≈ log2(1 + i/32) · 2¹⁵
-//     frac_Q15 ≈ Log2Table[i] + (Log2Table[i+1] - Log2Table[i])·a/1024
+//     frac_Q15 ≈ Log2Table[i] + (Log2Table[i+1] - Log2Table[i])·a/32768
 //
 //  4. Combine: result_Q10 = (intPart << 10) + (frac_Q15 >> 5).
 //
@@ -42,16 +42,13 @@ func log2Fixed(x fixed.Word32) fixed.Word32 {
 	normX := fixed.LShl(x, s)
 	intPart := fixed.Word32(30) - fixed.Word32(s)
 
-	// Top 15 bits of the fractional part of normX (post-leading-1).
-	// normX ∈ [2^30, 2^31), so (normX >> 15) ∈ [2^15, 2^16); subtracting
-	// 2^15 strips the implicit leading bit, yielding f in Q15.
-	frac15 := fixed.Word32((int32(normX) >> 15) & 0x7FFF)
-	idx := frac15 >> 10
-	a := frac15 & 0x3FF
+	frac30 := int64(normX) - (1 << 30)
+	idx := fixed.Word32(frac30 >> 25)
+	a := fixed.Word32((frac30 >> 10) & 0x7FFF)
 
 	t0 := fixed.Word32(tables.Log2Table[idx])
 	t1 := fixed.Word32(tables.Log2Table[idx+1])
-	fracLog2Q15 := t0 + ((t1-t0)*a)>>10
+	fracLog2Q15 := t0 + ((t1-t0)*a)>>15
 
 	return (intPart << 10) + (fracLog2Q15 >> 5)
 }

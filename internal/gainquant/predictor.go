@@ -11,14 +11,14 @@ import (
 //
 //	dbPerLog2Q13   = 10·log10(2) · 2¹³  ≈ 24660  // dB per unit log2
 //	tenLog10_40Q10 = 10·log10(40) · 2¹⁰ ≈ 16405  // 10·log10(40) Q10 dB
-//	invDbScaleQ15  = 1 / (20·log10(2)) · 2¹⁵ ≈ 5443  // log2 per dB
+//	invDbScaleQ15  ≈ 1 / (20·log10(2)) · 2¹⁵, fixed decoder constant
 //
 // Identical to the decoder-side constants in internal/gain/decode.go;
 // re-stated here so the encoder predictor stays self-contained.
 const (
 	dbPerLog2Q13   = 24660
 	tenLog10_40Q10 = 16405
-	invDbScaleQ15  = 5443
+	invDbScaleQ15  = 5439
 	dbPerLog2Q10   = 6165
 )
 
@@ -61,28 +61,28 @@ const (
 // returning 0 (rather than saturating to int32 extrema) matches the
 // decoder's protective branch in gain.Decode.
 func PredictedGcQ12(pastQuaEn *[4]int16, c *[40]int16) int32 {
-	log2GcQ10, ok := predictedLog2GcQ10Search(pastQuaEn, c)
+	log2GcQ15, ok := predictedLog2GcQ15Search(pastQuaEn, c)
 	if !ok {
 		return 0
 	}
-	return int32(gain.Pow2Fixed(fixed.Word32(log2GcQ10) + 12*1024))
+	return predictedGcQ12FromLog2Q15(log2GcQ15)
 }
 
 // PredictedGcQ12Wide is the int32-predictor variant of PredictedGcQ12. It
 // follows the same §3.9.1 equations but avoids the intermediate Word16
 // saturation used by the legacy encoder search surface.
 func PredictedGcQ12Wide(pastQuaEn *[4]int16, c *[40]int16) int32 {
-	log2GcQ10, ok := predictedLog2GcQ10Wide(pastQuaEn, c)
+	log2GcQ15, ok := predictedLog2GcQ15Wide(pastQuaEn, c)
 	if !ok {
 		return 0
 	}
-	return int32(gain.Pow2Fixed(fixed.Word32(log2GcQ10) + 12*1024))
+	return predictedGcQ12FromLog2Q15(log2GcQ15)
 }
 
 // predictedLog2GcQ10Search returns the predicted log2(g'c) at Q10 for
 // the encoder's §3.9.2 VQ candidate search. It intentionally uses the
 // bounded MA prediction described on PredictedGcQ12.
-func predictedLog2GcQ10Search(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
+func predictedLog2GcQ15Search(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
 	ecEnergy := gain.FixedCodebookEnergy(c)
 	if ecEnergy <= 0 {
 		return 0, false
@@ -92,14 +92,13 @@ func predictedLog2GcQ10Search(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
 
 	ecLog2Q10 := int32(gain.Log2Fixed(ecEnergy)) - 26*1024
 	ecDbQ10 := (ecLog2Q10*dbPerLog2Q13 + (1 << 12)) >> 13
-	ecBarDbQ10 := fixed.Saturate(fixed.Word32(ecDbQ10 - int32(tenLog10_40Q10)))
+	ecBarDbQ10 := ecDbQ10 - int32(tenLog10_40Q10)
 
-	logGainDbQ10 := fixed.Sub(predicted, ecBarDbQ10)
-	log2GcQ10 := (int32(logGainDbQ10)*invDbScaleQ15 + (1 << 14)) >> 15
-	return log2GcQ10, true
+	logGainDbQ10 := int32(predicted) - ecBarDbQ10
+	return gain.LogGainToLog2Q15(logGainDbQ10), true
 }
 
-func predictedLog2GcQ10Wide(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
+func predictedLog2GcQ15Wide(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
 	ecEnergy := gain.FixedCodebookEnergy(c)
 	if ecEnergy <= 0 {
 		return 0, false
@@ -109,11 +108,14 @@ func predictedLog2GcQ10Wide(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
 
 	ecLog2Q10 := int32(gain.Log2Fixed(ecEnergy)) - 26*1024
 	ecDbQ10 := (ecLog2Q10*dbPerLog2Q13 + (1 << 12)) >> 13
-	ecBarDbQ10 := int32(fixed.Saturate(fixed.Word32(ecDbQ10 - int32(tenLog10_40Q10))))
+	ecBarDbQ10 := ecDbQ10 - int32(tenLog10_40Q10)
 
 	logGainDbQ10 := predicted - ecBarDbQ10
-	log2GcQ10 := (logGainDbQ10*invDbScaleQ15 + (1 << 14)) >> 15
-	return log2GcQ10, true
+	return gain.LogGainToLog2Q15(logGainDbQ10), true
+}
+
+func predictedGcQ12FromLog2Q15(log2GcQ15 int32) int32 {
+	return int32(gain.FixedGainQ14FromLog2Gamma(log2GcQ15, 8192) >> 2)
 }
 
 // DequantGc reconstructs the chosen quantized fixed-codebook gain g_c
@@ -139,24 +141,12 @@ func predictedLog2GcQ10Wide(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
 // encoder's caller may choose the bounded legacy search predictor or the wider
 // receiver-aligned predictor. TestApply_MantissaExponent pins the
 // representation contract and documented split cases.
-func DequantGc(log2GcPredQ10 int32, ok bool, gammaCQ13 int16) (gcMantQ14 int16, gcExp int8) {
+func DequantGc(log2GcPredQ15 int32, ok bool, gammaCQ13 int32) (gcMantQ14 int16, gcExp int8) {
 	if !ok || gammaCQ13 <= 0 {
 		return 0, 0
 	}
-	gammaLog2Q10 := int32(gain.Log2Fixed(fixed.Word32(gammaCQ13))) - 13*1024
-	log2GcWithGammaQ10 := log2GcPredQ10 + gammaLog2Q10
-	intPart := log2GcWithGammaQ10 >> 10
-	frac := log2GcWithGammaQ10 - (intPart << 10)
-	gcMantQ14 = gain.Pow2FracQ14(frac)
-	switch {
-	case intPart > 127:
-		gcExp = 127
-	case intPart < -128:
-		gcExp = -128
-	default:
-		gcExp = int8(intPart)
-	}
-	return
+	gainQ14 := gain.FixedGainQ14FromLog2Gamma(log2GcPredQ15, gammaCQ13)
+	return gain.SplitGainQ14(gainQ14)
 }
 
 // Reconstruct is the encoder-side "Apply" surface: given the predictor
@@ -175,18 +165,18 @@ func DequantGc(log2GcPredQ10 int32, ok bool, gammaCQ13 int16) (gcMantQ14 int16, 
 // experiments.
 func Reconstruct(pastQuaEn *[4]int16, c *[40]int16, ga, gb uint8) (gpQ14, gcMantQ14 int16, gcExp int8) {
 	gpQ14 = fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[ga][0]) + int32(tables.GainGBK2[gb][0])))
-	gammaCQ13 := fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1])))
-	log2GcPredQ10, ok := predictedLog2GcQ10Search(pastQuaEn, c)
-	gcMantQ14, gcExp = DequantGc(log2GcPredQ10, ok, gammaCQ13)
+	gammaCQ13 := int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1])
+	log2GcPredQ15, ok := predictedLog2GcQ15Search(pastQuaEn, c)
+	gcMantQ14, gcExp = DequantGc(log2GcPredQ15, ok, gammaCQ13)
 	return
 }
 
 // ReconstructWide is the int32-predictor variant of Reconstruct.
 func ReconstructWide(pastQuaEn *[4]int16, c *[40]int16, ga, gb uint8) (gpQ14, gcMantQ14 int16, gcExp int8) {
 	gpQ14 = fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[ga][0]) + int32(tables.GainGBK2[gb][0])))
-	gammaCQ13 := fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1])))
-	log2GcPredQ10, ok := predictedLog2GcQ10Wide(pastQuaEn, c)
-	gcMantQ14, gcExp = DequantGc(log2GcPredQ10, ok, gammaCQ13)
+	gammaCQ13 := int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1])
+	log2GcPredQ15, ok := predictedLog2GcQ15Wide(pastQuaEn, c)
+	gcMantQ14, gcExp = DequantGc(log2GcPredQ15, ok, gammaCQ13)
 	return
 }
 

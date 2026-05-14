@@ -37,13 +37,9 @@ func TestPhase3aDiag1_GcUnsaturatedTaps_SPEECH(t *testing.T) {
 		min, max int32
 		sum      int64
 	}
-	type i16stat struct {
-		min, max int16
-		sum      int64
-	}
 	var (
 		predicted       i32stat
-		ecBar           i16stat
+		ecBar           i32stat
 		log2Gc          i32stat
 		gc0Unsat        i32stat
 		prodUnsat       i32stat
@@ -53,10 +49,8 @@ func TestPhase3aDiag1_GcUnsaturatedTaps_SPEECH(t *testing.T) {
 		nSub            int
 		showSubs        = 10
 	)
-	ecBar.min = math.MaxInt16
-	ecBar.max = math.MinInt16
-	predicted.min, log2Gc.min, gc0Unsat.min, prodUnsat.min = math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32
-	predicted.max, log2Gc.max, gc0Unsat.max, prodUnsat.max = math.MinInt32, math.MinInt32, math.MinInt32, math.MinInt32
+	predicted.min, ecBar.min, log2Gc.min, gc0Unsat.min, prodUnsat.min = math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32
+	predicted.max, ecBar.max, log2Gc.max, gc0Unsat.max, prodUnsat.max = math.MinInt32, math.MinInt32, math.MinInt32, math.MinInt32, math.MinInt32
 
 	t.Logf("First %d subframes — gain-decoder unsaturated taps:", showSubs)
 	t.Logf("%5s %3s %8s %8s %8s %12s %12s %8s %8s %8s",

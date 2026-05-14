@@ -49,7 +49,7 @@ func TestPhase3bDiag1_PastErrorsTrajectory(t *testing.T) {
 		gpQ14     int16
 		gcMantQ14 int16
 		gcExp     int8
-		gammaCQ13 int16
+		gammaCQ13 int32
 		uCurrent  int16
 		guard     bool
 	}

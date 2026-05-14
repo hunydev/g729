@@ -130,7 +130,7 @@ type decoderHistorySubframeMetrics struct {
 	tInt           int
 	tFrac          int
 	gpQ14          int16
-	gammaQ13       int16
+	gammaQ13       int32
 	gcMantQ14      int16
 	gcExp          int8
 	predictedQ10   int32

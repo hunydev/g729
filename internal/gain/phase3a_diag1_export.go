@@ -19,6 +19,8 @@ import (
 //   - Gc0Q14Unsat      g_c0 = 2^Log2Gc, expressed at Q14 as int32
 //     WITHOUT clamping to int16. This is the "natural" predicted-gain
 //     magnitude before the codebook-correction multiply.
+//   - Gc0MantQ14       fractional Pow2 mantissa of g_c0 at Q14, before
+//     applying the binary exponent.
 //   - GammaCQ13        γ̂_c at Q13 from the conjugate-structure VQ
 //   - ProdUnsat        γ̂_c · g_c0 ≫ 15  at Q12, int32 WITHOUT clamp
 //   - GpQ14Final       g_p Q14 (post-VQ; matches Decode return)
@@ -33,21 +35,22 @@ import (
 //   - UCurrent         current predictor update U(m), Q10 dB.
 //   - ZeroEnergyGuard  true when the Σc²==0 short-circuit fired
 type GainDecodeFullTaps struct {
-	Predicted       int32
-	EcBarDbQ10      int16
-	LogGainDbQ10    int32
-	Log2GcQ10       int32
-	Gc0Q14Unsat     int32
-	GammaCQ13       int16
-	ProdUnsat       int32
-	GpQ14Final      int16
-	GcQ12Final      int16
-	GcMantQ14       int16
-	GcExp           int8
+	Predicted        int32
+	EcBarDbQ10       int32
+	LogGainDbQ10     int32
+	Log2GcQ10        int32
+	Gc0Q14Unsat      int32
+	Gc0MantQ14       int16
+	GammaCQ13        int32
+	ProdUnsat        int32
+	GpQ14Final       int16
+	GcQ12Final       int16
+	GcMantQ14        int16
+	GcExp            int8
 	PastErrorsBefore [4]int16
 	PastErrorsAfter  [4]int16
 	UCurrent         int16
-	ZeroEnergyGuard bool
+	ZeroEnergyGuard  bool
 }
 
 // pow2FixedAsInt32 mirrors pow2Fixed (pow2.go) but returns the result
@@ -134,26 +137,46 @@ func (d *Decoder) DecodeWithFullTaps(idx Indices, c *[40]int16) GainDecodeFullTa
 
 	ecLog2Q10 := int32(log2Fixed(ecEnergy)) - 26*1024
 	ecDbQ10 := (ecLog2Q10*dbPerLog2Q13 + (1 << 12)) >> 13
-	ecBarDbQ10 := fixed.Saturate(fixed.Word32(ecDbQ10 - int32(tenLog10_40Q10)))
-	out.EcBarDbQ10 = int16(ecBarDbQ10)
+	ecBarDbQ10 := ecDbQ10 - int32(tenLog10_40Q10)
+	out.EcBarDbQ10 = ecBarDbQ10
 
 	logGainDbQ10 := predicted - int32(ecBarDbQ10)
 	out.LogGainDbQ10 = logGainDbQ10
-	log2GcQ10 := (logGainDbQ10*invDbScaleQ15 + (1 << 14)) >> 15
+	log2GcQ15 := logGainToLog2Q15(logGainDbQ10)
+	log2GcQ10 := log2GcQ15 >> 5
 	out.Log2GcQ10 = log2GcQ10
 
-	gc0Unsat := pow2FixedAsInt32(fixed.Word32(log2GcQ10) + 14*1024)
-	out.Gc0Q14Unsat = gc0Unsat
+	intPart := log2GcQ15 >> 15
+	fracQ15 := log2GcQ15 - (intPart << 15)
+	gc0MantQ14 := pow2FracQ14FromQ15(fracQ15)
+	out.Gc0MantQ14 = gc0MantQ14
+
+	gc0Unsat64 := int64(gc0MantQ14)
+	if intPart >= 0 {
+		if intPart >= 31 {
+			gc0Unsat64 = int64(int32(0x7FFFFFFF))
+		} else {
+			gc0Unsat64 <<= uint(intPart)
+		}
+	} else {
+		shift := -intPart
+		if shift >= 63 {
+			gc0Unsat64 = 0
+		} else {
+			gc0Unsat64 >>= uint(shift)
+		}
+	}
+	if gc0Unsat64 > int64(int32(0x7FFFFFFF)) {
+		gc0Unsat64 = int64(int32(0x7FFFFFFF))
+	}
+	out.Gc0Q14Unsat = int32(gc0Unsat64)
 
 	gp, gammaC := decodeVQ(idx)
 	out.GpQ14Final = gp
 	out.GammaCQ13 = gammaC
 
-	// γ̂_c (Q13) · g_c0 (Q14) → Q27, shift to Q12 by >> 15. Compute the
-	// product in int64 to capture the true magnitude before any clamp,
-	// then narrow to int32 (saturating only at the int32 boundary, well
-	// outside the int16 envelope under investigation).
-	prod64 := (int64(gammaC) * int64(gc0Unsat)) >> 15
+	gainQ14 := fixedGainQ14FromLog2Gamma(log2GcQ15, gammaC)
+	prod64 := gainQ14 >> 2
 	var prodUnsat int32
 	switch {
 	case prod64 > int64(int32(0x7FFFFFFF)):
@@ -173,26 +196,11 @@ func (d *Decoder) DecodeWithFullTaps(idx Indices, c *[40]int16) GainDecodeFullTa
 	}
 	out.GcQ12Final = int16(prod)
 
-	// New (mantissa, exponent) representation per REF-1 §2; mirror the
-	// production Decode flow so out.GcMantQ14/GcExp are bit-for-bit
-	// identical to what Decode returns on the same predictor state.
 	if gammaC <= 0 {
 		out.GcMantQ14 = 0
 		out.GcExp = 0
 	} else {
-		gammaLog2Q10 := int32(log2Fixed(fixed.Word32(gammaC))) - 13*1024
-		log2GcWithGammaQ10 := log2GcQ10 + gammaLog2Q10
-		intPart := log2GcWithGammaQ10 >> 10
-		frac := log2GcWithGammaQ10 - (intPart << 10)
-		out.GcMantQ14 = pow2FracQ14(frac)
-		switch {
-		case intPart > 127:
-			out.GcExp = 127
-		case intPart < -128:
-			out.GcExp = -128
-		default:
-			out.GcExp = int8(intPart)
-		}
+		out.GcMantQ14, out.GcExp = splitGainQ14(gainQ14)
 	}
 
 	var uCurrent int16

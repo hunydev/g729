@@ -15,7 +15,7 @@ import (
 //
 // Q-format walk: the products b_i · Û(m-i) are accumulated at Q24
 // because the fixed-point L_mac form doubles the Q13×Q10 product. The
-// accumulator is then shifted left by 2 and rounded down to Q10. The
+// accumulator is then shifted left by 2 and truncated to Q10. The
 // long-term mean energy reference E̅ is added in int32 so high-energy
 // frames are not collapsed by an intermediate Word16 saturation before
 // g_c reconstruction.
@@ -29,7 +29,7 @@ func PredictedLogGain(pastErrors *[4]int16) int32 {
 	for i := 0; i < 4; i++ {
 		acc += int64(2) * int64(tables.GainMAPredictor[i]) * int64(pastErrors[i])
 	}
-	predicted := int32((acc*4 + 0x8000) >> 16)
+	predicted := int32((acc * 4) >> 16)
 	return int32(tables.GainMeanEnergyQ10) + predicted
 }
 
@@ -41,7 +41,7 @@ func PredictedLogGainSat16(pastErrors *[4]int16) int16 {
 	for i := 0; i < 4; i++ {
 		acc = fixed.LMac(acc, tables.GainMAPredictor[i], fixed.Word16(pastErrors[i]))
 	}
-	predicted := fixed.Round(fixed.LShl(acc, 2))
+	predicted := fixed.ExtractH(fixed.LShl(acc, 2))
 	return int16(fixed.Add(tables.GainMeanEnergyQ10, predicted))
 }
 

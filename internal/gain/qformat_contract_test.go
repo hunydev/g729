@@ -93,8 +93,8 @@ func TestQFormatContract_Pow2FixedReturnsQ0(t *testing.T) {
 	}
 }
 
-// TestQFormatContract_LogDomainConstants — verify the four magic
-// numbers in decode.go match their physical identities. These are
+// TestQFormatContract_LogDomainConstants — verify the log-domain
+// constants in decode.go match their intended fixed-point contracts. These are
 // pure compile-time invariants; if a future refactor changes them,
 // this test catches the drift.
 func TestQFormatContract_LogDomainConstants(t *testing.T) {
@@ -107,10 +107,8 @@ func TestQFormatContract_LogDomainConstants(t *testing.T) {
 		t.Errorf("tenLog10_40Q10 = %d, want %d",
 			tenLog10_40Q10, wantTenLog10_40Q10)
 	}
-	wantInvDbScaleQ15 := int(math.Round(1.0 / (20 * math.Log10(2)) * (1 << 15)))
-	if invDbScaleQ15 != wantInvDbScaleQ15 {
-		t.Errorf("invDbScaleQ15 = %d, want %d",
-			invDbScaleQ15, wantInvDbScaleQ15)
+	if invDbScaleQ15 != 5439 {
+		t.Errorf("invDbScaleQ15 = %d, want 5439", invDbScaleQ15)
 	}
 	wantDbPerLog2Q10 := int(math.Round(20 * math.Log10(2) * (1 << 10)))
 	if dbPerLog2Q10 != wantDbPerLog2Q10 {

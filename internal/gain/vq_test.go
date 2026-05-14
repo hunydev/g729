@@ -21,15 +21,10 @@ func TestDecodeVQ_SumsMatchTableEntries(t *testing.T) {
 			} else if wantGp < -32768 {
 				wantGp = -32768
 			}
-			if wantGc > 32767 {
-				wantGc = 32767
-			} else if wantGc < -32768 {
-				wantGc = -32768
-			}
 			if int32(gp) != wantGp {
 				t.Errorf("(GA=%d, GB=%d): g_p = %d, want %d", ga, gb, gp, wantGp)
 			}
-			if int32(gammaC) != wantGc {
+			if gammaC != wantGc {
 				t.Errorf("(GA=%d, GB=%d): γ̂_c = %d, want %d", ga, gb, gammaC, wantGc)
 			}
 		}

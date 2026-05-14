@@ -18,12 +18,12 @@ const PastErrorsDefault int16 = pastErrorsDefault
 //
 //	dbPerLog2Q13 = 10·log10(2) · 2¹³  ≈ 24660  // dB per unit log2
 //	tenLog10_40Q10 = 10·log10(40) · 2¹⁰ ≈ 16405  // 10·log10(40) Q10 dB
-//	invDbScaleQ15  = 1 / (20·log10(2)) · 2¹⁵ ≈ 5443  // log2 per dB
+//	invDbScaleQ15  ≈ 1 / (20·log10(2)) · 2¹⁵, fixed decoder constant
 //	dbPerLog2Q10   = 20·log10(2) · 2¹⁰  ≈ 6165   // dB per unit log2
 const (
 	dbPerLog2Q13   = 24660
 	tenLog10_40Q10 = 16405
-	invDbScaleQ15  = 5443
+	invDbScaleQ15  = 5439
 	dbPerLog2Q10   = 6165
 )
 
@@ -108,12 +108,11 @@ func (d *Decoder) decode(idx Indices, c *[40]int16, ecQCorrection, gammaQCorrect
 
 	// Q26→Q0 correction: fixedCodebookEnergy returns Σc² at Q26 (energy.go
 	// §). log2(E_phys) = log2(E_Q26) − 26 ⇒ subtract 26·1024 in Q10. Keep
-	// int32 throughout so the +24·log10(2)·2¹³ multiply doesn't lose its
-	// high bits to a silent int16 truncation, then saturate at the
-	// boundary before fixed.Sub (which expects Word16).
+	// int32 throughout so high-dynamic-range gain reconstruction is not
+	// collapsed by an intermediate Word16 saturation.
 	ecLog2Q10 := int32(log2Fixed(ecEnergy)) - int32(ecQCorrection)*1024
 	ecDbQ10 := (ecLog2Q10*dbPerLog2Q13 + (1 << 12)) >> 13
-	ecBarDbQ10 := fixed.Saturate(fixed.Word32(ecDbQ10 - int32(tenLog10_40Q10)))
+	ecBarDbQ10 := ecDbQ10 - int32(tenLog10_40Q10)
 
 	// 3. Effective log gain in dB -> log2.
 	//
@@ -122,7 +121,8 @@ func (d *Decoder) decode(idx Indices, c *[40]int16, ecQCorrection, gammaQCorrect
 	// saturating here collapses high-dynamic-range fixed-codebook gains before
 	// the pow2 reconstruction has a chance to express them.
 	logGainDbQ10 := predicted - int32(ecBarDbQ10)
-	log2GcQ10 := (logGainDbQ10*invDbScaleQ15 + (1 << 14)) >> 15
+	log2GcQ15 := logGainToLog2Q15(logGainDbQ10)
+	log2GcQ10 := log2GcQ15 >> 5
 
 	// 4. Decode γ̂_c (Q13) and fold its log2 contribution INTO the
 	//    log2 exponent BEFORE the pow2 split. This preserves the spec's
@@ -139,6 +139,9 @@ func (d *Decoder) decode(idx Indices, c *[40]int16, ecQCorrection, gammaQCorrect
 	if gammaC <= 0 {
 		gcMantQ14 = 0
 		gcExp = 0
+	} else if gammaQCorrection == 13 {
+		gainQ14 := fixedGainQ14FromLog2Gamma(log2GcQ15, gammaC)
+		gcMantQ14, gcExp = splitGainQ14(gainQ14)
 	} else {
 		gammaLog2Q10 := int32(log2Fixed(fixed.Word32(gammaC))) - int32(gammaQCorrection)*1024
 		log2GcWithGammaQ10 := log2GcQ10 + gammaLog2Q10

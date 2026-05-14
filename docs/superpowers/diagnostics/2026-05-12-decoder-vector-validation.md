@@ -273,6 +273,7 @@ Generated files:
 | `decoder_final_pcm_expected.csv` | `740800` | `740800` | `0` | `70efc4c2b17722815f7aefeaa7f5aeaa473874077f01b7b57fe3a70d8e5af4d8` |
 | `decoder_final_pcm_pst_compare.csv` | `10` | `0` | `0` | `8f4eb6edf4697c2f2d15ba86e4dfe7ce0526abebee13babcb384aaa236e387ba` |
 | `decoder_tame_full_stage_expected.csv` | `122112` | `122112` | `0` | `2e7bb08284f6526d04d05fcf0813559c548b6d19eb170aa6233e3f4d2a9b6bfc` |
+| `decoder_tame_gain_internals_expected.csv` | `4864` | `4864` | `0` | `71d1348a344609f4dd37935d132850fec2f21e2424ceeb74c89d875f82a351fa` |
 
 The verifier reported that final PCM produced by the reference decoder matched
 the official Annex A `.PST` files exactly for all 10 sources:
@@ -298,11 +299,17 @@ G729_COMPARE_DECODER_REFERENCE_TAME_STAGE=1 \
 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderReferenceTAMEFullStage -count=1 -v
 ```
 
+```sh
+G729_COMPARE_DECODER_REFERENCE_TAME_GAIN_INTERNALS=1 \
+go test ./internal/decoder -run TestOracleHandoff_CompareDecoderReferenceTAMEGainInternals -count=1 -v
+```
+
 Strict modes:
 
 ```text
 G729_REQUIRE_EXACT_DECODER_REFERENCE_FINAL_PCM=1
 G729_REQUIRE_EXACT_DECODER_REFERENCE_TAME_STAGE=1
+G729_REQUIRE_EXACT_DECODER_REFERENCE_TAME_GAIN_INTERNALS=1
 ```
 
 Path override:
@@ -319,8 +326,9 @@ Current non-strict compare against the external reference oracle:
 
 | Gate | Exact | Mismatches | First mismatch | Max abs | Interpretation |
 | --- | ---: | ---: | --- | ---: | --- |
-| Final PCM, all 10 vectors | `56597/740800` (`7.64%`) | `684203` | `0:0` | `65535` | Same failure surface as the official `.PST` vector gate. |
-| TAME full stage | `21261/122112` (`17.41%`) | `100851` | frame `0` sub `0` | `13929` | Stage oracle is now complete enough for direct localization. |
+| Final PCM, all 10 vectors | `61096/740800` (`8.25%`) | `679704` | `0:0` | `65535` | Same failure surface as the official `.PST` vector gate, slightly improved after gain reconstruction fixes. |
+| TAME full stage | `23336/122112` (`19.11%`) | `98776` | frame `0` sub `0` | `15489` | Stage oracle is now complete enough for direct localization. |
+| TAME gain internals | `1203/4864` (`24.73%`) | `3661` | frame `0` sub `0` | `30720` | Gain VQ indices and γ̂ are exact; remaining differences are log/gain rounding and downstream state. |
 
 TAME stage field summary:
 
@@ -330,13 +338,29 @@ TAME stage field summary:
 | `pitch_t_frac` | `256/256` | `0` | `0` | Pitch fraction decode matches. |
 | `adaptive_gain_q14` | `256/256` | `0` | `0` | Adaptive gain decode matches. |
 | `fixed_c_q13` | `9904/10240` | `336` | `45` | Improved by canonical `+8191/-8192` pulse endpoints, lower stream-start beta, and truncating pitch-sharpening arithmetic. |
-| `fixed_gain_q14` | `0/256` | `256` | `6433792` | Fixed gain reconstruction is the clearest scalar mismatch. |
-| `fixed_contrib_q0` | `9215/10240` | `1025` | `392` | Follows fixed codebook/gain differences. |
-| `adaptive_v_q0` | `131/10240` | `10109` | `519` | Drifts after prior excitation diverges. |
-| `excitation_u_q0` | `126/10240` | `10114` | `523` | Drifts with fixed contribution and past-excitation feedback. |
-| `synth_s_q0` | `52/10240` | `10188` | `7140` | Downstream synthesis result. |
-| `postfilter_s_q0` | `42/10240` | `10198` | `7176` | Downstream postfilter result. |
-| `pcm_q0` | `39/10240` | `10201` | `13929` | Final output for TAME. |
+| `fixed_gain_q14` | `1/256` | `255` | `30720` | Fixed gain reconstruction is much closer but still not exact. |
+| `fixed_contrib_q0` | `9665/10240` | `575` | `5` | Fixed contribution is now mostly reduced to small rounding differences. |
+| `adaptive_v_q0` | `366/10240` | `9874` | `299` | Drifts after prior excitation diverges. |
+| `pitch_contrib_q0` | `380/10240` | `9860` | `295` | Drifts with adaptive-vector history. |
+| `excitation_u_q0` | `359/10240` | `9881` | `295` | Drifts with fixed contribution and past-excitation feedback. |
+| `synth_s_q0` | `54/10240` | `10186` | `7925` | Downstream synthesis result. |
+| `postfilter_s_q0` | `49/10240` | `10191` | `7972` | Downstream postfilter result. |
+| `pcm_q0` | `40/10240` | `10200` | `15489` | Final output for TAME. |
+
+TAME gain-internals field summary:
+
+| Field | Exact | Mismatches | Max abs | Note |
+| --- | ---: | ---: | ---: | --- |
+| `bitstream_ga` | `256/256` | `0` | `0` | Transmitted gain stage-1 indices match. |
+| `bitstream_gb` | `256/256` | `0` | `0` | Transmitted gain stage-2 indices match. |
+| `gamma_q13` | `256/256` | `0` | `0` | Fixed-codebook correction γ̂ now uses the non-saturating joint sum. |
+| `log2_gc_q10` | `65/256` | `191` | `5` | dB-to-log2 conversion is close but not bit-exact. |
+| `gc0_q14` | `15/256` | `241` | `93` | Q15 Pow2 fraction preserves more precision than the previous Q10 path. |
+| `fixed_gain_q14` | `1/256` | `255` | `30720` | Remaining scalar gain mismatch. |
+| `predicted_energy_q10` | `17/256` | `239` | `7` | Follows the MA predictor FIFO and `U(m)` rounding. |
+| `u_current_q10` | `21/256` | `235` | `5` | γ̂ log update is close but not exact. |
+| `ec_bar_q10` | `0/256` | `256` | `22` | Fixed-codebook energy log term has small fixed-point rounding differences. |
+| `fixed_codebook_energy_q26` | `109/256` | `147` | `2500335` | Later rows also include upstream `fixed_c_q13` drift. |
 
 Immediate decoder-exact target:
 

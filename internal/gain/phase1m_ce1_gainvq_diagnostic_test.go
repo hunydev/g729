@@ -302,9 +302,11 @@ func TestDiagnostic_Phase1mCe1GainVQTableVerbatim(t *testing.T) {
 			t.Logf("%s: GBK row2       GBK2[%d] = (gp=%d Q14, γ̂=%d Q13)",
 				s.name, e2, gbk2[0], gbk2[1])
 
-			// Inline recomputation of eq. (73)-(74) — saturated Word16 add.
+			// Inline recomputation of eq. (73)-(74). ĝ_p is bounded to
+			// Word16, while γ̂_c is kept wide because legal Q13 joint
+			// sums can exceed 32767.
 			gpExpected := int16(fixed.Add(fixed.Word16(gbk1[0]), fixed.Word16(gbk2[0])))
-			gammaExpected := int16(fixed.Add(fixed.Word16(gbk1[1]), fixed.Word16(gbk2[1])))
+			gammaExpected := int32(gbk1[1]) + int32(gbk2[1])
 
 			// Production output via decodeVQ.
 			gpProd, gammaProd := decodeVQ(Indices{GA: s.ga, GB: s.gb})
