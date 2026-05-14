@@ -634,6 +634,53 @@ Interpretation:
   `26..116` range. Without that, a production damping change remains
   under-justified.
 
+Past-excitation age map:
+
+```sh
+G729_DECODER_TAME_PAST_EXC_AGE_MAP=1 \
+G729_DECODER_ITU_VECTOR_FRONTIER_TOP=16 \
+go test ./internal/decoder -run TestDecoderTAMEPastExcAgeMap -count=1 -v
+```
+
+Current aggregate:
+
+- Filled `past_exc_pre_acb_q0` rows: `546`.
+- Exact rows: `0`.
+- Oracle RMS: `204.01`; local RMS: `386.68`.
+- Error RMS: `232.02`; correlation: `0.8703`; best linear scale from local to
+  oracle: `0.4592`.
+
+Interpretation:
+
+- The mismatch is not isolated to a single FIFO index band. All filled age bands
+  have broadly similar RMS/scale behavior, with local history about `2.18x`
+  larger than the oracle.
+- The verifier-filled history maps mostly to source subframes `117/0..119/0`;
+  `117/0` source excitation is already over-amplified (`oracle RMS 211.81`,
+  local RMS `401.34`), so the causal origin is earlier than `117/0`.
+
+ACB replay from oracle history:
+
+```sh
+G729_DECODER_TAME_ACB_ORACLE_REPLAY=1 \
+go test ./internal/decoder -run TestDecoderTAMEACBOracleReplay -count=1 -v
+```
+
+Current result:
+
+| Frame/sub | Pitch delay | Exact | Error RMS |
+| --- | ---: | ---: | ---: |
+| `119/0` | `32.+0` | `true` | `0.00` |
+| `119/1` | `32.+0` | `true` | `0.00` |
+
+Interpretation:
+
+- Where the verifier supplied a complete `past_exc_pre_acb_q0[0..152]`, feeding
+  it into the local ACB interpolation reproduces `adaptive_v_q0` exactly.
+- This strongly argues against the ACB interpolation formula as the remaining
+  TAME root cause. The remaining target is the upstream generation of
+  excitation history before `117/0`.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
