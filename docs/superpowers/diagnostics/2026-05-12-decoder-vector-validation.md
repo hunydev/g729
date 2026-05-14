@@ -353,12 +353,18 @@ TAME wide-stage artifact status:
   `pitch_contrib_q0` / `excitation_u_q0` max absolute delta `3102 -> 447`.
   Remaining synthesis mismatch is now more tied to LP/gain/history deltas than
   to the original short-pitch direct-repeat bug.
-- The next focused handoff is
-  `decoder_tame_pre_acb_history_expected_template.csv`: 153 numeric rows for
-  the TAME frame 117 subframe 0 past-excitation FIFO immediately before
-  adaptive-codebook reconstruction. If it mismatches, the bug is already in
-  history commit / earlier excitation; if it exact-matches, the next failing
-  operation is adaptive-codebook interpolation itself.
+- The first follow-up handoff,
+  `decoder_tame_pre_acb_history_expected_template.csv`, asks for 153 numeric
+  rows for the TAME frame 117 subframe 0 past-excitation FIFO immediately
+  before adaptive-codebook reconstruction. The verifier reported that this
+  cannot be independently derived from only `decoder_tame_stage_wide_expected`,
+  `tame_short_pitch_relation`, and the pre-ACB template: downstream
+  `adaptive_v_q0` rows do not uniquely determine the source FIFO.
+- The replacement forward-trace handoff is
+  `decoder_tame_excitation_history_expected_template.csv`: 9360 numeric rows
+  for TAME frame `0..116` decoded `excitation_u_q0`. If filled, it directly
+  supplies the frame 117 pre-ACB FIFO and reveals the earliest excitation
+  divergence before frame 117.
 
 Comparison command:
 
@@ -385,6 +391,15 @@ G729_COMPARE_DECODER_TAME_PRE_ACB_HISTORY=1 \
 G729_REQUIRE_COMPLETE_DECODER_TAME_PRE_ACB_HISTORY=1 \
 G729_REQUIRE_EXACT_DECODER_TAME_PRE_ACB_HISTORY=1 \
 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEPreACBHistory -count=1 -v
+```
+
+TAME excitation-history comparison command:
+
+```sh
+G729_COMPARE_DECODER_TAME_EXCITATION_HISTORY=1 \
+G729_REQUIRE_COMPLETE_DECODER_TAME_EXCITATION_HISTORY=1 \
+G729_REQUIRE_EXACT_DECODER_TAME_EXCITATION_HISTORY=1 \
+go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEExcitationHistory -count=1 -v
 ```
 
 Before the independent expected values exist, the template-only comparison is

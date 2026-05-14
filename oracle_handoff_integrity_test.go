@@ -230,6 +230,8 @@ func TestOracleHandoff_LSPManifestMatchesCurrentFiles(t *testing.T) {
 		"`decoder_itu_frame0_hp_input_inverse_expected_template.csv` | `source,frame,sub,field,index,expected` | 480",
 		"`DECODER_TAME_PRE_ACB_HISTORY_PROMPT.md` | n/a | n/a",
 		"`decoder_tame_pre_acb_history_expected_template.csv` | `source,frame,sub,field,index,expected` | 153",
+		"`DECODER_TAME_EXCITATION_HISTORY_PROMPT.md` | n/a | n/a",
+		"`decoder_tame_excitation_history_expected_template.csv` | `source,frame,sub,field,index,expected` | 9360",
 		"`create_verifier_bundle.sh` | n/a | n/a",
 		"`validate_verifier_output.sh` | n/a | n/a",
 	} {
@@ -287,8 +289,9 @@ func TestOracleHandoff_ManifestUnfilledCountsMatchCurrentFiles(t *testing.T) {
 
 	counts := parseManifestBlankCounts(t, text, "## Currently Unfilled Files", "## Verification Commands")
 	wantFiles := map[string]bool{
-		"encoder_closedloop_stage_expected_template.csv":      true,
-		"decoder_tame_pre_acb_history_expected_template.csv": true,
+		"encoder_closedloop_stage_expected_template.csv":        true,
+		"decoder_tame_pre_acb_history_expected_template.csv":    true,
+		"decoder_tame_excitation_history_expected_template.csv": true,
 	}
 	if len(counts) != len(wantFiles) {
 		t.Fatalf("manifest unfilled file count=%d, want %d", len(counts), len(wantFiles))
@@ -432,6 +435,10 @@ func TestOracleHandoff_READMEDocumentsFilledVerifierIntake(t *testing.T) {
 		"G729_REQUIRE_COMPLETE_DECODER_TAME_PRE_ACB_HISTORY=1",
 		"G729_REQUIRE_EXACT_DECODER_TAME_PRE_ACB_HISTORY=1",
 		"TestOracleHandoff_CompareDecoderTAMEPreACBHistory",
+		"G729_COMPARE_DECODER_TAME_EXCITATION_HISTORY=1",
+		"G729_REQUIRE_COMPLETE_DECODER_TAME_EXCITATION_HISTORY=1",
+		"G729_REQUIRE_EXACT_DECODER_TAME_EXCITATION_HISTORY=1",
+		"TestOracleHandoff_CompareDecoderTAMEExcitationHistory",
 		"update",
 		"and the audit docs",
 		"TestOracleHandoff_ManifestUnfilledCountsMatchCurrentFiles",
@@ -572,7 +579,7 @@ func TestOracleHandoff_BundleScriptPinsDeterministicInputs(t *testing.T) {
 }
 
 func TestOracleHandoff_BundleScriptBuildsDocumentedArchive(t *testing.T) {
-	const wantSHA256 = "7afa5c8f7a918d536679661d9208ef132fcc6b17b254621efa195a88ae881885"
+	const wantSHA256 = "f9fa4ccb054405ba3acaae87e1dd69b4daad67390873b6e91b2c39f7844a6a6f"
 	scriptPath := filepath.Join("testdata", "oracle", "handoff", "create_verifier_bundle.sh")
 	tmp := t.TempDir()
 	bundleDir := filepath.Join(tmp, "g729-fcb-verifier-handoff")
@@ -885,6 +892,7 @@ func TestOracleHandoff_VerifierPromptsStateCleanRoomBoundary(t *testing.T) {
 		"EXTERNAL_VERIFIER_REQUEST.md",
 		"DECODER_ITU_FRAME0_HP_INPUT_INVERSE_PROMPT.md",
 		"DECODER_TAME_PRE_ACB_HISTORY_PROMPT.md",
+		"DECODER_TAME_EXCITATION_HISTORY_PROMPT.md",
 	}
 	for _, name := range prompts {
 		t.Run(name, func(t *testing.T) {

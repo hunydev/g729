@@ -91,10 +91,19 @@ These files are not oracle artifacts and are intentionally ignored by the option
   frame-0 HP-input inverse template.
 - `decoder_tame_pre_acb_history_expected_template.csv`: verifier-owned
   template for the 153-sample TAME frame 117 subframe 0 past-excitation FIFO
-  immediately before adaptive-codebook reconstruction.
+  immediately before adaptive-codebook reconstruction. This is currently
+  blocked unless an independent upstream excitation trace is available; the
+  FIFO cannot be reconstructed uniquely from downstream `adaptive_v_q0` rows.
 - `DECODER_TAME_PRE_ACB_HISTORY_PROMPT.md`: copyable prompt for an isolated
   clean-room verifier that fills only numeric `expected` cells in the TAME
   pre-ACB history template.
+- `decoder_tame_excitation_history_expected_template.csv`: verifier-owned
+  template for TAME frame `0..116` decoded `excitation_u_q0` samples. This
+  forward trace supplies the prior excitation needed to derive frame 117
+  subframe 0 pre-ACB history.
+- `DECODER_TAME_EXCITATION_HISTORY_PROMPT.md`: copyable prompt for an
+  isolated clean-room verifier that fills only numeric `expected` cells in the
+  TAME excitation-history template.
 - `tame_short_pitch_relation.csv`: verifier-produced numeric relation table
   derived from the TAME wide artifact. It documents the short-pitch
   `T_frac=0` relation used to justify the phase-0 FIR adaptive-codebook fix.
@@ -200,6 +209,11 @@ Filled verifier output intake:
    G729_REQUIRE_COMPLETE_DECODER_TAME_PRE_ACB_HISTORY=1 \
    G729_REQUIRE_EXACT_DECODER_TAME_PRE_ACB_HISTORY=1 \
    go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEPreACBHistory -count=1 -v
+
+   G729_COMPARE_DECODER_TAME_EXCITATION_HISTORY=1 \
+   G729_REQUIRE_COMPLETE_DECODER_TAME_EXCITATION_HISTORY=1 \
+   G729_REQUIRE_EXACT_DECODER_TAME_EXCITATION_HISTORY=1 \
+   go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEExcitationHistory -count=1 -v
    ```
 
 6. If strict compare passes, update `HANDOFF_MANIFEST.md` and the
@@ -368,6 +382,38 @@ Decoder TAME pre-ACB history workflow:
    G729_REQUIRE_COMPLETE_DECODER_TAME_PRE_ACB_HISTORY=1 \
    G729_REQUIRE_EXACT_DECODER_TAME_PRE_ACB_HISTORY=1 \
    go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEPreACBHistory -count=1 -v
+   ```
+
+   Current status: the verifier reported this cannot be filled from only the
+   provided downstream artifacts. Treat this template as blocked until a
+   clean-room forward excitation trace is available.
+
+Decoder TAME excitation-history workflow:
+
+1. Refresh the blank template:
+
+   ```sh
+   G729_WRITE_DECODER_TAME_EXCITATION_HISTORY_TEMPLATE=1 \
+   go test ./internal/decoder -run TestDecoderTAMEExcitationHistoryTemplate -count=1 -v
+   ```
+
+2. Give the verifier `decoder_tame_excitation_history_expected_template.csv`,
+   `decoder_tame_stage_wide_expected.csv`, and `tame_short_pitch_relation.csv`,
+   then ask it to fill `expected` using
+   `DECODER_TAME_EXCITATION_HISTORY_PROMPT.md`.
+3. Compare only numeric scalar values keyed by:
+
+   ```csv
+   source,frame,sub,field,index
+   ```
+
+4. After the verifier fills numeric `expected` cells, compare locally:
+
+   ```sh
+   G729_COMPARE_DECODER_TAME_EXCITATION_HISTORY=1 \
+   G729_REQUIRE_COMPLETE_DECODER_TAME_EXCITATION_HISTORY=1 \
+   G729_REQUIRE_EXACT_DECODER_TAME_EXCITATION_HISTORY=1 \
+   go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEExcitationHistory -count=1 -v
    ```
 
 LSP table workflow:

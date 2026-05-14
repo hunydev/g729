@@ -46,10 +46,12 @@ identify the current files after numeric `expected` cells were filled.
 | `decoder_itu_frame0_hp_input_inverse_expected_template.csv` | `source,frame,sub,field,index,expected` | 480 | `c821398c859954af18c4c9f448c85bfbb923a366906692dccd9011f2675bd814` |
 | `DECODER_TAME_PRE_ACB_HISTORY_PROMPT.md` | n/a | n/a | `0829d37f52081b42e02ff82d568bd37008d9db8fef710012d0356e592edf04d2` |
 | `decoder_tame_pre_acb_history_expected_template.csv` | `source,frame,sub,field,index,expected` | 153 | `e1533e9a2a6b67d534cb287254e57c51a11c0ae0326242ec9cf07516ec9160ad` |
+| `DECODER_TAME_EXCITATION_HISTORY_PROMPT.md` | n/a | n/a | `2a6075561facc1bfc4cf1219c5c92582f0994274c92cb0084e41d0a7a1639b02` |
+| `decoder_tame_excitation_history_expected_template.csv` | `source,frame,sub,field,index,expected` | 9360 | `51953e40c067649d593128fcf042bb39061fcec74c59b010c74554614d44607a` |
 | `EXTERNAL_VERIFIER_REQUEST.md` | n/a | n/a | `d65189e31ed3189ada680e26efd2e934d71d8286023d0c27cef5499df66aa725` |
 | `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md` | n/a | n/a | `0da88d8dc36ccedc36906df62ce781c04056f2e5bd5597187e6ec26b3dd5eadc` |
 | `create_verifier_bundle.sh` | n/a | n/a | `05460c982ec487ec894bcb31b1200be4ab0542fd335bbabd08f8a21cb0651faf` |
-| `validate_verifier_output.sh` | n/a | n/a | `d8a784868ab7ea047c872274b336bd00d4b07065f1515065003696886945f372` |
+| `validate_verifier_output.sh` | n/a | n/a | `e53c8325474e373afcb0e48984d4f759b1a030149806bf65e8110c284ac606fd` |
 
 ## Verifier-filled Files
 
@@ -86,7 +88,8 @@ identify the current files after numeric `expected` cells were filled.
 | File | Blank `expected` cells | Next action |
 | --- | ---: | --- |
 | `encoder_closedloop_stage_expected_template.csv` | 100848 | Fill from `ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md` if a broader closed-loop stage oracle is required. |
-| `decoder_tame_pre_acb_history_expected_template.csv` | 153 | Fill from `DECODER_TAME_PRE_ACB_HISTORY_PROMPT.md` to split TAME frame 117 adaptive-codebook mismatch between incoming past-excitation history and interpolation. |
+| `decoder_tame_pre_acb_history_expected_template.csv` | 153 | Blocked unless an independent prior-excitation trace is available; `adaptive_v_q0` rows alone do not uniquely determine the FIFO. |
+| `decoder_tame_excitation_history_expected_template.csv` | 9360 | Fill from `DECODER_TAME_EXCITATION_HISTORY_PROMPT.md` to produce the forward excitation trace needed to derive the frame 117 pre-ACB FIFO. |
 
 ## Verification Commands
 
@@ -122,6 +125,8 @@ sha256sum \
   testdata/oracle/handoff/decoder_itu_frame0_hp_input_inverse_expected_template.csv \
   testdata/oracle/handoff/DECODER_TAME_PRE_ACB_HISTORY_PROMPT.md \
   testdata/oracle/handoff/decoder_tame_pre_acb_history_expected_template.csv \
+  testdata/oracle/handoff/DECODER_TAME_EXCITATION_HISTORY_PROMPT.md \
+  testdata/oracle/handoff/decoder_tame_excitation_history_expected_template.csv \
   testdata/oracle/handoff/EXTERNAL_VERIFIER_REQUEST.md \
   testdata/oracle/handoff/REMAINING_CONFORMANCE_VERIFIER_PROMPT.md \
   testdata/oracle/handoff/create_verifier_bundle.sh \
@@ -151,7 +156,8 @@ awk -F, 'FNR==1 {print FILENAME ": header=" $0} FNR>1 {rows++} ENDFILE {print FI
   testdata/oracle/handoff/fcb_tree_search_user_audio_expected_template.csv \
   testdata/oracle/handoff/fcb_tree_search_user_audio_got.csv \
   testdata/oracle/handoff/decoder_itu_frame0_hp_input_inverse_expected_template.csv \
-  testdata/oracle/handoff/decoder_tame_pre_acb_history_expected_template.csv
+  testdata/oracle/handoff/decoder_tame_pre_acb_history_expected_template.csv \
+  testdata/oracle/handoff/decoder_tame_excitation_history_expected_template.csv
 ```
 
 ## Completion Rule
