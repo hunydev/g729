@@ -87,6 +87,103 @@ func TestDecoderTAMEGainEnergyAudit(t *testing.T) {
 	decoderTAMEGainEnergyLogRows(t, byProd[:topN])
 }
 
+// TestDecoderTAMEGainECQ25CrossVectorAudit checks the tempting
+// fixed-codebook-energy Q25 diagnostic against multiple Annex A vectors. TAME
+// improves because the candidate damps accumulated excitation, but the same
+// formula regresses ordinary good-frame vectors, so it is not a production-safe
+// gain reconstruction fix.
+func TestDecoderTAMEGainECQ25CrossVectorAudit(t *testing.T) {
+	if os.Getenv("G729_DECODER_TAME_GAIN_EC_Q25_CROSS_VECTOR") != "1" {
+		t.Skip("set G729_DECODER_TAME_GAIN_EC_Q25_CROSS_VECTOR=1 to run TAME gain EC Q25 cross-vector audit")
+	}
+
+	vectors := []string{"TAME", "SPEECH", "PITCH", "OVERFLOW"}
+	rows := make([]decoderTAMEGainECQ25CrossVectorRow, 0, len(vectors))
+	for _, name := range vectors {
+		tc, ok := decoderITUValidationCaseByName(name)
+		if !ok {
+			t.Fatalf("unknown decoder ITU vector %q", name)
+		}
+		rows = append(rows, decoderTAMEGainECQ25CrossVectorCase(t, tc))
+	}
+
+	t.Logf("decoder TAME gain EC Q25 cross-vector audit")
+	t.Logf("%-10s %8s %5s %10s %10s %9s %10s %10s %10s %10s %s",
+		"vector", "frames", "bad", "prodSNR", "ec25SNR", "delta", "prodRMS", "ec25RMS", "prodCorr", "ec25Corr", "verdict")
+	for _, row := range rows {
+		t.Logf("%-10s %8d %5d %10.2f %10.2f %9.2f %10.2f %10.2f %10.3f %10.3f %s",
+			row.name,
+			row.frames,
+			row.badFrames,
+			row.production.globalSNR,
+			row.ecQ25.globalSNR,
+			row.ecQ25.globalSNR-row.production.globalSNR,
+			row.production.rms,
+			row.ecQ25.rms,
+			row.production.corr,
+			row.ecQ25.corr,
+			row.verdict())
+	}
+}
+
+type decoderTAMEGainECQ25CrossVectorRow struct {
+	name       string
+	frames     int
+	badFrames  int
+	production blackboxMetrics
+	ecQ25      blackboxMetrics
+}
+
+func decoderTAMEGainECQ25CrossVectorCase(t *testing.T, tc decoderITUValidationCase) decoderTAMEGainECQ25CrossVectorRow {
+	t.Helper()
+	bitPath := vectorPath(tc.bitFile)
+	pstPath := vectorPath(tc.pstFile)
+	ensureTestdataPresent(t, bitPath, pstPath)
+
+	bitData, err := os.ReadFile(bitPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", tc.bitFile, err)
+	}
+	frames, bads := readG192Frames(t, bitPath)
+	want := readPSTFrames(t, pstPath)
+	if len(frames) != len(want) {
+		t.Fatalf("%s: frame count mismatch bit=%d pst=%d", tc.name, len(frames), len(want))
+	}
+	if len(bads) != len(frames) {
+		t.Fatalf("%s: bad flag count mismatch bads=%d frames=%d", tc.name, len(bads), len(frames))
+	}
+
+	production := phase3jDecodeVariant(t, bitData, len(frames), phase3jVariant{name: "gain_mirror_default", mode: phase3jGainMirrorDefault})
+	ecQ25 := phase3jDecodeVariant(t, bitData, len(frames), phase3jVariant{name: "gain_ec_q25", mode: phase3jGainECQ25})
+	ref := decoderTAMEFlattenPST(want)
+	badFrames := 0
+	for _, bad := range bads {
+		if bad {
+			badFrames++
+		}
+	}
+
+	return decoderTAMEGainECQ25CrossVectorRow{
+		name:       tc.name,
+		frames:     len(frames),
+		badFrames:  badFrames,
+		production: blackboxMeasure(ref, production, 40),
+		ecQ25:      blackboxMeasure(ref, ecQ25, 40),
+	}
+}
+
+func (r decoderTAMEGainECQ25CrossVectorRow) verdict() string {
+	delta := r.ecQ25.globalSNR - r.production.globalSNR
+	switch {
+	case delta > 1.0:
+		return "improves-local-vector-only"
+	case delta < -1.0:
+		return "regresses"
+	default:
+		return "neutral"
+	}
+}
+
 type decoderTAMEGainEnergyRow struct {
 	globalSubframe  int
 	frame           int

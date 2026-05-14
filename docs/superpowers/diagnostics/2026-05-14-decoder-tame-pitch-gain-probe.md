@@ -254,6 +254,40 @@ rows (`fixed_gain_q14` and RMS/ratio values). They are consistent with the
 known local prior-excitation/history divergence rather than evidence for a
 missing good-frame gain limiter.
 
+## Gain EC Q25 Cross-Vector Check
+
+After the cap hypothesis closed, the next tempting local candidate was changing
+the fixed-codebook energy Q correction from `26` to `25`. This behaves like a
+fixed-gain damping path and improves TAME, but the cross-vector audit rejects it
+as a production formula change.
+
+Command:
+
+```sh
+env GOCACHE=/tmp/go-build \
+  G729_DECODER_TAME_GAIN_EC_Q25_CROSS_VECTOR=1 \
+  go test ./internal/decoder -run TestDecoderTAMEGainECQ25CrossVectorAudit -count=1 -v
+```
+
+Result:
+
+```text
+vector       frames   bad    prodSNR    ec25SNR     delta    prodRMS    ec25RMS   prodCorr   ec25Corr verdict
+TAME            128     0       6.50      12.54      6.04   14830.60   10358.40      0.972      0.972 improves-local-vector-only
+SPEECH         3750     0      23.29      10.07    -13.22    2050.42    1448.46      0.998      0.998 regresses
+PITCH          1835     0      14.14       7.58     -6.56    3796.49    2684.32      0.993      0.993 regresses
+OVERFLOW        384     0      -1.58      -1.89     -0.31   10623.45   10413.38      0.434      0.374 neutral
+```
+
+Interpretation:
+
+- The TAME improvement is an amplitude-damping side effect, not evidence that
+  `ecQ=25` is the correct decoder gain formula.
+- SPEECH and PITCH are good-frame vectors with no bad frames, and both regress
+  sharply under `ecQ=25`.
+- Keep the strict gain path at `ecQ=26`; use `ecQ=25` only as a diagnostic
+  amplitude probe when explaining TAME's accumulated excitation history.
+
 ## Interpretation
 
 `pitch_gain_cap_0p95` is a strong localization probe: limiting adaptive gain
@@ -275,10 +309,12 @@ Therefore:
 - Do not add the refined `gp>16000 && pastRMS>=220 && fixedRMS<=40` trigger to
   production without a Recommendation-backed decoder pitch-instability rule or
   independent oracle confirmation.
+- Do not change decoder gain fixed-codebook energy correction from `26` to `25`;
+  it improves TAME only by damping and regresses normal good-frame vectors.
 - Do not treat the incomplete 108..137 verifier CSV as a decoder oracle.
-- Next useful work is a PDF-visible/state-machine derivation of decoder
-  pitch-instability control, or a clean-room oracle that confirms the gain
-  limiting decision and state update around the TAME/OVERFLOW stress surfaces.
+- Next useful work is earlier prior-excitation/history localization before
+  frame `117`, preferably with PST-only onset diagnostics or a clean-room
+  oracle that supplies independent excitation history before frame `53..72`.
 
 ## Verification
 
@@ -286,6 +322,7 @@ Therefore:
 env GOCACHE=/tmp/go-build go test ./internal/decoder -count=1
 env GOCACHE=/tmp/go-build G729_DECODER_PITCH_CAP_ACTIVATION_AUDIT=1 go test ./internal/decoder -run TestDecoderPitchGainCapActivationAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_PITCH_CAP_TRIGGER_GRID_CROSS_VECTOR=1 go test ./internal/decoder -run TestDecoderPitchGainCapTriggerGridCrossVectorAudit -count=1 -v
+env GOCACHE=/tmp/go-build G729_DECODER_TAME_GAIN_EC_Q25_CROSS_VECTOR=1 go test ./internal/decoder -run TestDecoderTAMEGainECQ25CrossVectorAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_PITCH_INSTABILITY_DECISION=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderPitchInstabilityDecision -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_TAME_GAIN_TAMING_HANDOFF=1 go test -run TestOracleHandoff_CompareTAMEGainTamingHandoff -count=1 -v
 ```
