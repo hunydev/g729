@@ -313,6 +313,22 @@ Interpretation:
   `122..127`: gain predictor FIFO, decoded gain taps, fixed contribution,
   excitation history, adaptive vector, synthesis output, and final PST PCM.
 
+Follow-up verifier result for that full numeric oracle request:
+
+- Independently derivable from `TAME.BIT` / `TAME.PST`: final `pst_pcm_q0`
+  rows and transmitted bitstream indices such as `GA`/`GB`.
+- Not independently derivable under the current clean-room inputs: gain
+  predictor FIFO, decoded `gp/gamma/gc`, `ecBar/logGain/log2Gc/uCurrent`,
+  adaptive vector, fixed contribution, excitation, and synthesis rows.
+- Reason: those internal stages require a full forward decode from frame `0`,
+  including support tables that are not fully available from Recommendation
+  text/math alone. The verifier must not fill them from local implementation
+  values or other implementation table sources.
+- Therefore no additional verifier request should be made for the same full
+  internal TAME oracle unless the allowed clean-room input set changes. The
+  next decoder work should proceed with PST-only frontier/cutover diagnostics
+  plus direct spec/Q-format audit of local code.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
