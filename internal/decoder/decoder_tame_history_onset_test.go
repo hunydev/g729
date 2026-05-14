@@ -247,6 +247,106 @@ func TestDecoderTAMEStateCarryResetAudit(t *testing.T) {
 	}
 }
 
+// TestDecoderTAMEFeedbackComponentWindowAudit applies targeted upstream
+// component perturbations only inside selected TAME windows. Unlike state
+// resets, these probes preserve decoder state continuity outside the window and
+// help rank whether late over-amplification is most sensitive to adaptive
+// feedback, fixed contribution, FCB pitch enhancement, or pitch-fraction shape.
+func TestDecoderTAMEFeedbackComponentWindowAudit(t *testing.T) {
+	if os.Getenv("G729_DECODER_TAME_FEEDBACK_COMPONENT_WINDOW_AUDIT") != "1" {
+		t.Skip("set G729_DECODER_TAME_FEEDBACK_COMPONENT_WINDOW_AUDIT=1 to run TAME feedback component window audit")
+	}
+
+	tc := phase3eSelectedITUVector(t, "G729_DECODER_TAME_FEEDBACK_COMPONENT_VECTOR", "TAME")
+	bitPath := vectorPath(tc.bitFile)
+	pstPath := vectorPath(tc.pstFile)
+	ensureTestdataPresent(t, bitPath, pstPath)
+
+	bitData, err := os.ReadFile(bitPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", tc.bitFile, err)
+	}
+	frames, bads := readG192Frames(t, bitPath)
+	wantFrames := readPSTFrames(t, pstPath)
+	if len(frames) != len(wantFrames) {
+		t.Fatalf("%s: frame count mismatch bit=%d pst=%d", tc.name, len(frames), len(wantFrames))
+	}
+	if len(bads) != len(frames) {
+		t.Fatalf("%s: bad flag count mismatch bads=%d frames=%d", tc.name, len(bads), len(frames))
+	}
+
+	ref := decoderTAMEFlattenPST(wantFrames)
+	prodOut := phase3eDecodeVariant(t, bitData, len(frames), phase3eVariant{name: "production"})
+	prodByRange := map[string]decoderTAMEOnsetRangeStats{}
+	ranges := []decoderTAMEOnsetRange{
+		{name: "all", start: 0, end: len(frames)},
+		{name: "first-1.25", start: 49, end: 61},
+		{name: "first-1.50", start: 68, end: 80},
+		{name: "late-oracle", start: 116, end: 128},
+	}
+	for _, frameRange := range ranges {
+		prodByRange[frameRange.name] = decoderTAMEComputeOnsetRangeStats(t, ref, prodOut, frameRange)
+	}
+
+	scopes := []decoderTAMEFeedbackWindowScope{
+		{name: "f26_53", startSubframe: 26 * 2, endSubframe: 53 * 2},
+		{name: "f49_72", startSubframe: 49 * 2, endSubframe: 72 * 2},
+		{name: "f26_120", startSubframe: 52, endSubframe: 120 * 2},
+		{name: "f115_117", startSubframe: 115 * 2, endSubframe: 117 * 2},
+		{name: "sf52_239", startSubframe: 52, endSubframe: 239},
+	}
+	variants := []phase3eVariant{
+		{name: "pitch_gain_half", pitchScaleNum: 1, pitchScaleDen: 2},
+		{name: "pitch_gain_cap_0p95", pitchCapQ14: 15565},
+		{name: "zero_adaptive", zeroAdaptive: true},
+		{name: "fixed_gain_half", fixedExpDelta: -1},
+		{name: "zero_fixed", zeroFixed: true},
+		{name: "no_fcb_pitch_enhance", noFCBEnhancement: true},
+		{name: "force_pitch_frac_zero", forceTFracZero: true},
+		{name: "flip_pitch_frac_sign", flipTFracSign: true},
+	}
+
+	t.Logf("decoder TAME feedback component window audit: vector=%s frames=%d", tc.name, len(frames))
+	t.Logf("production baseline")
+	t.Logf("%-24s %-9s %-12s %9s %9s %9s %9s %9s",
+		"variant", "scope", "range", "gSNR", "deltaG", "outRMS", "errRMS", "corr")
+	for _, frameRange := range ranges {
+		stats := prodByRange[frameRange.name]
+		t.Logf("%-24s %-9s %-12s %9.2f %+9.2f %9.1f %9.1f %9.3f",
+			"production", "-", frameRange.name, stats.metrics.globalSNR, 0.0,
+			stats.outRMS, stats.errRMS, stats.metrics.corr)
+	}
+
+	t.Logf("component windows")
+	for _, scope := range scopes {
+		if scope.startSubframe < 0 || scope.endSubframe > len(frames)*2 || scope.startSubframe >= scope.endSubframe {
+			t.Fatalf("invalid scope %s [%d,%d) for %d frames", scope.name, scope.startSubframe, scope.endSubframe, len(frames))
+		}
+		for _, variant := range variants {
+			out := phase3eDecodeVariantSubframeWindow(t, bitData, len(frames), scope.startSubframe, scope.endSubframe, variant)
+			for _, frameRange := range ranges {
+				stats := decoderTAMEComputeOnsetRangeStats(t, ref, out, frameRange)
+				prod := prodByRange[frameRange.name]
+				t.Logf("%-24s %-9s %-12s %9.2f %+9.2f %9.1f %9.1f %9.3f",
+					variant.name,
+					scope.name,
+					frameRange.name,
+					stats.metrics.globalSNR,
+					stats.metrics.globalSNR-prod.metrics.globalSNR,
+					stats.outRMS,
+					stats.errRMS,
+					stats.metrics.corr)
+			}
+		}
+	}
+}
+
+type decoderTAMEFeedbackWindowScope struct {
+	name          string
+	startSubframe int
+	endSubframe   int
+}
+
 type decoderTAMEStateMask uint16
 
 const (

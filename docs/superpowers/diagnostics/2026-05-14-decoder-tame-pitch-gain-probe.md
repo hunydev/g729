@@ -474,6 +474,89 @@ Interpretation:
   entering `pastExc` (`U`) and adaptive-codebook feedback around frames
   `49..72` and `115..116`.
 
+## Feedback Component Window Audit
+
+The next PST-only audit applies upstream component perturbations only inside
+selected windows. This keeps continuity outside the window and ranks which
+component most affects late TAME over-amplification.
+
+Command:
+
+```sh
+env GOCACHE=/tmp/go-build \
+  G729_DECODER_TAME_FEEDBACK_COMPONENT_WINDOW_AUDIT=1 \
+  go test ./internal/decoder -run TestDecoderTAMEFeedbackComponentWindowAudit -count=1 -v
+```
+
+Selected result rows:
+
+```text
+variant                  scope      range          gSNR   deltaG   outRMS   errRMS   corr
+production               -          all            6.50    +0.00  14830.6   5081.9  0.972
+production               -          first-1.50     5.79    +0.00  16298.6   5555.9  0.998
+production               -          late-oracle    1.38    +0.00  19976.9   9226.5  0.997
+pitch_gain_cap_0p95      f49_72     late-oracle   27.77   +26.38  10816.2    442.5  0.999
+pitch_gain_cap_0p95      f49_72     first-1.50     2.30    -3.49   2993.8   8305.7  0.880
+zero_adaptive            f49_72     late-oracle   22.15   +20.76  10241.1    845.2  0.998
+zero_adaptive            f49_72     first-1.50     0.54    -5.25   2152.4  10168.6  0.392
+fixed_gain_half          f26_120    all           19.12   +12.63  10750.3   1187.8  0.994
+fixed_gain_half          f26_120    first-1.50    19.10   +13.31  11497.9   1200.0  0.996
+fixed_gain_half          f26_120    late-oracle   16.69   +15.31  12173.4   1583.6  0.997
+no_fcb_pitch_enhance     f26_120    late-oracle   -2.74    -4.12  23893.1  14834.1  0.905
+force_pitch_frac_zero    f26_120    late-oracle    1.38    +0.00  19976.9   9226.5  0.997
+flip_pitch_frac_sign     f26_120    late-oracle    1.38    +0.00  19976.9   9226.5  0.997
+```
+
+Interpretation:
+
+- Pitch-fraction perturbations are no-ops on this TAME surface; the issue is
+  not fractional pitch phase.
+- Removing or capping adaptive contribution inside frames `49..72` makes the
+  late oracle range much closer, but it destroys the immediate voiced window.
+  That confirms the late error is carried through adaptive feedback, not that
+  zeroing/capping pitch is a valid decoder rule.
+- `fixed_gain_half` over the broader frame `26..120` window gives the best
+  PST-level envelope, but this is still a damping/localization probe. It works
+  by changing what enters `pastExc` over a long feedback path.
+- Disabling FCB pitch enhancement makes TAME worse, so the current issue is not
+  an over-applied FCB pitch-sharpening loop.
+
+## Late ACB/Excitation Oracle Replay
+
+The filled verifier oracle for TAME frames `117..119` separates current-subframe
+gain/excitation math from accumulated history.
+
+Commands:
+
+```sh
+env GOCACHE=/tmp/go-build \
+  G729_COMPARE_DECODER_TAME_ACB_CHECKPOINT=1 \
+  go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEACBCheckpoint -count=1 -v
+
+env GOCACHE=/tmp/go-build \
+  G729_DECODER_TAME_EXCITATION_ORACLE_REPLAY=1 \
+  go test ./internal/decoder -run TestDecoderTAMEExcitationOracleReplay -count=1 -v
+```
+
+Key result:
+
+```text
+adaptive_gain_q14: exact 6/6
+local_u:         refRMS=205.62 gotRMS=386.08 errRMS=232.78 corr=0.8639 scale=0.4601
+oracle_v_replay: refRMS=205.62 gotRMS=205.67 errRMS=0.33   corr=1.0000 scale=0.9997
+implied_fixed:   refRMS=58.54  gotRMS=58.81  errRMS=0.34   corr=1.0000 scale=0.9954
+```
+
+Interpretation:
+
+- The late adaptive gain values that the verifier could independently fill are
+  exact.
+- If verifier `adaptive_v_q0` is injected, local excitation reconstruction
+  matches verifier `excitation_u_q0` to rounding noise.
+- The late `U` mismatch is therefore inherited from local `adaptive_v_q0` /
+  `pastExc` history, not from current-subframe gain application, fixed-codebook
+  vector construction, or `BuildExcitation`.
+
 ## Interpretation
 
 `pitch_gain_cap_0p95` is a strong localization probe: limiting adaptive gain
@@ -504,6 +587,8 @@ Therefore:
   bitstream gain indices and decoded pitch values.
 - Do not treat state resets as candidate decoder behavior; they are
   localization probes and break immediate continuity.
+- Do not treat component-window perturbations as candidate decoder behavior;
+  they rank sensitivity but intentionally change the excitation trajectory.
 - Next useful work is earlier prior-excitation/history localization before
   frame `117`, focused on the upstream excitation feedback path around frames
   `49..72` and `115..116`.
@@ -518,7 +603,11 @@ env GOCACHE=/tmp/go-build G729_DECODER_TAME_GAIN_EC_Q25_CROSS_VECTOR=1 go test .
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_GAIN_VARIANT_CROSS_VECTOR=1 go test ./internal/decoder -run TestDecoderTAMEGainVariantCrossVectorAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_ONSET_CANDIDATE_RANGE_AUDIT=1 go test ./internal/decoder -run TestDecoderTAMEOnsetCandidateRangeAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_STATE_CARRY_RESET_AUDIT=1 go test ./internal/decoder -run TestDecoderTAMEStateCarryResetAudit -count=1 -v
+env GOCACHE=/tmp/go-build G729_DECODER_TAME_FEEDBACK_COMPONENT_WINDOW_AUDIT=1 go test ./internal/decoder -run TestDecoderTAMEFeedbackComponentWindowAudit -count=1 -v
+env GOCACHE=/tmp/go-build G729_DECODER_TAME_EXCITATION_ORACLE_REPLAY=1 go test ./internal/decoder -run TestDecoderTAMEExcitationOracleReplay -count=1 -v
+env GOCACHE=/tmp/go-build G729_DECODER_TAME_ACB_ORACLE_SHAPE=1 G729_DECODER_HISTORY_START_SUBFRAME=52 G729_DECODER_HISTORY_END_SUBFRAME=240 G729_DECODER_UPSTREAM_WINDOW_CANDIDATE=fixed_gain_half go test ./internal/decoder -run TestDecoderTAMEACBOracleShape -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_TAME_ONSET_FRAME26=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEOnsetFrame26 -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_PITCH_INSTABILITY_DECISION=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderPitchInstabilityDecision -count=1 -v
+env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_TAME_ACB_CHECKPOINT=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEACBCheckpoint -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_TAME_GAIN_TAMING_HANDOFF=1 go test -run TestOracleHandoff_CompareTAMEGainTamingHandoff -count=1 -v
 ```
