@@ -129,13 +129,14 @@ The current repo-external verifier bundle is:
 
 ```text
 /tmp/g729-fcb-verifier-handoff-2026-05-10.tar.gz
-sha256 5fa70a950cb77ab7ac84742725ff0fc064ab961f4c50bb3ba1adcd3bc7ea4989
+sha256 253b02b8540ca18b5b34d406c5a04617a57441fb4e2a556a63062e2c8c9afea8
 ```
 
 External verifiers should start with
 `testdata/oracle/handoff/EXTERNAL_VERIFIER_REQUEST.md` inside the
-bundle. The focused FCB templates are already verifier-filled; the only
-remaining blank template in that request is the broad closed-loop stage
+bundle. The focused FCB templates are already verifier-filled. The broad
+closed-loop stage remains the default blank-template guard, and the
+pitch-instability decision template is carried as a partial localization artifact.
 template.
 
 Returned verifier CSVs should be staged in a temporary directory and

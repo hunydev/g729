@@ -89,6 +89,86 @@ validate_expected() {
   validated_files="$validated_files $name"
 }
 
+validate_expected_partial() {
+  name="$1"
+  key_columns="$2"
+  src="$src_dir/$name"
+  dst="$handoff_dir/$name"
+
+  [ -f "$src" ] || return 0
+  found_any=1
+
+  awk -F, -v keys="$key_columns" '
+    NR == FNR {
+      if (FNR == 1) {
+        header = $0
+        headerNF = NF
+        next
+      }
+      if (NF != headerNF) {
+        printf "%s line %d has %d columns, want %d\n", FILENAME, FNR, NF, headerNF > "/dev/stderr"
+        exit 1
+      }
+      key = $1
+      for (i = 2; i <= keys; i++) {
+        key = key "," $i
+      }
+      rows++
+      templateKey[rows] = key
+      next
+    }
+    FNR == 1 {
+      if ($0 != header) {
+        printf "%s header changed; expected %s\n", FILENAME, header > "/dev/stderr"
+        exit 1
+      }
+      if (NF != headerNF) {
+        printf "%s header has %d columns, want %d\n", FILENAME, NF, headerNF > "/dev/stderr"
+        exit 1
+      }
+      next
+    }
+    {
+      if (NF != headerNF) {
+        printf "%s line %d has %d columns, want %d\n", FILENAME, FNR, NF, headerNF > "/dev/stderr"
+        exit 1
+      }
+      row = FNR - 1
+      if (row > rows) {
+        printf "%s has extra data row at line %d\n", FILENAME, FNR > "/dev/stderr"
+        exit 1
+      }
+      key = $1
+      for (i = 2; i <= keys; i++) {
+        key = key "," $i
+      }
+      if (key != templateKey[row]) {
+        printf "%s line %d key changed; got %s want %s\n", FILENAME, FNR, key, templateKey[row] > "/dev/stderr"
+        exit 1
+      }
+      value = $NF
+      sub(/\r$/, "", value)
+      if (value == "") {
+        blanks++
+      } else if (value ~ /^-?[0-9]+$/) {
+        filled++
+      } else {
+        printf "%s line %d expected cell is neither blank nor numeric\n", FILENAME, FNR > "/dev/stderr"
+        exit 1
+      }
+    }
+    END {
+      if (filled + blanks != rows) {
+        printf "%s accounted rows=%d, want %d\n", FILENAME, filled + blanks, rows > "/dev/stderr"
+        exit 1
+      }
+      printf "%s: validated %d numeric expected cells and %d blank cells\n", FILENAME, filled, blanks
+    }
+  ' "$dst" "$src"
+
+  validated_files="$validated_files $name"
+}
+
 validate_fcb_position_clarification() {
   name="decoder_itu_fcb_position_clarification_expected.csv"
   src="$src_dir/$name"
@@ -358,7 +438,7 @@ validate_expected "encoder_closedloop_stage_expected_template.csv" 6
 validate_expected "decoder_itu_frame0_hp_input_inverse_expected_template.csv" 5
 validate_expected "decoder_tame_pre_acb_history_expected_template.csv" 5
 validate_expected "decoder_tame_excitation_history_expected_template.csv" 5
-validate_expected "decoder_pitch_instability_decision_expected_template.csv" 5
+validate_expected_partial "decoder_pitch_instability_decision_expected_template.csv" 5
 validate_expected "decoder_support_tables_expected_template.csv" 3
 validate_fcb_position_clarification
 validate_decoder_tame_stage_wide

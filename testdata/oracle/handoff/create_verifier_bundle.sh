@@ -21,9 +21,8 @@ if [ "${G729_ALLOW_FILLED_VERIFIER_BUNDLE:-0}" != "1" ]; then
   # The focused FCB templates may already contain verifier-filled numeric
   # results. The broad closed-loop stage remains the only outgoing blank
   # template from the post-FCB verifier flow. The pitch-instability decision
-  # template is also outgoing and must remain blank.
+  # template may be partially filled and can be resent to fill remaining blanks.
   require_blank_expected "$handoff_dir/encoder_closedloop_stage_expected_template.csv"
-  require_blank_expected "$handoff_dir/decoder_pitch_instability_decision_expected_template.csv"
 fi
 
 rm -rf "$bundle_dir"

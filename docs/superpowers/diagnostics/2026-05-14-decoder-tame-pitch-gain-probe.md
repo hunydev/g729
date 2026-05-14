@@ -228,6 +228,32 @@ answer is "no good-frame decoder limiter", those flags should be `0` and the
 after-gain should match the decoded adaptive gain wherever the before-gain is
 independently known.
 
+Verifier return:
+
+```text
+rows=9552 filled=2993 blank=6559
+bitstream_ga=597/597
+bitstream_gb=597/597
+pitch_t_int=597/597
+pitch_t_frac=597/597
+pitch_instability_flag_q0=597/597, all 0
+```
+
+Local compare:
+
+```text
+exact 2987/2993 99.80%
+blanks=6559
+mismatches=6
+```
+
+The result closes the decoder-side cap hypothesis for good frames: the verifier
+found no Recommendation-backed pitch-instability limiter on any targeted
+subframe. The six mismatches are all TAME frame `117`, subframe `1` scalar
+rows (`fixed_gain_q14` and RMS/ratio values). They are consistent with the
+known local prior-excitation/history divergence rather than evidence for a
+missing good-frame gain limiter.
+
 ## Interpretation
 
 `pitch_gain_cap_0p95` is a strong localization probe: limiting adaptive gain

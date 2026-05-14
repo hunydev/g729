@@ -558,10 +558,13 @@ func TestOracleHandoff_BundleScriptPinsDeterministicInputs(t *testing.T) {
 		"EXTERNAL_VERIFIER_REQUEST.md",
 		"create_verifier_bundle.sh",
 		"validate_verifier_output.sh",
+		"DECODER_PITCH_INSTABILITY_DECISION_PROMPT.md",
 		"REMAINING_CONFORMANCE_VERIFIER_PROMPT.md",
 		"FCB_TREE_SEARCH_VERIFIER_PROMPT.md",
 		"FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md",
 		"ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md",
+		"decoder_pitch_instability_decision_expected_template.csv",
+		"decoder_pitch_instability_decision_got.csv",
 		"fcb_tree_search_expected_template.csv",
 		"fcb_tree_search_got.csv",
 		"fcb_tree_search_user_audio_expected_template.csv",
@@ -586,7 +589,7 @@ func TestOracleHandoff_BundleScriptPinsDeterministicInputs(t *testing.T) {
 }
 
 func TestOracleHandoff_BundleScriptBuildsDocumentedArchive(t *testing.T) {
-	const wantSHA256 = "5fa70a950cb77ab7ac84742725ff0fc064ab961f4c50bb3ba1adcd3bc7ea4989"
+	const wantSHA256 = "253b02b8540ca18b5b34d406c5a04617a57441fb4e2a556a63062e2c8c9afea8"
 	scriptPath := filepath.Join("testdata", "oracle", "handoff", "create_verifier_bundle.sh")
 	tmp := t.TempDir()
 	bundleDir := filepath.Join(tmp, "g729-fcb-verifier-handoff")
@@ -625,6 +628,7 @@ func TestOracleHandoff_BundleScriptBuildsDocumentedArchive(t *testing.T) {
 		"g729-fcb-verifier-handoff/testdata/",
 		"g729-fcb-verifier-handoff/testdata/oracle/",
 		"g729-fcb-verifier-handoff/testdata/oracle/handoff/",
+		"g729-fcb-verifier-handoff/testdata/oracle/handoff/DECODER_PITCH_INSTABILITY_DECISION_PROMPT.md",
 		"g729-fcb-verifier-handoff/testdata/oracle/handoff/ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md",
 		"g729-fcb-verifier-handoff/testdata/oracle/handoff/EXTERNAL_VERIFIER_REQUEST.md",
 		"g729-fcb-verifier-handoff/testdata/oracle/handoff/FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md",
@@ -633,6 +637,8 @@ func TestOracleHandoff_BundleScriptBuildsDocumentedArchive(t *testing.T) {
 		"g729-fcb-verifier-handoff/testdata/oracle/handoff/README.md",
 		"g729-fcb-verifier-handoff/testdata/oracle/handoff/REMAINING_CONFORMANCE_VERIFIER_PROMPT.md",
 		"g729-fcb-verifier-handoff/testdata/oracle/handoff/create_verifier_bundle.sh",
+		"g729-fcb-verifier-handoff/testdata/oracle/handoff/decoder_pitch_instability_decision_expected_template.csv",
+		"g729-fcb-verifier-handoff/testdata/oracle/handoff/decoder_pitch_instability_decision_got.csv",
 		"g729-fcb-verifier-handoff/testdata/oracle/handoff/encoder_closedloop_stage_expected_template.csv",
 		"g729-fcb-verifier-handoff/testdata/oracle/handoff/encoder_closedloop_stage_got.csv",
 		"g729-fcb-verifier-handoff/testdata/oracle/handoff/fcb_tree_search_expected_template.csv",
@@ -822,9 +828,12 @@ func copyVerifierBundleInputsTo(t *testing.T, root string) {
 		filepath.Join("testdata", "oracle", "handoff", "README.md"),
 		filepath.Join("testdata", "oracle", "handoff", "EXTERNAL_VERIFIER_REQUEST.md"),
 		filepath.Join("testdata", "oracle", "handoff", "REMAINING_CONFORMANCE_VERIFIER_PROMPT.md"),
+		filepath.Join("testdata", "oracle", "handoff", "DECODER_PITCH_INSTABILITY_DECISION_PROMPT.md"),
 		filepath.Join("testdata", "oracle", "handoff", "FCB_TREE_SEARCH_VERIFIER_PROMPT.md"),
 		filepath.Join("testdata", "oracle", "handoff", "FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md"),
 		filepath.Join("testdata", "oracle", "handoff", "ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md"),
+		filepath.Join("testdata", "oracle", "handoff", "decoder_pitch_instability_decision_expected_template.csv"),
+		filepath.Join("testdata", "oracle", "handoff", "decoder_pitch_instability_decision_got.csv"),
 		filepath.Join("testdata", "oracle", "handoff", "fcb_tree_search_expected_template.csv"),
 		filepath.Join("testdata", "oracle", "handoff", "fcb_tree_search_got.csv"),
 		filepath.Join("testdata", "oracle", "handoff", "fcb_tree_search_user_audio_expected_template.csv"),
@@ -1057,8 +1066,18 @@ func parseManifestHashes(t *testing.T, text, start, end string) map[string]strin
 			continue
 		}
 		name := markdownCodeCell(cells[0])
-		hash := markdownCodeCell(cells[len(cells)-1])
-		if name == "" || hash == "" || hash == "n/a" {
+		if name == "" {
+			continue
+		}
+		hash := ""
+		for _, cell := range cells[1:] {
+			candidate := markdownCodeCell(cell)
+			if len(candidate) == sha256.Size*2 {
+				hash = candidate
+				break
+			}
+		}
+		if hash == "" {
 			continue
 		}
 		if len(hash) != sha256.Size*2 {

@@ -154,13 +154,15 @@ Active verifier bundle:
 sh testdata/oracle/handoff/create_verifier_bundle.sh
 ```
 
-The bundle intentionally contains only prompts, manifest/docs, blank
-`expected` templates, and numeric `got` CSVs. It does not contain source
-code or external implementation material. The repo-local helper uses
+The bundle intentionally contains only prompts, manifest/docs, verifier-owned
+`expected` CSVs, and numeric `got` CSVs. It does not contain source
+code or external implementation material. Some expected CSVs may already be
+partially or fully verifier-filled and should be treated as numeric artifacts,
+not as implementation-derived source. The repo-local helper uses
 deterministic tar/gzip options (`--sort=name`, fixed `--mtime`,
 `--numeric-owner`, and `gzip -n`) so the archive hash is stable for a
 fixed set of input files. By default it refuses to build if the remaining
-outgoing blank `expected` template already has verifier-filled cells.
+outgoing blank-guarded `expected` template already has verifier-filled cells.
 
 The helper copies exactly these files into the bundle:
 
@@ -229,11 +231,6 @@ Filled verifier output intake:
    G729_REQUIRE_EXACT_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 \
    go test -run TestOracleHandoff_CompareEncoderClosedLoopStageHandoff -count=1 -v
 
-   G729_COMPARE_DECODER_PITCH_INSTABILITY_DECISION=1 \
-   G729_REQUIRE_COMPLETE_DECODER_PITCH_INSTABILITY_DECISION=1 \
-   G729_REQUIRE_EXACT_DECODER_PITCH_INSTABILITY_DECISION=1 \
-   go test ./internal/decoder -run TestOracleHandoff_CompareDecoderPitchInstabilityDecision -count=1 -v
-
    G729_COMPARE_DECODER_TAME_STAGE_WIDE=1 \
    G729_REQUIRE_EXACT_DECODER_TAME_STAGE_WIDE=1 \
    go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEStageWide -count=1 -v
@@ -257,6 +254,15 @@ Filled verifier output intake:
    G729_REQUIRE_COMPLETE_DECODER_SUPPORT_TABLES=1 \
    G729_REQUIRE_EXACT_DECODER_SUPPORT_TABLES=1 \
    go test -run TestOracleHandoff_CompareDecoderSupportTables -count=1 -v
+   ```
+
+   The pitch-instability decision handoff is currently partial by design,
+   because most gain/RMS rows need unavailable prior decoder state. Use the
+   non-strict localization command until it is complete:
+
+   ```sh
+   G729_COMPARE_DECODER_PITCH_INSTABILITY_DECISION=1 \
+   go test ./internal/decoder -run TestOracleHandoff_CompareDecoderPitchInstabilityDecision -count=1 -v
    ```
 
 6. If strict compare passes, update `HANDOFF_MANIFEST.md` and the

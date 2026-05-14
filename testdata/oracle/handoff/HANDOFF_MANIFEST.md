@@ -58,8 +58,8 @@ identify the current files after numeric `expected` cells were filled.
 | `decoder_support_tables_expected_template.csv` | `table,row,col,expected` | 264 | `dd0a3d086c4938fdef7b664961de726097fc8f622674706f94bfab921dcba28f` |
 | `EXTERNAL_VERIFIER_REQUEST.md` | n/a | n/a | `d65189e31ed3189ada680e26efd2e934d71d8286023d0c27cef5499df66aa725` |
 | `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md` | n/a | n/a | `0da88d8dc36ccedc36906df62ce781c04056f2e5bd5597187e6ec26b3dd5eadc` |
-| `create_verifier_bundle.sh` | n/a | n/a | `c347ad22d2e6e8a7a68ab64a68051af26444522cb2c47486c6d3e3b53678714e` |
-| `validate_verifier_output.sh` | n/a | n/a | `d42c48f6f14ce1037092405fc2c7ebbad531767aa669841ad18c378726914a2c` |
+| `create_verifier_bundle.sh` | n/a | n/a | `7e8e88c53952c08be61e16af8282eb9902d87d3610a31e2879231ef3a6ff1f9c` |
+| `validate_verifier_output.sh` | n/a | n/a | `99af1ad486a42bf970a9520d8c3fd7ad4ee9141e67e01efb29a185362949047d` |
 
 ## Verifier-filled Files
 
@@ -91,6 +91,7 @@ identify the current files after numeric `expected` cells were filled.
 | --- | ---: | ---: | --- | --- |
 | `decoder_itu_stage_expected.csv` | 1562 | 8929 | `158a1c310206163f60022a00d0e3002a23ee525d3dfd9955cfd4e8b0b3be261b` | Use as a localization artifact only; fixed-codebook fourth-pulse clarification is resolved, so request additional LP/synthesis state rows before promoting to a strict gate. |
 | `decoder_tame_stage_wide_onset_expected_template.csv` | 2436 | 44660 | `a8cb11efbed61d9c5de107b619420cce342356b2e9b8c733e89bf427f07b51f5` | Use as a localization artifact only. Local compare is exact `444/2436`; all filled `past_exc_pre_acb_q0` rows mismatch, confirming that late TAME ACB disagreement is inherited from prior excitation history. |
+| `decoder_pitch_instability_decision_expected_template.csv` | 2993 | 6559 | `f49b996365a34a5a49c1962135bafd11c0ad1eaf7f3fa839e952c392ed7618c7` | Use as a decision artifact: `pitch_instability_flag_q0` is filled `597/597` and all values are `0`, so the verifier found no good-frame decoder-side pitch-instability limiter. Local compare is exact `2987/2993`; the six TAME `117/1` scalar mismatches are localization evidence for prior excitation/history divergence. |
 
 ## Currently Unfilled Files
 
@@ -99,7 +100,6 @@ identify the current files after numeric `expected` cells were filled.
 | `encoder_closedloop_stage_expected_template.csv` | 100848 | Fill from `ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md` if a broader closed-loop stage oracle is required. |
 | `decoder_tame_pre_acb_history_expected_template.csv` | 153 | Blocked unless an independent prior-excitation trace is available; `adaptive_v_q0` rows alone do not uniquely determine the FIFO. |
 | `decoder_tame_excitation_history_expected_template.csv` | 9360 | Blocked; full forward decode requires numeric support tables and state not available from the current clean-room inputs. |
-| `decoder_pitch_instability_decision_expected_template.csv` | 9552 | Fill from `DECODER_PITCH_INSTABILITY_DECISION_PROMPT.md` to determine whether a good-frame decoder-side pitch-instability gain decision exists on the TAME/SPEECH/PITCH/OVERFLOW stress subframes. |
 | `decoder_support_tables_expected_template.csv` | 264 | Blocked for full completion under current clean-room inputs; spec text covers only a subset, while gain VQ/map tables are simulation-software numeric tables. |
 
 ## Verification Commands
