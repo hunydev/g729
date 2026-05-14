@@ -496,6 +496,31 @@ Interpretation:
   earlier gain/fixed contribution changes first corrupt the past-excitation
   FIFO.
 
+Upstream fixed-gain window scan:
+
+```sh
+G729_DECODER_UPSTREAM_VARIANT_WINDOW=1 \
+G729_DECODER_UPSTREAM_WINDOW_CANDIDATE=fixed_gain_half \
+G729_DECODER_ITU_VECTOR_FRONTIER_TOP=8 \
+go test ./internal/decoder -run TestDecoderITUUpstreamVariantWindow -count=1 -v
+```
+
+Current best windows:
+
+| Start | End | Length | Candidate RMS | Note |
+| ---: | ---: | ---: | ---: | --- |
+| `26` | `120` | `94` | `1187.84` | best |
+| `26` | `123` | `97` | `1187.95` | near-best |
+| `26` | `128` | `102` | `1189.85` | near-best |
+
+The best window's largest improvements are frames `120..127`, even though the
+candidate is disabled at frame `120` in the best `[26,120)` run. This is strong
+evidence that the damaging state is accumulated during frames `26..119` and
+then expressed through the adaptive-codebook/past-excitation history in the
+late TAME frames. Early frames `26..34` regress under the same diagnostic, so
+`fixed_gain_half` is still not a production formula; it is a localization
+probe.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
