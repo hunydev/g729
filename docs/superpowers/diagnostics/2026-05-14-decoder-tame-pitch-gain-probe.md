@@ -288,6 +288,66 @@ Interpretation:
 - Keep the strict gain path at `ecQ=26`; use `ecQ=25` only as a diagnostic
   amplitude probe when explaining TAME's accumulated excitation history.
 
+## Onset Candidate Range Audit
+
+The exhaustive fixed-gain-half window scans are useful but slow. The current
+best diagnostic window is:
+
+```text
+fixed_gain_half, global subframes [52,239)
+frames [26,120), candidate RMS 1185.18
+```
+
+A compact fixed-range audit now captures the important behavior without
+rerunning the exhaustive subframe search.
+
+Command:
+
+```sh
+env GOCACHE=/tmp/go-build \
+  G729_DECODER_TAME_ONSET_CANDIDATE_RANGE_AUDIT=1 \
+  go test ./internal/decoder -run TestDecoderTAMEOnsetCandidateRangeAudit -count=1 -v
+```
+
+Result:
+
+```text
+candidate                range         frames   refRMS   outRMS   errRMS      gSNR    segSNR    corr
+production               all             128  10735.2  14830.6   5081.9      6.50     11.04   0.972
+production               window-start      8  10842.2  11338.2    603.3     25.09     27.32   1.000
+production               first-1.25       12  10809.8  13659.5   2890.2     11.46     11.59   0.999
+production               first-1.50       12  10818.6  16298.6   5555.9      5.79      5.86   0.998
+production               late-oracle      12  10821.3  19976.9   9226.5      1.38      1.42   0.997
+fixed_half_sf52_239      all             128  10735.2  10757.3   1185.2     19.14     21.39   0.994
+fixed_half_sf52_239      window-start      8  10842.2  10883.0   1035.7     20.40     23.54   0.995
+fixed_half_sf52_239      first-1.25       12  10809.8  10554.0    852.3     22.06     23.52   0.997
+fixed_half_sf52_239      first-1.50       12  10818.6  11497.9   1200.0     19.10     19.30   0.996
+fixed_half_sf52_239      late-oracle      12  10821.3  12239.4   1562.3     16.81     17.11   0.998
+fixed_half_frame26_120   all             128  10735.2  10750.3   1187.8     19.12     21.38   0.994
+fixed_half_frame26_120   window-start      8  10842.2  10883.0   1035.7     20.40     23.54   0.995
+fixed_half_frame26_120   first-1.25       12  10809.8  10554.0    852.3     22.06     23.52   0.997
+fixed_half_frame26_120   first-1.50       12  10818.6  11497.9   1200.0     19.10     19.30   0.996
+fixed_half_frame26_120   late-oracle      12  10821.3  12173.4   1583.6     16.69     17.04   0.997
+gain_ec_q25_cutover10    all             128  10735.2  11760.7   2160.3     13.93     16.98   0.986
+gain_ec_q25_cutover10    window-start      8  10842.2  10165.2    820.1     22.43     22.60   0.999
+gain_ec_q25_cutover10    first-1.25       12  10809.8  10932.2    534.4     26.12     27.07   0.999
+gain_ec_q25_cutover10    first-1.50       12  10818.6  12757.3   2136.0     14.09     14.35   0.997
+gain_ec_q25_cutover10    late-oracle      12  10821.3  14843.8   4142.4      8.34      8.43   0.997
+```
+
+Interpretation:
+
+- The fixed-gain-half window improves overall TAME (`6.50 -> 19.14 dB`) and
+  the late oracle-adjacent range (`1.38 -> 16.81 dB`).
+- The same window worsens the early window-start range (`25.09 -> 20.40 dB`),
+  so it is not a direct production formula fix.
+- `gain_ec_q25_cutover10` improves the first over-amplified onset range more
+  strongly (`11.46 -> 26.12 dB`), but it is weaker late and already rejected by
+  the cross-vector audit.
+- The useful localization point is global subframe `52` / frame `26`; the next
+  oracle should target excitation and gain state around frame `26`, then the
+  visible onset at frames `49..72`.
+
 ## Interpretation
 
 `pitch_gain_cap_0p95` is a strong localization probe: limiting adaptive gain
@@ -323,6 +383,7 @@ env GOCACHE=/tmp/go-build go test ./internal/decoder -count=1
 env GOCACHE=/tmp/go-build G729_DECODER_PITCH_CAP_ACTIVATION_AUDIT=1 go test ./internal/decoder -run TestDecoderPitchGainCapActivationAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_PITCH_CAP_TRIGGER_GRID_CROSS_VECTOR=1 go test ./internal/decoder -run TestDecoderPitchGainCapTriggerGridCrossVectorAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_GAIN_EC_Q25_CROSS_VECTOR=1 go test ./internal/decoder -run TestDecoderTAMEGainECQ25CrossVectorAudit -count=1 -v
+env GOCACHE=/tmp/go-build G729_DECODER_TAME_ONSET_CANDIDATE_RANGE_AUDIT=1 go test ./internal/decoder -run TestDecoderTAMEOnsetCandidateRangeAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_PITCH_INSTABILITY_DECISION=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderPitchInstabilityDecision -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_TAME_GAIN_TAMING_HANDOFF=1 go test -run TestOracleHandoff_CompareTAMEGainTamingHandoff -count=1 -v
 ```

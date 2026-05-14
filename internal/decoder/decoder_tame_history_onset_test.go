@@ -101,6 +101,139 @@ func TestDecoderTAMEHistoryOnsetAudit(t *testing.T) {
 	decoderTAMEHistoryLogRows(t, byPast[:topN])
 }
 
+// TestDecoderTAMEOnsetCandidateRangeAudit is a compact follow-up to the full
+// window scans. It compares the known diagnostic-only candidates over fixed
+// frame ranges so the TAME onset behavior can be rechecked quickly without
+// rerunning the exhaustive 40-second subframe search.
+func TestDecoderTAMEOnsetCandidateRangeAudit(t *testing.T) {
+	if os.Getenv("G729_DECODER_TAME_ONSET_CANDIDATE_RANGE_AUDIT") != "1" {
+		t.Skip("set G729_DECODER_TAME_ONSET_CANDIDATE_RANGE_AUDIT=1 to run TAME onset candidate range audit")
+	}
+
+	tc := phase3eSelectedITUVector(t, "G729_DECODER_TAME_ONSET_CANDIDATE_VECTOR", "TAME")
+	bitPath := vectorPath(tc.bitFile)
+	pstPath := vectorPath(tc.pstFile)
+	ensureTestdataPresent(t, bitPath, pstPath)
+
+	bitData, err := os.ReadFile(bitPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", tc.bitFile, err)
+	}
+	frames, bads := readG192Frames(t, bitPath)
+	wantFrames := readPSTFrames(t, pstPath)
+	if len(frames) != len(wantFrames) {
+		t.Fatalf("%s: frame count mismatch bit=%d pst=%d", tc.name, len(frames), len(wantFrames))
+	}
+	if len(bads) != len(frames) {
+		t.Fatalf("%s: bad flag count mismatch bads=%d frames=%d", tc.name, len(bads), len(frames))
+	}
+	badFrames := 0
+	for _, bad := range bads {
+		if bad {
+			badFrames++
+		}
+	}
+
+	ref := decoderTAMEFlattenPST(wantFrames)
+	fixedHalf := phase3eVariant{name: "fixed_gain_half", fixedExpDelta: -1}
+	candidates := []decoderTAMEOnsetCandidate{
+		{
+			name: "production",
+			out:  phase3eDecodeVariant(t, bitData, len(frames), phase3eVariant{name: "production"}),
+		},
+		{
+			name: "fixed_half_sf52_239",
+			out:  phase3eDecodeVariantSubframeWindow(t, bitData, len(frames), 52, 239, fixedHalf),
+		},
+		{
+			name: "fixed_half_frame26_120",
+			out:  phase3eDecodeVariantWindow(t, bitData, len(frames), 26, 120, fixedHalf),
+		},
+		{
+			name: "gain_ec_q25_cutover10",
+			out: phase3jDecodeVariantCutover(t, bitData, len(frames), 10, phase3jVariant{
+				name: "gain_ec_q25",
+				mode: phase3jGainECQ25,
+			}),
+		},
+	}
+	ranges := []decoderTAMEOnsetRange{
+		{name: "all", start: 0, end: len(frames)},
+		{name: "window-start", start: 26, end: 34},
+		{name: "first-1.25", start: 49, end: 61},
+		{name: "first-1.50", start: 68, end: 80},
+		{name: "late-oracle", start: 116, end: 128},
+	}
+
+	t.Logf("decoder TAME onset candidate range audit: vector=%s frames=%d bad=%d", tc.name, len(frames), badFrames)
+	t.Logf("%-24s %-13s %5s %8s %8s %8s %9s %9s %7s",
+		"candidate", "range", "frames", "refRMS", "outRMS", "errRMS", "gSNR", "segSNR", "corr")
+	for _, candidate := range candidates {
+		for _, frameRange := range ranges {
+			stats := decoderTAMEComputeOnsetRangeStats(t, ref, candidate.out, frameRange)
+			t.Logf("%-24s %-13s %5d %8.1f %8.1f %8.1f %9.2f %9.2f %7.3f",
+				candidate.name,
+				frameRange.name,
+				frameRange.end-frameRange.start,
+				stats.refRMS,
+				stats.outRMS,
+				stats.errRMS,
+				stats.metrics.globalSNR,
+				stats.metrics.segSNR,
+				stats.metrics.corr)
+		}
+	}
+}
+
+type decoderTAMEOnsetCandidate struct {
+	name string
+	out  []int16
+}
+
+type decoderTAMEOnsetRange struct {
+	name       string
+	start, end int
+}
+
+type decoderTAMEOnsetRangeStats struct {
+	refRMS  float64
+	outRMS  float64
+	errRMS  float64
+	metrics blackboxMetrics
+}
+
+func decoderTAMEComputeOnsetRangeStats(t *testing.T, ref, out []int16, frameRange decoderTAMEOnsetRange) decoderTAMEOnsetRangeStats {
+	t.Helper()
+	if frameRange.start < 0 || frameRange.end <= frameRange.start {
+		t.Fatalf("invalid range %s [%d,%d)", frameRange.name, frameRange.start, frameRange.end)
+	}
+	lo := frameRange.start * frameSamples
+	hi := frameRange.end * frameSamples
+	if hi > len(ref) || hi > len(out) {
+		t.Fatalf("range %s [%d,%d) exceeds ref=%d out=%d samples", frameRange.name, lo, hi, len(ref), len(out))
+	}
+	refSlice := ref[lo:hi]
+	outSlice := out[lo:hi]
+	return decoderTAMEOnsetRangeStats{
+		refRMS:  diag4Rms(refSlice),
+		outRMS:  diag4Rms(outSlice),
+		errRMS:  decoderTAMEPCMErrorRMS(refSlice, outSlice),
+		metrics: blackboxMeasure(refSlice, outSlice, 0),
+	}
+}
+
+func decoderTAMEPCMErrorRMS(ref, out []int16) float64 {
+	if len(ref) == 0 || len(ref) != len(out) {
+		return 0
+	}
+	var sumSq int64
+	for i := range ref {
+		delta := int64(out[i]) - int64(ref[i])
+		sumSq += delta * delta
+	}
+	return math.Sqrt(float64(sumSq) / float64(len(ref)))
+}
+
 type decoderTAMEHistoryOnsetRow struct {
 	frame      int
 	stats      decoderITUFrameStats
