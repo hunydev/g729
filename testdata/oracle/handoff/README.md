@@ -76,6 +76,16 @@ These files are not oracle artifacts and are intentionally ignored by the option
   decoder-stage artifact for TAME frames 117 through 119. It contains
   subframe LP, adaptive/fixed gain, adaptive vector, fixed codebook,
   pitch/fixed contribution, excitation, and synthesis cells for localization.
+- `decoder_tame_stage_wide_onset_got.csv`: this implementation's wide
+  TAME decoder-stage trace for selected onset windows spanning frames 0..5,
+  22..33, 49..60, 68..79, and 112..127.
+- `decoder_tame_stage_wide_onset_expected_template.csv`: verifier-owned
+  wide template for the same selected TAME onset windows. Blank cells are
+  permitted when a value cannot be independently derived under the clean-room
+  boundary; filled numeric cells can still be compared locally.
+- `DECODER_TAME_STAGE_WIDE_ONSET_PROMPT.md`: copyable prompt for an isolated
+  clean-room verifier that fills only independently derived numeric cells in
+  the TAME onset wide template.
 - `decoder_itu_stage_frame0_chain_expected.csv`: verifier-filled frame-0
   chain artifact for ALGTHM, TAME, and OVERFLOW. It contains subframe-0
   `fixed_c_q13`, final PST PCM, and inverse final-output-scale HP candidates;
@@ -175,7 +185,8 @@ Filled verifier output intake:
    The validator rejects unexpected files, symlinked files, changed
    headers, changed row counts, changed key columns, blank `expected`
    cells, and non-numeric `expected` cells unless that artifact explicitly
-   allows controlled note cells. It is validation-only by default.
+   allows controlled note cells or partial blank cells. It is
+   validation-only by default.
 2. To copy validated files into their exact template paths, rerun with:
 
    ```sh
@@ -370,6 +381,36 @@ Decoder frame-0 HP-input inverse workflow:
    Current result: complete numeric oracle, non-exact local compare
    (`170/240` within range). Use it as a localization artifact showing that
    the remaining frame-0 mismatch enters before the output HP filter.
+
+Decoder TAME stage-wide onset workflow:
+
+1. Refresh the local `got` CSV and blank verifier template:
+
+   ```sh
+   G729_WRITE_DECODER_TAME_STAGE_WIDE_ONSET_HANDOFF=1 \
+   go test ./internal/decoder -run TestDecoderTAMEStageWideOnsetHandoffTemplate -count=1 -v
+   ```
+
+2. Give the verifier `decoder_tame_stage_wide_onset_expected_template.csv`,
+   `decoder_tame_stage_wide_onset_got.csv`, `TAME.BIT`, and `TAME.PST`, then
+   ask it to fill independently derived numeric cells using
+   `DECODER_TAME_STAGE_WIDE_ONSET_PROMPT.md`.
+3. Preserve the exact CSV shape. The wide columns cover `past_exc_pre_acb_q0`,
+   `lp_a_q12`, adaptive/fixed gains, adaptive/fixed vectors, pitch/fixed
+   contributions, excitation, and synthesis for selected TAME onset windows.
+4. After the verifier returns a CSV, compare the filled numeric cells locally:
+
+   ```sh
+   G729_COMPARE_DECODER_TAME_STAGE_WIDE_ONSET=1 \
+   G729_DECODER_TAME_STAGE_WIDE_ONSET_EXPECTED=/home/exedev/g729-decoder-itu-stage-verifier-handoff/verifier-output/decoder_tame_stage_wide_onset_expected_template.csv \
+   go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEStageWideOnset -count=1 -v
+   ```
+
+   Set `G729_REQUIRE_EXACT_DECODER_TAME_STAGE_WIDE_ONSET=1` only when all
+   filled verifier cells must match local values. Set
+   `G729_REQUIRE_COMPLETE_DECODER_TAME_STAGE_WIDE_ONSET=1` only if the verifier
+   explicitly reports that every requested cell was independently derived.
+   Current status: blank template, 116 data rows and 406 value columns.
 
 Decoder TAME pre-ACB history workflow:
 

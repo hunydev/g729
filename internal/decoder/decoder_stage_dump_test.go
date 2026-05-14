@@ -379,6 +379,7 @@ func collectFrameFromDecoded(frameIdx int, packed []byte, taps *Phase3DiagFrameT
 		synth.BuildExcitation(sub.GpQ14, 0, 0, &sub.V, &zero, &pitchContrib)
 		synth.BuildExcitation(0, sub.GainTaps.GcMantQ14, sub.GainTaps.GcExp, &zero, &sub.C, &fixedContrib)
 
+		appendArray(&out, sf, "past_exc_pre_acb_q0", sub.PastExcPreACB[:])
 		appendArray(&out, sf, "adaptive_v_q0", sub.V[:])
 		appendArray(&out, sf, "fixed_c_q13", sub.C[:])
 		appendArray(&out, sf, "pitch_contrib_q0", pitchContrib[:])
@@ -495,6 +496,9 @@ func missingFrameCells() []cell {
 		}
 		for i := 0; i <= 10; i++ {
 			cells = appendCellNoValue(cells, sf, "lp_a_q12", i)
+		}
+		for i := 0; i < pastExcLen; i++ {
+			cells = appendCellNoValue(cells, sf, "past_exc_pre_acb_q0", i)
 		}
 		for i := 0; i < 40; i++ {
 			cells = appendCellNoValue(cells, sf, "adaptive_v_q0", i)

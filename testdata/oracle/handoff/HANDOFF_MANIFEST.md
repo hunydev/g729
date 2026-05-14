@@ -1,6 +1,6 @@
 # Oracle Handoff Manifest
 
-Date: 2026-05-13
+Date: 2026-05-14
 
 This manifest identifies the clean-room verifier handoff inputs and
 the current verifier-filled outputs. The pre-fill hashes identify the
@@ -44,6 +44,9 @@ identify the current files after numeric `expected` cells were filled.
 | `decoder_itu_fcb_position_clarification_expected_template.csv` | `C,i0,i1,i2,i3,jx,m0,m1,m2,m3,note` | 3 | `33b5766a587219fedc26a7d6e8b757eade3dd03f31f9394834bd4602968ca450` |
 | `DECODER_ITU_FRAME0_HP_INPUT_INVERSE_PROMPT.md` | n/a | n/a | `b5cf97ca846b7f164b50b3dc65bad54ff0379cba7912b2de55e701ae341951ea` |
 | `decoder_itu_frame0_hp_input_inverse_expected_template.csv` | `source,frame,sub,field,index,expected` | 480 | `c821398c859954af18c4c9f448c85bfbb923a366906692dccd9011f2675bd814` |
+| `DECODER_TAME_STAGE_WIDE_ONSET_PROMPT.md` | n/a | n/a | `3e2ee7526730795b970a34761228730ab7b1555e2669ff55c287f040f42926e8` |
+| `decoder_tame_stage_wide_onset_expected_template.csv` | `frame,sub,past_exc_pre_acb_q0_0..152,lp_a_q12_0..10,adaptive_gain_q14,fixed_gain_q14,adaptive_v_q0_0..39,fixed_c_q13_0..39,pitch_contrib_q0_0..39,fixed_contrib_q0_0..39,excitation_u_q0_0..39,synth_s_q0_0..39` | 116 | `22df2b7c1616fa61469f5ac9fec6f9b74801a57c6cffc90cbb39ebf1f2874e3c` |
+| `decoder_tame_stage_wide_onset_got.csv` | `frame,sub,past_exc_pre_acb_q0_0..152,lp_a_q12_0..10,adaptive_gain_q14,fixed_gain_q14,adaptive_v_q0_0..39,fixed_c_q13_0..39,pitch_contrib_q0_0..39,fixed_contrib_q0_0..39,excitation_u_q0_0..39,synth_s_q0_0..39` | 116 | `61738779e6f21b5414c16af26510072453eb307d6459fc3d3cd1a352c5809706` |
 | `DECODER_TAME_PRE_ACB_HISTORY_PROMPT.md` | n/a | n/a | `0829d37f52081b42e02ff82d568bd37008d9db8fef710012d0356e592edf04d2` |
 | `decoder_tame_pre_acb_history_expected_template.csv` | `source,frame,sub,field,index,expected` | 153 | `e1533e9a2a6b67d534cb287254e57c51a11c0ae0326242ec9cf07516ec9160ad` |
 | `DECODER_TAME_EXCITATION_HISTORY_PROMPT.md` | n/a | n/a | `2a6075561facc1bfc4cf1219c5c92582f0994274c92cb0084e41d0a7a1639b02` |
@@ -53,7 +56,7 @@ identify the current files after numeric `expected` cells were filled.
 | `EXTERNAL_VERIFIER_REQUEST.md` | n/a | n/a | `d65189e31ed3189ada680e26efd2e934d71d8286023d0c27cef5499df66aa725` |
 | `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md` | n/a | n/a | `0da88d8dc36ccedc36906df62ce781c04056f2e5bd5597187e6ec26b3dd5eadc` |
 | `create_verifier_bundle.sh` | n/a | n/a | `05460c982ec487ec894bcb31b1200be4ab0542fd335bbabd08f8a21cb0651faf` |
-| `validate_verifier_output.sh` | n/a | n/a | `90479ef01da99b98163d5b45dab76430cff798f5e27a7a4823ea4d91020c9f9c` |
+| `validate_verifier_output.sh` | n/a | n/a | `ae57e777a44e781b947063bf95540b540c04acb08d5a9e3b1e02d55b94118c53` |
 
 ## Verifier-filled Files
 
@@ -90,6 +93,7 @@ identify the current files after numeric `expected` cells were filled.
 | File | Blank `expected` cells | Next action |
 | --- | ---: | --- |
 | `encoder_closedloop_stage_expected_template.csv` | 100848 | Fill from `ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md` if a broader closed-loop stage oracle is required. |
+| `decoder_tame_stage_wide_onset_expected_template.csv` | 47096 | Fill independently derivable onset-window cells from `DECODER_TAME_STAGE_WIDE_ONSET_PROMPT.md`; partial completion is allowed and the local compare can validate filled numeric cells only. |
 | `decoder_tame_pre_acb_history_expected_template.csv` | 153 | Blocked unless an independent prior-excitation trace is available; `adaptive_v_q0` rows alone do not uniquely determine the FIFO. |
 | `decoder_tame_excitation_history_expected_template.csv` | 9360 | Blocked; full forward decode requires numeric support tables and state not available from the current clean-room inputs. |
 | `decoder_support_tables_expected_template.csv` | 264 | Blocked for full completion under current clean-room inputs; spec text covers only a subset, while gain VQ/map tables are simulation-software numeric tables. |
@@ -126,6 +130,9 @@ sha256sum \
   testdata/oracle/handoff/fcb_tree_search_user_audio_got.csv \
   testdata/oracle/handoff/DECODER_ITU_FRAME0_HP_INPUT_INVERSE_PROMPT.md \
   testdata/oracle/handoff/decoder_itu_frame0_hp_input_inverse_expected_template.csv \
+  testdata/oracle/handoff/DECODER_TAME_STAGE_WIDE_ONSET_PROMPT.md \
+  testdata/oracle/handoff/decoder_tame_stage_wide_onset_expected_template.csv \
+  testdata/oracle/handoff/decoder_tame_stage_wide_onset_got.csv \
   testdata/oracle/handoff/DECODER_TAME_PRE_ACB_HISTORY_PROMPT.md \
   testdata/oracle/handoff/decoder_tame_pre_acb_history_expected_template.csv \
   testdata/oracle/handoff/DECODER_TAME_EXCITATION_HISTORY_PROMPT.md \
@@ -161,6 +168,8 @@ awk -F, 'FNR==1 {print FILENAME ": header=" $0} FNR>1 {rows++} ENDFILE {print FI
   testdata/oracle/handoff/fcb_tree_search_user_audio_expected_template.csv \
   testdata/oracle/handoff/fcb_tree_search_user_audio_got.csv \
   testdata/oracle/handoff/decoder_itu_frame0_hp_input_inverse_expected_template.csv \
+  testdata/oracle/handoff/decoder_tame_stage_wide_onset_expected_template.csv \
+  testdata/oracle/handoff/decoder_tame_stage_wide_onset_got.csv \
   testdata/oracle/handoff/decoder_tame_pre_acb_history_expected_template.csv \
   testdata/oracle/handoff/decoder_tame_excitation_history_expected_template.csv \
   testdata/oracle/handoff/decoder_support_tables_expected_template.csv
