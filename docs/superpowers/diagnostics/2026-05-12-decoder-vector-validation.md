@@ -253,6 +253,66 @@ stateful: reducing earlier fixed contribution changes the subsequent
 past-excitation/adaptive vector trajectory, rather than merely subtracting a
 large direct fixed contribution in the listed frame.
 
+Additional gain-reconstruction candidate probes:
+
+```sh
+G729_DECODER_GAIN_AUDIT=1 \
+G729_DECODER_GAIN_VECTOR=TAME \
+go test ./internal/decoder -run TestPhase3jGainVariantAudit_SPEECH -count=1 -v
+```
+
+The gain audit now uses selectable ITU vectors, the lenient G.192 reader, and
+the same pitch-enhancement state helpers as production. Current result:
+
+| Vector | Production gSNR | Best tested gain candidate | Candidate gSNR | Interpretation |
+| --- | ---: | --- | ---: | --- |
+| `SPEECH` | `23.29` | production | `23.29` | Global gain Q-format changes are disqualified. |
+| `TAME` | `6.50` | `gain_ec_q25` | `12.54` | Strong TAME-only gain/excitation-history clue. |
+| `PITCH` | `14.14` | production | `14.14` | Global gain Q-format changes are disqualified. |
+| `OVERFLOW` | `-1.58` | `gain_ec_q13` | `0.04` | Small stress-vector movement with worse correlation; not a production fix. |
+
+The focused gain candidate frontier is:
+
+```sh
+G729_DECODER_GAIN_CANDIDATE_FRONTIER=1 \
+G729_DECODER_GAIN_CANDIDATE_VECTOR=TAME \
+G729_DECODER_GAIN_CANDIDATE=gain_ec_q25 \
+G729_DECODER_ITU_VECTOR_FRONTIER_TOP=5 \
+go test ./internal/decoder -run TestDecoderITUGainCandidateFrontier -count=1 -v
+```
+
+For full-file candidates on `TAME`, `gain_ec_q25` improves aggregate RMS from
+`5081.86` to `2534.89`, while `gain_gamma_q14` improves it to `3938.36`. Both
+reduce the severe late frames `122`, `123`, `125`, `126`, and `127`, but both
+also regress early frames such as `3`, `5`, `6`, and `7`.
+
+The cutover probe is:
+
+```sh
+G729_DECODER_GAIN_CANDIDATE_CUTOVER=1 \
+G729_DECODER_GAIN_CANDIDATE_VECTOR=TAME \
+G729_DECODER_GAIN_CANDIDATE=gain_gamma_q14 \
+G729_DECODER_ITU_VECTOR_FRONTIER_TOP=8 \
+go test ./internal/decoder -run TestDecoderITUGainCandidateCutover -count=1 -v
+```
+
+Current cutover result:
+
+| Candidate | Best cutover frame | Aggregate RMS | Production RMS |
+| --- | ---: | ---: | ---: |
+| `gain_ec_q25` | `10` | `2160.31` | `5081.86` |
+| `gain_gamma_q14` | `26` | `1189.85` | `5081.86` |
+
+Interpretation:
+
+- These are not safe production changes because SPEECH/PITCH reject the same
+  gain variants.
+- The TAME error is strongly state-history dependent: a late cutover beats both
+  production and full-file candidate application.
+- The next clean-room numeric target should focus on TAME frames `20..30` and
+  `122..127`: gain predictor FIFO, decoded gain taps, fixed contribution,
+  excitation history, adaptive vector, synthesis output, and final PST PCM.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
