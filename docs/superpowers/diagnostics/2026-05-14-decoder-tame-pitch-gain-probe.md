@@ -348,6 +348,43 @@ Interpretation:
   oracle should target excitation and gain state around frame `26`, then the
   visible onset at frames `49..72`.
 
+## Frame-26 Onset Verifier Result
+
+The focused clean-room request for frame `26` and visible-onset frames produced:
+
+```text
+/home/exedev/g729-decoder-itu-stage-verifier-handoff/verifier-output/decoder_tame_onset_frame26_expected.csv
+rows=22820 filled=280 blanks=22540
+```
+
+Filled fields:
+
+```text
+bitstream_ga: 70/70
+bitstream_gb: 70/70
+pitch_t_int: 70/70
+pitch_t_frac: 70/70
+```
+
+Local compare:
+
+```text
+decoder_tame_onset_frame26: exact 280/280 100.00% blanks=22540 mismatches=0 missing_got=0
+```
+
+The artifact is clean and exact for bitstream and decoded pitch scalar rows, but
+it does not provide the needed gain/history oracle. The verifier left
+`adaptive_gain_q14`, `fixed_gain_q14`, `past_exc_pre_acb_q0`,
+`adaptive_v_q0`, contribution vectors, `excitation_u_q0`, and RMS summaries
+blank because independent gain VQ tables, gain predictor state, and prior
+excitation history were unavailable.
+
+This means the current clean-room verifier path has reached a dependency wall
+for internal decoder state. Further requests for the same internal TAME
+gain/history values are unlikely to help unless the verifier gets an
+independent numeric source for the missing support tables or a fully independent
+forward decoder trace.
+
 ## Interpretation
 
 `pitch_gain_cap_0p95` is a strong localization probe: limiting adaptive gain
@@ -372,6 +409,8 @@ Therefore:
 - Do not change decoder gain fixed-codebook energy correction from `26` to `25`;
   it improves TAME only by damping and regresses normal good-frame vectors.
 - Do not treat the incomplete 108..137 verifier CSV as a decoder oracle.
+- Do not treat the frame-26 onset CSV as a gain/history oracle; it only confirms
+  bitstream gain indices and decoded pitch values.
 - Next useful work is earlier prior-excitation/history localization before
   frame `117`, preferably with PST-only onset diagnostics or a clean-room
   oracle that supplies independent excitation history before frame `53..72`.
@@ -384,6 +423,7 @@ env GOCACHE=/tmp/go-build G729_DECODER_PITCH_CAP_ACTIVATION_AUDIT=1 go test ./in
 env GOCACHE=/tmp/go-build G729_DECODER_PITCH_CAP_TRIGGER_GRID_CROSS_VECTOR=1 go test ./internal/decoder -run TestDecoderPitchGainCapTriggerGridCrossVectorAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_GAIN_EC_Q25_CROSS_VECTOR=1 go test ./internal/decoder -run TestDecoderTAMEGainECQ25CrossVectorAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_ONSET_CANDIDATE_RANGE_AUDIT=1 go test ./internal/decoder -run TestDecoderTAMEOnsetCandidateRangeAudit -count=1 -v
+env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_TAME_ONSET_FRAME26=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEOnsetFrame26 -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_PITCH_INSTABILITY_DECISION=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderPitchInstabilityDecision -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_TAME_GAIN_TAMING_HANDOFF=1 go test -run TestOracleHandoff_CompareTAMEGainTamingHandoff -count=1 -v
 ```

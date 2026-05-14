@@ -137,13 +137,16 @@ func readDecoderStageRowsWithValueColumn(path, valueColumn string) ([]stageRow, 
 	if err != nil {
 		return nil, err
 	}
-	if len(header) != 6 ||
+	if (len(header) != 6 && len(header) != 7) ||
 		header[0] != "source" ||
 		header[1] != "frame" ||
 		header[2] != "sub" ||
 		header[3] != "field" ||
 		header[4] != "index" ||
 		header[5] != valueColumn {
+		return nil, fmt.Errorf("unexpected header %v", header)
+	}
+	if len(header) == 7 && header[6] != "note" {
 		return nil, fmt.Errorf("unexpected header %v", header)
 	}
 
@@ -158,8 +161,8 @@ func readDecoderStageRowsWithValueColumn(path, valueColumn string) ([]stageRow, 
 		if err != nil {
 			return nil, fmt.Errorf("line %d: %w", line, err)
 		}
-		if len(rec) != 6 {
-			return nil, fmt.Errorf("line %d: got %d columns, want 6", line, len(rec))
+		if len(rec) != len(header) {
+			return nil, fmt.Errorf("line %d: got %d columns, want %d", line, len(rec), len(header))
 		}
 		frame, err := strconv.Atoi(rec[1])
 		if err != nil {
