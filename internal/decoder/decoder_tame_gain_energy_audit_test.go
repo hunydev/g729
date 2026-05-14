@@ -126,6 +126,99 @@ func TestDecoderTAMEGainECQ25CrossVectorAudit(t *testing.T) {
 	}
 }
 
+// TestDecoderTAMEGainVariantCrossVectorAudit checks whether the gain formula
+// variants that improve TAME also preserve ordinary good-frame vectors. A
+// variant that improves only TAME by damping the stream is localization
+// evidence, not a production-safe decoder formula change.
+func TestDecoderTAMEGainVariantCrossVectorAudit(t *testing.T) {
+	if os.Getenv("G729_DECODER_TAME_GAIN_VARIANT_CROSS_VECTOR") != "1" {
+		t.Skip("set G729_DECODER_TAME_GAIN_VARIANT_CROSS_VECTOR=1 to run TAME gain variant cross-vector audit")
+	}
+
+	vectors := []string{"TAME", "SPEECH", "PITCH", "FIXED"}
+	variants := []phase3jVariant{
+		{name: "production", mode: phase3jGainProduction},
+		{name: "gain_ec_q25", mode: phase3jGainECQ25},
+		{name: "gain_gamma_q14", mode: phase3jGainGammaQ14},
+	}
+
+	rows := make([]decoderTAMEGainVariantCrossVectorRow, 0, len(vectors))
+	for _, name := range vectors {
+		tc, ok := decoderITUValidationCaseByName(name)
+		if !ok {
+			t.Fatalf("unknown decoder ITU vector %q", name)
+		}
+		rows = append(rows, decoderTAMEGainVariantCrossVectorCase(t, tc, variants))
+	}
+
+	t.Logf("decoder TAME gain variant cross-vector audit")
+	t.Logf("%-10s %-16s %10s %9s %10s %10s",
+		"vector", "variant", "gSNR", "delta", "rms", "corr")
+	for _, row := range rows {
+		for _, candidate := range row.candidates {
+			t.Logf("%-10s %-16s %10.2f %9.2f %10.2f %10.3f",
+				row.name,
+				candidate.name,
+				candidate.metrics.globalSNR,
+				candidate.metrics.globalSNR-row.production.globalSNR,
+				candidate.metrics.rms,
+				candidate.metrics.corr)
+		}
+	}
+}
+
+type decoderTAMEGainVariantCrossVectorRow struct {
+	name       string
+	production blackboxMetrics
+	candidates []decoderTAMEGainVariantCrossVectorCandidate
+}
+
+type decoderTAMEGainVariantCrossVectorCandidate struct {
+	name    string
+	metrics blackboxMetrics
+}
+
+func decoderTAMEGainVariantCrossVectorCase(t *testing.T, tc decoderITUValidationCase, variants []phase3jVariant) decoderTAMEGainVariantCrossVectorRow {
+	t.Helper()
+	bitPath := vectorPath(tc.bitFile)
+	pstPath := vectorPath(tc.pstFile)
+	ensureTestdataPresent(t, bitPath, pstPath)
+
+	bitData, err := os.ReadFile(bitPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", tc.bitFile, err)
+	}
+	frames, bads := readG192Frames(t, bitPath)
+	want := readPSTFrames(t, pstPath)
+	if len(frames) != len(want) {
+		t.Fatalf("%s: frame count mismatch bit=%d pst=%d", tc.name, len(frames), len(want))
+	}
+	if len(bads) != len(frames) {
+		t.Fatalf("%s: bad flag count mismatch bads=%d frames=%d", tc.name, len(bads), len(frames))
+	}
+
+	ref := decoderTAMEFlattenPST(want)
+	candidates := make([]decoderTAMEGainVariantCrossVectorCandidate, 0, len(variants))
+	var production blackboxMetrics
+	for _, variant := range variants {
+		out := phase3jDecodeVariant(t, bitData, len(frames), variant)
+		metrics := blackboxMeasure(ref, out, 40)
+		if variant.mode == phase3jGainProduction {
+			production = metrics
+		}
+		candidates = append(candidates, decoderTAMEGainVariantCrossVectorCandidate{
+			name:    variant.name,
+			metrics: metrics,
+		})
+	}
+
+	return decoderTAMEGainVariantCrossVectorRow{
+		name:       tc.name,
+		production: production,
+		candidates: candidates,
+	}
+}
+
 type decoderTAMEGainECQ25CrossVectorRow struct {
 	name       string
 	frames     int

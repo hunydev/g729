@@ -288,6 +288,46 @@ Interpretation:
 - Keep the strict gain path at `ecQ=26`; use `ecQ=25` only as a diagnostic
   amplitude probe when explaining TAME's accumulated excitation history.
 
+## Gain Variant Cross-Vector Check
+
+The same cross-vector rejection now covers the other tempting gain formula
+variant, `gain_gamma_q14`.
+
+Command:
+
+```sh
+env GOCACHE=/tmp/go-build \
+  G729_DECODER_TAME_GAIN_VARIANT_CROSS_VECTOR=1 \
+  go test ./internal/decoder -run TestDecoderTAMEGainVariantCrossVectorAudit -count=1 -v
+```
+
+Result:
+
+```text
+vector     variant                gSNR     delta        rms       corr
+TAME       production             6.50      0.00   14830.60      0.972
+TAME       gain_ec_q25           12.54      6.04   10358.40      0.972
+TAME       gain_gamma_q14         8.71      2.21    7449.08      0.971
+SPEECH     production            23.29      0.00    2050.42      0.998
+SPEECH     gain_ec_q25           10.07    -13.22    1448.46      0.998
+SPEECH     gain_gamma_q14         5.80    -17.49    1025.95      0.998
+PITCH      production            14.14      0.00    3796.49      0.993
+PITCH      gain_ec_q25            7.58     -6.56    2684.32      0.993
+PITCH      gain_gamma_q14         4.64     -9.50    1898.35      0.993
+FIXED      production            14.14      0.00     126.15      0.986
+FIXED      gain_ec_q25            8.00     -6.14      89.26      0.986
+FIXED      gain_gamma_q14         4.90     -9.24      63.15      0.986
+```
+
+Interpretation:
+
+- `gain_gamma_q14` improves TAME (`6.50 -> 8.71 dB`) because it damps the
+  recurrent excitation, but it is even worse than `ecQ=25` on SPEECH, PITCH,
+  and FIXED.
+- Both gain variants are rejected as production decoder changes.
+- The remaining TAME issue is a recurrent history/energy-balance localization
+  problem, not a scalar gain formula correction.
+
 ## Onset Candidate Range Audit
 
 The exhaustive fixed-gain-half window scans are useful but slow. The current
@@ -408,6 +448,8 @@ Therefore:
   independent oracle confirmation.
 - Do not change decoder gain fixed-codebook energy correction from `26` to `25`;
   it improves TAME only by damping and regresses normal good-frame vectors.
+- Do not change decoder gain gamma correction to `14`; it also improves TAME
+  only by damping and regresses normal good-frame vectors.
 - Do not treat the incomplete 108..137 verifier CSV as a decoder oracle.
 - Do not treat the frame-26 onset CSV as a gain/history oracle; it only confirms
   bitstream gain indices and decoded pitch values.
@@ -422,6 +464,7 @@ env GOCACHE=/tmp/go-build go test ./internal/decoder -count=1
 env GOCACHE=/tmp/go-build G729_DECODER_PITCH_CAP_ACTIVATION_AUDIT=1 go test ./internal/decoder -run TestDecoderPitchGainCapActivationAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_PITCH_CAP_TRIGGER_GRID_CROSS_VECTOR=1 go test ./internal/decoder -run TestDecoderPitchGainCapTriggerGridCrossVectorAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_GAIN_EC_Q25_CROSS_VECTOR=1 go test ./internal/decoder -run TestDecoderTAMEGainECQ25CrossVectorAudit -count=1 -v
+env GOCACHE=/tmp/go-build G729_DECODER_TAME_GAIN_VARIANT_CROSS_VECTOR=1 go test ./internal/decoder -run TestDecoderTAMEGainVariantCrossVectorAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_ONSET_CANDIDATE_RANGE_AUDIT=1 go test ./internal/decoder -run TestDecoderTAMEOnsetCandidateRangeAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_TAME_ONSET_FRAME26=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEOnsetFrame26 -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_PITCH_INSTABILITY_DECISION=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderPitchInstabilityDecision -count=1 -v
