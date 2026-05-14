@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/hunydev/g729/internal/bitstream"
+	"github.com/hunydev/g729/internal/lsp"
+	"github.com/hunydev/g729/internal/pitch"
 )
 
 // TestDecoderITUGainCandidateFrontier localizes gain-reconstruction diagnostic
@@ -392,6 +394,89 @@ func TestDecoderITUUpstreamVariantWindow(t *testing.T) {
 	decoderUpstreamWindowLogRows(t, frameRows[:topN])
 }
 
+// TestDecoderITUUpstreamVariantSubframeWindow is the subframe-resolution
+// counterpart to TestDecoderITUUpstreamVariantWindow. It determines whether the
+// damaging state accumulation has a frame-internal boundary.
+func TestDecoderITUUpstreamVariantSubframeWindow(t *testing.T) {
+	if os.Getenv("G729_DECODER_UPSTREAM_VARIANT_SUBFRAME_WINDOW") != "1" {
+		t.Skip("set G729_DECODER_UPSTREAM_VARIANT_SUBFRAME_WINDOW=1 to run upstream variant subframe window scan")
+	}
+
+	tc := phase3eSelectedITUVector(t, "G729_DECODER_UPSTREAM_WINDOW_VECTOR", "TAME")
+	candidate := decoderUpstreamWindowVariant(t)
+
+	bitPath := vectorPath(tc.bitFile)
+	pstPath := vectorPath(tc.pstFile)
+	ensureTestdataPresent(t, bitPath, pstPath)
+
+	bitData, err := os.ReadFile(bitPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", tc.bitFile, err)
+	}
+	frames, bads := readG192Frames(t, bitPath)
+	want := readPSTFrames(t, pstPath)
+	if len(frames) != len(want) {
+		t.Fatalf("%s: frame count mismatch bit=%d pst=%d", tc.name, len(frames), len(want))
+	}
+	if len(bads) != len(frames) {
+		t.Fatalf("%s: bad flag count mismatch bads=%d frames=%d", tc.name, len(bads), len(frames))
+	}
+	if len(frames) > 256 {
+		t.Fatalf("%s has %d frames; subframe window scan is intentionally bounded to <=256 frames", tc.name, len(frames))
+	}
+
+	prodOut := phase3eDecodeVariant(t, bitData, len(frames), phase3eVariant{name: "production"})
+	prodSumSq := decoderGainCandidateOutputSumSq(prodOut, want)
+
+	subframes := len(frames) * 2
+	rows := make([]decoderGainCandidateWindowRow, 0, subframes*(subframes+1)/2)
+	for start := 0; start < subframes; start++ {
+		for end := start + 1; end <= subframes; end++ {
+			out := phase3eDecodeVariantSubframeWindow(t, bitData, len(frames), start, end, candidate)
+			sumSq := decoderGainCandidateOutputSumSq(out, want)
+			rows = append(rows, decoderGainCandidateWindowRow{
+				start:       start,
+				end:         end,
+				sumSq:       sumSq,
+				improvement: prodSumSq - sumSq,
+			})
+		}
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].sumSq != rows[j].sumSq {
+			return rows[i].sumSq < rows[j].sumSq
+		}
+		if rows[i].start != rows[j].start {
+			return rows[i].start < rows[j].start
+		}
+		return rows[i].end < rows[j].end
+	})
+
+	topN := decoderITUFrontierTopN()
+	if topN > len(rows) {
+		topN = len(rows)
+	}
+
+	t.Logf("decoder ITU upstream variant subframe window: vector=%s candidate=%s topN=%d productionRMS=%.2f",
+		tc.name,
+		candidate.name,
+		topN,
+		decoderGainCandidateRMS(prodSumSq, len(frames)*frameSamples))
+	t.Logf("%-8s %-8s %-8s %-8s %-8s %10s %10s",
+		"sfStart", "sfEnd", "sfLen", "frStart", "frEnd", "candRMS", "dSumSq")
+	for _, row := range rows[:topN] {
+		t.Logf("%-8d %-8d %-8d %-8d %-8d %10.2f %10d",
+			row.start,
+			row.end,
+			row.end-row.start,
+			row.start/2,
+			(row.end+1)/2,
+			decoderGainCandidateRMS(row.sumSq, len(frames)*frameSamples),
+			row.improvement)
+	}
+}
+
 type decoderGainCandidateFrontierRow struct {
 	frame       int
 	prod        decoderITUFrameStats
@@ -439,6 +524,76 @@ func phase3eDecodeVariantWindow(t *testing.T, bitData []byte, frames, start, end
 		}
 	}
 	return out
+}
+
+func phase3eDecodeVariantSubframeWindow(t *testing.T, bitData []byte, frames, startSubframe, endSubframe int, candidate phase3eVariant) []int16 {
+	t.Helper()
+	out := make([]int16, frames*frameSamples)
+	var dec Decoder
+	var packed [bitstream.FrameBytes]byte
+	r := bytes.NewReader(bitData)
+	for f := 0; f < frames; f++ {
+		if _, err := bitstream.ReadG192FrameLenient(r, packed[:]); err != nil {
+			t.Fatalf("ReadG192Frame[upstream-subwindow=%d:%d] frame %d: %v", startSubframe, endSubframe, f, err)
+		}
+		if err := dec.decodeFramePhase3eSubframeWindow(
+			f,
+			packed[:],
+			out[f*frameSamples:(f+1)*frameSamples],
+			startSubframe,
+			endSubframe,
+			candidate,
+		); err != nil {
+			t.Fatalf("decodeFramePhase3eSubframeWindow[window=%d:%d/%s] frame %d: %v", startSubframe, endSubframe, candidate.name, f, err)
+		}
+	}
+	return out
+}
+
+func (d *Decoder) decodeFramePhase3eSubframeWindow(
+	frame int,
+	packed []byte,
+	out []int16,
+	startSubframe, endSubframe int,
+	candidate phase3eVariant,
+) error {
+	if len(packed) < bitstream.FrameBytes {
+		return ErrShortInput
+	}
+	if len(out) < frameSamples {
+		return ErrShortOutput
+	}
+
+	var fr bitstream.Frame
+	if err := bitstream.Unpack(packed, &fr); err != nil {
+		return err
+	}
+
+	sf1A, sf2A := d.lsp.Decode(lsp.Indices{
+		L0: uint8(fr.L0),
+		L1: uint8(fr.L1),
+		L2: uint8(fr.L2),
+		L3: uint8(fr.L3),
+	})
+
+	tInt1, tFrac1 := pitch.DecodeDelaySubframe1(uint8(fr.P1))
+	_ = pitch.CheckParity(uint8(fr.P1), uint8(fr.P0))
+	tInt2, tFrac2 := pitch.DecodeDelaySubframe2(uint8(fr.P2), tInt1)
+
+	sf0Variant := phase3eVariant{name: "production"}
+	if globalSubframe := frame * 2; globalSubframe >= startSubframe && globalSubframe < endSubframe {
+		sf0Variant = candidate
+	}
+	sf1Variant := phase3eVariant{name: "production"}
+	if globalSubframe := frame*2 + 1; globalSubframe >= startSubframe && globalSubframe < endSubframe {
+		sf1Variant = candidate
+	}
+
+	d.decodeSubframePhase3eVariant(&sf1A, tInt1, tFrac1, fr.C1, uint8(fr.S1), uint8(fr.GA1), uint8(fr.GB1), out[:subframeLen], sf0Variant)
+	d.decodeSubframePhase3eVariant(&sf2A, tInt2, tFrac2, fr.C2, uint8(fr.S2), uint8(fr.GA2), uint8(fr.GB2), out[subframeLen:frameSamples], sf1Variant)
+
+	scaleDecoderOutput(out[:frameSamples])
+	return nil
 }
 
 func phase3jDecodeVariantCutover(t *testing.T, bitData []byte, frames, cutover int, candidate phase3jVariant) []int16 {

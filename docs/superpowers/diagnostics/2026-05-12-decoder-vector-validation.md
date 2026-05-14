@@ -521,6 +521,28 @@ late TAME frames. Early frames `26..34` regress under the same diagnostic, so
 `fixed_gain_half` is still not a production formula; it is a localization
 probe.
 
+Subframe-resolution window scan:
+
+```sh
+G729_DECODER_UPSTREAM_VARIANT_SUBFRAME_WINDOW=1 \
+G729_DECODER_UPSTREAM_WINDOW_CANDIDATE=fixed_gain_half \
+G729_DECODER_ITU_VECTOR_FRONTIER_TOP=10 \
+go test ./internal/decoder -run TestDecoderITUUpstreamVariantSubframeWindow -count=1 -v
+```
+
+Current best windows:
+
+| Subframe start | Subframe end | Subframes | Frame start | Frame end | Candidate RMS |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| `52` | `239` | `187` | `26` | `120` | `1185.18` |
+| `52` | `249` | `197` | `26` | `125` | `1186.90` |
+| `52` | `240` | `188` | `26` | `120` | `1187.84` |
+
+The best boundary is frame `26` subframe `0` through frame `119` subframe `0`
+inclusive (`[52,239)` in global subframe numbering). Excluding frame `119`
+subframe `1` slightly improves the frame-window best. This keeps the target on
+subframe-wise gain/excitation history rather than a frame-output artifact.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
