@@ -90,9 +90,10 @@ gp>cap+past>=240: applied=19 errRMS=94.30 meanAbs=79.16 maxAbs=173 corr=0.8942 s
 This is close to the best fixed-window `pitch_gain_cap_0p95` result and strongly
 points at an adaptive-gain/history problem around the late TAME onset.
 
-## Cross-Vector Audit
+## Initial Cross-Vector Audit
 
-The same trigger was then applied across the good Annex A decoder vectors.
+The same broad trigger was then applied across the good Annex A decoder
+vectors.
 
 Command:
 
@@ -120,6 +121,82 @@ The trigger is therefore not production-safe. It isolates the TAME failure
 mode, but it overfires on normal voiced content and causes severe regressions
 on `SPEECH`, `PITCH`, `ALGTHM`, and `TEST`.
 
+## Activation Distribution
+
+The broad trigger overfires because `gp > 0.95` is common on voiced content.
+The next diagnostic summarized the activation distribution across good Annex A
+vectors.
+
+Command:
+
+```sh
+env GOCACHE=/tmp/go-build \
+  G729_DECODER_PITCH_CAP_ACTIVATION_AUDIT=1 \
+  G729_DECODER_ITU_VECTOR_FRONTIER_TOP=5 \
+  go test ./internal/decoder -run TestDecoderPitchGainCapActivationAudit -count=1 -v
+```
+
+Summary:
+
+```text
+vector     events   frames     gpMed   pastMed   tailMed      vMed    fixMed    p/fMed past/fMed
+ALGTHM         29       35     17839     336.1     254.9      56.1     409.2      0.86      0.89
+SPEECH       1953     3750     17265     118.2     126.7     121.9      53.4      2.70      2.48
+FIXED          53      120     17839      12.8       8.1       7.1      49.0      0.15      0.25
+LSP          2289     2232     16985      18.8      19.1      18.8       4.4      3.95      3.93
+PITCH        1899     1835     17839     542.4     517.8     652.9     246.2      2.22      2.01
+TAME          245      128     16502     300.9     304.2     296.3      37.8      7.39      7.53
+TEST           67      176     17943      68.9      80.3      64.2      64.5      1.32      1.01
+OVERFLOW      755      384     16683    7494.9    7567.1    7545.5      31.3    234.98    231.34
+```
+
+TAME differs from normal voiced vectors by low fixed contribution and high
+pitch/fixed or past/fixed ratios. However, `OVERFLOW` has the same shape at a
+much larger amplitude, so this is still a stress-vector heuristic rather than a
+normative decoder rule.
+
+## Refined Trigger Grid
+
+The refined grid searched state triggers that maximize TAME improvement while
+penalizing regressions on the other good Annex A vectors.
+
+Command:
+
+```sh
+env GOCACHE=/tmp/go-build \
+  G729_DECODER_PITCH_CAP_TRIGGER_GRID_CROSS_VECTOR=1 \
+  G729_DECODER_ITU_VECTOR_FRONTIER_TOP=12 \
+  go test ./internal/decoder -run TestDecoderPitchGainCapTriggerGridCrossVectorAudit -count=1 -v
+```
+
+Best scored rows:
+
+```text
+trigger                                           score    tameD    maxReg    regVec  tameApp   othApp    pastErr   tameRMS
+gp>16000+past>=220+fixed<=40                    4068.52  4081.08      4.14    SPEECH       26      176     103.00   1000.78
+gp>16500+v>=220+fixed<=40                       4065.24  4070.47      1.74    SPEECH       16      104     102.43   1011.39
+gp>16500+past>=220+fixed<=40                    4058.11  4065.73      2.50    SPEECH       17      128     102.08   1016.13
+```
+
+Detailed cross-vector audit for the selected diagnostic trigger:
+
+```text
+trigger=gp>16000+past>=220+fixed<=40
+vector    applied    prodRMS    candRMS   prodSNR   candSNR  prodCor  candCor
+ALGTHM          0    2068.11    2068.11      8.65      8.65   0.9810   0.9810
+SPEECH         16     143.44     147.58     23.29     23.04   0.9978   0.9977
+FIXED           0      28.05      28.05     14.14     14.14   0.9859   0.9859
+LSP             0      65.13      65.13     20.20     20.20   0.9952   0.9952
+PITCH          20     888.43     888.57     14.14     14.14   0.9925   0.9925
+TAME           26    5081.86    1000.78      6.50     20.61   0.9716   0.9959
+TEST            0     103.93     103.93     22.76     22.76   0.9975   0.9975
+OVERFLOW      140   10396.15    8019.92     -1.58      0.68   0.4340   0.3873
+```
+
+This is a much sharper localization than the broad pastRMS-only trigger. It
+suggests the runaway TAME history is tied to high adaptive gain while fixed
+contribution is low, i.e. a pitch-feedback-dominated excitation state.
+
 ## Interpretation
 
 `pitch_gain_cap_0p95` is a strong localization probe: limiting adaptive gain
@@ -138,15 +215,19 @@ Therefore:
 
 - Do not add an unconditional decoder `gp <= 0.95` clamp to production.
 - Do not add the current `gp>0.95 && pastExcRMS>=240` trigger to production.
+- Do not add the refined `gp>16000 && pastRMS>=220 && fixedRMS<=40` trigger to
+  production without a Recommendation-backed decoder pitch-instability rule or
+  independent oracle confirmation.
 - Do not treat the incomplete 108..137 verifier CSV as a decoder oracle.
-- Next useful work is either a PDF-visible/state-machine derivation of
-  decoder pitch-instability control, or a diagnostic-only stateful taming probe
-  validated against `TAME.PST`, `SPEECH.PST`, and the filled late `pastExc`
-  oracle rows before any production change.
+- Next useful work is a PDF-visible/state-machine derivation of decoder
+  pitch-instability control, or a clean-room oracle that confirms the gain
+  limiting decision and state update around the TAME/OVERFLOW stress surfaces.
 
 ## Verification
 
 ```sh
 env GOCACHE=/tmp/go-build go test ./internal/decoder -count=1
+env GOCACHE=/tmp/go-build G729_DECODER_PITCH_CAP_ACTIVATION_AUDIT=1 go test ./internal/decoder -run TestDecoderPitchGainCapActivationAudit -count=1 -v
+env GOCACHE=/tmp/go-build G729_DECODER_PITCH_CAP_TRIGGER_GRID_CROSS_VECTOR=1 go test ./internal/decoder -run TestDecoderPitchGainCapTriggerGridCrossVectorAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_TAME_GAIN_TAMING_HANDOFF=1 go test -run TestOracleHandoff_CompareTAMEGainTamingHandoff -count=1 -v
 ```
