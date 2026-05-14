@@ -1,6 +1,7 @@
 package decoder
 
 import (
+	"encoding/csv"
 	"math"
 	"os"
 	"sort"
@@ -22,10 +23,11 @@ func TestDecoderTAMEPastExcAgeMap(t *testing.T) {
 	if expectedPath == "" {
 		expectedPath = decoderTAMEACBCheckpointExpectedPath
 	}
-	expected, err := readDecoderTAMEACBCheckpointRows(expectedPath)
+	expected, err := readDecoderTAMEPastExcAgeRows(expectedPath)
 	if err != nil {
-		t.Fatalf("read decoder TAME ACB checkpoint expected: %v", err)
+		t.Fatalf("read decoder TAME past-excitation expected: %v", err)
 	}
+	expected = decoderTAMEPastExcOnlyRows(expected)
 	got, err := collectDecoderTAMEACBCheckpointRows(t, expected)
 	if err != nil {
 		t.Fatalf("collect decoder TAME ACB checkpoint got rows: %v", err)
@@ -110,18 +112,47 @@ func TestDecoderTAMEPastExcAgeMap(t *testing.T) {
 	decoderPastExcLogGroups(t, "by sample age band", decoderPastExcNamedGroups(byAgeBand), len(byAgeBand))
 }
 
+func decoderTAMEPastExcOnlyRows(rows []stageRow) []stageRow {
+	out := make([]stageRow, 0, len(rows))
+	for _, row := range rows {
+		if row.field == "past_exc_pre_acb_q0" {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+func readDecoderTAMEPastExcAgeRows(path string) ([]stageRow, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	header, err := csv.NewReader(f).Read()
+	closeErr := f.Close()
+	if err != nil {
+		return nil, err
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	if len(header) >= 2 && header[0] == "frame" && header[1] == "sub" {
+		return readDecoderTAMEStageWideRows(path)
+	}
+	return readDecoderTAMEACBCheckpointRows(path)
+}
+
 type decoderPastExcAgeSample struct {
-	currentFrame          int
-	currentSub            int
-	index                 int
-	age                   int
-	originGlobalSubframe  int
-	originFrame           int
-	originSub             int
-	originSample          int
-	want                  int64
-	got                   int64
-	diff                  int64
+	currentFrame         int
+	currentSub           int
+	index                int
+	age                  int
+	originGlobalSubframe int
+	originFrame          int
+	originSub            int
+	originSample         int
+	want                 int64
+	got                  int64
+	diff                 int64
 }
 
 type decoderPastExcAgeGroup struct {

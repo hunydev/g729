@@ -80,9 +80,9 @@ These files are not oracle artifacts and are intentionally ignored by the option
   TAME decoder-stage trace for selected onset windows spanning frames 0..5,
   22..33, 49..60, 68..79, and 112..127.
 - `decoder_tame_stage_wide_onset_expected_template.csv`: verifier-owned
-  wide template for the same selected TAME onset windows. Blank cells are
-  permitted when a value cannot be independently derived under the clean-room
-  boundary; filled numeric cells can still be compared locally.
+  wide template for the same selected TAME onset windows. It is currently
+  partially verifier-filled; blank cells mark values that could not be
+  independently derived under the clean-room boundary.
 - `DECODER_TAME_STAGE_WIDE_ONSET_PROMPT.md`: copyable prompt for an isolated
   clean-room verifier that fills only independently derived numeric cells in
   the TAME onset wide template.
@@ -410,7 +410,23 @@ Decoder TAME stage-wide onset workflow:
    filled verifier cells must match local values. Set
    `G729_REQUIRE_COMPLETE_DECODER_TAME_STAGE_WIDE_ONSET=1` only if the verifier
    explicitly reports that every requested cell was independently derived.
-   Current status: blank template, 116 data rows and 406 value columns.
+   Current status: partially verifier-filled, 2,436 numeric cells and 44,660
+   blanks. Local compare is exact `444/2436`; all filled
+   `past_exc_pre_acb_q0` rows mismatch, so the late TAME ACB mismatch is
+   inherited from prior excitation history rather than isolated to the current
+   subframe ACB reconstruction formula.
+
+5. To map filled `past_exc_pre_acb_q0` mismatches back to source excitation
+   sample age, run:
+
+   ```sh
+   G729_DECODER_TAME_PAST_EXC_AGE_MAP=1 \
+   G729_DECODER_TAME_ACB_CHECKPOINT_EXPECTED=testdata/oracle/handoff/decoder_tame_stage_wide_onset_expected_template.csv \
+   go test ./internal/decoder -run TestDecoderTAMEPastExcAgeMap -count=1 -v
+   ```
+
+   Current result: exact `0/918`; local FIFO RMS is about 1.9x the verifier
+   FIFO RMS across the filled windows.
 
 Decoder TAME pre-ACB history workflow:
 
