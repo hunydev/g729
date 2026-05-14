@@ -346,7 +346,7 @@ reduces the late high-energy frames `122..127`. This reinforces the current
 interpretation: the candidate is a long-state damping probe, not a valid
 replacement gain formula.
 
-Output-domain audit:
+Pre-final-scale output audit:
 
 ```sh
 G729_DECODER_ITU_OUTPUT_DOMAIN_AUDIT=1 \
@@ -366,19 +366,44 @@ Current result:
 | `TAME` | `5081.86` | `3943.11` | `hp_raw` |
 | `TEST` | `103.93` | `732.28` | output |
 
+Pre-scale ratio audit:
+
+```sh
+G729_DECODER_ITU_PRESCALE_RATIO_AUDIT=1 \
+go test ./internal/decoder -run TestDecoderITUPreScaleRatioAudit -count=1 -v
+```
+
+Current active-frame result (`.PST` frame RMS >= `500`):
+
+| Vector | Active frames | HP raw median / PST | Output median / PST | HP near 0.5x | HP near 1.0x | Output > 1.5x |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `ALGTHM` | `29` | `0.439` | `0.878` | `17` | `0` | `0` |
+| `LSP` | `555` | `0.502` | `1.004` | `544` | `0` | `0` |
+| `OVERFLOW` | `383` | `0.523` | `1.047` | `171` | `23` | `64` |
+| `PITCH` | `1522` | `0.417` | `0.835` | `904` | `0` | `0` |
+| `SPEECH` | `1819` | `0.502` | `1.004` | `1792` | `0` | `0` |
+| `TAME` | `127` | `0.673` | `1.345` | `39` | `32` | `55` |
+| `TEST` | `78` | `0.502` | `1.003` | `78` | `0` | `0` |
+
 Interpretation:
 
 - A global final-output scale change is disqualified: ordinary vectors
-  (`SPEECH`, `PITCH`, `FIXED`, `LSP`, `TEST`, `ALGTHM`) prefer the current
-  final output domain.
-- TAME/OVERFLOW are stress-vector exceptions where `hp_raw` is closer to the
-  `.PST` file than the final `ScaleUpSat` output.
-- The TAME worst-frame trace now logs `hp_raw` directly against the PST final
+  (`SPEECH`, `LSP`, `TEST`, and most active `ALGTHM`/`PITCH` frames) show the
+  expected pattern where pre-final-scale `hp_raw` is near half of `.PST` and
+  final output is near `.PST`.
+- TAME and OVERFLOW are stress-vector exceptions where local `hp_raw` is already
+  too large before the final `ScaleUpSat` step. TAME has `32/127` active frames
+  with `hp_raw` near `.PST` amplitude and `55/127` active frames where final
+  output exceeds `1.5x` `.PST`.
+- The TAME worst-frame trace logs `hp_raw` directly against the PST final
   domain. On frame `123`, `hp_raw` RMS delta is only `712.97` while `output`
-  RMS delta is `10069.57`, so much of that specific late-frame error is output
-  domain/amplitude shaped.
-- This is still not a production fix. It narrows the next question to why the
-  stress-vector `.PST` agreement flips domain while ordinary vectors do not.
+  RMS delta is `10069.57`. Because ordinary vectors confirm the final x2 path,
+  this means TAME's local pre-scale chain has already grown toward final-output
+  amplitude in that region.
+- This is not a production fix. It narrows the next question to the upstream
+  source of stress-vector pre-scale over-amplification: gain history,
+  excitation history, LP/synthesis envelope, or postfilter input state before
+  the final scale.
 
 ## TAME FFmpeg/PST Localization Update
 
@@ -405,7 +430,9 @@ Key result:
   `hp/spf=0.97`, `out/hp=2.00`.
 - Current worst-frame detail is frame `123`. It is mostly adaptive-loop driven
   (`uRMS≈386..396`, direct fixed contribution much smaller), and its raw HP
-  output is close to PST while final `ScaleUpSat` doubles it away from PST.
+  output is already close to final-domain PST amplitude before final
+  `ScaleUpSat`. Since ordinary vectors validate the final x2 shape, this points
+  to upstream pre-scale over-amplification rather than a `.PST` domain flip.
 
 The companion upstream perturbation command:
 
