@@ -51,12 +51,15 @@ identify the current files after numeric `expected` cells were filled.
 | `decoder_tame_pre_acb_history_expected_template.csv` | `source,frame,sub,field,index,expected` | 153 | `e1533e9a2a6b67d534cb287254e57c51a11c0ae0326242ec9cf07516ec9160ad` |
 | `DECODER_TAME_EXCITATION_HISTORY_PROMPT.md` | n/a | n/a | `2a6075561facc1bfc4cf1219c5c92582f0994274c92cb0084e41d0a7a1639b02` |
 | `decoder_tame_excitation_history_expected_template.csv` | `source,frame,sub,field,index,expected` | 9360 | `51953e40c067649d593128fcf042bb39061fcec74c59b010c74554614d44607a` |
+| `DECODER_PITCH_INSTABILITY_DECISION_PROMPT.md` | n/a | n/a | `cf9a7f373bb1f1ea2dd79cb539fe8588c54658c0d4abc7b30d98e67718b82de8` |
+| `decoder_pitch_instability_decision_expected_template.csv` | `source,frame,sub,field,index,expected` | 9552 | `116b9736c5c2fbe239c3fa0803bba5db7a6d3bfb3cec09af9a13539133bdd4ad` |
+| `decoder_pitch_instability_decision_got.csv` | `source,frame,sub,field,index,got` | 9552 | `052a91da9ad66f6b1d9748d0fca966e18cd315b97187688be21c1a818b07194b` |
 | `DECODER_SUPPORT_TABLES_PROMPT.md` | n/a | n/a | `c0121878fcbbfc351e42120e28ad0268a8d8fdaa88f47c543e408f1ac049e6b9` |
 | `decoder_support_tables_expected_template.csv` | `table,row,col,expected` | 264 | `dd0a3d086c4938fdef7b664961de726097fc8f622674706f94bfab921dcba28f` |
 | `EXTERNAL_VERIFIER_REQUEST.md` | n/a | n/a | `d65189e31ed3189ada680e26efd2e934d71d8286023d0c27cef5499df66aa725` |
 | `REMAINING_CONFORMANCE_VERIFIER_PROMPT.md` | n/a | n/a | `0da88d8dc36ccedc36906df62ce781c04056f2e5bd5597187e6ec26b3dd5eadc` |
-| `create_verifier_bundle.sh` | n/a | n/a | `05460c982ec487ec894bcb31b1200be4ab0542fd335bbabd08f8a21cb0651faf` |
-| `validate_verifier_output.sh` | n/a | n/a | `ae57e777a44e781b947063bf95540b540c04acb08d5a9e3b1e02d55b94118c53` |
+| `create_verifier_bundle.sh` | n/a | n/a | `c347ad22d2e6e8a7a68ab64a68051af26444522cb2c47486c6d3e3b53678714e` |
+| `validate_verifier_output.sh` | n/a | n/a | `d42c48f6f14ce1037092405fc2c7ebbad531767aa669841ad18c378726914a2c` |
 
 ## Verifier-filled Files
 
@@ -96,6 +99,7 @@ identify the current files after numeric `expected` cells were filled.
 | `encoder_closedloop_stage_expected_template.csv` | 100848 | Fill from `ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md` if a broader closed-loop stage oracle is required. |
 | `decoder_tame_pre_acb_history_expected_template.csv` | 153 | Blocked unless an independent prior-excitation trace is available; `adaptive_v_q0` rows alone do not uniquely determine the FIFO. |
 | `decoder_tame_excitation_history_expected_template.csv` | 9360 | Blocked; full forward decode requires numeric support tables and state not available from the current clean-room inputs. |
+| `decoder_pitch_instability_decision_expected_template.csv` | 9552 | Fill from `DECODER_PITCH_INSTABILITY_DECISION_PROMPT.md` to determine whether a good-frame decoder-side pitch-instability gain decision exists on the TAME/SPEECH/PITCH/OVERFLOW stress subframes. |
 | `decoder_support_tables_expected_template.csv` | 264 | Blocked for full completion under current clean-room inputs; spec text covers only a subset, while gain VQ/map tables are simulation-software numeric tables. |
 
 ## Verification Commands
@@ -137,6 +141,9 @@ sha256sum \
   testdata/oracle/handoff/decoder_tame_pre_acb_history_expected_template.csv \
   testdata/oracle/handoff/DECODER_TAME_EXCITATION_HISTORY_PROMPT.md \
   testdata/oracle/handoff/decoder_tame_excitation_history_expected_template.csv \
+  testdata/oracle/handoff/DECODER_PITCH_INSTABILITY_DECISION_PROMPT.md \
+  testdata/oracle/handoff/decoder_pitch_instability_decision_expected_template.csv \
+  testdata/oracle/handoff/decoder_pitch_instability_decision_got.csv \
   testdata/oracle/handoff/DECODER_SUPPORT_TABLES_PROMPT.md \
   testdata/oracle/handoff/decoder_support_tables_expected_template.csv \
   testdata/oracle/handoff/EXTERNAL_VERIFIER_REQUEST.md \
@@ -172,6 +179,8 @@ awk -F, 'FNR==1 {print FILENAME ": header=" $0} FNR>1 {rows++} ENDFILE {print FI
   testdata/oracle/handoff/decoder_tame_stage_wide_onset_got.csv \
   testdata/oracle/handoff/decoder_tame_pre_acb_history_expected_template.csv \
   testdata/oracle/handoff/decoder_tame_excitation_history_expected_template.csv \
+  testdata/oracle/handoff/decoder_pitch_instability_decision_expected_template.csv \
+  testdata/oracle/handoff/decoder_pitch_instability_decision_got.csv \
   testdata/oracle/handoff/decoder_support_tables_expected_template.csv
 ```
 

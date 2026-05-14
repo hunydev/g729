@@ -20,8 +20,10 @@ require_blank_expected() {
 if [ "${G729_ALLOW_FILLED_VERIFIER_BUNDLE:-0}" != "1" ]; then
   # The focused FCB templates may already contain verifier-filled numeric
   # results. The broad closed-loop stage remains the only outgoing blank
-  # template in the post-FCB-verifier handoff bundle.
+  # template from the post-FCB verifier flow. The pitch-instability decision
+  # template is also outgoing and must remain blank.
   require_blank_expected "$handoff_dir/encoder_closedloop_stage_expected_template.csv"
+  require_blank_expected "$handoff_dir/decoder_pitch_instability_decision_expected_template.csv"
 fi
 
 rm -rf "$bundle_dir"
@@ -37,12 +39,15 @@ cp \
   "$handoff_dir/FCB_TREE_SEARCH_VERIFIER_PROMPT.md" \
   "$handoff_dir/FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md" \
   "$handoff_dir/ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md" \
+  "$handoff_dir/DECODER_PITCH_INSTABILITY_DECISION_PROMPT.md" \
   "$handoff_dir/fcb_tree_search_expected_template.csv" \
   "$handoff_dir/fcb_tree_search_got.csv" \
   "$handoff_dir/fcb_tree_search_user_audio_expected_template.csv" \
   "$handoff_dir/fcb_tree_search_user_audio_got.csv" \
   "$handoff_dir/encoder_closedloop_stage_expected_template.csv" \
   "$handoff_dir/encoder_closedloop_stage_got.csv" \
+  "$handoff_dir/decoder_pitch_instability_decision_expected_template.csv" \
+  "$handoff_dir/decoder_pitch_instability_decision_got.csv" \
   "$bundle_handoff_dir/"
 
 parent_dir=$(dirname "$bundle_dir")

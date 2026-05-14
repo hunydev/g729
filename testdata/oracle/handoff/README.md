@@ -115,6 +115,15 @@ These files are not oracle artifacts and are intentionally ignored by the option
 - `DECODER_TAME_EXCITATION_HISTORY_PROMPT.md`: copyable prompt for an
   isolated clean-room verifier that fills only numeric `expected` cells in the
   TAME excitation-history template.
+- `decoder_pitch_instability_decision_got.csv`: this implementation's scalar
+  dump for the TAME/SPEECH/PITCH/OVERFLOW subframes where the local
+  pitch-cap diagnostic trigger fired.
+- `decoder_pitch_instability_decision_expected_template.csv`: verifier-owned
+  template for independently checking whether any good-frame decoder
+  pitch-instability/taming gain decision exists on those stress subframes.
+- `DECODER_PITCH_INSTABILITY_DECISION_PROMPT.md`: copyable prompt for an
+  isolated clean-room verifier that fills only numeric `expected` cells in the
+  decoder pitch-instability decision template.
 - `decoder_support_tables_expected_template.csv`: verifier-owned template for
   small decoder support tables and scalar constants required before broader
   forward traces can be independently generated. Full completion is currently
@@ -165,12 +174,15 @@ testdata/oracle/handoff/REMAINING_CONFORMANCE_VERIFIER_PROMPT.md
 testdata/oracle/handoff/FCB_TREE_SEARCH_VERIFIER_PROMPT.md
 testdata/oracle/handoff/FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md
 testdata/oracle/handoff/ENCODER_CLOSEDLOOP_STAGE_VERIFIER_PROMPT.md
+testdata/oracle/handoff/DECODER_PITCH_INSTABILITY_DECISION_PROMPT.md
 testdata/oracle/handoff/fcb_tree_search_expected_template.csv
 testdata/oracle/handoff/fcb_tree_search_got.csv
 testdata/oracle/handoff/fcb_tree_search_user_audio_expected_template.csv
 testdata/oracle/handoff/fcb_tree_search_user_audio_got.csv
 testdata/oracle/handoff/encoder_closedloop_stage_expected_template.csv
 testdata/oracle/handoff/encoder_closedloop_stage_got.csv
+testdata/oracle/handoff/decoder_pitch_instability_decision_expected_template.csv
+testdata/oracle/handoff/decoder_pitch_instability_decision_got.csv
 ```
 
 Filled verifier output intake:
@@ -216,6 +228,11 @@ Filled verifier output intake:
    G729_REQUIRE_COMPLETE_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 \
    G729_REQUIRE_EXACT_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 \
    go test -run TestOracleHandoff_CompareEncoderClosedLoopStageHandoff -count=1 -v
+
+   G729_COMPARE_DECODER_PITCH_INSTABILITY_DECISION=1 \
+   G729_REQUIRE_COMPLETE_DECODER_PITCH_INSTABILITY_DECISION=1 \
+   G729_REQUIRE_EXACT_DECODER_PITCH_INSTABILITY_DECISION=1 \
+   go test ./internal/decoder -run TestOracleHandoff_CompareDecoderPitchInstabilityDecision -count=1 -v
 
    G729_COMPARE_DECODER_TAME_STAGE_WIDE=1 \
    G729_REQUIRE_EXACT_DECODER_TAME_STAGE_WIDE=1 \

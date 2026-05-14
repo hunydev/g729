@@ -197,6 +197,37 @@ This is a much sharper localization than the broad pastRMS-only trigger. It
 suggests the runaway TAME history is tied to high adaptive gain while fixed
 contribution is low, i.e. a pitch-feedback-dominated excitation state.
 
+## Verifier Handoff
+
+A focused clean-room verifier handoff now targets the remaining decision point:
+does any good-frame decoder-side pitch-instability/taming limiter exist on the
+stress subframes?
+
+Files:
+
+```text
+testdata/oracle/handoff/DECODER_PITCH_INSTABILITY_DECISION_PROMPT.md
+testdata/oracle/handoff/decoder_pitch_instability_decision_expected_template.csv
+testdata/oracle/handoff/decoder_pitch_instability_decision_got.csv
+```
+
+Template shape:
+
+```text
+source,frame,sub,field,index,expected
+rows=9552
+sources: TAME=1680 rows, SPEECH=256, PITCH=320, OVERFLOW=7296
+fields per targeted subframe=16
+```
+
+The template is intentionally blank. The verifier should fill only numeric
+`expected` cells it can independently derive. The most important rows are
+`pitch_instability_flag_q0` and
+`adaptive_gain_after_pitch_instability_q14`. If the Recommendation-backed
+answer is "no good-frame decoder limiter", those flags should be `0` and the
+after-gain should match the decoded adaptive gain wherever the before-gain is
+independently known.
+
 ## Interpretation
 
 `pitch_gain_cap_0p95` is a strong localization probe: limiting adaptive gain
@@ -229,5 +260,6 @@ Therefore:
 env GOCACHE=/tmp/go-build go test ./internal/decoder -count=1
 env GOCACHE=/tmp/go-build G729_DECODER_PITCH_CAP_ACTIVATION_AUDIT=1 go test ./internal/decoder -run TestDecoderPitchGainCapActivationAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_PITCH_CAP_TRIGGER_GRID_CROSS_VECTOR=1 go test ./internal/decoder -run TestDecoderPitchGainCapTriggerGridCrossVectorAudit -count=1 -v
+env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_PITCH_INSTABILITY_DECISION=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderPitchInstabilityDecision -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_TAME_GAIN_TAMING_HANDOFF=1 go test -run TestOracleHandoff_CompareTAMEGainTamingHandoff -count=1 -v
 ```
