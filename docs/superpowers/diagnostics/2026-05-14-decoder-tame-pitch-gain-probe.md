@@ -425,6 +425,55 @@ gain/history values are unlikely to help unless the verifier gets an
 independent numeric source for the missing support tables or a fully independent
 forward decoder trace.
 
+## State-Carry Reset Audit
+
+With internal clean-room oracle blocked, a PST-only reset audit checks which
+local cross-frame state carries the late TAME over-amplification. This is not a
+production-fix search; one-shot resets intentionally break decoder continuity.
+
+Command:
+
+```sh
+env GOCACHE=/tmp/go-build \
+  G729_DECODER_TAME_STATE_CARRY_RESET_AUDIT=1 \
+  go test ./internal/decoder -run TestDecoderTAMEStateCarryResetAudit -count=1 -v
+```
+
+Selected result rows:
+
+```text
+variant                       range             gSNR    deltaG      corr
+production                    all               6.50     +0.00     0.972
+production                    window-start     25.09     +0.00     1.000
+production                    first-1.50        5.79     +0.00     0.998
+production                    late-oracle       1.38     +0.00     0.997
+reset_gain_f26                all               7.70     +1.21     0.973
+reset_gain_f26                late-oracle       2.18     +0.80     0.998
+reset_past_exc_f26            window-start      0.82    -24.27     0.462
+reset_past_exc_f26            first-1.50       17.95    +12.16     0.995
+reset_past_exc_f26            late-oracle       6.42     +5.04     0.998
+reset_past_exc_f53            first-1.25        2.36     -9.10     0.653
+reset_past_exc_f53            late-oracle      14.99    +13.60     0.993
+reset_past_exc_f72            first-1.50        2.11     -3.68     0.654
+reset_past_exc_f72            late-oracle      24.12    +22.74     0.999
+reset_synth_f72               late-oracle       1.38     -0.00     0.997
+reset_filters_f72             late-oracle       1.38     +0.00     0.997
+```
+
+Interpretation:
+
+- One-shot `pastExc` resets strongly reduce the late TAME over-amplification,
+  especially at frame `72` (`1.38 -> 24.12 dB` in the late-oracle range).
+- The same resets badly damage the immediate window after the reset, so this is
+  not a production-safe repair.
+- Resetting synthesis/postfilter/HP state does not materially change the late
+  error. The downstream filter chain is therefore not carrying the TAME growth.
+- Gain predictor reset gives only a small improvement and does not explain the
+  late envelope gap by itself.
+- The remaining target is the upstream excitation feedback path: samples
+  entering `pastExc` (`U`) and adaptive-codebook feedback around frames
+  `49..72` and `115..116`.
+
 ## Interpretation
 
 `pitch_gain_cap_0p95` is a strong localization probe: limiting adaptive gain
@@ -453,9 +502,11 @@ Therefore:
 - Do not treat the incomplete 108..137 verifier CSV as a decoder oracle.
 - Do not treat the frame-26 onset CSV as a gain/history oracle; it only confirms
   bitstream gain indices and decoded pitch values.
+- Do not treat state resets as candidate decoder behavior; they are
+  localization probes and break immediate continuity.
 - Next useful work is earlier prior-excitation/history localization before
-  frame `117`, preferably with PST-only onset diagnostics or a clean-room
-  oracle that supplies independent excitation history before frame `53..72`.
+  frame `117`, focused on the upstream excitation feedback path around frames
+  `49..72` and `115..116`.
 
 ## Verification
 
@@ -466,6 +517,7 @@ env GOCACHE=/tmp/go-build G729_DECODER_PITCH_CAP_TRIGGER_GRID_CROSS_VECTOR=1 go 
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_GAIN_EC_Q25_CROSS_VECTOR=1 go test ./internal/decoder -run TestDecoderTAMEGainECQ25CrossVectorAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_GAIN_VARIANT_CROSS_VECTOR=1 go test ./internal/decoder -run TestDecoderTAMEGainVariantCrossVectorAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_DECODER_TAME_ONSET_CANDIDATE_RANGE_AUDIT=1 go test ./internal/decoder -run TestDecoderTAMEOnsetCandidateRangeAudit -count=1 -v
+env GOCACHE=/tmp/go-build G729_DECODER_TAME_STATE_CARRY_RESET_AUDIT=1 go test ./internal/decoder -run TestDecoderTAMEStateCarryResetAudit -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_TAME_ONSET_FRAME26=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderTAMEOnsetFrame26 -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_DECODER_PITCH_INSTABILITY_DECISION=1 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderPitchInstabilityDecision -count=1 -v
 env GOCACHE=/tmp/go-build G729_COMPARE_TAME_GAIN_TAMING_HANDOFF=1 go test -run TestOracleHandoff_CompareTAMEGainTamingHandoff -count=1 -v

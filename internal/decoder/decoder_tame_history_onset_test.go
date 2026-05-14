@@ -185,6 +185,163 @@ func TestDecoderTAMEOnsetCandidateRangeAudit(t *testing.T) {
 	}
 }
 
+// TestDecoderTAMEStateCarryResetAudit is a PST-only localization diagnostic.
+// It resets one decoder state bucket at a known TAME onset/checkpoint frame and
+// measures whether final PST alignment improves. A reset is not a candidate
+// production fix; it only tells which cross-frame state carries the observed
+// over-amplification.
+func TestDecoderTAMEStateCarryResetAudit(t *testing.T) {
+	if os.Getenv("G729_DECODER_TAME_STATE_CARRY_RESET_AUDIT") != "1" {
+		t.Skip("set G729_DECODER_TAME_STATE_CARRY_RESET_AUDIT=1 to run TAME state-carry reset audit")
+	}
+
+	tc := phase3eSelectedITUVector(t, "G729_DECODER_TAME_STATE_CARRY_VECTOR", "TAME")
+	bitPath := vectorPath(tc.bitFile)
+	pstPath := vectorPath(tc.pstFile)
+	ensureTestdataPresent(t, bitPath, pstPath)
+
+	frames, bads := readG192Frames(t, bitPath)
+	wantFrames := readPSTFrames(t, pstPath)
+	if len(frames) != len(wantFrames) {
+		t.Fatalf("%s: frame count mismatch bit=%d pst=%d", tc.name, len(frames), len(wantFrames))
+	}
+	if len(bads) != len(frames) {
+		t.Fatalf("%s: bad flag count mismatch bads=%d frames=%d", tc.name, len(bads), len(frames))
+	}
+
+	ref := decoderTAMEFlattenPST(wantFrames)
+	ranges := []decoderTAMEOnsetRange{
+		{name: "all", start: 0, end: len(frames)},
+		{name: "window-start", start: 26, end: 34},
+		{name: "first-1.25", start: 49, end: 61},
+		{name: "first-1.50", start: 68, end: 80},
+		{name: "late-oracle", start: 116, end: 128},
+	}
+
+	prodOut, prodResets := decoderTAMEDecodeStateResetVariant(t, frames, bads, decoderTAMEStateResetVariant{name: "production"})
+	prodByRange := make(map[string]decoderTAMEOnsetRangeStats, len(ranges))
+	for _, frameRange := range ranges {
+		prodByRange[frameRange.name] = decoderTAMEComputeOnsetRangeStats(t, ref, prodOut, frameRange)
+	}
+
+	t.Logf("decoder TAME state-carry reset audit: vector=%s frames=%d productionResets=%d", tc.name, len(frames), prodResets)
+	t.Logf("%-28s %6s %-13s %5s %8s %8s %8s %9s %9s %9s",
+		"variant", "reset", "range", "frames", "refRMS", "outRMS", "errRMS", "gSNR", "deltaG", "corr")
+	for _, variant := range decoderTAMEStateResetVariants() {
+		out, resets := decoderTAMEDecodeStateResetVariant(t, frames, bads, variant)
+		for _, frameRange := range ranges {
+			stats := decoderTAMEComputeOnsetRangeStats(t, ref, out, frameRange)
+			prod := prodByRange[frameRange.name]
+			t.Logf("%-28s %6d %-13s %5d %8.1f %8.1f %8.1f %9.2f %+9.2f %9.3f",
+				variant.name,
+				resets,
+				frameRange.name,
+				frameRange.end-frameRange.start,
+				stats.refRMS,
+				stats.outRMS,
+				stats.errRMS,
+				stats.metrics.globalSNR,
+				stats.metrics.globalSNR-prod.metrics.globalSNR,
+				stats.metrics.corr)
+		}
+	}
+}
+
+type decoderTAMEStateMask uint16
+
+const (
+	decoderTAMEStateMaskLSP decoderTAMEStateMask = 1 << iota
+	decoderTAMEStateMaskGain
+	decoderTAMEStateMaskSynth
+	decoderTAMEStateMaskPostfilter
+	decoderTAMEStateMaskHP
+	decoderTAMEStateMaskPastExc
+	decoderTAMEStateMaskPrevGP
+	decoderTAMEStateMaskDecoder
+)
+
+type decoderTAMEStateResetVariant struct {
+	name             string
+	resetBeforeFrame int
+	mask             decoderTAMEStateMask
+}
+
+func decoderTAMEStateResetVariants() []decoderTAMEStateResetVariant {
+	return []decoderTAMEStateResetVariant{
+		{name: "production"},
+		{name: "reset_gain_f26", resetBeforeFrame: 26, mask: decoderTAMEStateMaskGain},
+		{name: "reset_past_exc_f26", resetBeforeFrame: 26, mask: decoderTAMEStateMaskPastExc | decoderTAMEStateMaskPrevGP},
+		{name: "reset_synth_f26", resetBeforeFrame: 26, mask: decoderTAMEStateMaskSynth},
+		{name: "reset_filters_f26", resetBeforeFrame: 26, mask: decoderTAMEStateMaskSynth | decoderTAMEStateMaskPostfilter | decoderTAMEStateMaskHP},
+		{name: "reset_decoder_f26", resetBeforeFrame: 26, mask: decoderTAMEStateMaskDecoder},
+		{name: "reset_gain_f53", resetBeforeFrame: 53, mask: decoderTAMEStateMaskGain},
+		{name: "reset_past_exc_f53", resetBeforeFrame: 53, mask: decoderTAMEStateMaskPastExc | decoderTAMEStateMaskPrevGP},
+		{name: "reset_synth_f53", resetBeforeFrame: 53, mask: decoderTAMEStateMaskSynth},
+		{name: "reset_filters_f53", resetBeforeFrame: 53, mask: decoderTAMEStateMaskSynth | decoderTAMEStateMaskPostfilter | decoderTAMEStateMaskHP},
+		{name: "reset_decoder_f53", resetBeforeFrame: 53, mask: decoderTAMEStateMaskDecoder},
+		{name: "reset_gain_f72", resetBeforeFrame: 72, mask: decoderTAMEStateMaskGain},
+		{name: "reset_past_exc_f72", resetBeforeFrame: 72, mask: decoderTAMEStateMaskPastExc | decoderTAMEStateMaskPrevGP},
+		{name: "reset_synth_f72", resetBeforeFrame: 72, mask: decoderTAMEStateMaskSynth},
+		{name: "reset_filters_f72", resetBeforeFrame: 72, mask: decoderTAMEStateMaskSynth | decoderTAMEStateMaskPostfilter | decoderTAMEStateMaskHP},
+		{name: "reset_decoder_f72", resetBeforeFrame: 72, mask: decoderTAMEStateMaskDecoder},
+		{name: "reset_gain_f116", resetBeforeFrame: 116, mask: decoderTAMEStateMaskGain},
+		{name: "reset_past_exc_f116", resetBeforeFrame: 116, mask: decoderTAMEStateMaskPastExc | decoderTAMEStateMaskPrevGP},
+		{name: "reset_synth_f116", resetBeforeFrame: 116, mask: decoderTAMEStateMaskSynth},
+		{name: "reset_filters_f116", resetBeforeFrame: 116, mask: decoderTAMEStateMaskSynth | decoderTAMEStateMaskPostfilter | decoderTAMEStateMaskHP},
+		{name: "reset_decoder_f116", resetBeforeFrame: 116, mask: decoderTAMEStateMaskDecoder},
+	}
+}
+
+func decoderTAMEDecodeStateResetVariant(t *testing.T, frames [][]byte, bads []bool, variant decoderTAMEStateResetVariant) ([]int16, int) {
+	t.Helper()
+	if len(frames) != len(bads) {
+		t.Fatalf("frame/bad count mismatch: frames=%d bads=%d", len(frames), len(bads))
+	}
+	out := make([]int16, len(frames)*frameSamples)
+	var dec Decoder
+	var resets int
+	for frame, packed := range frames {
+		if variant.mask != 0 && frame == variant.resetBeforeFrame {
+			decoderTAMEResetState(&dec, variant.mask)
+			resets++
+		}
+		if err := dec.Decode(packed, bads[frame], out[frame*frameSamples:(frame+1)*frameSamples]); err != nil {
+			t.Fatalf("%s frame %d Decode: %v", variant.name, frame, err)
+		}
+	}
+	return out, resets
+}
+
+func decoderTAMEResetState(dec *Decoder, mask decoderTAMEStateMask) {
+	if mask&decoderTAMEStateMaskDecoder != 0 {
+		dec.Reset()
+		return
+	}
+	if mask&decoderTAMEStateMaskLSP != 0 {
+		dec.lsp.Reset()
+	}
+	if mask&decoderTAMEStateMaskGain != 0 {
+		dec.gn.Reset()
+	}
+	if mask&decoderTAMEStateMaskSynth != 0 {
+		dec.syn.Reset()
+	}
+	if mask&decoderTAMEStateMaskPostfilter != 0 {
+		dec.pst.Reset()
+	}
+	if mask&decoderTAMEStateMaskHP != 0 {
+		dec.hpX = [2]int16{}
+		dec.hpY = [2]int32{}
+	}
+	if mask&decoderTAMEStateMaskPastExc != 0 {
+		dec.pastExc = [pastExcLen]int16{}
+	}
+	if mask&decoderTAMEStateMaskPrevGP != 0 {
+		dec.prevGpQ14 = 0
+		dec.havePrevGpQ14 = false
+	}
+}
+
 type decoderTAMEOnsetCandidate struct {
 	name string
 	out  []int16
