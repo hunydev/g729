@@ -3,6 +3,7 @@ package decoder
 import (
 	"os"
 	"sort"
+	"strconv"
 	"testing"
 )
 
@@ -206,6 +207,138 @@ func TestDecoderITUPreScaleRatioAudit(t *testing.T) {
 	}
 }
 
+// TestDecoderITUPreScaleStageTimelineAudit reports frame-level stage envelopes
+// against final-domain .PST PCM for one vector. It keeps the diagnostic local
+// and clean-room: .BIT/.PST numeric vectors plus local taps only.
+func TestDecoderITUPreScaleStageTimelineAudit(t *testing.T) {
+	if os.Getenv("G729_DECODER_ITU_PRESCALE_STAGE_TIMELINE") != "1" {
+		t.Skip("set G729_DECODER_ITU_PRESCALE_STAGE_TIMELINE=1 to run pre-scale stage timeline audit")
+	}
+
+	vector := os.Getenv("G729_DECODER_ITU_PRESCALE_STAGE_VECTOR")
+	if vector == "" {
+		vector = "TAME"
+	}
+	tc, ok := decoderITUValidationCaseByName(vector)
+	if !ok {
+		t.Fatalf("unknown decoder ITU vector %q", vector)
+	}
+	limit := decoderITUEnvInt("G729_DECODER_ITU_PRESCALE_STAGE_TOP", 20)
+	if limit <= 0 {
+		limit = 20
+	}
+	const activePSTRMS = 500.0
+
+	bitPath := vectorPath(tc.bitFile)
+	pstPath := vectorPath(tc.pstFile)
+	ensureTestdataPresent(t, bitPath, pstPath)
+	frames, bads := readG192Frames(t, bitPath)
+	want := readPSTFrames(t, pstPath)
+	if len(frames) != len(want) {
+		t.Fatalf("%s: frame count mismatch bit=%d pst=%d", tc.name, len(frames), len(want))
+	}
+	if len(bads) != len(frames) {
+		t.Fatalf("%s: bad flag count mismatch bads=%d frames=%d", tc.name, len(bads), len(frames))
+	}
+
+	rows := make([]decoderITUStageTimelineRow, 0, len(frames))
+	firstHPHot := -1
+	firstOutHot := -1
+	var dec Decoder
+	for fi, packed := range frames {
+		taps, err := dec.DecodeWithTaps(packed)
+		if err != nil {
+			t.Fatalf("%s frame %d DecodeWithTaps: %v", tc.name, fi, err)
+		}
+		pstFrame := want[fi]
+		pstRMS := envelopeRMS(pstFrame[:])
+		if pstRMS < activePSTRMS {
+			continue
+		}
+		stages := envelopeStageSummary(taps)
+		hpRatio := stages.hpRMS / pstRMS
+		outRatio := stages.outRMS / pstRMS
+		if firstHPHot < 0 && hpRatio >= 0.8 {
+			firstHPHot = fi
+		}
+		if firstOutHot < 0 && outRatio >= 1.5 {
+			firstOutHot = fi
+		}
+		rows = append(rows, decoderITUStageTimelineRow{
+			frame:    fi,
+			pstRMS:   pstRMS,
+			uRMS:     stages.uRMS,
+			sRMS:     stages.sRMS,
+			spfRMS:   stages.spfRMS,
+			hpRMS:    stages.hpRMS,
+			outRMS:   stages.outRMS,
+			sRatio:   stages.sRMS / pstRMS,
+			spfRatio: stages.spfRMS / pstRMS,
+			hpRatio:  hpRatio,
+			outRatio: outRatio,
+			spfToS:   safeRatioFloat64(stages.spfRMS, stages.sRMS),
+			hpToSPf:  safeRatioFloat64(stages.hpRMS, stages.spfRMS),
+			outToHP:  safeRatioFloat64(stages.outRMS, stages.hpRMS),
+			gpMax:    stages.gpMax,
+			gcMax:    stages.gcMax,
+			predAvg:  stages.predictedAvgQ10 / 1024.0,
+			logGain:  stages.logGainAvgQ10 / 1024.0,
+		})
+	}
+
+	hotRows := append([]decoderITUStageTimelineRow(nil), rows...)
+	sort.Slice(hotRows, func(i, j int) bool {
+		if hotRows[i].outRatio == hotRows[j].outRatio {
+			return hotRows[i].hpRatio > hotRows[j].hpRatio
+		}
+		return hotRows[i].outRatio > hotRows[j].outRatio
+	})
+	if limit > len(hotRows) {
+		limit = len(hotRows)
+	}
+
+	t.Logf("decoder ITU pre-scale stage timeline: vector=%s activePSTRMS>=%.0f active=%d firstHP>=0.8=%d firstOut>=1.5=%d",
+		tc.name, activePSTRMS, len(rows), firstHPHot, firstOutHot)
+	t.Logf("top frames by output/PST ratio:")
+	decoderITULogStageTimelineRows(t, hotRows[:limit])
+	if firstOutHot >= 0 {
+		start := firstOutHot - 3
+		if start < 0 {
+			start = 0
+		}
+		end := firstOutHot + 4
+		window := make([]decoderITUStageTimelineRow, 0, end-start)
+		for _, r := range rows {
+			if r.frame >= start && r.frame < end {
+				window = append(window, r)
+			}
+		}
+		t.Logf("first output-hot window:")
+		decoderITULogStageTimelineRows(t, window)
+	}
+}
+
+type decoderITUStageTimelineRow struct {
+	frame    int
+	pstRMS   float64
+	uRMS     float64
+	sRMS     float64
+	spfRMS   float64
+	hpRMS    float64
+	outRMS   float64
+	sRatio   float64
+	spfRatio float64
+	hpRatio  float64
+	outRatio float64
+	spfToS   float64
+	hpToSPf  float64
+	outToHP  float64
+	gpMax    float64
+	gcMax    float64
+	predAvg  float64
+	logGain  float64
+}
+
 type decoderITUAggregateStats struct {
 	samples      int
 	exactSamples int
@@ -258,4 +391,30 @@ func decoderITUFloatGreaterCount(values []float64, threshold float64) int {
 		}
 	}
 	return count
+}
+
+func decoderITUEnvInt(name string, fallback int) int {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func decoderITULogStageTimelineRows(t *testing.T, rows []decoderITUStageTimelineRow) {
+	t.Helper()
+	t.Logf("%5s %8s %8s %8s %8s %8s %8s %7s %7s %7s %7s %7s %7s %7s %6s %6s %8s %8s",
+		"frame", "pstRMS", "uRMS", "sRMS", "spfRMS", "hpRMS", "outRMS",
+		"s/PST", "spf/PST", "hp/PST", "out/PST", "spf/s", "hp/spf",
+		"out/hp", "gpMax", "gcMax", "predAvg", "logGain")
+	for _, r := range rows {
+		t.Logf("%5d %8.1f %8.1f %8.1f %8.1f %8.1f %8.1f %7.3f %7.3f %7.3f %7.3f %7.3f %7.3f %7.3f %6.3f %6.3f %8.1f %8.1f",
+			r.frame, r.pstRMS, r.uRMS, r.sRMS, r.spfRMS, r.hpRMS, r.outRMS,
+			r.sRatio, r.spfRatio, r.hpRatio, r.outRatio, r.spfToS, r.hpToSPf,
+			r.outToHP, r.gpMax, r.gcMax, r.predAvg, r.logGain)
+	}
 }

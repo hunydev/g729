@@ -405,6 +405,47 @@ Interpretation:
   excitation history, LP/synthesis envelope, or postfilter input state before
   the final scale.
 
+Stage-timeline audit:
+
+```sh
+G729_DECODER_ITU_PRESCALE_STAGE_TIMELINE=1 \
+go test ./internal/decoder -run TestDecoderITUPreScaleStageTimelineAudit -count=1 -v
+```
+
+Current TAME summary:
+
+- Active frames: `127`
+- First `hp_raw / PST >= 0.8`: frame `88`
+- First `output / PST >= 1.5`: frame `72`
+- Worst output-ratio frame: frame `123`
+  (`s/PST=0.987`, `spf/PST=0.989`, `hp/PST=0.961`,
+  `output/PST=1.921`)
+- The top late frames `117..127` have `spf/s≈1.0`, `hp/spf≈0.972`, and
+  `out/hp=2.0`, so postfilter, HP, and final scaling are acting like a stable
+  transfer on an already oversized pre-scale signal.
+
+SPEECH contrast run:
+
+```sh
+G729_DECODER_ITU_PRESCALE_STAGE_TIMELINE=1 \
+G729_DECODER_ITU_PRESCALE_STAGE_VECTOR=SPEECH \
+G729_DECODER_ITU_PRESCALE_STAGE_TOP=8 \
+go test ./internal/decoder -run TestDecoderITUPreScaleStageTimelineAudit -count=1 -v
+```
+
+SPEECH has `1819` active frames with no `hp_raw / PST >= 0.8` frame and no
+`output / PST >= 1.5` frame. Its highest output-ratio rows remain around
+`s/PST≈0.5` and `output/PST≈1.05`. This confirms the TAME failure is not a
+global output-scale problem.
+
+Updated localization:
+
+- TAME over-amplification is already visible at synthesis output `S`, before
+  postfilter/HP/final scaling.
+- Because TAME `uRMS` remains small while `sRMS` approaches final-domain PST
+  amplitude, the next local target is the LP synthesis state and the
+  excitation/gain history feeding it, not a postfilter or output writer fix.
+
 ## TAME FFmpeg/PST Localization Update
 
 Command:
