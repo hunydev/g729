@@ -433,6 +433,73 @@ func TestOracleHandoff_CompareDecoderReferenceTAMEGainLog2Micro(t *testing.T) {
 	}
 }
 
+func TestOracleHandoff_CompareDecoderReferenceTAMEGainPow2Micro(t *testing.T) {
+	if os.Getenv("G729_COMPARE_DECODER_REFERENCE_TAME_GAIN_POW2_MICRO") != "1" {
+		t.Skip("set G729_COMPARE_DECODER_REFERENCE_TAME_GAIN_POW2_MICRO=1 to compare external reference TAME gain-pow2 micro oracle")
+	}
+
+	expectedPath := decoderReferenceOraclePath("decoder_tame_gain_pow2_micro_expected.csv")
+	expected, err := readDecoderReferenceStageRows(expectedPath)
+	if err != nil {
+		t.Fatalf("read decoder reference TAME gain-pow2 micro expected: %v", err)
+	}
+	if len(expected) == 0 {
+		t.Fatalf("decoder reference TAME gain-pow2 micro expected is empty")
+	}
+
+	got, err := collectDecoderReferenceTAMEGainPow2MicroRows(t, expected)
+	if err != nil {
+		t.Fatalf("collect decoder reference TAME gain-pow2 micro rows: %v", err)
+	}
+
+	fieldStats := make(map[string]*decoderReferenceStageFieldStats)
+	first := make([]decoderStageMismatch, 0, 16)
+	var exact, missingGot, mismatches int
+	for _, want := range expected {
+		key := decoderStageRowKey(want)
+		st := decoderReferenceStageStatsFor(fieldStats, key.field)
+		st.total++
+
+		gotRow, ok := got[key]
+		if !ok {
+			missingGot++
+			mismatches++
+			st.mismatches++
+			st.missing++
+			appendFrame0ChainMismatch(&first, key, decoderStageValueString(want), "", "missing got")
+			continue
+		}
+		if gotRow.hasValue && gotRow.value == want.value {
+			exact++
+			st.exact++
+			continue
+		}
+
+		mismatches++
+		st.mismatches++
+		delta := absInt64(want.value - gotRow.value)
+		if delta > st.maxAbs {
+			st.maxAbs = delta
+		}
+		appendFrame0ChainMismatch(&first, key, decoderStageValueString(want), decoderStageValueString(gotRow), "mismatch")
+	}
+
+	t.Logf("decoder_reference_tame_gain_pow2_micro: exact %d/%d %.2f%% mismatches=%d missing_got=%d",
+		exact, len(expected), percent(exact, len(expected)), mismatches, missingGot)
+	for _, line := range decoderReferenceStageFieldSummary(fieldStats) {
+		t.Log(line)
+	}
+	for i, m := range first {
+		t.Logf("mismatch[%d]: source=%s frame=%d sub=%d field=%s index=%d expected=%s got=%s notes=%s",
+			i, m.key.source, m.key.frame, m.key.sub, m.key.field, m.key.index, m.want, m.got, m.note)
+	}
+
+	if os.Getenv("G729_REQUIRE_EXACT_DECODER_REFERENCE_TAME_GAIN_POW2_MICRO") == "1" && mismatches != 0 {
+		t.Fatalf("decoder reference TAME gain-pow2 micro exact gate failed: mismatches=%d/%d missing_got=%d",
+			mismatches, len(expected), missingGot)
+	}
+}
+
 type decoderTAMEGainDependencyStage struct {
 	name   string
 	fields []string
@@ -572,6 +639,46 @@ func collectDecoderReferenceTAMEGainLog2MicroRows(t testing.TB, expected []stage
 	return out, nil
 }
 
+func collectDecoderReferenceTAMEGainPow2MicroRows(t testing.TB, expected []stageRow) (map[decoderStageKey]stageRow, error) {
+	t.Helper()
+	targetFrames := make(map[int]struct{})
+	for _, row := range expected {
+		if row.source != "TAME" {
+			return nil, fmt.Errorf("unexpected source %q", row.source)
+		}
+		targetFrames[row.frame] = struct{}{}
+	}
+	maxFrame := maxIntKey(targetFrames)
+
+	tc, ok := decoderITUValidationCaseByName("TAME")
+	if !ok {
+		return nil, fmt.Errorf("unknown ITU decoder vector source TAME")
+	}
+	frames, _ := readG192Frames(t, vectorPath(tc.bitFile))
+	if maxFrame >= len(frames) {
+		return nil, fmt.Errorf("TAME target frame %d out of range; vector has %d frames", maxFrame, len(frames))
+	}
+
+	rows := make([]stageRow, 0, len(expected))
+	var dec Decoder
+	for frame := 0; frame <= maxFrame; frame++ {
+		taps, err := dec.DecodeWithTaps(frames[frame])
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := targetFrames[frame]; !ok {
+			continue
+		}
+		appendDecoderReferenceTAMEGainPow2MicroRows(&rows, frame, &taps)
+	}
+
+	out := make(map[decoderStageKey]stageRow, len(rows))
+	for _, row := range rows {
+		out[decoderStageRowKey(row)] = row
+	}
+	return out, nil
+}
+
 func appendDecoderReferenceTAMEGainLog2MicroRows(rows *[]stageRow, frame int, taps *Phase3DiagFrameTaps) {
 	for sub := 0; sub < 2; sub++ {
 		st := &taps.Sub[sub]
@@ -609,6 +716,37 @@ func appendDecoderReferenceTAMEGainLog2MicroRows(rows *[]stageRow, frame int, ta
 		appendDecoderReferenceScalar(rows, frame, sub, "log_gain_q10", int64(g.LogGainDbQ10))
 		appendDecoderReferenceScalar(rows, frame, sub, "log2_gc_q10", int64(g.Log2GcQ10))
 		appendDecoderReferenceScalar(rows, frame, sub, "gc0_q14", int64(g.Gc0MantQ14))
+		appendDecoderReferenceScalar(rows, frame, sub, "fixed_gain_q14", gainQ14FromMantExp(g.GcMantQ14, g.GcExp))
+	}
+}
+
+func appendDecoderReferenceTAMEGainPow2MicroRows(rows *[]stageRow, frame int, taps *Phase3DiagFrameTaps) {
+	for sub := 0; sub < 2; sub++ {
+		st := &taps.Sub[sub]
+		g := st.GainTaps
+
+		log2Q15 := gain.LogGainToLog2Q15(g.LogGainDbQ10)
+		intPart := log2Q15 >> 15
+		fracQ15 := log2Q15 - (intPart << 15)
+		tableIndex := fracQ15 >> 10
+		fraction := (fracQ15 & 0x3FF) << 5
+		table0 := int32(tables.Pow2Table[tableIndex])
+		table1 := int32(tables.Pow2Table[tableIndex+1])
+		interpProduct := int64(-2) * int64(table1-table0) * int64(fraction)
+		gc0 := int32(gain.Pow2FracQ14FromQ15(fracQ15))
+
+		appendDecoderReferenceScalar(rows, frame, sub, "log_gain_q10", int64(g.LogGainDbQ10))
+		appendDecoderReferenceScalar(rows, frame, sub, "log2_gc_q15", int64(log2Q15))
+		appendDecoderReferenceScalar(rows, frame, sub, "log2_gc_q10", int64(log2Q15>>5))
+		appendDecoderReferenceScalar(rows, frame, sub, "pow2_int_part_q0", 14)
+		appendDecoderReferenceScalar(rows, frame, sub, "pow2_frac_q15", int64(fracQ15))
+		appendDecoderReferenceScalar(rows, frame, sub, "pow2_table_index_q0", int64(tableIndex))
+		appendDecoderReferenceScalar(rows, frame, sub, "pow2_fraction_q0", int64(fraction))
+		appendDecoderReferenceScalar(rows, frame, sub, "pow2_table0_q14", int64(table0))
+		appendDecoderReferenceScalar(rows, frame, sub, "pow2_table1_q14", int64(table1))
+		appendDecoderReferenceScalar(rows, frame, sub, "pow2_interp_product_q30", interpProduct)
+		appendDecoderReferenceScalar(rows, frame, sub, "gc0_q14", int64(gc0))
+		appendDecoderReferenceScalar(rows, frame, sub, "gamma_q13", int64(g.GammaCQ13))
 		appendDecoderReferenceScalar(rows, frame, sub, "fixed_gain_q14", gainQ14FromMantExp(g.GcMantQ14, g.GcExp))
 	}
 }

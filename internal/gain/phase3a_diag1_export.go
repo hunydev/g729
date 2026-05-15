@@ -69,7 +69,7 @@ func pow2FixedAsInt32(x fixed.Word32) int32 {
 	a := frac & 0x1F
 	t0 := int32(tables.Pow2Table[idx])
 	t1 := int32(tables.Pow2Table[idx+1])
-	fracQ14 := t0 + ((t1-t0)*a)>>5
+	fracQ14 := t0 + ((t1-t0)*a+(1<<4))>>5
 
 	shift := intPart - 14
 	switch {

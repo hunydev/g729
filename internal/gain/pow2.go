@@ -104,7 +104,7 @@ func pow2FracQ14(frac int32) int16 {
 	a := frac & 0x1F
 	t0 := int32(tables.Pow2Table[idx])
 	t1 := int32(tables.Pow2Table[idx+1])
-	return int16(t0 + ((t1-t0)*a)>>5)
+	return int16(t0 + ((t1-t0)*a+(1<<4))>>5)
 }
 
 func pow2FracQ14FromQ15(frac int32) int16 {
@@ -112,11 +112,16 @@ func pow2FracQ14FromQ15(frac int32) int16 {
 	a := frac & 0x3FF
 	t0 := int32(tables.Pow2Table[idx])
 	t1 := int32(tables.Pow2Table[idx+1])
-	return int16(t0 + ((t1-t0)*a)>>10)
+	return int16(t0 + ((t1-t0)*a+(1<<9))>>10)
 }
 
 func logGainToLog2Q15(logGainDbQ10 int32) int32 {
-	return (logGainDbQ10 * invDbScaleQ15) >> 10
+	// The reference fixed-point sequence discards the two least-significant
+	// Q10 dB bits before applying the inverse dB scale. Keeping the old
+	// algebraically-equivalent multiply-then-shift order leaves Q15 low-bit
+	// differences that are audible downstream through the pow2 mantissa.
+	logGainQ8 := int64(fixed.LShr(fixed.Word32(logGainDbQ10), 2))
+	return int32((logGainQ8 * int64(invDbScaleQ15)) >> 8)
 }
 
 func fixedGainQ14FromLog2Gamma(log2GcQ15 int32, gammaCQ13 int32) int64 {
