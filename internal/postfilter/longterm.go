@@ -10,7 +10,7 @@ package postfilter
 //
 // Returns the selected lag T.
 func (pf *Postfilter) refinePitch(r *[subframeLen]int16, tInt int) int {
-	const minT = 20
+	const minT = 17
 	const maxT = pitchMax
 
 	_ = r // r is also accessible via pf.pastResidual[pitchMax + n]; kept
@@ -79,12 +79,12 @@ func (pf *Postfilter) computeLongTermGain(r *[subframeLen]int16, T int) (g0, g1 
 	}
 
 	if R <= 0 || delayedE == 0 || currentE == 0 {
-		return 16384, 0
+		return 16383, 0
 	}
 
 	normCorrSq := float64(R) * float64(R) / (float64(delayedE) * float64(currentE))
 	if normCorrSq < 0.5 {
-		return 16384, 0
+		return 16383, 0
 	}
 
 	glQ14 := clamp64(R*16384/delayedE, 0, 16384)

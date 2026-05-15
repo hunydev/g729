@@ -18,6 +18,8 @@ func (pf *Postfilter) computeAGCTargetGain(s, sTilt *[subframeLen]int16) int16 {
 		eS += int64(s[i]) * int64(s[i])
 		eT += int64(sTilt[i]) * int64(sTilt[i])
 	}
+	eS /= subframeLen
+	eT /= subframeLen
 	if eT == 0 {
 		return 0
 	}
@@ -56,11 +58,22 @@ func (pf *Postfilter) applyAGC(sTilt *[subframeLen]int16, gTargetQ14 int16, sPf 
 }
 
 func (pf *Postfilter) applyAGCWithTaps(sTilt *[subframeLen]int16, gTargetQ14 int16, sPf *[subframeLen]int16, taps *FilterTaps) {
-	gTargetQ24 := int64(gTargetQ14) << 10
 	if !pf.initialized {
-		pf.agcGainPrev = int32(gTargetQ24)
+		pf.agcGainPrev = 1 << 24
 		pf.initialized = true
 	}
+	if gTargetQ14 == 0 {
+		copy(sPf[:], sTilt[:])
+		if taps != nil {
+			for n := 0; n < subframeLen; n++ {
+				taps.AGCGainQ24[n] = 0
+			}
+		}
+		pf.agcGainPrev = 0
+		return
+	}
+
+	gTargetQ24 := int64(gTargetQ14) << 10
 
 	g := int64(pf.agcGainPrev) // Q24
 	for n := 0; n < subframeLen; n++ {
@@ -68,9 +81,9 @@ func (pf *Postfilter) applyAGCWithTaps(sTilt *[subframeLen]int16, gTargetQ14 int
 		if taps != nil {
 			taps.AGCGainQ24[n] = int32(g)
 		}
-		// g is Q24, sTilt is Q0 → product Q24; round to Q0.
+		// g is Q24, sTilt is Q0 → product Q24; truncate to Q0.
 		prod := g * int64(sTilt[n])
-		v := (prod + (1 << 23)) >> 24
+		v := prod >> 24
 		if v > 32767 {
 			v = 32767
 		} else if v < -32768 {

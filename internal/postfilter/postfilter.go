@@ -64,6 +64,9 @@ func (pf *Postfilter) FilterWithTaps(a *[11]int16, tInt int, s *[subframeLen]int
 }
 
 func (pf *Postfilter) filter(a *[11]int16, tInt int, s *[subframeLen]int16, sPf *[subframeLen]int16, taps *FilterTaps) {
+	if !pf.initialized {
+		pf.agcGainPrev = 1 << 24
+	}
 	if taps != nil {
 		taps.PastSBefore = pf.pastS
 		taps.PastResidualBefore = pf.pastResidual

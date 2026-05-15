@@ -72,10 +72,9 @@ func TestQFormatContract_AnnexATiltGammaConstants(t *testing.T) {
 	}
 }
 
-// TestQFormatContract_AGCSeedsAgcGainPrevToTargetQ24 — on the very
-// first applyAGC call, agcGainPrev is seeded from g_target Q14
-// shifted to Q24 (per Phase 1i §A.4.2.4 init fix).
-func TestQFormatContract_AGCSeedsAgcGainPrevToTargetQ24(t *testing.T) {
+// TestQFormatContract_AGCStartsFromUnityQ24 verifies the AGC carry state
+// begins at unity and then smooths toward the subframe target.
+func TestQFormatContract_AGCStartsFromUnityQ24(t *testing.T) {
 	var pf Postfilter
 	const gTargetQ14 int16 = 1 << 14
 	var sTilt, sPf [subframeLen]int16
@@ -88,7 +87,7 @@ func TestQFormatContract_AGCSeedsAgcGainPrevToTargetQ24(t *testing.T) {
 	}
 	const wantQ24 int32 = int32(gTargetQ14) << 10
 	if pf.agcGainPrev < wantQ24/2 {
-		t.Errorf("agcGainPrev = %d (Q24), expected ~%d (seeded from g_target)",
+		t.Errorf("agcGainPrev = %d (Q24), expected ~%d (unity target)",
 			pf.agcGainPrev, wantQ24)
 	}
 }

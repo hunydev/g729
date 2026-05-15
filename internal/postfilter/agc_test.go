@@ -42,8 +42,8 @@ func TestApplyAGC_SmoothingDoesNotOvershoot(t *testing.T) {
 
 	// agcGainPrev is held at Q24 internally; gTargetQ14 = 8192 corresponds
 	// to 8192<<10 = 8388608 at Q24.
-	if pf.agcGainPrev < 0 || pf.agcGainPrev > 8192<<10 {
-		t.Errorf("agcGainPrev = %d, want ∈ (0, %d]", pf.agcGainPrev, 8192<<10)
+	if pf.agcGainPrev <= 8192<<10 || pf.agcGainPrev >= 1<<24 {
+		t.Errorf("agcGainPrev = %d, want between target and unity", pf.agcGainPrev)
 	}
 	for k := 0; k < 200; k++ {
 		pf.applyAGC(&sTilt, gTargetQ14, &sPf)

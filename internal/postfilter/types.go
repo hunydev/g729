@@ -17,8 +17,8 @@ type Postfilter struct {
 	pastTiltInput int16
 	// agcGainPrev is the AGC gain used in the last sample of the previous
 	// subframe, held at Q24 internally for steady-state precision.
-	// On the very first applyAGC call (initialized == false), it is
-	// seeded to g_target per ITU-T G.729 §A.4.2.4 initialization.
+	// On the first postfilter call it starts from unity, while the first
+	// zero-target subframe bypasses scaling and clears the carried gain.
 	agcGainPrev int32
 	initialized bool
 }
