@@ -2,7 +2,6 @@ package lsp
 
 import (
 	"bytes"
-	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -119,16 +118,12 @@ func TestPhase1o_D3_S6_R2_LpDump(t *testing.T) {
 	// ---- R-2a: prevLSP first-frame init ----
 	t.Logf("")
 	t.Logf("--- R-2a: prevLSP first-frame init constants ---")
-	t.Logf("Spec §4.3 Table 9 + §3.2.4 + lsfToLSP forward map: prevLSP[i] = cos((i+1)·π/11) Q15")
-	var specPrevLSP [10]int16
-	for i := 0; i < 10; i++ {
-		c := math.Cos(float64(i+1) * math.Pi / 11.0)
-		specPrevLSP[i] = int16(math.Round(c * 32768.0))
-		if specPrevLSP[i] > 32767 {
-			specPrevLSP[i] = 32767
-		}
+	t.Logf("Reference-execution numeric oracle: fixed codec-start prevLSP Q15")
+	specPrevLSP := [10]int16{
+		30000, 26000, 21000, 15000, 8000,
+		0, -8000, -15000, -21000, -26000,
 	}
-	t.Logf("  spec-derived (cos(iπ/11)·2^15 round): %v", specPrevLSP)
+	t.Logf("  oracle startup prevLSP            : %v", specPrevLSP)
 	t.Logf("  production initialPrevLSP            : %v", initialPrevLSP)
 	mismatch := false
 	for i := 0; i < 10; i++ {

@@ -25,11 +25,7 @@ func applyPredictorWithMemory(selector uint8, mem *[4][10]int16, residual, out *
 	preds := &tables.MAPredictorsLSP[selector]
 
 	for i := 0; i < 10; i++ {
-		var sumP int16
-		for k := 0; k < 4; k++ {
-			sumP = fixed.Add(sumP, preds[k][i])
-		}
-		comp := fixed.Sub(fixed.Max16, sumP)
+		comp := tables.MAPredictorInvSumLSP[selector][i]
 
 		var acc fixed.Word32
 		acc = fixed.LMac(acc, comp, residual[i])
@@ -38,7 +34,7 @@ func applyPredictorWithMemory(selector uint8, mem *[4][10]int16, residual, out *
 		acc = fixed.LMac(acc, preds[2][i], mem[2][i])
 		acc = fixed.LMac(acc, preds[3][i], mem[3][i])
 
-		out[i] = fixed.Round(acc)
+		out[i] = fixed.ExtractH(acc)
 	}
 }
 
@@ -55,9 +51,9 @@ func applyPredictorWithMemory(selector uint8, mem *[4][10]int16, residual, out *
 //	target                  : Q13 Word16   (output l_i)
 //
 // Numerator is accumulated in Q29 Word32 (LDepositH lifts ω from Q13
-// to Q29; LMsu subtracts each Q15·Q13 = Q29 product), then rounded
-// back to Q13. Denominator (1 − Σ P) is held in Q15 as Max16 − sumP,
-// matching the decoder's identical pattern. The final divide
+// to Q29; LMsu subtracts each Q15·Q13 = Q29 product), then converted
+// back to Q13. Denominator (1 − Σ P) is held in Q15 as the fixed
+// inverse-sum table entry used by the decoder. The final divide
 // (n_q13 << 15) / d_q15 yields the Q13 result with one Saturate.
 //
 // Inputs are read-only; this routine performs no allocation.
@@ -65,18 +61,14 @@ func computeTargetLSF(selector uint8, mem *[4][10]int16, omega, target *[10]int1
 	preds := &tables.MAPredictorsLSP[selector]
 
 	for i := 0; i < 10; i++ {
-		var sumP int16
-		for k := 0; k < 4; k++ {
-			sumP = fixed.Add(sumP, preds[k][i])
-		}
-		comp := fixed.Sub(fixed.Max16, sumP)
+		comp := tables.MAPredictorInvSumLSP[selector][i]
 
 		acc := fixed.LDepositH(omega[i])
 		acc = fixed.LMsu(acc, preds[0][i], mem[0][i])
 		acc = fixed.LMsu(acc, preds[1][i], mem[1][i])
 		acc = fixed.LMsu(acc, preds[2][i], mem[2][i])
 		acc = fixed.LMsu(acc, preds[3][i], mem[3][i])
-		nQ13 := fixed.Round(acc)
+		nQ13 := fixed.ExtractH(acc)
 
 		num := fixed.Word32(nQ13) << 15
 		target[i] = fixed.Saturate(num / fixed.Word32(comp))

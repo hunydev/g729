@@ -34,10 +34,10 @@ identify the current files after numeric `expected` cells were filled.
 | `tame_gain_taming_got.csv` | `field,frame,sub,index,got` | 8962 | `53927db37826977a1f0e6a2421f4ccb7a0a569998bae8461c479a6260c0af298` |
 | `FCB_TREE_SEARCH_VERIFIER_PROMPT.md` | n/a | n/a | `b327bac1381cea87d2e364876dbdc423eac89f018d1950ed906e0a41b2a351a0` |
 | `fcb_tree_search_expected_template.csv` | `field,frame,sub,index,expected` | 10194 | `4644b4330f2401496de267fd2f33c33d6e245715e1460accecb1cd51a3164d40` |
-| `fcb_tree_search_got.csv` | `field,frame,sub,index,got` | 10194 | `7e6be79ee7349edf20666797b91a37c24fdca742645b68958fecf570992890ff` |
+| `fcb_tree_search_got.csv` | `field,frame,sub,index,got` | 10194 | `e4760a4c7b49a62333f20d10dbf37c8c4fed8bc5b118bbd6a537288b6397f6cd` |
 | `FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md` | n/a | n/a | `102cfaccf8bc984507294b2d4ddee7272cd20befdeb513765b0989fb8fa1ada5` |
 | `fcb_tree_search_user_audio_expected_template.csv` | `field,frame,sub,index,expected` | 10194 | `4644b4330f2401496de267fd2f33c33d6e245715e1460accecb1cd51a3164d40` |
-| `fcb_tree_search_user_audio_got.csv` | `field,frame,sub,index,got` | 10194 | `b8a080bfe82436767bcd0d938d5d266b42f70ff493f105ebbb498f34e656fa4b` |
+| `fcb_tree_search_user_audio_got.csv` | `field,frame,sub,index,got` | 10194 | `d4128e775b87d85d63178c6d6c33707a6381794c9d9d2fae63de0a23d02db2f1` |
 | `decoder_itu_stage_expected_template.csv` | `source,frame,sub,field,index,expected` | 10491 | `a06d13af94cb2d1b60c6d6f13caeb6567a559e0b6a5d6959d56a6225f1a522a7` |
 | `decoder_itu_stage_got.csv` | `source,frame,sub,field,index,got` | 10491 | `4ec339672a8abd05d94b9aee060f696b75416d40b1dcc1158128ffc4270a4492` |
 | `DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md` | n/a | n/a | `adf86bb920b590d25103bb4b1982aba459e1380a9886e3526f8ee535d7cb6790` |

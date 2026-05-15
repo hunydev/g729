@@ -23,17 +23,13 @@ import (
 //	out                     : Q13 Word16
 //
 // LMac products are Q29 Word32 (Q15·Q13 with the implicit ×2 of the
-// fractional multiply); a single fixed.Round at the end brings the
-// accumulated sum back to Q13 with rounding.
+// fractional multiply); the accumulated sum is converted back to Q13
+// by extracting the high word.
 func (d *Decoder) applyPredictor(selector uint8, residual, out *[10]int16) {
 	preds := &tables.MAPredictorsLSP[selector]
 
 	for i := 0; i < 10; i++ {
-		var sumP int16
-		for k := 0; k < 4; k++ {
-			sumP = fixed.Add(sumP, preds[k][i])
-		}
-		comp := fixed.Sub(fixed.Max16, sumP)
+		comp := tables.MAPredictorInvSumLSP[selector][i]
 
 		var acc fixed.Word32
 		acc = fixed.LMac(acc, comp, residual[i])
@@ -42,7 +38,7 @@ func (d *Decoder) applyPredictor(selector uint8, residual, out *[10]int16) {
 		acc = fixed.LMac(acc, preds[2][i], d.pastResiduals[2][i])
 		acc = fixed.LMac(acc, preds[3][i], d.pastResiduals[3][i])
 
-		out[i] = fixed.Round(acc)
+		out[i] = fixed.ExtractH(acc)
 	}
 
 	d.pastResiduals[3] = d.pastResiduals[2]

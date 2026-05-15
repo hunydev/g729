@@ -71,11 +71,10 @@ func TestPhase3bDiag2_LPInterpolationTrajectory(t *testing.T) {
 		}
 
 		// Snapshot prevLSP BEFORE Decode. On frame 0 this is the
-		// zero-state (replaced inside Decode by initialPrevLSP =
-		// cos(i·π/11) Q15 per §3.2.4 / §4.1.5 lazy init). We
-		// substitute the spec init here when uninitialised so the
-		// "what was actually fed to interpolateLSP" record is
-		// faithful.
+		// zero-state (replaced inside Decode by initialPrevLSP lazy
+		// init). We substitute the startup init here when
+		// uninitialised so the "what was actually fed to
+		// interpolateLSP" record is faithful.
 		prevSnap := d.lsp.PrevLSPSnapshot()
 		init := d.lsp.InitializedForDiag()
 
@@ -100,10 +99,10 @@ func TestPhase3bDiag2_LPInterpolationTrajectory(t *testing.T) {
 		if init {
 			rec.prevLSP = prevSnap
 		} else {
-			// First-frame: production code uses the spec init
-			// (cos(i·π/11) Q15, §3.2.4 / §4.1.5). Mirror that here
-			// so the recorded "prevLSP fed to interp" matches what
-			// production actually used.
+			// First-frame: production code uses the fixed startup
+			// LSP vector. Mirror that here so the recorded
+			// "prevLSP fed to interp" matches what production
+			// actually used.
 			rec.prevLSP = initialPrevLSPMirror
 		}
 		rec.currLSP = currSnap
@@ -266,14 +265,13 @@ func TestPhase3bDiag2_LPInterpolationTrajectory(t *testing.T) {
 	t.Logf("    on identical pastSynth memory; invasive vs DIAG scope).")
 }
 
-// initialPrevLSPMirror duplicates internal/lsp.initialPrevLSP (the
-// codec-start LSP init q_i = cos(i·π/11) Q15 per §3.2.4 / §4.1.5) so
-// the diagnostic can faithfully record what production-code feeds to
+// initialPrevLSPMirror duplicates internal/lsp.initialPrevLSP so the
+// diagnostic can faithfully record what production-code feeds to
 // interpolateLSP on the very first frame. Kept package-local to the
 // test rather than promoted to public API.
 var initialPrevLSPMirror = [10]int16{
-	31441, 27566, 21458, 13612, 4663,
-	-4663, -13612, -21458, -27566, -31441,
+	30000, 26000, 21000, 15000, 8000,
+	0, -8000, -15000, -21000, -26000,
 }
 
 // lspMonotoneDecreasing reports whether the cosine-domain LSP vector

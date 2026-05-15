@@ -7,13 +7,14 @@ import "github.com/hunydev/g729/internal/tables"
 // The cosine LUT (tables.CosLSP) covers the full range [0, π] with 65
 // uniformly-spaced endpoints, so no quadrant folding is needed: a
 // monotone increasing ω yields a monotone decreasing q across the
-// whole interval. Each LUT interval is π/64 wide, which in Q13 is
-// 25736/64 = 402.125 — we use floor (lspStep = 402) and absorb the
-// sub-unit residual in the linear interpolation.
+// whole interval. Interpolation keeps the full π_Q13 numerator instead
+// of replacing π/64 with floor(25736/64), because that floor error is
+// visible in the decoder_tame_lsp_pipeline numeric oracle.
 const (
-	lspStep     int32 = 402 // floor(π_Q13 / 64)
+	lspPiQ13    int32 = 25736
+	lspStep     int32 = lspPiQ13 / lspNumCells
 	lspNumCells int32 = 64
-	lspMaxOmega int32 = lspStep * lspNumCells // 25728, just under π_Q13 = 25736
+	lspMaxOmega int32 = lspPiQ13
 )
 
 // lsfToLSP converts one LSF value ω (Q13, 0 ≤ ω < π) into its LSP
@@ -23,19 +24,20 @@ func lsfToLSP(omega int16) int16 {
 	if w < 0 {
 		w = 0
 	}
-	if w > lspMaxOmega {
-		w = lspMaxOmega
+	if w > lspPiQ13 {
+		w = lspPiQ13
 	}
 
-	idx := w / lspStep
+	pos := w * lspNumCells
+	idx := pos / lspPiQ13
 	if idx >= lspNumCells {
 		idx = lspNumCells - 1
 	}
-	frac := w - idx*lspStep
+	frac := pos - idx*lspPiQ13
 
 	c0 := int32(tables.CosLSP[idx])
 	c1 := int32(tables.CosLSP[idx+1])
-	interp := c0 + ((c1-c0)*frac)/lspStep
+	interp := c0 + ((c1-c0)*frac)/lspPiQ13
 
 	if interp > 32767 {
 		interp = 32767

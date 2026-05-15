@@ -9,42 +9,32 @@ package lsp
 type Decoder struct {
 	// pastResiduals holds the 4 previous frames' quantized residual
 	// vectors r̂(n-1)..r̂(n-4), all Q13. pastResiduals[0] is the most
-	// recent (r̂(n-1)). Per ITU-T G.729 §3.2.4, the initial values for
-	// k < 0 are l̂_i = i·π/11 (Q13). These are populated lazily on the
-	// first call to Decode.
+	// recent (r̂(n-1)). These are populated lazily on the first call to
+	// Decode.
 	pastResiduals [4][10]int16
 	// prevLSP is the previous frame's post-stability LSP vector (Q15)
-	// used by interpolateLSP. Per ITU-T G.729 §3.2.4 / §4.1.5, the
-	// codec-start initial values are q_i = cos(i·π/11) Q15 (the
-	// uniformly-spaced LSF init projected through cosine), populated
-	// lazily on the first Decode call.
+	// used by interpolateLSP. The codec-start initial value is
+	// populated lazily on the first Decode call.
 	prevLSP [10]int16
 
 	initialized bool
 }
 
-// initialPrevLSP is q_i = cos(i·π/11) Q15 for i = 1..10, the codec-
-// start initial value of the previous-frame LSP vector (ITU-T G.729
-// §3.2.4 / §4.1.5).
+// initialPrevLSP is the codec-start previous-frame LSP vector (Q15).
+// This fixed startup vector is pinned by the decoder_tame_lsp_pipeline
+// numeric oracle; using the cosine of the initial LSF residuals here
+// shifts frame-0 LP coefficients away from the reference decoder.
 var initialPrevLSP = [10]int16{
-	31441, 27566, 21458, 13612, 4663,
-	-4663, -13612, -21458, -27566, -31441,
+	30000, 26000, 21000, 15000, 8000,
+	0, -8000, -15000, -21000, -26000,
 }
 
-// initialPastResidual is l̂_i = i·π/11 in Q13 for i = 1..10, per
-// ITU-T G.729 §3.2.4. π in Q13 is 25736, so the i-th entry is
-// round(i · 25736 / 11).
+// initialPastResidual is the codec-start LSF residual FIFO value (Q13).
+// The values are fixed startup table entries; recomputing i·π/11 with
+// generic rounding shifts the MA predictor output by 1-2 LSBs.
 var initialPastResidual = [10]int16{
-	2340,  // 1·π/11
-	4679,  // 2·π/11
-	7019,  // 3·π/11
-	9359,  // 4·π/11
-	11698, // 5·π/11
-	14038, // 6·π/11
-	16377, // 7·π/11
-	18717, // 8·π/11
-	21057, // 9·π/11
-	23396, // 10·π/11
+	2339, 4679, 7018, 9358, 11698,
+	14037, 16377, 18717, 21056, 23396,
 }
 
 // Reset returns the decoder to its initial state.
@@ -88,9 +78,9 @@ func (d *Decoder) Decode(idx Indices) (sf1, sf2 [11]int16) {
 		lsp[i] = lsfToLSP(lsf[i])
 	}
 
-	// 6. First-frame handling: with no prior frame, use the spec-
-	//    defined uniform LSP init (cos(i·π/11) Q15) so the sf1
-	//    interpolation produces a stable LP filter even at codec start.
+	// 6. First-frame handling: with no prior frame, use the fixed
+	//    codec-start LSP init so the sf1 interpolation has the same
+	//    previous-frame state as the reference decoder.
 	if !d.initialized {
 		d.prevLSP = initialPrevLSP
 		d.initialized = true

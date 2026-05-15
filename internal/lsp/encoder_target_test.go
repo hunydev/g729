@@ -7,22 +7,22 @@ import (
 	"github.com/hunydev/g729/internal/tables"
 )
 
-// expectedTargetLSF computes the eq. (23) closed form in float64 for
-// use as an independent reference in the Q13 fixed-point assertions.
+// expectedTargetLSF computes the eq. (23) closed form in float64 using
+// the fixed inverse-sum table that the codec path uses for the
+// denominator.
 func expectedTargetLSF(selector uint8, mem *[4][10]int16, omega *[10]int16) [10]int16 {
 	preds := &tables.MAPredictorsLSP[selector]
 	var out [10]int16
 	for i := 0; i < 10; i++ {
 		omegaR := float64(omega[i]) / 8192.0
 		sumPmem := 0.0
-		sumP := 0.0
 		for k := 0; k < 4; k++ {
 			pr := float64(preds[k][i]) / 32768.0
 			mr := float64(mem[k][i]) / 8192.0
 			sumPmem += pr * mr
-			sumP += pr
 		}
-		lr := (omegaR - sumPmem) / (1.0 - sumP)
+		den := float64(tables.MAPredictorInvSumLSP[selector][i]) / 32768.0
+		lr := (omegaR - sumPmem) / den
 		v := math.Round(lr * 8192.0)
 		switch {
 		case v > 32767:

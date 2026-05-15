@@ -30,3 +30,13 @@ var MAPredictorsLSP = [2][4][10]int16{
 		{3024, 1592, 940, 1631, 1723, 1579, 2034, 2084, 1913, 2601},
 	},
 }
+
+// MAPredictorInvSumLSP holds the Q15 complement term used with
+// MAPredictorsLSP in the LSF MA reconstruction. It is not recomputed
+// as 32767 - Σp at runtime because the fixed-point table values are
+// rounded independently; the small per-coordinate differences are
+// observable in the decoder_tame_lsp_pipeline numeric oracle.
+var MAPredictorInvSumLSP = [2][10]int16{
+	{7800, 8447, 8205, 8293, 8126, 8477, 8447, 8703, 9043, 8604},
+	{14585, 18333, 19772, 17344, 16426, 16459, 15155, 15220, 16043, 15708},
+}
