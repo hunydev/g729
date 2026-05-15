@@ -112,6 +112,23 @@ func TestCosLSPShape(t *testing.T) {
 	}
 }
 
+func TestCosLSPSlopeShape(t *testing.T) {
+	if len(CosLSPSlope) != len(CosLSP)-1 {
+		t.Fatalf("CosLSPSlope: entries = %d, want %d", len(CosLSPSlope), len(CosLSP)-1)
+	}
+}
+
+func TestCosLSPSlopeRange(t *testing.T) {
+	for i, v := range CosLSPSlope {
+		if v > 0 {
+			t.Errorf("CosLSPSlope[%d] = %d, want non-positive slope for decreasing cosine table", i, v)
+		}
+		if v < -32768 {
+			t.Errorf("CosLSPSlope[%d] = %d out of Q15 range", i, v)
+		}
+	}
+}
+
 func TestCosLSPEndpoints(t *testing.T) {
 	if CosLSP[0] != 32767 {
 		t.Errorf("CosLSP[0] = %d, want 32767 (cos 0 ≈ +1)", CosLSP[0])

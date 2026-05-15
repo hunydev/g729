@@ -129,7 +129,7 @@ The current repo-external verifier bundle is:
 
 ```text
 /tmp/g729-fcb-verifier-handoff-2026-05-10.tar.gz
-sha256 ae9f49814dff7c53fda7947ba25269e252af6e4145e93d48e2e0f1dea0312699
+sha256 793d5a48cd5affa99eb83c7522c41da7d9e409ca8682861eafd52703c712052f
 ```
 
 External verifiers should start with
