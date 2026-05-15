@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/hunydev/g729/internal/fcb"
 	"github.com/hunydev/g729/internal/fixed"
 	"github.com/hunydev/g729/internal/gain"
 	"github.com/hunydev/g729/internal/tables"
@@ -135,6 +136,111 @@ func TestDecoderTAMEGainOracleDependencyAudit(t *testing.T) {
 	for i, ex := range examples {
 		t.Logf("  [%d] frame=%d sub=%d stage=%s field=%s index=%d want=%d got=%d delta=%+d",
 			i, ex.frame, ex.sub, ex.stage, ex.field, ex.index, ex.want, ex.got, ex.got-ex.want)
+	}
+}
+
+func TestDecoderTAMEFixedCodebookOracleAudit(t *testing.T) {
+	if os.Getenv("G729_DECODER_TAME_FCB_ORACLE_AUDIT") != "1" {
+		t.Skip("set G729_DECODER_TAME_FCB_ORACLE_AUDIT=1 to run TAME fixed-codebook oracle audit")
+	}
+
+	expectedPath := decoderReferenceOraclePath("decoder_tame_full_stage_expected.csv")
+	expected, err := readDecoderReferenceStageRows(expectedPath)
+	if err != nil {
+		t.Fatalf("read decoder reference TAME full-stage expected: %v", err)
+	}
+	got, err := collectDecoderReferenceTAMEStageRows(t, expected)
+	if err != nil {
+		t.Fatalf("collect decoder reference TAME full-stage rows: %v", err)
+	}
+	taps := decoderTAMEStageTaps(t, expected)
+
+	wantByKey := make(map[decoderStageKey]stageRow, len(expected))
+	var fixedKeys []decoderStageKey
+	for _, row := range expected {
+		key := decoderStageRowKey(row)
+		wantByKey[key] = row
+		if key.field == "fixed_c_q13" {
+			fixedKeys = append(fixedKeys, key)
+		}
+	}
+	sort.Slice(fixedKeys, func(i, j int) bool {
+		if fixedKeys[i].frame != fixedKeys[j].frame {
+			return fixedKeys[i].frame < fixedKeys[j].frame
+		}
+		if fixedKeys[i].sub != fixedKeys[j].sub {
+			return fixedKeys[i].sub < fixedKeys[j].sub
+		}
+		return fixedKeys[i].index < fixedKeys[j].index
+	})
+
+	deltaCounts := make(map[int64]int)
+	mismatchBySubframe := make(map[decoderFrameSubKey]int)
+	var pulseMismatch, enhancedMismatch, otherMismatch int
+	var exact, mismatches int
+	examples := make([]decoderTAMEFCBMismatchExample, 0, 24)
+
+	for _, key := range fixedKeys {
+		want := wantByKey[key]
+		gotRow := got[key]
+		if gotRow.hasValue && gotRow.value == want.value {
+			exact++
+			continue
+		}
+		mismatches++
+		delta := gotRow.value - want.value
+		deltaCounts[delta]++
+		fs := decoderFrameSubKey{frame: key.frame, sub: key.sub}
+		mismatchBySubframe[fs]++
+
+		tap := taps[key.frame].Sub[key.sub]
+		pulse := decoderTAMEFCBIndexInPositions(key.index, decoderTAMEFCBPositions(&taps[key.frame], key.sub))
+		enhanced := tap.TInt > 0 && tap.TInt < subframeLen && key.index >= tap.TInt
+		if pulse {
+			pulseMismatch++
+		} else if enhanced {
+			enhancedMismatch++
+		} else {
+			otherMismatch++
+		}
+		if len(examples) < cap(examples) {
+			prevIndex := key.index - tap.TInt
+			var wantPrev, gotPrev int64
+			if prevIndex >= 0 {
+				prevKey := decoderStageKey{source: key.source, frame: key.frame, sub: key.sub, field: "fixed_c_q13", index: prevIndex}
+				wantPrev = wantByKey[prevKey].value
+				gotPrev = got[prevKey].value
+			}
+			examples = append(examples, decoderTAMEFCBMismatchExample{
+				frame:     key.frame,
+				sub:       key.sub,
+				index:     key.index,
+				tInt:      tap.TInt,
+				betaQ14:   decoderTAMEFCBBetaQ14(taps, key.frame, key.sub),
+				want:      want.value,
+				got:       gotRow.value,
+				delta:     delta,
+				wantPrev:  wantPrev,
+				gotPrev:   gotPrev,
+				pulse:     pulse,
+				enhanced:  enhanced,
+				positions: decoderTAMEFCBPositions(&taps[key.frame], key.sub),
+			})
+		}
+	}
+
+	t.Logf("decoder TAME fixed-codebook oracle audit: exact=%d/%d %.2f%% mismatches=%d subframes_with_mismatch=%d path=%s",
+		exact, len(fixedKeys), percent(exact, len(fixedKeys)), mismatches, len(mismatchBySubframe), expectedPath)
+	t.Logf("mismatch classification: pulse=%d enhanced_region=%d other=%d", pulseMismatch, enhancedMismatch, otherMismatch)
+	t.Logf("top fixed_c deltas")
+	for _, line := range decoderTAMEFCBTopDeltaLines(deltaCounts, 12) {
+		t.Log(line)
+	}
+	t.Logf("first fixed_c mismatch examples")
+	for i, ex := range examples {
+		t.Logf("  [%d] frame=%d sub=%d idx=%d t=%d beta=%d pos=%v pulse=%v enhanced=%v want=%d got=%d delta=%+d prev[%d] want=%d got=%d",
+			i, ex.frame, ex.sub, ex.index, ex.tInt, ex.betaQ14, ex.positions, ex.pulse, ex.enhanced,
+			ex.want, ex.got, ex.delta, ex.index-ex.tInt, ex.wantPrev, ex.gotPrev)
 	}
 }
 
@@ -540,6 +646,22 @@ type decoderTAMEGainDependencyExample struct {
 	got   int64
 }
 
+type decoderTAMEFCBMismatchExample struct {
+	frame     int
+	sub       int
+	index     int
+	tInt      int
+	betaQ14   int16
+	want      int64
+	got       int64
+	delta     int64
+	wantPrev  int64
+	gotPrev   int64
+	pulse     bool
+	enhanced  bool
+	positions [4]int
+}
+
 type decoderTAMEEcBarFormulaSample struct {
 	frame     int
 	sub       int
@@ -597,6 +719,99 @@ func decoderTAMELog2Variant(x fixed.Word32, aShift int, interpRound, fracRound b
 		return int32((intPart << 10) + ((fracLog2Q15 + 16) >> 5))
 	}
 	return int32((intPart << 10) + (fracLog2Q15 >> 5))
+}
+
+func decoderTAMEStageTaps(t testing.TB, expected []stageRow) []Phase3DiagFrameTaps {
+	t.Helper()
+	targetFrames := make(map[int]struct{})
+	for _, row := range expected {
+		if row.source == "TAME" {
+			targetFrames[row.frame] = struct{}{}
+		}
+	}
+	maxFrame := maxIntKey(targetFrames)
+
+	tc, ok := decoderITUValidationCaseByName("TAME")
+	if !ok {
+		t.Fatalf("unknown ITU decoder vector source TAME")
+	}
+	frames, _ := readG192Frames(t, vectorPath(tc.bitFile))
+	if maxFrame >= len(frames) {
+		t.Fatalf("TAME target frame %d out of range; vector has %d frames", maxFrame, len(frames))
+	}
+
+	out := make([]Phase3DiagFrameTaps, maxFrame+1)
+	var dec Decoder
+	for frame := 0; frame <= maxFrame; frame++ {
+		taps, err := dec.DecodeWithTaps(frames[frame])
+		if err != nil {
+			t.Fatalf("TAME frame %d DecodeWithTaps: %v", frame, err)
+		}
+		out[frame] = taps
+	}
+	return out
+}
+
+func decoderTAMEFCBPositions(taps *Phase3DiagFrameTaps, sub int) [4]int {
+	var code uint16
+	if sub == 0 {
+		code = taps.Frame.C1
+	} else {
+		code = taps.Frame.C2
+	}
+	i0 := int(code & 0x07)
+	i1 := int((code >> 3) & 0x07)
+	i2 := int((code >> 6) & 0x07)
+	jx := int((code >> 9) & 0x01)
+	i3 := int((code >> 10) & 0x07)
+	return [4]int{5 * i0, 5*i1 + 1, 5*i2 + 2, 5*i3 + 3 + jx}
+}
+
+func decoderTAMEFCBIndexInPositions(index int, positions [4]int) bool {
+	for _, pos := range positions {
+		if index == pos {
+			return true
+		}
+	}
+	return false
+}
+
+func decoderTAMEFCBBetaQ14(taps []Phase3DiagFrameTaps, frame, sub int) int16 {
+	if frame == 0 && sub == 0 {
+		return fcb.InitialPitchEnhancementQ14
+	}
+	if sub == 1 {
+		return fcb.ClampPitchGainForEnhancement(taps[frame].Sub[0].GpQ14)
+	}
+	return fcb.ClampPitchGainForEnhancement(taps[frame-1].Sub[1].GpQ14)
+}
+
+func decoderTAMEFCBTopDeltaLines(counts map[int64]int, limit int) []string {
+	type pair struct {
+		delta int64
+		count int
+	}
+	pairs := make([]pair, 0, len(counts))
+	for delta, count := range counts {
+		pairs = append(pairs, pair{delta: delta, count: count})
+	}
+	sort.Slice(pairs, func(i, j int) bool {
+		if pairs[i].count != pairs[j].count {
+			return pairs[i].count > pairs[j].count
+		}
+		if absInt64(pairs[i].delta) != absInt64(pairs[j].delta) {
+			return absInt64(pairs[i].delta) > absInt64(pairs[j].delta)
+		}
+		return pairs[i].delta < pairs[j].delta
+	})
+	if len(pairs) > limit {
+		pairs = pairs[:limit]
+	}
+	lines := make([]string, 0, len(pairs))
+	for _, p := range pairs {
+		lines = append(lines, fmt.Sprintf("  delta=%+d count=%d", p.delta, p.count))
+	}
+	return lines
 }
 
 func collectDecoderReferenceTAMEGainLog2MicroRows(t testing.TB, expected []stageRow) (map[decoderStageKey]stageRow, error) {

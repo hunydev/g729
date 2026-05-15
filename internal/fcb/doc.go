@@ -15,7 +15,7 @@
 //
 //	ClampPitchGainForEnhancement(gpPrevQ14 int16) int16
 //	    Per §4.1.5. Clamps the previous subframe's decoded pitch
-//	    gain to [0.2, 0.8] in Q14 → β_Q14 ∈ [3277, 13107].
+//	    gain to the fixed-point sharpening bounds: β_Q14 ∈ [3277, 13017].
 //
 //	Decode(idx Indices, t int, betaQ14 int16, c *[40]int16)
 //	    Per §3.8 / §4.1.5. Zeros c, places 4 signed pulses, then

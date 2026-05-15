@@ -125,8 +125,8 @@ func TestBuildCode_EnhancementT20(t *testing.T) {
 }
 
 // TestBuildCode_BetaCeilingClamp verifies eq. 47 upper bound: β is
-// clamped to 0.8 (Q14 13107) when prevGpQ14 exceeds it. With β=0.8 and
-// c[0]=+8191, the n=20 update yields ExtractH(13107·8191·2·2) = 6552.
+// clamped to the fixed-point sharpening ceiling when prevGpQ14 exceeds it.
+// With β=13017 and c[0]=+8191, the n=20 update yields 6507.
 func TestBuildCode_BetaCeilingClamp(t *testing.T) {
 	positions := [4]int8{0, 1, 2, 3}
 	var signs [40]int16
@@ -136,10 +136,10 @@ func TestBuildCode_BetaCeilingClamp(t *testing.T) {
 	signs[3] = +1
 
 	var c [40]int16
-	fcbsearch.BuildCode(&positions, &signs, 20, 16000, &c) // 16000 > 13107
+	fcbsearch.BuildCode(&positions, &signs, 20, 16000, &c) // 16000 > ceiling
 
-	if c[20] != 6552 {
-		t.Fatalf("c[20] = %d, want 6552 (β clamped to 0.8 ceiling)", c[20])
+	if c[20] != 6507 {
+		t.Fatalf("c[20] = %d, want 6507 (β clamped to fixed-point ceiling)", c[20])
 	}
 }
 

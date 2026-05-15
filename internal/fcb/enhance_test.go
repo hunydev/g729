@@ -5,7 +5,7 @@ import "testing"
 func TestClampPitchGainForEnhancement(t *testing.T) {
 	const (
 		lowerQ14 = 3277
-		upperQ14 = 13107
+		upperQ14 = 13017
 	)
 	cases := []struct {
 		name  string
@@ -83,16 +83,16 @@ func TestApplyPitchEnhancement_SinglePulsePropagationAtBetaHalf(t *testing.T) {
 func TestApplyPitchEnhancement_CascadeAtBeta08(t *testing.T) {
 	var c [40]int16
 	c[0] = PulseAmplitude
-	ApplyPitchEnhancement(&c, 10, 13107)
+	ApplyPitchEnhancement(&c, 10, 13017)
 
-	if diff := c[10] - 6554; diff > 2 || diff < -2 {
-		t.Errorf("c[10] = %d, want ≈6554", c[10])
+	if diff := c[10] - 6507; diff > 2 || diff < -2 {
+		t.Errorf("c[10] = %d, want ≈6507", c[10])
 	}
-	if diff := c[20] - 5243; diff > 3 || diff < -3 {
-		t.Errorf("c[20] = %d, want ≈5243", c[20])
+	if diff := c[20] - 5169; diff > 3 || diff < -3 {
+		t.Errorf("c[20] = %d, want ≈5169", c[20])
 	}
-	if diff := c[30] - 4194; diff > 3 || diff < -3 {
-		t.Errorf("c[30] = %d, want ≈4194", c[30])
+	if diff := c[30] - 4106; diff > 3 || diff < -3 {
+		t.Errorf("c[30] = %d, want ≈4106", c[30])
 	}
 }
 

@@ -589,7 +589,7 @@ func TestOracleHandoff_BundleScriptPinsDeterministicInputs(t *testing.T) {
 }
 
 func TestOracleHandoff_BundleScriptBuildsDocumentedArchive(t *testing.T) {
-	const wantSHA256 = "d7b7e92a0588050a0a5a45f5ac66d6a75ce6de06fda6e363b505bd0f10ce5860"
+	const wantSHA256 = "9b3474bf33cdf90fee96a2596947e147edfba563196010c0be15be0a89a34271"
 	scriptPath := filepath.Join("testdata", "oracle", "handoff", "create_verifier_bundle.sh")
 	tmp := t.TempDir()
 	bundleDir := filepath.Join(tmp, "g729-fcb-verifier-handoff")
@@ -1012,7 +1012,7 @@ func TestOracleHandoff_UserAudioFCBPromptPinsConvertedSample(t *testing.T) {
 	for _, want := range []string{
 		"`FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md` | n/a | n/a | `102cfaccf8bc984507294b2d4ddee7272cd20befdeb513765b0989fb8fa1ada5`",
 		"`fcb_tree_search_user_audio_expected_template.csv` | `field,frame,sub,index,expected` | 10194",
-		"`fcb_tree_search_user_audio_got.csv` | `field,frame,sub,index,got` | 10194 | `a2efa57154a59d93e214af94ee81697eb80b9a9ca63d71e753db3c5570dea8a2`",
+		"`fcb_tree_search_user_audio_got.csv` | `field,frame,sub,index,got` | 10194 | `cdc24c4f3d641e34654826cef2b54af168fa1fcee4d87dbff347bb1f2e01efa5`",
 	} {
 		if !strings.Contains(manifestText, want) {
 			t.Fatalf("manifest missing user-audio FCB pinned detail %q", want)
