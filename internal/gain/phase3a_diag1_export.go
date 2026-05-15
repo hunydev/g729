@@ -135,12 +135,12 @@ func (d *Decoder) DecodeWithFullTaps(idx Indices, c *[40]int16) GainDecodeFullTa
 	predicted := d.predictedLogGain()
 	out.Predicted = predicted
 
-	ecLog2Q10 := int32(log2Fixed(ecEnergy)) - 26*1024
-	ecDbQ10 := (ecLog2Q10*dbPerLog2Q13 + (1 << 12)) >> 13
-	ecBarDbQ10 := ecDbQ10 - int32(tenLog10_40Q10)
+	ecLog2Q15 := fixedCodebookEnergyLog2Q15(ecEnergy, 26)
+	ecDbQ10 := energyDbFromLog2Q15Trunc(ecLog2Q15)
+	ecBarDbQ10 := energyDbFromLog2Q15Rounded(ecLog2Q15) - int32(tenLog10_40ReferenceQ10)
 	out.EcBarDbQ10 = ecBarDbQ10
 
-	logGainDbQ10 := predicted - int32(ecBarDbQ10)
+	logGainDbQ10 := predicted + int32(tenLog10_40ReferenceQ10) - ecDbQ10
 	out.LogGainDbQ10 = logGainDbQ10
 	log2GcQ15 := logGainToLog2Q15(logGainDbQ10)
 	log2GcQ10 := log2GcQ15 >> 5
@@ -205,14 +205,7 @@ func (d *Decoder) DecodeWithFullTaps(idx Indices, c *[40]int16) GainDecodeFullTa
 
 	var uCurrent int16
 	if gammaC > 0 {
-		gammaLog2Q10 := log2Fixed(fixed.Word32(gammaC)) - 13*1024
-		val := (int32(gammaLog2Q10)*dbPerLog2Q10 + (1 << 9)) >> 10
-		if val > 32767 {
-			val = 32767
-		} else if val < -32768 {
-			val = -32768
-		}
-		uCurrent = int16(val)
+		uCurrent = quantizedPredictionErrorQ10(gammaC)
 	} else {
 		uCurrent = pastErrorsDefault
 	}

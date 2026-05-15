@@ -34,6 +34,14 @@ import (
 // + k). Callers with a Qk input MUST subtract k·1024 from the result
 // to recover the spec-intended log2. See decode.go's ecLog2Q10 handling.
 func log2Fixed(x fixed.Word32) fixed.Word32 {
+	return log2FixedQ15(x) >> 5
+}
+
+// log2FixedQ15 is the higher-precision form of log2Fixed. It returns
+// log2(x) in Q15 for x > 0, preserving the table interpolation output before
+// the legacy Q10 downshift. The decoder gain path uses this to avoid losing
+// low bits before the dB-domain multiply.
+func log2FixedQ15(x fixed.Word32) fixed.Word32 {
 	if x <= 0 {
 		return 0
 	}
@@ -50,7 +58,7 @@ func log2Fixed(x fixed.Word32) fixed.Word32 {
 	t1 := fixed.Word32(tables.Log2Table[idx+1])
 	fracLog2Q15 := t0 + ((t1-t0)*a)>>15
 
-	return (intPart << 10) + (fracLog2Q15 >> 5)
+	return (intPart << 15) + fracLog2Q15
 }
 
 // Log2Fixed is the exported form of log2Fixed used by the encoder-side
@@ -58,4 +66,11 @@ func log2Fixed(x fixed.Word32) fixed.Word32 {
 // contract: input treated as Q0; output is log2(x) at Q10.
 func Log2Fixed(x fixed.Word32) fixed.Word32 {
 	return log2Fixed(x)
+}
+
+// Log2FixedQ15 is the exported high-precision form used by gain-domain
+// diagnostics and encoder-side predictors that need to mirror receiver
+// reconstruction without the early Q10 truncation.
+func Log2FixedQ15(x fixed.Word32) fixed.Word32 {
+	return log2FixedQ15(x)
 }

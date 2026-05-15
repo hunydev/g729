@@ -579,19 +579,24 @@ func appendDecoderReferenceTAMEGainLog2MicroRows(rows *[]stageRow, frame int, ta
 
 		ecEnergy := decoderTAMELocalFixedCodebookEnergyWord32(st.C[:])
 		appendDecoderReferenceScalar(rows, frame, sub, "ec_energy_q26", int64(ecEnergy))
-		ecLog2Raw := appendDecoderTAMELog2Micro(rows, frame, sub, "ec", ecEnergy)
-		ecLog2Corrected := ecLog2Raw - 26*1024
-		ecDbQ10 := (ecLog2Corrected*24660 + (1 << 12)) >> 13
-		ecBarDbQ10 := ecDbQ10 - 16405
+		// The reference micro-oracle logs the pre-shift L_mult energy input
+		// while also emitting ec_energy_q26 as the physical sum-of-squares.
+		ecLog2Input := fixed.LShl(ecEnergy, 1)
+		_ = appendDecoderTAMELog2Micro(rows, frame, sub, "ec", ecLog2Input)
+		ecLog2Q15 := int32(gain.Log2FixedQ15(ecLog2Input)) - 27*(1<<15)
+		ecLog2Corrected := ecLog2Q15 >> 5
+		ecDbQ10 := int32((int64(ecLog2Q15) * 24660) >> 18)
+		ecBarQ10 := int64(tables.GainMeanEnergyQ10) + 16404 - int64((int64(ecLog2Q15)*24660+(1<<17))>>18)
 		appendDecoderReferenceScalar(rows, frame, sub, "ec_log2_corrected_q10", int64(ecLog2Corrected))
 		appendDecoderReferenceScalar(rows, frame, sub, "ec_db_q10", int64(ecDbQ10))
-		appendDecoderReferenceScalar(rows, frame, sub, "ec_bar_db_q10", int64(ecBarDbQ10))
+		appendDecoderReferenceScalar(rows, frame, sub, "ec_bar_db_q10", ecBarQ10)
 
 		gamma := fixed.Word32(g.GammaCQ13)
 		appendDecoderReferenceScalar(rows, frame, sub, "gamma_q13", int64(gamma))
-		gammaLog2Raw := appendDecoderTAMELog2Micro(rows, frame, sub, "gamma", gamma)
-		gammaLog2Corrected := gammaLog2Raw - 13*1024
-		uCurrent := (gammaLog2Corrected*6165 + (1 << 9)) >> 10
+		_ = appendDecoderTAMELog2Micro(rows, frame, sub, "gamma", gamma)
+		gammaLog2Q15 := int32(gain.Log2FixedQ15(gamma)) - 13*(1<<15)
+		gammaLog2Corrected := gammaLog2Q15 >> 5
+		uCurrent := int32((int64(gammaLog2Q15)*24660 - (1 << 16)) >> 17)
 		if uCurrent > 32767 {
 			uCurrent = 32767
 		} else if uCurrent < -32768 {
@@ -600,7 +605,7 @@ func appendDecoderReferenceTAMEGainLog2MicroRows(rows *[]stageRow, frame int, ta
 		appendDecoderReferenceScalar(rows, frame, sub, "gamma_log2_corrected_q10", int64(gammaLog2Corrected))
 		appendDecoderReferenceScalar(rows, frame, sub, "u_current_q10", int64(uCurrent))
 
-		appendDecoderReferenceScalar(rows, frame, sub, "predicted_q10", int64(g.Predicted))
+		appendDecoderReferenceScalar(rows, frame, sub, "predicted_q10", int64(g.Predicted)-int64(tables.GainMeanEnergyQ10))
 		appendDecoderReferenceScalar(rows, frame, sub, "log_gain_q10", int64(g.LogGainDbQ10))
 		appendDecoderReferenceScalar(rows, frame, sub, "log2_gc_q10", int64(g.Log2GcQ10))
 		appendDecoderReferenceScalar(rows, frame, sub, "gc0_q14", int64(g.Gc0MantQ14))
@@ -631,12 +636,12 @@ func appendDecoderTAMELog2Micro(rows *[]stageRow, frame, sub int, prefix string,
 	appendDecoderReferenceScalar(rows, frame, sub, prefix+"_log2_norm_shift_q0", int64(shift))
 	appendDecoderReferenceScalar(rows, frame, sub, prefix+"_log2_norm_x_q0", int64(normX))
 	appendDecoderReferenceScalar(rows, frame, sub, prefix+"_log2_int_part_q0", int64(intPart))
-	appendDecoderReferenceScalar(rows, frame, sub, prefix+"_log2_frac30_q0", frac30)
+	appendDecoderReferenceScalar(rows, frame, sub, prefix+"_log2_frac30_q0", int64(normX>>1))
 	appendDecoderReferenceScalar(rows, frame, sub, prefix+"_log2_table_index_q0", int64(index))
 	appendDecoderReferenceScalar(rows, frame, sub, prefix+"_log2_fraction_q0", int64(fraction))
 	appendDecoderReferenceScalar(rows, frame, sub, prefix+"_log2_table0_q15", int64(table0))
 	appendDecoderReferenceScalar(rows, frame, sub, prefix+"_log2_table1_q15", int64(table1))
-	appendDecoderReferenceScalar(rows, frame, sub, prefix+"_log2_interp_product_q30", int64(interpProduct))
+	appendDecoderReferenceScalar(rows, frame, sub, prefix+"_log2_interp_product_q30", int64(-2*interpProduct))
 	appendDecoderReferenceScalar(rows, frame, sub, prefix+"_log2_frac_q15", int64(fracQ15))
 	appendDecoderReferenceScalar(rows, frame, sub, prefix+"_log2_raw_q10", int64(rawQ10))
 

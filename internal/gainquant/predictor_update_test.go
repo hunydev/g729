@@ -83,15 +83,19 @@ func TestUpdatePastQuaEn_RoundTripWithPredictor(t *testing.T) {
 	past := [4]int16{0, 0, 0, 0}
 	UpdatePastQuaEn(&past, gammaCQ13)
 
-	// Recompute U(m) directly via gain.Log2Fixed and compare. This is
+	// Recompute U(m) directly via the receiver-aligned Q15 log2 path and
+	// compare. This is
 	// the "prediction next call should produce matching value" probe:
 	// the inserted past[0] must be exactly what gain.PredictedLogGain
 	// would consume next subframe.
 	if gammaCQ13 <= 0 {
 		t.Skip("codebook entry non-positive; cross-check requires γ̂>0")
 	}
-	gammaLog2Q10 := int32(gain.Log2Fixed(int32(gammaCQ13))) - 13*1024
-	wantQ10 := int16((gammaLog2Q10*int32(dbPerLog2Q10) + (1 << 9)) >> 10)
+	gammaLog2Q15 := int32(gain.Log2FixedQ15(int32(gammaCQ13))) - 13*(1<<15)
+	var wantQ10 int16
+	if gammaLog2Q15 != 0 {
+		wantQ10 = int16((int64(gammaLog2Q15)*int64(dbPerLog2Q13) - (1 << 16)) >> 17)
+	}
 
 	if past[0] != wantQ10 {
 		t.Fatalf("UpdatePastQuaEn(γ̂=%d Q13) → past[0]=%d, want %d (re-derived)",

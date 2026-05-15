@@ -18,13 +18,16 @@ const PastErrorsDefault int16 = pastErrorsDefault
 //
 //	dbPerLog2Q13 = 10·log10(2) · 2¹³  ≈ 24660  // dB per unit log2
 //	tenLog10_40Q10 = 10·log10(40) · 2¹⁰ ≈ 16405  // 10·log10(40) Q10 dB
+//	tenLog10_40ReferenceQ10 = 16404, the reference fixed-point bias used
+//		for decoder gain reconstruction after Q15 log2 conversion.
 //	invDbScaleQ15  ≈ 1 / (20·log10(2)) · 2¹⁵, fixed decoder constant
 //	dbPerLog2Q10   = 20·log10(2) · 2¹⁰  ≈ 6165   // dB per unit log2
 const (
-	dbPerLog2Q13   = 24660
-	tenLog10_40Q10 = 16405
-	invDbScaleQ15  = 5439
-	dbPerLog2Q10   = 6165
+	dbPerLog2Q13            = 24660
+	tenLog10_40Q10          = 16405
+	tenLog10_40ReferenceQ10 = 16404
+	invDbScaleQ15           = 5439
+	dbPerLog2Q10            = 6165
 )
 
 // Decode decodes one subframe's gains from idx and the fixed codebook
@@ -106,13 +109,8 @@ func (d *Decoder) decode(idx Indices, c *[40]int16, ecQCorrection, gammaQCorrect
 	// 2. Predict log-gain Ê(m) from past errors (Q10 dB).
 	predicted := d.predictedLogGain()
 
-	// Q26→Q0 correction: fixedCodebookEnergy returns Σc² at Q26 (energy.go
-	// §). log2(E_phys) = log2(E_Q26) − 26 ⇒ subtract 26·1024 in Q10. Keep
-	// int32 throughout so high-dynamic-range gain reconstruction is not
-	// collapsed by an intermediate Word16 saturation.
-	ecLog2Q10 := int32(log2Fixed(ecEnergy)) - int32(ecQCorrection)*1024
-	ecDbQ10 := (ecLog2Q10*dbPerLog2Q13 + (1 << 12)) >> 13
-	ecBarDbQ10 := ecDbQ10 - int32(tenLog10_40Q10)
+	ecLog2Q15 := fixedCodebookEnergyLog2Q15(ecEnergy, ecQCorrection)
+	ecDbQ10 := energyDbFromLog2Q15Trunc(ecLog2Q15)
 
 	// 3. Effective log gain in dB -> log2.
 	//
@@ -120,7 +118,7 @@ func (d *Decoder) decode(idx Indices, c *[40]int16, ecQCorrection, gammaQCorrect
 	// differ by more than int16 can represent. Keep this subtraction in int32;
 	// saturating here collapses high-dynamic-range fixed-codebook gains before
 	// the pow2 reconstruction has a chance to express them.
-	logGainDbQ10 := predicted - int32(ecBarDbQ10)
+	logGainDbQ10 := predicted + int32(tenLog10_40ReferenceQ10) - ecDbQ10
 	log2GcQ15 := logGainToLog2Q15(logGainDbQ10)
 	log2GcQ10 := log2GcQ15 >> 5
 
@@ -164,14 +162,7 @@ func (d *Decoder) decode(idx Indices, c *[40]int16, ecQCorrection, gammaQCorrect
 	//    flow; computed from γ̂_c alone per spec.)
 	var uCurrent int16
 	if gammaC > 0 {
-		gammaLog2Q10 := log2Fixed(fixed.Word32(gammaC)) - 13*1024
-		val := (int32(gammaLog2Q10)*dbPerLog2Q10 + (1 << 9)) >> 10
-		if val > 32767 {
-			val = 32767
-		} else if val < -32768 {
-			val = -32768
-		}
-		uCurrent = int16(val)
+		uCurrent = quantizedPredictionErrorQ10(gammaC)
 	} else {
 		uCurrent = pastErrorsDefault
 	}
@@ -181,4 +172,41 @@ func (d *Decoder) decode(idx Indices, c *[40]int16, ecQCorrection, gammaQCorrect
 	d.pastErrors[0] = uCurrent
 
 	return
+}
+
+func fixedCodebookEnergyLog2Q15(ecEnergy fixed.Word32, ecQCorrection int) int32 {
+	logInput := ecEnergy
+	qCorrection := ecQCorrection
+	if ecQCorrection == 26 {
+		// Reference decoder arithmetic feeds the pre-L_shr L_mult energy into
+		// Log2, then compensates the extra factor by subtracting 27 bits. This
+		// preserves five more fractional log2 bits for the dB conversion while
+		// representing the same physical Σc² energy.
+		logInput = fixed.LShl(ecEnergy, 1)
+		qCorrection = 27
+	}
+	return int32(log2FixedQ15(logInput)) - int32(qCorrection)*(1<<15)
+}
+
+func energyDbFromLog2Q15Trunc(log2Q15 int32) int32 {
+	return int32((int64(log2Q15) * int64(dbPerLog2Q13)) >> 18)
+}
+
+func energyDbFromLog2Q15Rounded(log2Q15 int32) int32 {
+	return int32((int64(log2Q15)*int64(dbPerLog2Q13) + (1 << 17)) >> 18)
+}
+
+func quantizedPredictionErrorQ10(gammaCQ13 int32) int16 {
+	gammaLog2Q15 := int32(log2FixedQ15(fixed.Word32(gammaCQ13))) - 13*(1<<15)
+	if gammaLog2Q15 == 0 {
+		return 0
+	}
+	val := int32((int64(gammaLog2Q15)*int64(dbPerLog2Q13) - (1 << 16)) >> 17)
+	if val > 32767 {
+		return 32767
+	}
+	if val < -32768 {
+		return -32768
+	}
+	return int16(val)
 }

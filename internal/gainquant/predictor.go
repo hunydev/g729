@@ -11,15 +11,17 @@ import (
 //
 //	dbPerLog2Q13   = 10·log10(2) · 2¹³  ≈ 24660  // dB per unit log2
 //	tenLog10_40Q10 = 10·log10(40) · 2¹⁰ ≈ 16405  // 10·log10(40) Q10 dB
+//	tenLog10_40ReferenceQ10 = receiver fixed-point reconstruction bias.
 //	invDbScaleQ15  ≈ 1 / (20·log10(2)) · 2¹⁵, fixed decoder constant
 //
 // Identical to the decoder-side constants in internal/gain/decode.go;
 // re-stated here so the encoder predictor stays self-contained.
 const (
-	dbPerLog2Q13   = 24660
-	tenLog10_40Q10 = 16405
-	invDbScaleQ15  = 5439
-	dbPerLog2Q10   = 6165
+	dbPerLog2Q13            = 24660
+	tenLog10_40Q10          = 16405
+	tenLog10_40ReferenceQ10 = 16404
+	invDbScaleQ15           = 5439
+	dbPerLog2Q10            = 6165
 )
 
 // PredictedGcQ12 returns the predicted fixed-codebook gain g'c (Q12)
@@ -90,11 +92,8 @@ func predictedLog2GcQ15Search(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
 
 	predicted := gain.PredictedLogGainSat16(pastQuaEn)
 
-	ecLog2Q10 := int32(gain.Log2Fixed(ecEnergy)) - 26*1024
-	ecDbQ10 := (ecLog2Q10*dbPerLog2Q13 + (1 << 12)) >> 13
-	ecBarDbQ10 := ecDbQ10 - int32(tenLog10_40Q10)
-
-	logGainDbQ10 := int32(predicted) - ecBarDbQ10
+	ecDbQ10 := fixedCodebookEnergyDbQ10(ecEnergy)
+	logGainDbQ10 := int32(predicted) + int32(tenLog10_40ReferenceQ10) - ecDbQ10
 	return gain.LogGainToLog2Q15(logGainDbQ10), true
 }
 
@@ -106,12 +105,15 @@ func predictedLog2GcQ15Wide(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
 
 	predicted := gain.PredictedLogGain(pastQuaEn)
 
-	ecLog2Q10 := int32(gain.Log2Fixed(ecEnergy)) - 26*1024
-	ecDbQ10 := (ecLog2Q10*dbPerLog2Q13 + (1 << 12)) >> 13
-	ecBarDbQ10 := ecDbQ10 - int32(tenLog10_40Q10)
-
-	logGainDbQ10 := predicted - ecBarDbQ10
+	ecDbQ10 := fixedCodebookEnergyDbQ10(ecEnergy)
+	logGainDbQ10 := predicted + int32(tenLog10_40ReferenceQ10) - ecDbQ10
 	return gain.LogGainToLog2Q15(logGainDbQ10), true
+}
+
+func fixedCodebookEnergyDbQ10(ecEnergy fixed.Word32) int32 {
+	logInput := fixed.LShl(ecEnergy, 1)
+	log2Q15 := int32(gain.Log2FixedQ15(logInput)) - 27*(1<<15)
+	return int32((int64(log2Q15) * int64(dbPerLog2Q13)) >> 18)
 }
 
 func predictedGcQ12FromLog2Q15(log2GcQ15 int32) int32 {
@@ -205,8 +207,15 @@ func ReconstructWide(pastQuaEn *[4]int16, c *[40]int16, ga, gb uint8) (gpQ14, gc
 func UpdatePastQuaEn(pastQuaEn *[4]int16, gammaCQ13 int16) {
 	var uCurrent int16
 	if gammaCQ13 > 0 {
-		gammaLog2Q10 := int32(gain.Log2Fixed(fixed.Word32(gammaCQ13))) - 13*1024
-		val := (gammaLog2Q10*dbPerLog2Q10 + (1 << 9)) >> 10
+		gammaLog2Q15 := int32(gain.Log2FixedQ15(fixed.Word32(gammaCQ13))) - 13*(1<<15)
+		if gammaLog2Q15 == 0 {
+			pastQuaEn[3] = pastQuaEn[2]
+			pastQuaEn[2] = pastQuaEn[1]
+			pastQuaEn[1] = pastQuaEn[0]
+			pastQuaEn[0] = 0
+			return
+		}
+		val := int32((int64(gammaLog2Q15)*int64(dbPerLog2Q13) - (1 << 16)) >> 17)
 		if val > 32767 {
 			val = 32767
 		} else if val < -32768 {
