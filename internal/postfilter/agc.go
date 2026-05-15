@@ -4,31 +4,63 @@ package postfilter
 // Q15. The main G.729 postfilter uses a slower α, but Annex A §A.4.2.4
 // tightens the smoother to track the lower-complexity decoder envelope.
 const agcAlphaQ15 int64 = 29491
+const agcAlphaComplementQ15 int64 = 3276
 
 // computeAGCTargetGain returns the per-sample AGC target increment (Q14)
 // derived from √(E(s) / E(sTilt)) and the Annex A smoothing complement.
 //
-// Implementation: accumulate E_s and E_t as sum-of-squares in int64,
-// compute (E_s / E_t) at Q28, then take an integer square root (Newton-
-// Raphson) yielding the result at Q14. Phase 1g may swap in fixed.Sqrt
-// or a spec-specified table for ITU bit-exactness.
+// Annex A's AGC energy estimator uses the shifted sample domain rather than
+// full-resolution average energy. The target is kept at Q14 for historical
+// call sites, but its low two bits are zero because the AGC recurrence consumes
+// the corresponding Q12 increment.
 func (pf *Postfilter) computeAGCTargetGain(s, sTilt *[subframeLen]int16) int16 {
-	var eS, eT int64
-	for i := 0; i < subframeLen; i++ {
-		eS += int64(s[i]) * int64(s[i])
-		eT += int64(sTilt[i]) * int64(sTilt[i])
-	}
-	eS /= subframeLen
-	eT /= subframeLen
+	eS := agcTargetEnergy(s)
+	eT := agcTargetEnergy(sTilt)
 	if eT == 0 {
 		return 0
 	}
-	ratioQ28 := (eS << 28) / eT
-	if ratioQ28 < 0 {
+	ratioQ24 := (eS << 24) / eT
+	sqrtQ12 := isqrtRoundedQ12(ratioQ24)
+	targetQ12 := (sqrtQ12 * agcAlphaComplementQ15) >> 15
+	return int16(targetQ12 << 2)
+}
+
+func agcTargetEnergy(x *[subframeLen]int16) int64 {
+	var energy int64
+	for n := 0; n < subframeLen; n++ {
+		v := int64(x[n] >> 2)
+		energy += 2 * v * v
+	}
+	return energy
+}
+
+// isqrtRoundedQ12 returns round(√x) where x is interpreted at Q24.
+func isqrtRoundedQ12(xQ24 int64) int64 {
+	if xQ24 <= 0 {
 		return 0
 	}
-	targetQ14 := isqrtQ14(ratioQ28)
-	return int16((int64(targetQ14) * (32768 - agcAlphaQ15)) >> 15)
+	root := isqrt64(xQ24)
+	loDiff := xQ24 - root*root
+	hi := root + 1
+	hiDiff := hi*hi - xQ24
+	if hiDiff < loDiff {
+		return hi
+	}
+	return root
+}
+
+func isqrt64(x int64) int64 {
+	if x <= 0 {
+		return 0
+	}
+	guess := x
+	for {
+		next := (guess + x/guess) >> 1
+		if next >= guess {
+			return guess
+		}
+		guess = next
+	}
 }
 
 // isqrtQ14 returns ⌊√x⌋ where x is interpreted at Q28 (result is at Q14).

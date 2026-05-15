@@ -16,13 +16,13 @@ func TestRefinePitch_LocksToTruePeriod(t *testing.T) {
 	}
 }
 
-func TestRefinePitch_ZeroSignalFallsBackToTInt(t *testing.T) {
+func TestRefinePitch_ZeroSignalFallsBackToLowerSearchEdge(t *testing.T) {
 	var pf Postfilter
 	var r [subframeLen]int16
 
 	bestT := pf.refinePitch(&r, 55)
-	if bestT != 55 {
-		t.Errorf("bestT = %d, want 55 (fallback to t_int)", bestT)
+	if bestT != 52 {
+		t.Errorf("bestT = %d, want 52 (fallback to lower search edge)", bestT)
 	}
 }
 
@@ -59,8 +59,8 @@ func TestRefinePitch_ClampsFallbackAboveUpperEdge(t *testing.T) {
 	var r [subframeLen]int16
 
 	bestT := pf.refinePitch(&r, 144)
-	if bestT != 140 {
-		t.Errorf("bestT = %d, want 140 (Annex A Tcl bounded before ±3 search)", bestT)
+	if bestT != 137 {
+		t.Errorf("bestT = %d, want 137 (Annex A Tcl bounded before ±3 search)", bestT)
 	}
 }
 

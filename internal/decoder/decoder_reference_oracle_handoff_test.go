@@ -966,17 +966,17 @@ func appendDecoderReferenceFrameArray(rows *[]stageRow, frame int, field string,
 }
 
 func decoderReferenceEnergyAndAbs(values []int16) (energy, absSum int64) {
-	var sumSq int64
 	for _, value := range values {
-		v := int64(value)
-		if v < 0 {
-			absSum -= v
+		raw := int64(value)
+		if raw < 0 {
+			absSum -= raw
 		} else {
-			absSum += v
+			absSum += raw
 		}
-		sumSq += v * v
+		v := int64(value >> 2)
+		energy += 2 * v * v
 	}
-	return sumSq / 8, absSum
+	return energy, absSum
 }
 
 func boolToInt64(v bool) int64 {

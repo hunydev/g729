@@ -95,9 +95,10 @@ func (pf *Postfilter) filter(a *[11]int16, tInt int, s *[subframeLen]int16, sPf 
 		taps.Residual = r
 	}
 
-	// Slide pastResidual left by subframeLen, write current r at the tail
-	// so refinePitch and applyLongTerm can index r(n-T) for T ∈ [20, 143].
-	copy(pf.pastResidual[:pitchMax], pf.pastResidual[subframeLen:])
+	// Write current r at the tail so refinePitch and applyLongTerm can index
+	// intra-subframe r(n-T). The persistent history is advanced after the
+	// long-term stage, matching the postfilter state visible to the next
+	// subframe.
 	copy(pf.pastResidual[pitchMax:], r[:])
 
 	T := pf.refinePitch(&r, tInt)
@@ -131,6 +132,8 @@ func (pf *Postfilter) filter(a *[11]int16, tInt int, s *[subframeLen]int16, sPf 
 		taps.AGCTargetQ14 = gTarget
 	}
 	pf.applyAGCWithTaps(&sTilt, gTarget, sPf, taps)
+	copy(pf.pastResidual[:pitchMax], pf.pastResidual[subframeLen:])
+	copy(pf.pastResidual[pitchMax:], r[:])
 	if taps != nil {
 		taps.PastSAfter = pf.pastS
 		taps.PastResidualAfter = pf.pastResidual

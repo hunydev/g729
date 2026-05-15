@@ -59,6 +59,9 @@ func TestQFormatContract_AGCAlphaIsQ15(t *testing.T) {
 	if gotF < want-0.001 || gotF > want+0.001 {
 		t.Fatalf("alphaQ15 represents %.4f, want %.4f", gotF, want)
 	}
+	if agcAlphaComplementQ15 != 3276 {
+		t.Fatalf("agcAlphaComplementQ15 = %d, want 3276", agcAlphaComplementQ15)
+	}
 }
 
 // TestQFormatContract_AnnexATiltGammaConstants verifies the simplified
@@ -76,7 +79,7 @@ func TestQFormatContract_AnnexATiltGammaConstants(t *testing.T) {
 // begins at unity and then smooths toward the subframe target.
 func TestQFormatContract_AGCStartsFromUnityQ24(t *testing.T) {
 	var pf Postfilter
-	const gTargetQ14 int16 = 1638
+	const gTargetQ14 int16 = 1636
 	var sTilt, sPf [subframeLen]int16
 	for n := range sTilt {
 		sTilt[n] = 100

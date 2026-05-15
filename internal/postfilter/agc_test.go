@@ -12,8 +12,8 @@ func TestComputeAGCTargetGain_EqualEnergy(t *testing.T) {
 	}
 
 	g := pf.computeAGCTargetGain(&s, &sTilt)
-	if g < 1630 || g > 1645 {
-		t.Errorf("g = %d, want ≈ 1638 (equal energies target increment)", g)
+	if g < 1628 || g > 1644 {
+		t.Errorf("g = %d, want ≈ 1636 (equal energies target increment)", g)
 	}
 }
 
@@ -64,7 +64,7 @@ func TestApplyAGC_FirstCallUsesSeededGain(t *testing.T) {
 	for i := range sTilt {
 		sTilt[i] = 1000
 	}
-	gTargetQ14 := int16(1638) // unity target increment
+	gTargetQ14 := int16(1636) // unity target increment
 
 	var sPf [subframeLen]int16
 	pf.applyAGC(&sTilt, gTargetQ14, &sPf)

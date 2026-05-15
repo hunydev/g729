@@ -21,19 +21,19 @@ func (pf *Postfilter) refinePitch(r *[subframeLen]int16, tInt int) int {
 		center = 140
 	}
 
-	bestT := center
-	if bestT < minT {
-		bestT = minT
-	} else if bestT > maxT {
-		bestT = maxT
+	lo := center - 3
+	if lo < minT {
+		lo = minT
 	}
+	hi := center + 3
+	if hi > maxT {
+		hi = maxT
+	}
+
+	bestT := lo
 	bestScore := float64(-1)
 
-	for k := -3; k <= 3; k++ {
-		T := center + k
-		if T < minT || T > maxT {
-			continue
-		}
+	for T := lo; T <= hi; T++ {
 		var R, E int64
 		for n := 0; n < subframeLen; n++ {
 			rn := int64(pf.pastResidual[pitchMax+n])
