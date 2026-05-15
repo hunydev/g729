@@ -199,6 +199,73 @@ func TestOracleHandoff_CompareDecoderReferenceTAMEGainInternals(t *testing.T) {
 	}
 }
 
+func TestOracleHandoff_CompareDecoderReferenceTAMEPostfilterMicro(t *testing.T) {
+	if os.Getenv("G729_COMPARE_DECODER_REFERENCE_TAME_POSTFILTER_MICRO") != "1" {
+		t.Skip("set G729_COMPARE_DECODER_REFERENCE_TAME_POSTFILTER_MICRO=1 to compare external reference TAME postfilter micro oracle")
+	}
+
+	expectedPath := decoderReferenceOraclePath("decoder_tame_postfilter_micro_expected.csv")
+	expected, err := readDecoderReferenceStageRows(expectedPath)
+	if err != nil {
+		t.Fatalf("read decoder reference TAME postfilter micro expected: %v", err)
+	}
+	if len(expected) == 0 {
+		t.Fatalf("decoder reference TAME postfilter micro expected is empty")
+	}
+
+	got, err := collectDecoderReferenceTAMEPostfilterMicroRows(t, expected)
+	if err != nil {
+		t.Fatalf("collect decoder reference TAME postfilter micro rows: %v", err)
+	}
+
+	fieldStats := make(map[string]*decoderReferenceStageFieldStats)
+	first := make([]decoderStageMismatch, 0, 16)
+	var exact, missingGot, mismatches int
+	for _, want := range expected {
+		key := decoderStageRowKey(want)
+		st := decoderReferenceStageStatsFor(fieldStats, key.field)
+		st.total++
+
+		gotRow, ok := got[key]
+		if !ok {
+			missingGot++
+			mismatches++
+			st.mismatches++
+			st.missing++
+			appendFrame0ChainMismatch(&first, key, decoderStageValueString(want), "", "missing got")
+			continue
+		}
+		if gotRow.hasValue && gotRow.value == want.value {
+			exact++
+			st.exact++
+			continue
+		}
+
+		mismatches++
+		st.mismatches++
+		delta := absInt64(want.value - gotRow.value)
+		if delta > st.maxAbs {
+			st.maxAbs = delta
+		}
+		appendFrame0ChainMismatch(&first, key, decoderStageValueString(want), decoderStageValueString(gotRow), "mismatch")
+	}
+
+	t.Logf("decoder_reference_tame_postfilter_micro: exact %d/%d %.2f%% mismatches=%d missing_got=%d",
+		exact, len(expected), percent(exact, len(expected)), mismatches, missingGot)
+	for _, line := range decoderReferenceStageFieldSummary(fieldStats) {
+		t.Log(line)
+	}
+	for i, m := range first {
+		t.Logf("mismatch[%d]: source=%s frame=%d sub=%d field=%s index=%d expected=%s got=%s notes=%s",
+			i, m.key.source, m.key.frame, m.key.sub, m.key.field, m.key.index, m.want, m.got, m.note)
+	}
+
+	if os.Getenv("G729_REQUIRE_EXACT_DECODER_REFERENCE_TAME_POSTFILTER_MICRO") == "1" && mismatches != 0 {
+		t.Fatalf("decoder reference TAME postfilter micro exact gate failed: mismatches=%d/%d missing_got=%d",
+			mismatches, len(expected), missingGot)
+	}
+}
+
 func decoderReferenceOraclePath(name string) string {
 	dir := os.Getenv("G729_DECODER_REFERENCE_ORACLE_DIR")
 	if dir == "" {
@@ -556,6 +623,46 @@ func collectDecoderReferenceTAMEGainInternalRows(t testing.TB, expected []stageR
 	return out, nil
 }
 
+func collectDecoderReferenceTAMEPostfilterMicroRows(t testing.TB, expected []stageRow) (map[decoderStageKey]stageRow, error) {
+	t.Helper()
+	targetFrames := make(map[int]struct{})
+	for _, row := range expected {
+		if row.source != "TAME" {
+			return nil, fmt.Errorf("unexpected source %q", row.source)
+		}
+		targetFrames[row.frame] = struct{}{}
+	}
+	maxFrame := maxIntKey(targetFrames)
+
+	tc, ok := decoderITUValidationCaseByName("TAME")
+	if !ok {
+		return nil, fmt.Errorf("unknown ITU decoder vector source TAME")
+	}
+	frames, _ := readG192Frames(t, vectorPath(tc.bitFile))
+	if maxFrame >= len(frames) {
+		return nil, fmt.Errorf("TAME target frame %d out of range; vector has %d frames", maxFrame, len(frames))
+	}
+
+	rows := make([]stageRow, 0, len(expected))
+	var dec Decoder
+	for frame := 0; frame <= maxFrame; frame++ {
+		taps, err := dec.DecodeWithTaps(frames[frame])
+		if err != nil {
+			return nil, fmt.Errorf("TAME frame %d DecodeWithTaps: %w", frame, err)
+		}
+		if _, ok := targetFrames[frame]; !ok {
+			continue
+		}
+		appendDecoderReferenceTAMEPostfilterMicroRows(&rows, frame, &taps)
+	}
+
+	out := make(map[decoderStageKey]stageRow, len(rows))
+	for _, row := range rows {
+		out[decoderStageRowKey(row)] = row
+	}
+	return out, nil
+}
+
 func appendDecoderReferenceTAMEStageRows(rows *[]stageRow, frame int, taps *Phase3DiagFrameTaps) {
 	appendDecoderReferenceFrameArray(rows, frame, "pcm_q0", taps.Output[:])
 	for sub := 0; sub < 2; sub++ {
@@ -608,6 +715,42 @@ func appendDecoderReferenceTAMEGainInternalRows(rows *[]stageRow, frame int, tap
 	}
 }
 
+func appendDecoderReferenceTAMEPostfilterMicroRows(rows *[]stageRow, frame int, taps *Phase3DiagFrameTaps) {
+	for sub := 0; sub < 2; sub++ {
+		st := &taps.Sub[sub]
+		pf := &st.PostfilterTaps
+
+		appendDecoderReferenceArray(rows, frame, sub, "lp_a_q12", st.A[:])
+		appendDecoderReferenceArray(rows, frame, sub, "postfilter_a_num_q12", pf.ANum[:])
+		appendDecoderReferenceArray(rows, frame, sub, "postfilter_a_den_q12", pf.ADen[:])
+
+		appendDecoderReferenceArray(rows, frame, sub, "postfilter_past_s_before_q0", pf.PastSBefore[:])
+		appendDecoderReferenceArray(rows, frame, sub, "postfilter_past_s_after_q0", pf.PastSAfter[:])
+		appendDecoderReferenceArray(rows, frame, sub, "postfilter_past_residual_before_q0", pf.PastResidualBefore[:])
+		appendDecoderReferenceArray(rows, frame, sub, "postfilter_past_residual_after_q0", pf.PastResidualAfter[:])
+		appendDecoderReferenceArray(rows, frame, sub, "postfilter_past_synth_post_before_q0", pf.PastSynthPostBefore[:])
+		appendDecoderReferenceArray(rows, frame, sub, "postfilter_past_synth_post_after_q0", pf.PastSynthPostAfter[:])
+		appendDecoderReferenceScalar(rows, frame, sub, "postfilter_past_tilt_input_before_q0", int64(pf.PastTiltInputBefore))
+		appendDecoderReferenceScalar(rows, frame, sub, "postfilter_past_tilt_input_after_q0", int64(pf.PastTiltInputAfter))
+		appendDecoderReferenceScalar(rows, frame, sub, "postfilter_agc_gain_before_q24", int64(pf.AGCGainBeforeQ24))
+		appendDecoderReferenceScalar(rows, frame, sub, "postfilter_agc_gain_after_q24", int64(pf.AGCGainAfterQ24))
+		appendDecoderReferenceScalar(rows, frame, sub, "postfilter_initialized_before_q0", boolToInt64(pf.InitializedBefore))
+		appendDecoderReferenceScalar(rows, frame, sub, "postfilter_initialized_after_q0", boolToInt64(pf.InitializedAfter))
+
+		appendDecoderReferenceArray(rows, frame, sub, "postfilter_residual_q0", pf.Residual[:])
+		appendDecoderReferenceScalar(rows, frame, sub, "postfilter_refined_t_q0", int64(pf.LongTermT))
+		appendDecoderReferenceScalar(rows, frame, sub, "postfilter_longterm_g0_q14", int64(pf.LongTermG0))
+		appendDecoderReferenceScalar(rows, frame, sub, "postfilter_longterm_g1_q14", int64(pf.LongTermG1))
+		appendDecoderReferenceArray(rows, frame, sub, "postfilter_longterm_q0", pf.LongTerm[:])
+		appendDecoderReferenceArray(rows, frame, sub, "postfilter_shortterm_q0", pf.ShortTerm[:])
+		appendDecoderReferenceScalar(rows, frame, sub, "postfilter_tilt_mu_q15", int64(pf.TiltMuQ15))
+		appendDecoderReferenceArray(rows, frame, sub, "postfilter_tilt_q0", pf.Tilt[:])
+		appendDecoderReferenceScalar(rows, frame, sub, "postfilter_agc_target_q14", int64(pf.AGCTargetQ14))
+		appendDecoderReferenceInt32Array(rows, frame, sub, "postfilter_agc_gain_q24", pf.AGCGainQ24[:])
+		appendDecoderReferenceArray(rows, frame, sub, "postfilter_s_q0", pf.Output[:])
+	}
+}
+
 func decoderReferenceGainIndices(taps *Phase3DiagFrameTaps, sub int) (ga, gb int64) {
 	if sub == 0 {
 		return int64(taps.Frame.GA1), int64(taps.Frame.GB1)
@@ -645,6 +788,20 @@ func appendDecoderReferenceArray(rows *[]stageRow, frame, sub int, field string,
 	}
 }
 
+func appendDecoderReferenceInt32Array(rows *[]stageRow, frame, sub int, field string, values []int32) {
+	for i, value := range values {
+		*rows = append(*rows, stageRow{
+			source:   "TAME",
+			frame:    frame,
+			sub:      sub,
+			field:    field,
+			index:    i,
+			hasValue: true,
+			value:    int64(value),
+		})
+	}
+}
+
 func appendDecoderReferenceFrameArray(rows *[]stageRow, frame int, field string, values []int16) {
 	for i, value := range values {
 		*rows = append(*rows, stageRow{
@@ -657,6 +814,13 @@ func appendDecoderReferenceFrameArray(rows *[]stageRow, frame int, field string,
 			value:    int64(value),
 		})
 	}
+}
+
+func boolToInt64(v bool) int64 {
+	if v {
+		return 1
+	}
+	return 0
 }
 
 type decoderReferenceStageFieldStats struct {

@@ -27,6 +27,22 @@ func (pf *Postfilter) Filter(a *[11]int16, tInt int, s *[subframeLen]int16, sPf 
 // FilterTaps records intermediate postfilter stage outputs. It is intended for
 // internal diagnostics; Filter remains the normal streaming API.
 type FilterTaps struct {
+	ANum [lpcOrder + 1]int16
+	ADen [lpcOrder + 1]int16
+
+	PastSBefore         [lpcOrder]int16
+	PastSAfter          [lpcOrder]int16
+	PastResidualBefore  [pitchMax + subframeLen]int16
+	PastResidualAfter   [pitchMax + subframeLen]int16
+	PastSynthPostBefore [lpcOrder]int16
+	PastSynthPostAfter  [lpcOrder]int16
+	PastTiltInputBefore int16
+	PastTiltInputAfter  int16
+	AGCGainBeforeQ24    int32
+	AGCGainAfterQ24     int32
+	InitializedBefore   bool
+	InitializedAfter    bool
+
 	Residual     [subframeLen]int16
 	LongTerm     [subframeLen]int16
 	ShortTerm    [subframeLen]int16
@@ -37,6 +53,7 @@ type FilterTaps struct {
 	LongTermG1   int16
 	TiltMuQ15    int16
 	AGCTargetQ14 int16
+	AGCGainQ24   [subframeLen]int32
 }
 
 // FilterWithTaps is equivalent to Filter but returns intermediate stage taps.
@@ -47,9 +64,22 @@ func (pf *Postfilter) FilterWithTaps(a *[11]int16, tInt int, s *[subframeLen]int
 }
 
 func (pf *Postfilter) filter(a *[11]int16, tInt int, s *[subframeLen]int16, sPf *[subframeLen]int16, taps *FilterTaps) {
+	if taps != nil {
+		taps.PastSBefore = pf.pastS
+		taps.PastResidualBefore = pf.pastResidual
+		taps.PastSynthPostBefore = pf.pastSynthPost
+		taps.PastTiltInputBefore = pf.pastTiltInput
+		taps.AGCGainBeforeQ24 = pf.agcGainPrev
+		taps.InitializedBefore = pf.initialized
+	}
+
 	var aNum, aDen [11]int16
 	expandBandwidth(a, gammaNumQ15, &aNum)
 	expandBandwidth(a, gammaDenQ15, &aDen)
+	if taps != nil {
+		taps.ANum = aNum
+		taps.ADen = aDen
+	}
 
 	var r [subframeLen]int16
 	pf.computeResidual(&aNum, s, &r)
@@ -92,5 +122,13 @@ func (pf *Postfilter) filter(a *[11]int16, tInt int, s *[subframeLen]int16, sPf 
 	if taps != nil {
 		taps.AGCTargetQ14 = gTarget
 	}
-	pf.applyAGC(&sTilt, gTarget, sPf)
+	pf.applyAGCWithTaps(&sTilt, gTarget, sPf, taps)
+	if taps != nil {
+		taps.PastSAfter = pf.pastS
+		taps.PastResidualAfter = pf.pastResidual
+		taps.PastSynthPostAfter = pf.pastSynthPost
+		taps.PastTiltInputAfter = pf.pastTiltInput
+		taps.AGCGainAfterQ24 = pf.agcGainPrev
+		taps.InitializedAfter = pf.initialized
+	}
 }

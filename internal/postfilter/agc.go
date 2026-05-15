@@ -52,6 +52,10 @@ func isqrtQ14(xQ28 int64) int16 {
 // applyAGC smooths g_target into agcGainPrev (one-pole lowpass, α = 0.9)
 // and scales sTilt to produce sPf per ITU-T G.729 §A.4.2.4.
 func (pf *Postfilter) applyAGC(sTilt *[subframeLen]int16, gTargetQ14 int16, sPf *[subframeLen]int16) {
+	pf.applyAGCWithTaps(sTilt, gTargetQ14, sPf, nil)
+}
+
+func (pf *Postfilter) applyAGCWithTaps(sTilt *[subframeLen]int16, gTargetQ14 int16, sPf *[subframeLen]int16, taps *FilterTaps) {
 	gTargetQ24 := int64(gTargetQ14) << 10
 	if !pf.initialized {
 		pf.agcGainPrev = int32(gTargetQ24)
@@ -61,6 +65,9 @@ func (pf *Postfilter) applyAGC(sTilt *[subframeLen]int16, gTargetQ14 int16, sPf 
 	g := int64(pf.agcGainPrev) // Q24
 	for n := 0; n < subframeLen; n++ {
 		g = (agcAlphaQ15*g + (32768-agcAlphaQ15)*gTargetQ24 + (1 << 14)) >> 15
+		if taps != nil {
+			taps.AGCGainQ24[n] = int32(g)
+		}
 		// g is Q24, sTilt is Q0 → product Q24; round to Q0.
 		prod := g * int64(sTilt[n])
 		v := (prod + (1 << 23)) >> 24

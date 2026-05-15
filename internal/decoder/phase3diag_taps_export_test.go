@@ -6,6 +6,7 @@ import (
 	"github.com/hunydev/g729/internal/gain"
 	"github.com/hunydev/g729/internal/lsp"
 	"github.com/hunydev/g729/internal/pitch"
+	"github.com/hunydev/g729/internal/postfilter"
 	"github.com/hunydev/g729/internal/synth"
 )
 
@@ -13,22 +14,23 @@ import (
 // captured by DecodeWithTaps. Test-only — exists in a _test.go file so
 // no production API surface is added.
 type Phase3DiagSubframeTaps struct {
-	TInt          int
-	TFrac         int
-	GpQ14         int16
-	GcQ12         int16
-	A             [lpcOrder + 1]int16 // synthesis LP coefficients (Q12)
-	PastExcPreACB [pastExcLen]int16   // past excitation before adaptive codebook (Q0)
-	V             [40]int16           // adaptive codebook vector  (Q0)
-	C             [40]int16           // fixed codebook vector     (Q13)
-	U             [40]int16           // total excitation          (Q0, after BuildExcitation)
-	S             [40]int16           // post 1/Â(z)               (Q0, pre-postfilter)
-	PFR           [40]int16           // postfilter residual       (Q0)
-	PFLT          [40]int16           // postfilter long-term      (Q0, residual domain)
-	PFST          [40]int16           // postfilter short-term     (Q0)
-	PFT           [40]int16           // postfilter tilt           (Q0)
-	SPf           [40]int16           // post postfilter           (Q0)
-	HpOut         [40]int16           // post HP filter            (Q0, pre final output scaling)
+	TInt           int
+	TFrac          int
+	GpQ14          int16
+	GcQ12          int16
+	A              [lpcOrder + 1]int16 // synthesis LP coefficients (Q12)
+	PastExcPreACB  [pastExcLen]int16   // past excitation before adaptive codebook (Q0)
+	V              [40]int16           // adaptive codebook vector  (Q0)
+	C              [40]int16           // fixed codebook vector     (Q13)
+	U              [40]int16           // total excitation          (Q0, after BuildExcitation)
+	S              [40]int16           // post 1/Â(z)               (Q0, pre-postfilter)
+	PFR            [40]int16           // postfilter residual       (Q0)
+	PFLT           [40]int16           // postfilter long-term      (Q0, residual domain)
+	PFST           [40]int16           // postfilter short-term     (Q0)
+	PFT            [40]int16           // postfilter tilt           (Q0)
+	SPf            [40]int16           // post postfilter           (Q0)
+	HpOut          [40]int16           // post HP filter            (Q0, pre final output scaling)
+	PostfilterTaps postfilter.FilterTaps
 
 	// GainTaps captures the unsaturated 32-bit gain-decoder
 	// intermediates (Phase 3a DIAG-1). Test-only; populated by
@@ -111,6 +113,7 @@ func (d *Decoder) decodeSubframeWithTaps(
 	d.syn.Filter(sfA, &taps.U, &taps.S)
 
 	pfTaps := d.pst.FilterWithTaps(sfA, tInt, &taps.S)
+	taps.PostfilterTaps = pfTaps
 	taps.PFR = pfTaps.Residual
 	taps.PFLT = pfTaps.LongTerm
 	taps.PFST = pfTaps.ShortTerm
