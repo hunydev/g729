@@ -270,11 +270,11 @@ Current `TAME` result:
 
 | Frame | Production RMS | Fixed-gain-half RMS | Production max | Half max |
 | ---: | ---: | ---: | ---: | ---: |
-| `123` | `10069.57` | `723.78` | `13949` | `1487` |
-| `127` | `9883.27` | `520.09` | `14016` | `962` |
-| `126` | `9824.08` | `1086.53` | `14039` | `1784` |
-| `122` | `9587.16` | `683.40` | `13686` | `1301` |
-| `125` | `9565.75` | `1178.91` | `13619` | `1849` |
+| `123` | `11086.67` | `633.60` | `15440` | `1543` |
+| `127` | `11070.30` | `389.01` | `15798` | `988` |
+| `126` | `10806.60` | `1026.26` | `15611` | `1693` |
+| `122` | `10742.33` | `470.62` | `15320` | `1165` |
+| `125` | `10705.31` | `1101.71` | `15371` | `1662` |
 
 The per-subframe logs show `fixedRMS` is much smaller than `pitchRMS` at
 those already-bad frames. The fixed-gain-half improvement is therefore mostly
@@ -355,9 +355,9 @@ Current non-strict compare against the external reference oracle:
 
 | Gate | Exact | Mismatches | First mismatch | Max abs | Interpretation |
 | --- | ---: | ---: | --- | ---: | --- |
-| Final PCM, all 10 vectors | `61096/740800` (`8.25%`) | `679704` | `0:0` | `65535` | Same failure surface as the official `.PST` vector gate, slightly improved after gain reconstruction fixes. |
-| TAME full stage | `23336/122112` (`19.11%`) | `98776` | frame `0` sub `0` | `15489` | Stage oracle is now complete enough for direct localization. |
-| TAME gain internals | `1203/4864` (`24.73%`) | `3661` | frame `0` sub `0` | `30720` | Gain VQ indices and γ̂ are exact; remaining differences are log/gain rounding and downstream state. |
+| Final PCM, all 10 vectors | `67417/740800` (`9.10%`) | `673383` | `0:0` | `65535` | Same failure surface as the official `.PST` vector gate; total RMS is lower after the fixed-gain Q1 commit path. |
+| TAME full stage | `24317/122112` (`19.91%`) | `97795` | frame `0` sub `0` | `15798` | Stage oracle is complete enough for direct localization. |
+| TAME gain internals | `1394/4864` (`28.66%`) | `3470` | frame `0` sub `0` | `32768` | Gain VQ indices and γ̂ are exact; remaining differences are log/gain rounding and downstream state. |
 
 TAME stage field summary:
 
@@ -367,14 +367,14 @@ TAME stage field summary:
 | `pitch_t_frac` | `256/256` | `0` | `0` | Pitch fraction decode matches. |
 | `adaptive_gain_q14` | `256/256` | `0` | `0` | Adaptive gain decode matches. |
 | `fixed_c_q13` | `9904/10240` | `336` | `45` | Improved by canonical `+8191/-8192` pulse endpoints, lower stream-start beta, and truncating pitch-sharpening arithmetic. |
-| `fixed_gain_q14` | `1/256` | `255` | `30720` | Fixed gain reconstruction is much closer but still not exact. |
-| `fixed_contrib_q0` | `9665/10240` | `575` | `5` | Fixed contribution is now mostly reduced to small rounding differences. |
-| `adaptive_v_q0` | `366/10240` | `9874` | `299` | Drifts after prior excitation diverges. |
-| `pitch_contrib_q0` | `380/10240` | `9860` | `295` | Drifts with adaptive-vector history. |
-| `excitation_u_q0` | `359/10240` | `9881` | `295` | Drifts with fixed contribution and past-excitation feedback. |
-| `synth_s_q0` | `54/10240` | `10186` | `7925` | Downstream synthesis result. |
-| `postfilter_s_q0` | `49/10240` | `10191` | `7972` | Downstream postfilter result. |
-| `pcm_q0` | `40/10240` | `10200` | `15489` | Final output for TAME. |
+| `fixed_gain_q14` | `192/256` | `64` | `32768` | Final Q1 commit-path quantization fixed the dominant scalar mismatch. |
+| `fixed_contrib_q0` | `9938/10240` | `302` | `5` | Fixed contribution is now mostly reduced to small rounding differences. |
+| `adaptive_v_q0` | `426/10240` | `9814` | `306` | Drifts after prior excitation diverges. |
+| `pitch_contrib_q0` | `438/10240` | `9802` | `302` | Drifts with adaptive-vector history. |
+| `excitation_u_q0` | `415/10240` | `9825` | `302` | Drifts with fixed contribution and past-excitation feedback. |
+| `synth_s_q0` | `151/10240` | `10089` | `8104` | Downstream synthesis result. |
+| `postfilter_s_q0` | `71/10240` | `10169` | `8133` | Downstream postfilter result. |
+| `pcm_q0` | `55/10240` | `10185` | `15798` | Final output for TAME. |
 
 TAME gain-internals field summary:
 
@@ -385,7 +385,7 @@ TAME gain-internals field summary:
 | `gamma_q13` | `256/256` | `0` | `0` | Fixed-codebook correction γ̂ now uses the non-saturating joint sum. |
 | `log2_gc_q10` | `65/256` | `191` | `5` | dB-to-log2 conversion is close but not bit-exact. |
 | `gc0_q14` | `15/256` | `241` | `93` | Q15 Pow2 fraction preserves more precision than the previous Q10 path. |
-| `fixed_gain_q14` | `1/256` | `255` | `30720` | Remaining scalar gain mismatch. |
+| `fixed_gain_q14` | `192/256` | `64` | `32768` | Final Q1 quantization is mirrored, but 64 rows still diverge. |
 | `predicted_energy_q10` | `17/256` | `239` | `7` | Follows the MA predictor FIFO and `U(m)` rounding. |
 | `u_current_q10` | `21/256` | `235` | `5` | γ̂ log update is close but not exact. |
 | `ec_bar_q10` | `0/256` | `256` | `22` | Fixed-codebook energy log term has small fixed-point rounding differences. |
@@ -429,17 +429,19 @@ G729_DECODER_ITU_VECTOR_FRONTIER_TOP=5 \
 go test ./internal/decoder -run TestDecoderITUGainCandidateFrontier -count=1 -v
 ```
 
-For full-file candidates on `TAME`, `gain_ec_q25` improves aggregate RMS from
-`5081.86` to `2534.89`, while `gain_gamma_q14` improves it to `3938.36`. Both
-reduce the severe late frames `122`, `123`, `125`, `126`, and `127`, but both
-also regress early frames such as `3`, `5`, `6`, and `7`.
+After the fixed-gain Q1 change, the diagnostic gain mirror was updated to use
+the same Q1 split path and the same non-saturating `gamma_q13` sum as
+production. With that current mirror, full-file `gain_ec_q25` on `TAME`
+improves aggregate RMS from `6226.68` to `2375.67`. It strongly reduces the
+severe late frames `122`, `123`, `125`, `126`, and `127`, but it also regresses
+early frames such as `3`, `4`, `5`, `6`, and `7`.
 
 The cutover probe is:
 
 ```sh
 G729_DECODER_GAIN_CANDIDATE_CUTOVER=1 \
 G729_DECODER_GAIN_CANDIDATE_VECTOR=TAME \
-G729_DECODER_GAIN_CANDIDATE=gain_gamma_q14 \
+G729_DECODER_GAIN_CANDIDATE=gain_ec_q25 \
 G729_DECODER_ITU_VECTOR_FRONTIER_TOP=8 \
 go test ./internal/decoder -run TestDecoderITUGainCandidateCutover -count=1 -v
 ```
@@ -448,15 +450,15 @@ Current cutover result:
 
 | Candidate | Best cutover frame | Aggregate RMS | Production RMS |
 | --- | ---: | ---: | ---: |
-| `gain_ec_q25` | `10` | `2160.31` | `5081.86` |
-| `gain_gamma_q14` | `26` | `1189.85` | `5081.86` |
+| `gain_ec_q25` | `1` | `2364.65` | `6226.68` |
 
 Interpretation:
 
 - These are not safe production changes because SPEECH/PITCH reject the same
   gain variants.
-- The TAME error is strongly state-history dependent: a late cutover beats both
-  production and full-file candidate application.
+- The TAME error is strongly state-history dependent: applying the candidate
+  from near the stream start beats production and full-file candidate
+  application, while still badly regressing early frames.
 - The next clean-room numeric target should focus on TAME frames `20..30` and
   `122..127`: gain predictor FIFO, decoded gain taps, fixed contribution,
   excitation history, adaptive vector, synthesis output, and final PST PCM.
@@ -482,14 +484,14 @@ Frame-window scan update:
 ```sh
 G729_DECODER_GAIN_CANDIDATE_WINDOW=1 \
 G729_DECODER_GAIN_CANDIDATE_VECTOR=TAME \
-G729_DECODER_GAIN_CANDIDATE=gain_gamma_q14 \
+G729_DECODER_GAIN_CANDIDATE=gain_ec_q25 \
 G729_DECODER_ITU_VECTOR_FRONTIER_TOP=5 \
 go test ./internal/decoder -run TestDecoderITUGainCandidateWindow -count=1 -v
 ```
 
-The best finite `gain_gamma_q14` window is `[26,120)`, with aggregate RMS
-`1187.84`. It slightly beats the `[26,128)` cutover (`1189.85`). The window
-still regresses early affected frames such as `27..34`, but it dramatically
+The best finite `gain_ec_q25` window is `[1,127)`, with aggregate RMS
+`2364.42`. It slightly beats the `[1,128)` cutover (`2364.65`). The window
+still regresses early affected frames such as `3..7`, but it dramatically
 reduces the late high-energy frames `122..127`. This reinforces the current
 interpretation: the candidate is a long-state damping probe, not a valid
 replacement gain formula.
@@ -505,14 +507,14 @@ Current result:
 
 | Vector | Output RMS delta | HP raw RMS delta | Best domain |
 | --- | ---: | ---: | --- |
-| `ALGTHM` | `2068.11` | `3785.84` | output |
-| `FIXED` | `28.05` | `81.35` | output |
-| `LSP` | `65.13` | `337.96` | output |
-| `OVERFLOW` | `10396.15` | `9629.71` | `hp_raw` |
-| `PITCH` | `888.43` | `2652.20` | output |
-| `SPEECH` | `143.44` | `1074.60` | output |
-| `TAME` | `5081.86` | `3943.11` | `hp_raw` |
-| `TEST` | `103.93` | `732.28` | output |
+| `ALGTHM` | `403.55` | `2739.21` | output |
+| `FIXED` | `16.71` | `69.58` | output |
+| `LSP` | `55.23` | `334.84` | output |
+| `OVERFLOW` | `9700.14` | `8963.60` | `hp_raw` |
+| `PITCH` | `131.64` | `2251.16` | output |
+| `SPEECH` | `54.50` | `1044.31` | output |
+| `TAME` | `6226.68` | `3077.27` | `hp_raw` |
+| `TEST` | `56.06` | `708.71` | output |
 
 Pre-scale ratio audit:
 
@@ -525,13 +527,13 @@ Current active-frame result (`.PST` frame RMS >= `500`):
 
 | Vector | Active frames | HP raw median / PST | Output median / PST | HP near 0.5x | HP near 1.0x | Output > 1.5x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `ALGTHM` | `29` | `0.439` | `0.878` | `17` | `0` | `0` |
-| `LSP` | `555` | `0.502` | `1.004` | `544` | `0` | `0` |
-| `OVERFLOW` | `383` | `0.523` | `1.047` | `171` | `23` | `64` |
-| `PITCH` | `1522` | `0.417` | `0.835` | `904` | `0` | `0` |
+| `ALGTHM` | `29` | `0.509` | `1.014` | `29` | `0` | `0` |
+| `LSP` | `555` | `0.501` | `1.003` | `550` | `0` | `0` |
+| `OVERFLOW` | `383` | `0.521` | `1.042` | `169` | `24` | `60` |
+| `PITCH` | `1522` | `0.503` | `1.005` | `1522` | `0` | `0` |
 | `SPEECH` | `1819` | `0.502` | `1.004` | `1792` | `0` | `0` |
-| `TAME` | `127` | `0.673` | `1.345` | `39` | `32` | `55` |
-| `TEST` | `78` | `0.502` | `1.003` | `78` | `0` | `0` |
+| `TAME` | `127` | `0.769` | `1.538` | `25` | `62` | `67` |
+| `TEST` | `78` | `0.503` | `1.007` | `78` | `0` | `0` |
 
 Interpretation:
 
@@ -540,12 +542,12 @@ Interpretation:
   expected pattern where pre-final-scale `hp_raw` is near half of `.PST` and
   final output is near `.PST`.
 - TAME and OVERFLOW are stress-vector exceptions where local `hp_raw` is already
-  too large before the final `ScaleUpSat` step. TAME has `32/127` active frames
-  with `hp_raw` near `.PST` amplitude and `55/127` active frames where final
+  too large before the final `ScaleUpSat` step. TAME has `62/127` active frames
+  with `hp_raw` near `.PST` amplitude and `67/127` active frames where final
   output exceeds `1.5x` `.PST`.
 - The TAME worst-frame trace logs `hp_raw` directly against the PST final
-  domain. On frame `123`, `hp_raw` RMS delta is only `712.97` while `output`
-  RMS delta is `10069.57`. Because ordinary vectors confirm the final x2 path,
+  domain. On frame `123`, `hp_raw/PST=1.006` while `output/PST=2.013`.
+  Because ordinary vectors confirm the final x2 path,
   this means TAME's local pre-scale chain has already grown toward final-output
   amplitude in that region.
 - This is not a production fix. It narrows the next question to the upstream
@@ -563,11 +565,11 @@ go test ./internal/decoder -run TestDecoderITUPreScaleStageTimelineAudit -count=
 Current TAME summary:
 
 - Active frames: `127`
-- First `hp_raw / PST >= 0.8`: frame `88`
-- First `output / PST >= 1.5`: frame `72`
-- Worst output-ratio frame: frame `123`
-  (`s/PST=0.987`, `spf/PST=0.989`, `hp/PST=0.961`,
-  `output/PST=1.921`)
+- First `hp_raw / PST >= 0.8`: frame `66`
+- First `output / PST >= 1.5`: frame `61`
+- Worst output-ratio frame: frame `127`
+  (`s/PST=1.035`, `spf/PST=1.036`, `hp/PST=1.007`,
+  `output/PST=2.014`)
 - The top late frames `117..127` have `spf/s≈1.0`, `hp/spf≈0.972`, and
   `out/hp=2.0`, so postfilter, HP, and final scaling are acting like a stable
   transfer on an already oversized pre-scale signal.
@@ -657,15 +659,15 @@ Current best windows:
 
 | Start | End | Length | Candidate RMS | Note |
 | ---: | ---: | ---: | ---: | --- |
-| `26` | `120` | `94` | `1187.84` | best |
-| `26` | `123` | `97` | `1187.95` | near-best |
-| `26` | `128` | `102` | `1189.85` | near-best |
+| `3` | `120` | `117` | `1158.46` | best |
+| `3` | `122` | `119` | `1161.95` | near-best |
+| `3` | `127` | `124` | `1165.21` | near-best |
 
 The best window's largest improvements are frames `120..127`, even though the
-candidate is disabled at frame `120` in the best `[26,120)` run. This is strong
-evidence that the damaging state is accumulated during frames `26..119` and
+candidate is disabled at frame `120` in the best `[3,120)` run. This is strong
+evidence that the damaging state is accumulated during frames `3..119` and
 then expressed through the adaptive-codebook/past-excitation history in the
-late TAME frames. Early frames `26..34` regress under the same diagnostic, so
+late TAME frames. Early frames `3..10` regress under the same diagnostic, so
 `fixed_gain_half` is still not a production formula; it is a localization
 probe.
 
@@ -682,13 +684,12 @@ Current best windows:
 
 | Subframe start | Subframe end | Subframes | Frame start | Frame end | Candidate RMS |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| `52` | `239` | `187` | `26` | `120` | `1185.18` |
-| `52` | `249` | `197` | `26` | `125` | `1186.90` |
-| `52` | `240` | `188` | `26` | `120` | `1187.84` |
+| `6` | `240` | `234` | `3` | `120` | `1158.46` |
+| `6` | `244` | `238` | `3` | `122` | `1161.95` |
+| `6` | `245` | `239` | `3` | `123` | `1162.91` |
 
-The best boundary is frame `26` subframe `0` through frame `119` subframe `0`
-inclusive (`[52,239)` in global subframe numbering). Excluding frame `119`
-subframe `1` slightly improves the frame-window best. This keeps the target on
+The best boundary is frame `3` subframe `0` through frame `119` subframe `1`
+inclusive (`[6,240)` in global subframe numbering). This keeps the target on
 subframe-wise gain/excitation history rather than a frame-output artifact.
 
 History timeline:
@@ -702,16 +703,16 @@ go test ./internal/decoder -run TestDecoderTAMEHistoryTimeline -count=1 -v
 
 Current summary:
 
-- Window: `[52,239)` global subframes (`26/0` through `119/0`).
-- Output RMS: production `5081.86`, candidate `1185.18`.
+- Window: `[6,240)` global subframes (`3/0` through `119/1`).
+- Output RMS: production `6226.68`, candidate `1158.46`.
 - At window start, direct fixed contribution is exactly halved, but total
-  excitation barely changes: frame `26/0` has `fixed c/p=0.500`, `u c/p=0.990`,
-  and `s c/p=0.997`.
+  excitation barely changes: frame `3/0` has `fixed c/p=0.500`, `u c/p=0.997`,
+  and `s c/p=1.006`.
 - By late TAME frames, the accumulated FIFO/ACB effect dominates: frame `118/1`
-  has `past c/p=0.762`, `v c/p=0.753`, `u c/p=0.745`, and `s c/p=0.606`.
+  has `past c/p=0.903`, `v c/p=0.914`, `u c/p=0.921`, and `s c/p=0.581`.
 - After the window is disabled, direct fixed contribution returns to `1.000x`,
   but the reduced past-excitation/adaptive vector persists into frames
-  `120..127`, keeping `v/u` around `0.77..0.82x` and `s` around `0.60..0.62x`.
+  `120..122`, while final synthesis amplitude remains around `0.58x`.
 
 Interpretation:
 
@@ -736,16 +737,16 @@ Aggregate result against the numeric `adaptive_v_q0` rows in
 
 | Variant | ref RMS | got RMS | err RMS | scaled err | corr | scale |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| production | `203.36` | `383.97` | `231.30` | `101.59` | `0.8663` | `0.4588` |
-| `[52,239)` fixed-gain-half | `203.36` | `291.74` | `184.49` | `127.52` | `0.7790` | `0.5430` |
+| production | `203.36` | `366.30` | `170.91` | `38.26` | `0.9821` | `0.5453` |
+| `[6,240)` fixed-gain-half | `203.36` | `333.86` | `248.43` | `150.80` | `0.6709` | `0.4087` |
 
 Interpretation:
 
-- Production's ACB vector shape is closer to the oracle than the damping
-  candidate (`corr 0.8663` vs `0.7790`), but its amplitude is almost `1.9x`
-  high (`got RMS 383.97` vs `ref RMS 203.36`).
-- The damping candidate improves raw ACB error by reducing amplitude, but it
-  worsens shape after scale normalization (`scaled err 127.52` vs `101.59`).
+- Production's ACB vector shape is much closer to the oracle than the damping
+  candidate (`corr 0.9821` vs `0.6709`), but its amplitude is still too high
+  (`got RMS 366.30` vs `ref RMS 203.36`).
+- The damping candidate improves final PST RMS by lowering long-state
+  excitation energy, but it worsens the local ACB shape against the oracle.
 - This argues against changing the ACB interpolation formula as the next
   production fix. The sharper target is an earlier excitation-history amplitude
   accumulation issue, preferably a shape-preserving one rather than a broad
@@ -866,32 +867,32 @@ go test ./internal/decoder -run TestDecoderTAMEHistoryOnsetAudit -count=1 -v
 
 Current result:
 
-- First sample with frame max abs delta `>=4096`: frame `2`.
-- First active frame with local output RMS / PST RMS `>=1.25`: frame `53`.
-- First active frame with local output RMS / PST RMS `>=1.50`: frame `72`.
-- First 4-frame persistent local output RMS / PST RMS `>=1.50`: frame `76`.
-- At the fixed-gain diagnostic window start (`26/0`), output ratio is still
-  near unity (`frame 26 out/PST=1.003`) and direct fixed contribution is small
-  relative to pitch/excitation.
-- By frame `53`, the ratio has grown to `1.279`, with `pastRMS≈267`,
-  `vRMS≈263`, and `uRMS≈255`.
-- By frame `72`, the ratio has grown to `1.514`, with `pastRMS≈331`,
-  `vRMS≈331`, and `uRMS≈331`.
+- First sample with frame max abs delta `>=4096`: frame `31`.
+- First active frame with local output RMS / PST RMS `>=1.25`: frame `31`.
+- First active frame with local output RMS / PST RMS `>=1.50`: frame `61`.
+- First 4-frame persistent local output RMS / PST RMS `>=1.50`: frame `61`.
+- Around the fixed-gain diagnostic window start (`3/0`), output ratio is still
+  near unity (`frame 3 out/PST=1.005`) even though local pre-ACB history is
+  already large from the start-up state.
+- By frame `31`, the ratio has grown to `1.256`, with `pastRMS≈266`,
+  `vRMS≈271`, and `uRMS≈271`.
+- By frame `61`, the ratio has grown to `1.527`, with `pastRMS≈308`,
+  `vRMS≈312`, and `uRMS≈312`.
 - In the verifier checkpoint zone (`117..127`), the ratio is already
-  `1.787..1.921`, and local pre-ACB history / ACB / excitation RMS are all in
-  the `~385..430` range.
+  `1.890..2.014`, and local pre-ACB history / ACB / excitation RMS are all in
+  the `~360..418` range.
 
 Interpretation:
 
 - Frame `117` is not the onset. It is where the verifier has enough numeric
   checkpoint rows to observe the already-accumulated failure.
 - The local amplitude drift starts as a slow history accumulation after the
-  frame-`26` diagnostic window boundary, becomes material around frame `53`,
-  and becomes severe/persistent around frames `72..76`.
+  frame-`3` diagnostic window boundary, becomes material around frame `31`,
+  and becomes severe/persistent around frame `61`.
 - This further argues against fixing late TAME by changing ACB interpolation,
   current-subframe gain summing, postfilter, HP, or final scaling. The next
   useful production audit should target the state transition that begins the
-  `pastExc` growth between frames `26` and `53`.
+  `pastExc` growth between frames `3` and `31`.
 
 TAME gain-energy audit:
 
@@ -904,11 +905,11 @@ go test ./internal/decoder -run TestDecoderTAMEGainEnergyAudit -count=1 -v
 Current result:
 
 - Fixed-codebook energy saturation: `0/256` subframes.
-- In the onset window (`26..53`), non-saturating int64 energy and the local
+- In the onset window (`3..31`), non-saturating int64 energy and the local
   `gain.FixedCodebookEnergy` `Word32` result are identical.
 - Direct fixed contribution is much smaller than adaptive/pitch contribution
-  through the onset region. Example: frame `53/0` has `pitchRMS=258.2`,
-  `fixedRMS=44.7`, and `uRMS=254.7`.
+  through the onset region. Example: frame `31/0` has `pitchRMS=272.3`,
+  `fixedRMS=28.1`, and `uRMS=271.1`.
 - The legacy diagnostic `GcQ12Final` is frequently saturated, but the active
   excitation path uses the mantissa/exponent pair (`GcMantQ14`, `GcExp`), not
   the clamped Q12 diagnostic value.
@@ -920,7 +921,7 @@ Interpretation:
   fixed contribution changes can perturb the recurrent `pastExc` path, but the
   immediate sample energy is mostly adaptive contribution.
 - The next verifier-independent local check should therefore focus on
-  pitch/ACB feedback and the `pastExc` FIFO update over frames `26..53`, not on
+  pitch/ACB feedback and the `pastExc` FIFO update over frames `3..31`, not on
   widening `fixedCodebookEnergy`.
 
 TAME ACB/FIFO feedback audit:
@@ -949,11 +950,11 @@ Current FIFO balance result:
 
 | Window | Subframes | Grow rows | Sum dPost | Avg dPost | First preRMS | Last postRMS |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `cold-start` | `8` | `7` | `301.05` | `37.63` | `0.0` | `301.1` |
-| `pre-onset` (`26..53`) | `54` | `26` | `45.60` | `0.84` | `221.6` | `267.2` |
-| `first-1.25x` (`53..72`) | `38` | `23` | `60.60` | `1.59` | `267.2` | `327.7` |
-| `severe-rise` (`72..117`) | `90` | `51` | `72.07` | `0.80` | `327.7` | `399.8` |
-| `checkpoint` (`117..127`) | `22` | `12` | `17.69` | `0.80` | `399.8` | `417.5` |
+| `cold-start` | `8` | `7` | `424.60` | `53.07` | `0.0` | `424.6` |
+| `pre-1.25x` (`3..31`) | `56` | `28` | `-175.36` | `-3.13` | `434.8` | `259.5` |
+| `first-1.25x` (`31..61`) | `60` | `34` | `43.30` | `0.72` | `259.5` | `302.8` |
+| `severe-rise` (`61..117`) | `112` | `61` | `78.36` | `0.70` | `302.8` | `381.1` |
+| `checkpoint` (`117..127`) | `22` | `13` | `24.09` | `1.10` | `381.1` | `405.2` |
 
 Interpretation:
 
@@ -965,7 +966,7 @@ Interpretation:
   ACB interpolation is exact when supplied with oracle `pastExc`.
 - The local failure is therefore a long recurrent energy-balance problem:
   `pastExc` is already high after cold start, then continues to drift upward
-  through `26..117`. A production fix still needs a spec-backed reason why the
+  through `31..117`. A production fix still needs a spec-backed reason why the
   local incoming `U` trajectory differs from the reference, not an arbitrary
   FIFO or ACB damping rule.
 

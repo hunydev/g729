@@ -61,7 +61,7 @@ func TestDecoderTAMEPastExcFIFOBalanceAudit(t *testing.T) {
 	decoderTAMEFIFOBalanceLogSummary(t, rows)
 
 	t.Logf("onset context")
-	decoderTAMEFIFOBalanceLogRange(t, rows, 26*2, 54*2)
+	decoderTAMEFIFOBalanceLogRange(t, rows, 3*2, 32*2)
 	t.Logf("severe checkpoint context")
 	decoderTAMEFIFOBalanceLogRange(t, rows, 112*2, len(rows))
 
@@ -153,9 +153,9 @@ func decoderTAMEFIFOBalanceLogSummary(t *testing.T, rows []decoderTAMEFIFOBalanc
 		end   int
 	}{
 		{name: "cold-start", start: 0, end: 4 * 2},
-		{name: "pre-onset", start: 26 * 2, end: 53 * 2},
-		{name: "first-1.25x", start: 53 * 2, end: 72 * 2},
-		{name: "severe-rise", start: 72 * 2, end: 117 * 2},
+		{name: "pre-1.25x", start: 3 * 2, end: 31 * 2},
+		{name: "first-1.25x", start: 31 * 2, end: 61 * 2},
+		{name: "severe-rise", start: 61 * 2, end: 117 * 2},
 		{name: "checkpoint", start: 117 * 2, end: len(rows)},
 	}
 	t.Logf("%-12s %8s %8s %8s %8s %8s %8s",

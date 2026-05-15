@@ -18,8 +18,8 @@ func TestDecoderTAMEACBOracleShape(t *testing.T) {
 
 	tc := phase3eSelectedITUVector(t, "G729_DECODER_ACB_ORACLE_VECTOR", "TAME")
 	candidate := decoderUpstreamWindowVariant(t)
-	startSubframe := decoderITUEnvInt("G729_DECODER_HISTORY_START_SUBFRAME", 52)
-	endSubframe := decoderITUEnvInt("G729_DECODER_HISTORY_END_SUBFRAME", 239)
+	startSubframe := decoderITUEnvInt("G729_DECODER_HISTORY_START_SUBFRAME", 6)
+	endSubframe := decoderITUEnvInt("G729_DECODER_HISTORY_END_SUBFRAME", 240)
 
 	bitPath := vectorPath(tc.bitFile)
 	ensureTestdataPresent(t, bitPath)

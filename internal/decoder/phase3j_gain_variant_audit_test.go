@@ -145,7 +145,7 @@ const (
 	phase3jPastErrorsDefault = -14336
 	phase3jDBPerLog2Q13      = 24660
 	phase3jTenLog10_40Q10    = 16405
-	phase3jInvDBScaleQ15     = 5443
+	phase3jInvDBScaleQ15     = 5439
 	phase3jDBPerLog2Q10      = 6165
 )
 
@@ -344,7 +344,8 @@ func (d *phase3jGainDecoder) decode(idx gain.Indices, c *[subframeLen]int16, par
 	if params.logGainI32 {
 		logGainDBQ10 = predictedForLog - int32(ecBarDBQ10)
 	}
-	log2GcQ10 := (logGainDBQ10*phase3jInvDBScaleQ15 + (1 << 14)) >> 15
+	log2GcQ15 := gain.LogGainToLog2Q15(logGainDBQ10)
+	log2GcQ10 := log2GcQ15 >> 5
 
 	gp, gammaC := phase3jDecodeVQ(idx)
 	out := phase3jGainOut{gpQ14: gp}
@@ -360,21 +361,26 @@ func (d *phase3jGainDecoder) decode(idx gain.Indices, c *[subframeLen]int16, par
 	}
 
 	if gammaC > 0 {
-		gammaLog2Q10 := int32(0)
-		if !params.ignoreGammaLog {
-			gammaLog2Q10 = int32(gain.Log2Fixed(fixed.Word32(gammaC))) - int32(params.gammaQCorr)*1024
-		}
-		log2GcWithGammaQ10 := log2GcQ10 + gammaLog2Q10
-		intPart := log2GcWithGammaQ10 >> 10
-		frac := log2GcWithGammaQ10 - (intPart << 10)
-		out.gcMantQ14 = gain.Pow2FracQ14(frac)
-		switch {
-		case intPart > 127:
-			out.gcExp = 127
-		case intPart < -128:
-			out.gcExp = -128
-		default:
-			out.gcExp = int8(intPart)
+		if !params.ignoreGammaLog && params.gammaQCorr == 13 {
+			gainQ14 := gain.QuantizeFixedGainQ1(gain.FixedGainQ14FromLog2Gamma(log2GcQ15, gammaC))
+			out.gcMantQ14, out.gcExp = gain.SplitGainQ14(gainQ14)
+		} else {
+			gammaLog2Q10 := int32(0)
+			if !params.ignoreGammaLog {
+				gammaLog2Q10 = int32(gain.Log2Fixed(fixed.Word32(gammaC))) - int32(params.gammaQCorr)*1024
+			}
+			log2GcWithGammaQ10 := log2GcQ10 + gammaLog2Q10
+			intPart := log2GcWithGammaQ10 >> 10
+			frac := log2GcWithGammaQ10 - (intPart << 10)
+			out.gcMantQ14 = gain.Pow2FracQ14(frac)
+			switch {
+			case intPart > 127:
+				out.gcExp = 127
+			case intPart < -128:
+				out.gcExp = -128
+			default:
+				out.gcExp = int8(intPart)
+			}
 		}
 	}
 
@@ -400,11 +406,11 @@ func (d *phase3jGainDecoder) shiftPastErrors(v int16) {
 	d.pastErrors[0] = v
 }
 
-func phase3jDecodeVQ(idx gain.Indices) (gpQ14, gammaCQ13 int16) {
+func phase3jDecodeVQ(idx gain.Indices) (gpQ14 int16, gammaCQ13 int32) {
 	gaEntry := tables.GainImap1[idx.GA]
 	gbEntry := tables.GainImap2[idx.GB]
 	gpQ14 = int16(fixed.Add(fixed.Word16(tables.GainGBK1[gaEntry][0]), fixed.Word16(tables.GainGBK2[gbEntry][0])))
-	gammaCQ13 = int16(fixed.Add(fixed.Word16(tables.GainGBK1[gaEntry][1]), fixed.Word16(tables.GainGBK2[gbEntry][1])))
+	gammaCQ13 = int32(tables.GainGBK1[gaEntry][1]) + int32(tables.GainGBK2[gbEntry][1])
 	return gpQ14, gammaCQ13
 }
 

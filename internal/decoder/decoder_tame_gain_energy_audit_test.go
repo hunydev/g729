@@ -56,7 +56,7 @@ func TestDecoderTAMEGainEnergyAudit(t *testing.T) {
 		tc.name, len(frames), len(rows), saturated)
 
 	t.Logf("onset context")
-	decoderTAMEGainEnergyLogRange(t, rows, 26*2, 54*2)
+	decoderTAMEGainEnergyLogRange(t, rows, 3*2, 32*2)
 
 	byEnergy := append([]decoderTAMEGainEnergyRow(nil), rows...)
 	sort.Slice(byEnergy, func(i, j int) bool {

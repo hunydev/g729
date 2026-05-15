@@ -17,7 +17,7 @@ import (
 
 // TestDecoderTAMEHistoryTimeline compares production against a bounded
 // diagnostic upstream variant window at subframe resolution. It is meant to
-// explain why the [52,239) fixed_gain_half window improves late TAME frames:
+// explain why the [6,240) fixed_gain_half window improves late TAME frames:
 // direct fixed contribution vs accumulated past-excitation/adaptive history.
 func TestDecoderTAMEHistoryTimeline(t *testing.T) {
 	if os.Getenv("G729_DECODER_TAME_HISTORY_TIMELINE") != "1" {
@@ -26,8 +26,8 @@ func TestDecoderTAMEHistoryTimeline(t *testing.T) {
 
 	tc := phase3eSelectedITUVector(t, "G729_DECODER_HISTORY_VECTOR", "TAME")
 	candidate := decoderUpstreamWindowVariant(t)
-	startSubframe := decoderITUEnvInt("G729_DECODER_HISTORY_START_SUBFRAME", 52)
-	endSubframe := decoderITUEnvInt("G729_DECODER_HISTORY_END_SUBFRAME", 239)
+	startSubframe := decoderITUEnvInt("G729_DECODER_HISTORY_START_SUBFRAME", 6)
+	endSubframe := decoderITUEnvInt("G729_DECODER_HISTORY_END_SUBFRAME", 240)
 	topN := decoderITUFrontierTopN()
 
 	bitPath := vectorPath(tc.bitFile)
