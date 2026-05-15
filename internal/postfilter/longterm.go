@@ -117,10 +117,19 @@ func (pf *Postfilter) applyLongTerm(r *[subframeLen]int16, T int, rOut *[subfram
 }
 
 func (pf *Postfilter) applyLongTermWithGains(T int, g0, g1 int16, rOut *[subframeLen]int16) {
+	if g1 == 0 {
+		copy(rOut[:], pf.pastResidual[pitchMax:pitchMax+subframeLen])
+		return
+	}
 	for n := 0; n < subframeLen; n++ {
-		p0 := int32(g0) * int32(pf.pastResidual[pitchMax+n])
-		p1 := int32(g1) * int32(pf.pastResidual[pitchMax+n-T])
-		sum := p0 + p1
-		rOut[n] = int16((sum + (1 << 13)) >> 14)
+		p0 := int64(g0) * int64(pf.pastResidual[pitchMax+n])
+		p1 := int64(g1) * int64(pf.pastResidual[pitchMax+n-T])
+		sum := (p0 >> 14) + (p1 >> 14)
+		if sum > 32767 {
+			sum = 32767
+		} else if sum < -32768 {
+			sum = -32768
+		}
+		rOut[n] = int16(sum)
 	}
 }

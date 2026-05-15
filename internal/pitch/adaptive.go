@@ -33,19 +33,15 @@ const Linter = 10
 //	sufficient condition for the fractional case is
 //	tInt ≥ 40 + Linter).
 //
-// For short delays (tInt < 40), equation (40)'s current-subframe references
-// u(0..n-1) are evaluated from the adaptive vector samples already generated
-// in this call; future current-subframe references remain zero. This applies
-// to tFrac == 0 as well: the long-lag integer direct-copy fast path is not
-// used for the recursive short-pitch extension.
+// When the interpolation window reaches into the current subframe, equation
+// (40)'s u(0..n-1) references are evaluated from the adaptive vector samples
+// already generated in this call; future current-subframe references remain
+// zero.
 //
 // Allocates nothing.
 func AdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[40]int16) {
-	if tFrac == 0 && tInt >= 40 {
-		base := len(pastExc) - tInt
-		for n := 0; n < 40; n++ {
-			v[n] = pastExc[base+n]
-		}
+	if tInt <= 40+Linter-1 {
+		firInterpolateRecursiveCurrent(tInt, tFrac, pastExc, v)
 		return
 	}
 
@@ -62,11 +58,13 @@ func AdaptiveCodebook(tInt, tFrac int, pastExc []int16, v *[40]int16) {
 }
 
 // firInterpolate fills v[start:end] from pastExc using the §3.7.1
-// 1/3-sample interpolation FIR. tFrac must be ±1 (the integer-delay
-// case is the caller's fast path).
+// 1/3-sample interpolation FIR.
 func firInterpolate(tInt, tFrac int, pastExc []int16, v *[40]int16, start, end int) {
 	var k, posPhase, negPhase int
-	if tFrac < 0 {
+	if tFrac == 0 {
+		k = tInt
+		posPhase, negPhase = 0, 3
+	} else if tFrac < 0 {
 		k = tInt
 		posPhase, negPhase = 1, 2
 	} else {

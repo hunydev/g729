@@ -132,6 +132,24 @@ func TestOracleHandoff_CompareDecoderReferenceTAMEFullStage(t *testing.T) {
 	}
 }
 
+func TestOracleHandoff_ProbeDecoderReferenceTAMEStageFirstMismatchByField(t *testing.T) {
+	if os.Getenv("G729_PROBE_DECODER_REFERENCE_TAME_STAGE_FIELDS") != "1" {
+		t.Skip("set G729_PROBE_DECODER_REFERENCE_TAME_STAGE_FIELDS=1 to print first TAME stage mismatch per field")
+	}
+
+	expectedPath := decoderReferenceOraclePath("decoder_tame_full_stage_expected.csv")
+	expected, err := readDecoderReferenceStageRows(expectedPath)
+	if err != nil {
+		t.Fatalf("read decoder reference TAME stage expected: %v", err)
+	}
+	got, err := collectDecoderReferenceTAMEStageRows(t, expected)
+	if err != nil {
+		t.Fatalf("collect decoder reference TAME stage rows: %v", err)
+	}
+
+	logFirstDecoderReferenceMismatchByField(t, expected, got)
+}
+
 func TestOracleHandoff_CompareDecoderReferenceTAMEGainInternals(t *testing.T) {
 	if os.Getenv("G729_COMPARE_DECODER_REFERENCE_TAME_GAIN_INTERNALS") != "1" {
 		t.Skip("set G729_COMPARE_DECODER_REFERENCE_TAME_GAIN_INTERNALS=1 to compare external reference TAME gain-internals oracle")
@@ -264,6 +282,23 @@ func TestOracleHandoff_CompareDecoderReferenceTAMEPostfilterMicro(t *testing.T) 
 		t.Fatalf("decoder reference TAME postfilter micro exact gate failed: mismatches=%d/%d missing_got=%d",
 			mismatches, len(expected), missingGot)
 	}
+}
+
+func TestOracleHandoff_ProbeDecoderReferenceTAMEPostfilterMicroFirstMismatchByField(t *testing.T) {
+	if os.Getenv("G729_PROBE_DECODER_REFERENCE_TAME_POSTFILTER_MICRO_FIELDS") != "1" {
+		t.Skip("set G729_PROBE_DECODER_REFERENCE_TAME_POSTFILTER_MICRO_FIELDS=1 to print first TAME postfilter micro mismatch per field")
+	}
+
+	expectedPath := decoderReferenceOraclePath("decoder_tame_postfilter_micro_expected.csv")
+	expected, err := readDecoderReferenceStageRows(expectedPath)
+	if err != nil {
+		t.Fatalf("read decoder reference TAME postfilter micro expected: %v", err)
+	}
+	got, err := collectDecoderReferenceTAMEPostfilterMicroRows(t, expected)
+	if err != nil {
+		t.Fatalf("collect decoder reference TAME postfilter micro rows: %v", err)
+	}
+	logFirstDecoderReferenceMismatchByField(t, expected, got)
 }
 
 func TestOracleHandoff_CompareDecoderReferenceTAMEPostfilterAGCArith(t *testing.T) {
@@ -962,6 +997,45 @@ func appendDecoderReferenceFrameArray(rows *[]stageRow, frame int, field string,
 			hasValue: true,
 			value:    int64(value),
 		})
+	}
+}
+
+func logFirstDecoderReferenceMismatchByField(t testing.TB, expected []stageRow, got map[decoderStageKey]stageRow) {
+	t.Helper()
+
+	firstByField := make(map[string]decoderStageMismatch)
+	for _, want := range expected {
+		key := decoderStageRowKey(want)
+		gotRow, ok := got[key]
+		if ok && gotRow.hasValue && gotRow.value == want.value {
+			continue
+		}
+		if _, exists := firstByField[key.field]; exists {
+			continue
+		}
+		gotText := ""
+		note := "missing got"
+		if ok {
+			gotText = decoderStageValueString(gotRow)
+			note = "mismatch"
+		}
+		firstByField[key.field] = decoderStageMismatch{
+			key:  key,
+			want: decoderStageValueString(want),
+			got:  gotText,
+			note: note,
+		}
+	}
+
+	fields := make([]string, 0, len(firstByField))
+	for field := range firstByField {
+		fields = append(fields, field)
+	}
+	sort.Strings(fields)
+	for _, field := range fields {
+		m := firstByField[field]
+		t.Logf("first[%s]: source=%s frame=%d sub=%d index=%d expected=%s got=%s notes=%s",
+			field, m.key.source, m.key.frame, m.key.sub, m.key.index, m.want, m.got, m.note)
 	}
 }
 

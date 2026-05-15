@@ -116,6 +116,22 @@ func TestAdaptiveCodebookShortPitchBoundary(t *testing.T) {
 	}
 }
 
+func TestAdaptiveCodebookPhase0FIRUsesCurrentSamplesAtLag40(t *testing.T) {
+	var pastExc [200]int16
+	for i := 0; i < len(pastExc); i++ {
+		pastExc[i] = int16((i*37)%1000 - 500)
+	}
+	var v [40]int16
+	AdaptiveCodebook(40, 0, pastExc[:], &v)
+
+	for n := 30; n < 40; n++ {
+		want := adaptiveCodebookTestRecursiveWant(40, 0, pastExc[:], &v, n)
+		if v[n] != want {
+			t.Errorf("v[%d] = %d, want %d from phase-0 recursive FIR at lag 40", n, v[n], want)
+		}
+	}
+}
+
 func TestAdaptiveCodebookShortPitchFractionalUsesCurrentSamples(t *testing.T) {
 	const (
 		tInt  = 20
