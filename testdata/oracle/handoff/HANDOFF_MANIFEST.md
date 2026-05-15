@@ -37,7 +37,7 @@ identify the current files after numeric `expected` cells were filled.
 | `fcb_tree_search_got.csv` | `field,frame,sub,index,got` | 10194 | `26bc58332c63c1e3b5057c8116cfd4719edea8054f948eae78790f2d9d547884` |
 | `FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md` | n/a | n/a | `102cfaccf8bc984507294b2d4ddee7272cd20befdeb513765b0989fb8fa1ada5` |
 | `fcb_tree_search_user_audio_expected_template.csv` | `field,frame,sub,index,expected` | 10194 | `4644b4330f2401496de267fd2f33c33d6e245715e1460accecb1cd51a3164d40` |
-| `fcb_tree_search_user_audio_got.csv` | `field,frame,sub,index,got` | 10194 | `5754d907ffe3a23b11b42e81563b22e6f51036cee01457fdd26d49458b102ddb` |
+| `fcb_tree_search_user_audio_got.csv` | `field,frame,sub,index,got` | 10194 | `df4e09336053f5c071684162918c359802aee247c9aac06aa60118dbc1f52b01` |
 | `decoder_itu_stage_expected_template.csv` | `source,frame,sub,field,index,expected` | 10491 | `a06d13af94cb2d1b60c6d6f13caeb6567a559e0b6a5d6959d56a6225f1a522a7` |
 | `decoder_itu_stage_got.csv` | `source,frame,sub,field,index,got` | 10491 | `4ec339672a8abd05d94b9aee060f696b75416d40b1dcc1158128ffc4270a4492` |
 | `DECODER_ITU_FCB_POSITION_CLARIFICATION_PROMPT.md` | n/a | n/a | `adf86bb920b590d25103bb4b1982aba459e1380a9886e3526f8ee535d7cb6790` |

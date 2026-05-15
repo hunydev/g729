@@ -8,45 +8,24 @@ package lsp
 // F2(z) = Π_{i ∈ {1,3,5,7,9}} (1 − 2·q_i·z^-1 + z^-2)
 // A(z)  = ((1 + z^-1)·F1(z) + (1 − z^-1)·F2(z)) / 2
 //
-// The §3.2.6 recurrence
-//
-// F_i(j) = F_i(j) − 2·q_i·F_i(j−1) + F_i(j−2)
-//
-// is exact arithmetic — the spec does not authorise saturation on the
-// intermediate F polynomials. Their middle-stage |F| can transiently
-// exceed the Q28 Word32 envelope (~|F| ≤ 7.999) while the final
-// symmetric/antisymmetric A polynomial remains in Q12 Word16 range.
-// We therefore keep f1, f2 in int64 and only apply Word16 saturation
-// on the final a[k] output (which is the §3.2.6 output domain).
+// The fixed-point path keeps the reduced F1/F2 polynomials in Q24,
+// applies the (1+z^-1)/(1-z^-1) post transforms, then promotes the
+// post-transform values to Q28 for the final sum. This matches the
+// decoder_tame_lp_polynomial_step numeric oracle; running the
+// recurrence directly in Q28 keeps extra fractional product bits and
+// shifts a few half-boundary LP coefficients by 1 LSB.
 func LSPToLP(lsp *[10]int16, a *[11]int16) {
-	var f1, f2 [11]int64
-	const oneQ28 int64 = 1 << 28
-	f1[0] = oneQ28
-	f2[0] = oneQ28
+	var f1, f2 [6]int64
+	buildLSPPolyQ24(lsp, 0, &f1)
+	buildLSPPolyQ24(lsp, 1, &f2)
 
-	for step := 0; step < 5; step++ {
-		q1 := int64(lsp[2*step])
-		q2 := int64(lsp[2*step+1])
-
-		top := 2*step + 2
-		for j := top; j >= 2; j-- {
-			f1[j] = polyStepExact(f1[j], q1, f1[j-1], f1[j-2])
-			f2[j] = polyStepExact(f2[j], q2, f2[j-1], f2[j-2])
-		}
-		f1[1] = polyStepExact(f1[1], q1, f1[0], 0)
-		f2[1] = polyStepExact(f2[1], q2, f2[0], 0)
+	for i := 5; i >= 1; i-- {
+		f1[i] += f1[i-1]
+		f2[i] -= f2[i-1]
 	}
 
-	// Assemble A(z): a[k] = (F1[k] + F1[k-1] + F2[k] − F2[k-1]) / 2,
-	// then convert Q28 → Q12 with rounding (>>17 with bias 1<<16).
-	for k := 0; k <= 10; k++ {
-		var prev1, prev2 int64
-		if k > 0 {
-			prev1 = f1[k-1]
-			prev2 = f2[k-1]
-		}
-		sum := f1[k] + prev1 + f2[k] - prev2
-		sum = (sum + (1 << 16)) >> 17
+	setA := func(k int, sumQ28 int64) {
+		sum := (sumQ28 + (1 << 15)) >> 16
 		if sum > 32767 {
 			sum = 32767
 		} else if sum < -32768 {
@@ -54,18 +33,36 @@ func LSPToLP(lsp *[10]int16, a *[11]int16) {
 		}
 		a[k] = int16(sum)
 	}
+
+	setA(0, 1<<28)
+	for i := 1; i <= 5; i++ {
+		setA(i, (f1[i]+f2[i])<<3)
+		setA(11-i, (f1[i]-f2[i])<<3)
+	}
 }
 
-// polyStepExact computes one Chebyshev recurrence update in exact
-// int64 arithmetic, with no saturation:
-//
-// f_new = f − 2·q·f_prev1 + f_prev2
-//
-// q is Q15; f / f_prev1 / f_prev2 are Q28. The 2·q·f_prev1 product
-// is formed as q·f_prev1 (Q15·Q28 = Q43) and shifted right by 14 to
-// land back in Q28 (the factor of 2 is absorbed by the asymmetric
-// shift, mirroring the original polyStep convention).
-func polyStepExact(f, q, fPrev1, fPrev2 int64) int64 {
-	prod := (q * fPrev1) >> 14
-	return f - prod + fPrev2
+func buildLSPPolyQ24(lsp *[10]int16, offset int, f *[6]int64) {
+	*f = [6]int64{}
+	f[0] = 1 << 24
+	f[1] = -lspPolyProductQ24(int64(lsp[offset]), f[0])
+
+	for step := 1; step < 5; step++ {
+		q := int64(lsp[2*step+offset])
+		old := *f
+		var next [6]int64
+		next[0] = old[0]
+		next[1] = old[1] - lspPolyProductQ24(q, old[0])
+		for j := step; j >= 1; j-- {
+			add := old[j-1]
+			if j == step {
+				add <<= 1
+			}
+			next[j+1] = old[j+1] - lspPolyProductQ24(q, old[j]) + add
+		}
+		*f = next
+	}
+}
+
+func lspPolyProductQ24(q, coeff int64) int64 {
+	return ((q * coeff) >> 16) << 2
 }

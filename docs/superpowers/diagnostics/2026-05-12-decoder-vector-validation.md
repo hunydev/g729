@@ -1,6 +1,7 @@
 # Decoder ITU Vector Validation
 
 Date: 2026-05-12
+Last updated: 2026-05-15
 
 Scope: decoder credibility gate based on fixed ITU Annex A test-vector
 bitstreams and companion reference PCM outputs.
@@ -109,15 +110,15 @@ Result:
 
 | Vector | Frames | Bad frames | Exact frames | Exact samples | First diff | Max abs delta | Mean abs delta | RMS delta |
 | --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: |
-| `ALGTHM` | 35 | 0 | 0.00% | 2.61% | 0:2 | 13862 | 834.89 | 2095.61 |
-| `SPEECH` | 3750 | 0 | 0.00% | 13.89% | 0:0 | 5801 | 52.20 | 154.58 |
-| `FIXED` | 120 | 0 | 0.00% | 16.91% | 0:1 | 491 | 10.87 | 30.77 |
-| `LSP` | 2232 | 0 | 0.00% | 2.54% | 0:20 | 1202 | 34.28 | 65.97 |
-| `PITCH` | 1835 | 0 | 0.00% | 1.26% | 0:2 | 9432 | 420.26 | 894.11 |
-| `TAME` | 128 | 0 | 0.00% | 0.36% | 0:1 | 14039 | 3780.52 | 5091.07 |
-| `TEST` | 176 | 0 | 0.00% | 6.21% | 0:20 | 2223 | 39.80 | 107.31 |
-| `OVERFLOW` | 384 | 0 | 0.00% | 0.14% | 0:1 | 65535 | 6742.60 | 10403.43 |
-| `TOTAL` | 8660 | 0 | 0.00% | 7.32% | 0:0 | 65535 | 511.89 | 2406.89 |
+| `ALGTHM` | 35 | 0 | 0.00% | 3.07% | 0:2 | 5247 | 140.50 | 410.21 |
+| `SPEECH` | 3750 | 0 | 0.00% | 14.59% | 0:0 | 5555 | 20.25 | 58.89 |
+| `FIXED` | 120 | 0 | 0.00% | 19.82% | 0:3 | 497 | 5.97 | 18.66 |
+| `LSP` | 2232 | 0 | 0.00% | 2.66% | 0:40 | 813 | 31.85 | 59.53 |
+| `PITCH` | 1835 | 0 | 0.00% | 2.63% | 0:2 | 6532 | 50.82 | 133.54 |
+| `TAME` | 128 | 0 | 0.00% | 0.52% | 0:41 | 15672 | 4833.11 | 6222.91 |
+| `TEST` | 176 | 0 | 0.00% | 7.98% | 0:40 | 1859 | 19.46 | 58.98 |
+| `OVERFLOW` | 384 | 0 | 0.00% | 0.22% | 0:41 | 65535 | 6453.58 | 9837.31 |
+| `TOTAL` | 8660 | 0 | 0.00% | 8.03% | 0:0 | 65535 | 417.00 | 2298.12 |
 
 Interpretation:
 
@@ -132,10 +133,23 @@ Update after the synthesis overflow recovery fix:
   path instead of the previous divide-by-2 / multiply-by-2 fallback.
 - SPEECH and Asterisk/FFmpeg black-box localization metrics were unchanged in
   the ordinary speech path.
-- The stress-vector surface improved: `OVERFLOW` max abs delta dropped from
-  `65535` to `36943`, and total RMS delta dropped from `4770.37` to `3651.96`.
+- At that checkpoint, the stress-vector surface improved: `OVERFLOW` max abs
+  delta dropped from `65535` to `36943`, and total RMS delta dropped from
+  `4770.37` to `3651.96`.
 - The decoder is still not ITU-vector exact; this is a blocker reduction, not
   conformance completion.
+
+Update after the LP polynomial recurrence fix:
+
+- `LSPToLP` now follows the verifier-observed Q24 reduced-polynomial path and
+  only promotes the post-transform sums to Q28.
+- `decoder_tame_lp_polynomial_step_expected.csv` is exact `2640/2640`.
+- `decoder_tame_lsp_pipeline_expected.csv` remains exact `1044/1044`.
+- `decoder_tame_lp_full_expected.csv` improved from `2793/2816` to
+  `2816/2816` exact; the prior repeated 1-LSB `lp_a_q12[4]` mismatch is gone.
+- Ordinary-good vector RMS improved overall, especially SPEECH and PITCH.
+  TAME and OVERFLOW still have large late-frame drift, so the next decoder
+  conformance work should target gain/excitation history rather than LP.
 
 ## PST Output Failure Frontier
 
@@ -168,14 +182,14 @@ Current frontier summary:
 
 | Vector | First diff | First >=1024 | First >=4096 | Worst RMS frame | Worst max frame |
 | --- | --- | --- | --- | --- | --- |
-| `ALGTHM` | `0:2 d=1` | `12:1 d=2248` | `12:40 d=4622` | `15:6684.31` | `14:13862` |
-| `SPEECH` | `0:0 d=2` | `43:23 d=1164` | `2732:48 d=5801` | `1841:1364.48` | `1841:3886` |
-| `FIXED` | `0:1 d=2` | `-` | `-` | `118:113.05` | `97:491` |
-| `LSP` | `0:20 d=2` | `564:41 d=1121` | `-` | `1705:596.88` | `564:1202` |
-| `PITCH` | `0:2 d=1` | `2:41 d=1785` | `21:50 d=4481` | `282:2707.98` | `282:8594` |
-| `TAME` | `0:1 d=2` | `1:42 d=1068` | `2:34 d=4273` | `123:10069.57` | `126:14039` |
-| `TEST` | `0:20 d=2` | `78:60 d=1230` | `-` | `79:611.53` | `79:2223` |
-| `OVERFLOW` | `0:1 d=2` | `2:10 d=1105` | `19:6 d=6716` | `236:38434.16` | `237:62595` |
+| `ALGTHM` | `0:2 d=1` | `13:17 d=1152` | `15:6 d=4377` | `15:1517.94` | `15:5247` |
+| `SPEECH` | `0:0 d=2` | `43:23 d=1230` | `2732:48 d=5555` | `2732:1106.62` | `2732:5555` |
+| `FIXED` | `0:3 d=1` | `-` | `-` | `1:95.37` | `49:497` |
+| `LSP` | `0:40 d=2` | `-` | `-` | `1018:428.58` | `1018:813` |
+| `PITCH` | `0:2 d=1` | `21:40 d=2530` | `561:35 d=4615` | `680:1378.79` | `680:6532` |
+| `TAME` | `0:41 d=30` | `11:42 d=1041` | `31:58 d=4178` | `123:11025.91` | `127:15672` |
+| `TEST` | `0:40 d=2` | `79:34 d=1644` | `-` | `79:432.09` | `79:1859` |
+| `OVERFLOW` | `0:41 d=30` | `19:1 d=1474` | `19:6 d=5848` | `237:36074.13` | `237:62595` |
 
 Interpretation:
 
