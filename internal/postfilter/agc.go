@@ -5,8 +5,8 @@ package postfilter
 // tightens the smoother to track the lower-complexity decoder envelope.
 const agcAlphaQ15 int64 = 29491
 
-// computeAGCTargetGain returns the AGC target gain g_target (Q14) per
-// ITU-T G.729 §A.4.2.4 as √(E(s) / E(sTilt)).
+// computeAGCTargetGain returns the per-sample AGC target increment (Q14)
+// derived from √(E(s) / E(sTilt)) and the Annex A smoothing complement.
 //
 // Implementation: accumulate E_s and E_t as sum-of-squares in int64,
 // compute (E_s / E_t) at Q28, then take an integer square root (Newton-
@@ -27,7 +27,8 @@ func (pf *Postfilter) computeAGCTargetGain(s, sTilt *[subframeLen]int16) int16 {
 	if ratioQ28 < 0 {
 		return 0
 	}
-	return isqrtQ14(ratioQ28)
+	targetQ14 := isqrtQ14(ratioQ28)
+	return int16((int64(targetQ14) * (32768 - agcAlphaQ15)) >> 15)
 }
 
 // isqrtQ14 returns ⌊√x⌋ where x is interpreted at Q28 (result is at Q14).
@@ -73,16 +74,25 @@ func (pf *Postfilter) applyAGCWithTaps(sTilt *[subframeLen]int16, gTargetQ14 int
 		return
 	}
 
-	gTargetQ24 := int64(gTargetQ14) << 10
-
 	g := int64(pf.agcGainPrev) // Q24
+	targetQ12 := int64(gTargetQ14) >> 2
 	for n := 0; n < subframeLen; n++ {
-		g = (agcAlphaQ15*g + (32768-agcAlphaQ15)*gTargetQ24 + (1 << 14)) >> 15
+		before := g
+		mulPrev := (agcAlphaQ15 * g) >> 27
+		acc := mulPrev + targetQ12
+		g = acc << 12
 		if taps != nil {
+			taps.AGCGainBeforeUpdateQ24[n] = int32(before)
+			taps.AGCUpdateMulPrevQ0[n] = int32(mulPrev)
+			taps.AGCUpdateMulTargetQ0[n] = int32(targetQ12)
+			taps.AGCUpdateAccQ0[n] = int32(acc)
 			taps.AGCGainQ24[n] = int32(g)
 		}
 		// g is Q24, sTilt is Q0 → product Q24; truncate to Q0.
 		prod := g * int64(sTilt[n])
+		if taps != nil {
+			taps.AGCOutputProductQ24[n] = prod
+		}
 		v := prod >> 24
 		if v > 32767 {
 			v = 32767

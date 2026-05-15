@@ -12,8 +12,8 @@ func TestComputeAGCTargetGain_EqualEnergy(t *testing.T) {
 	}
 
 	g := pf.computeAGCTargetGain(&s, &sTilt)
-	if g < 16380 || g > 16388 {
-		t.Errorf("g = %d, want ≈ 16384 (equal energies)", g)
+	if g < 1630 || g > 1645 {
+		t.Errorf("g = %d, want ≈ 1638 (equal energies target increment)", g)
 	}
 }
 
@@ -36,20 +36,19 @@ func TestApplyAGC_SmoothingDoesNotOvershoot(t *testing.T) {
 	for i := range sTilt {
 		sTilt[i] = 1000
 	}
-	const gTargetQ14 int16 = 8192
+	const gTargetQ14 int16 = 819
 
 	pf.applyAGC(&sTilt, gTargetQ14, &sPf)
 
-	// agcGainPrev is held at Q24 internally; gTargetQ14 = 8192 corresponds
-	// to 8192<<10 = 8388608 at Q24.
+	// gTargetQ14 is an increment; steady-state gain is roughly 10x it.
 	if pf.agcGainPrev <= 8192<<10 || pf.agcGainPrev >= 1<<24 {
 		t.Errorf("agcGainPrev = %d, want between target and unity", pf.agcGainPrev)
 	}
 	for k := 0; k < 200; k++ {
 		pf.applyAGC(&sTilt, gTargetQ14, &sPf)
 	}
-	want := int32(8192) << 10
-	if pf.agcGainPrev < want-2048 || pf.agcGainPrev > want+2048 {
+	want := int32(2040) << 12
+	if pf.agcGainPrev < want-(4<<12) || pf.agcGainPrev > want+(4<<12) {
 		t.Errorf("after convergence, agcGainPrev = %d, want ≈ %d (±2 LSB at Q14)",
 			pf.agcGainPrev, want)
 	}
@@ -65,7 +64,7 @@ func TestApplyAGC_FirstCallUsesSeededGain(t *testing.T) {
 	for i := range sTilt {
 		sTilt[i] = 1000
 	}
-	gTargetQ14 := int16(16384) // g_target = 1.0
+	gTargetQ14 := int16(1638) // unity target increment
 
 	var sPf [subframeLen]int16
 	pf.applyAGC(&sTilt, gTargetQ14, &sPf)

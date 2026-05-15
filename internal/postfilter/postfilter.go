@@ -43,17 +43,22 @@ type FilterTaps struct {
 	InitializedBefore   bool
 	InitializedAfter    bool
 
-	Residual     [subframeLen]int16
-	LongTerm     [subframeLen]int16
-	ShortTerm    [subframeLen]int16
-	Tilt         [subframeLen]int16
-	Output       [subframeLen]int16
-	LongTermT    int
-	LongTermG0   int16
-	LongTermG1   int16
-	TiltMuQ15    int16
-	AGCTargetQ14 int16
-	AGCGainQ24   [subframeLen]int32
+	Residual               [subframeLen]int16
+	LongTerm               [subframeLen]int16
+	ShortTerm              [subframeLen]int16
+	Tilt                   [subframeLen]int16
+	Output                 [subframeLen]int16
+	LongTermT              int
+	LongTermG0             int16
+	LongTermG1             int16
+	TiltMuQ15              int16
+	AGCTargetQ14           int16
+	AGCGainBeforeUpdateQ24 [subframeLen]int32
+	AGCUpdateMulPrevQ0     [subframeLen]int32
+	AGCUpdateMulTargetQ0   [subframeLen]int32
+	AGCUpdateAccQ0         [subframeLen]int32
+	AGCGainQ24             [subframeLen]int32
+	AGCOutputProductQ24    [subframeLen]int64
 }
 
 // FilterWithTaps is equivalent to Filter but returns intermediate stage taps.

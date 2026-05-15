@@ -76,7 +76,7 @@ func TestQFormatContract_AnnexATiltGammaConstants(t *testing.T) {
 // begins at unity and then smooths toward the subframe target.
 func TestQFormatContract_AGCStartsFromUnityQ24(t *testing.T) {
 	var pf Postfilter
-	const gTargetQ14 int16 = 1 << 14
+	const gTargetQ14 int16 = 1638
 	var sTilt, sPf [subframeLen]int16
 	for n := range sTilt {
 		sTilt[n] = 100
@@ -85,9 +85,9 @@ func TestQFormatContract_AGCStartsFromUnityQ24(t *testing.T) {
 	if !pf.initialized {
 		t.Fatal("applyAGC did not flip the initialized flag")
 	}
-	const wantQ24 int32 = int32(gTargetQ14) << 10
-	if pf.agcGainPrev < wantQ24/2 {
-		t.Errorf("agcGainPrev = %d (Q24), expected ~%d (unity target)",
-			pf.agcGainPrev, wantQ24)
+	const unityQ24 int32 = 1 << 24
+	if pf.agcGainPrev < unityQ24-(1<<15) || pf.agcGainPrev > unityQ24+(1<<15) {
+		t.Errorf("agcGainPrev = %d (Q24), expected near unity %d",
+			pf.agcGainPrev, unityQ24)
 	}
 }
