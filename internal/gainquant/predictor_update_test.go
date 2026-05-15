@@ -74,8 +74,8 @@ func TestUpdatePastQuaEn_NonPositiveSeedsDefault(t *testing.T) {
 
 // TestUpdatePastQuaEn_RoundTripWithPredictor cross-checks GQ-2 → GQ-3 →
 // GQ-1 closure: feed γ̂_c from a known (ga, gb) into UpdatePastQuaEn,
-// then re-derive log-energy prediction Ê(m) per eq. (69) and verify
-// pastQuaEn[0] equals 20·log10(γ̂_GA + γ̂_GB) within ±2 LSB.
+// then re-derive the receiver-aligned U(m) value consumed by the next
+// predictor call.
 func TestUpdatePastQuaEn_RoundTripWithPredictor(t *testing.T) {
 	// Use codebook entry (ga=0, gb=0): γ̂_c Q13 = GBK1[0][1] + GBK2[0][1].
 	gammaCQ13 := tables.GainGBK1[0][1] + tables.GainGBK2[0][1]
@@ -83,23 +83,37 @@ func TestUpdatePastQuaEn_RoundTripWithPredictor(t *testing.T) {
 	past := [4]int16{0, 0, 0, 0}
 	UpdatePastQuaEn(&past, gammaCQ13)
 
-	// Recompute U(m) directly via the receiver-aligned Q15 log2 path and
-	// compare. This is
-	// the "prediction next call should produce matching value" probe:
-	// the inserted past[0] must be exactly what gain.PredictedLogGain
-	// would consume next subframe.
+	// Recompute U(m) directly via the receiver-aligned helper and compare.
+	// This is the "prediction next call should produce matching value" probe:
+	// the inserted past[0] must be exactly what gain.PredictedLogGain would
+	// consume next subframe.
 	if gammaCQ13 <= 0 {
 		t.Skip("codebook entry non-positive; cross-check requires γ̂>0")
 	}
-	gammaLog2Q15 := int32(gain.Log2FixedQ15(int32(gammaCQ13))) - 13*(1<<15)
-	var wantQ10 int16
-	if gammaLog2Q15 != 0 {
-		wantQ10 = int16((int64(gammaLog2Q15)*int64(dbPerLog2Q13) - (1 << 16)) >> 17)
-	}
+	wantQ10 := gain.QuantizedPredictionErrorQ10(int32(gammaCQ13))
 
 	if past[0] != wantQ10 {
 		t.Fatalf("UpdatePastQuaEn(γ̂=%d Q13) → past[0]=%d, want %d (re-derived)",
 			gammaCQ13, past[0], wantQ10)
+	}
+}
+
+func TestUpdatePastQuaEn_UCurrentOracleBoundaries(t *testing.T) {
+	cases := []struct {
+		gammaCQ13 int16
+		wantQ10   int16
+	}{
+		{gammaCQ13: 8360, wantQ10: 179},
+		{gammaCQ13: 7339, wantQ10: -980},
+		{gammaCQ13: 32023, wantQ10: 12124},
+	}
+	for _, tc := range cases {
+		past := [4]int16{}
+		UpdatePastQuaEn(&past, tc.gammaCQ13)
+		if past[0] != tc.wantQ10 {
+			t.Fatalf("UpdatePastQuaEn(γ̂=%d Q13) = %d, want %d",
+				tc.gammaCQ13, past[0], tc.wantQ10)
+		}
 	}
 }
 

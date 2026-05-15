@@ -918,14 +918,8 @@ func appendDecoderReferenceTAMEGainLog2MicroRows(rows *[]stageRow, frame int, ta
 		_ = appendDecoderTAMELog2Micro(rows, frame, sub, "gamma", gamma)
 		gammaLog2Q15 := int32(gain.Log2FixedQ15(gamma)) - 13*(1<<15)
 		gammaLog2Corrected := gammaLog2Q15 >> 5
-		uCurrent := int32((int64(gammaLog2Q15)*24660 - (1 << 16)) >> 17)
-		if uCurrent > 32767 {
-			uCurrent = 32767
-		} else if uCurrent < -32768 {
-			uCurrent = -32768
-		}
 		appendDecoderReferenceScalar(rows, frame, sub, "gamma_log2_corrected_q10", int64(gammaLog2Corrected))
-		appendDecoderReferenceScalar(rows, frame, sub, "u_current_q10", int64(uCurrent))
+		appendDecoderReferenceScalar(rows, frame, sub, "u_current_q10", int64(gain.QuantizedPredictionErrorQ10(int32(gamma))))
 
 		appendDecoderReferenceScalar(rows, frame, sub, "predicted_q10", int64(g.Predicted)-int64(tables.GainMeanEnergyQ10))
 		appendDecoderReferenceScalar(rows, frame, sub, "log_gain_q10", int64(g.LogGainDbQ10))

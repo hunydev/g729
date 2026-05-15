@@ -98,3 +98,20 @@ func TestDbPerLog2Q10_MatchesSpecDerivation(t *testing.T) {
 		t.Fatalf("dbPerLog2Q10 = %d; want %d (= round(20·log10(2)·2^10))", dbPerLog2Q10, want)
 	}
 }
+
+func TestQuantizedPredictionErrorQ10_OracleBoundaries(t *testing.T) {
+	cases := []struct {
+		gammaCQ13 int32
+		wantQ10   int16
+	}{
+		{gammaCQ13: 8360, wantQ10: 179},
+		{gammaCQ13: 7339, wantQ10: -980},
+		{gammaCQ13: 41438, wantQ10: 14416},
+	}
+	for _, tc := range cases {
+		if got := QuantizedPredictionErrorQ10(tc.gammaCQ13); got != tc.wantQ10 {
+			t.Fatalf("QuantizedPredictionErrorQ10(%d) = %d, want %d",
+				tc.gammaCQ13, got, tc.wantQ10)
+		}
+	}
+}

@@ -196,12 +196,17 @@ func energyDbFromLog2Q15Rounded(log2Q15 int32) int32 {
 	return int32((int64(log2Q15)*int64(dbPerLog2Q13) + (1 << 17)) >> 18)
 }
 
-func quantizedPredictionErrorQ10(gammaCQ13 int32) int16 {
+// QuantizedPredictionErrorQ10 returns U(m) = 20*log10(gamma_hat) in Q10 dB
+// for a positive gamma_hat Q13 value. The fixed-point path mirrors the
+// decoder-stage oracle: form the corrected Log2 output as Q16, truncate to Q13,
+// multiply by the Q12 dB/log2 factor, then shift back to Q10.
+func QuantizedPredictionErrorQ10(gammaCQ13 int32) int16 {
 	gammaLog2Q15 := int32(log2FixedQ15(fixed.Word32(gammaCQ13))) - 13*(1<<15)
 	if gammaLog2Q15 == 0 {
 		return 0
 	}
-	val := int32((int64(gammaLog2Q15)*int64(dbPerLog2Q13) - (1 << 16)) >> 17)
+	log2Q13 := gammaLog2Q15 >> 2
+	val := int32((int64(log2Q13) * int64(dbPerLog2Q13)) >> 15)
 	if val > 32767 {
 		return 32767
 	}
@@ -209,4 +214,8 @@ func quantizedPredictionErrorQ10(gammaCQ13 int32) int16 {
 		return -32768
 	}
 	return int16(val)
+}
+
+func quantizedPredictionErrorQ10(gammaCQ13 int32) int16 {
+	return QuantizedPredictionErrorQ10(gammaCQ13)
 }

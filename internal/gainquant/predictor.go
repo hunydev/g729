@@ -196,10 +196,8 @@ func ReconstructWide(pastQuaEn *[4]int16, c *[40]int16, ga, gb uint8) (gpQ14, gc
 //
 //   - gammaCQ13 is the quantized fixed-codebook correction factor γ̂_c
 //     (Q13; from §3.9.2 eq. 74 sum GBK1[ga][1] + GBK2[gb][1]).
-//   - gain.Log2Fixed treats the input as Q0 → log2(γ̂·2^13) = log2(γ̂)+13;
-//     subtract 13·1024 in Q10 to recover log2(γ̂) Q10.
-//   - Multiply by 20·log10(2) (Q10 constant, dbPerLog2Q10 = 6165) and
-//     >>10 → 20·log10(γ̂) at Q10 dB.
+//   - gain.QuantizedPredictionErrorQ10 applies the receiver-aligned fixed-
+//     point Log2 and dB conversion path used by the decoder for U(m).
 //
 // Protective branch: γ̂ ≤ 0 is mathematically out-of-domain for log10;
 // re-seed pastQuaEn[0] with PastErrorsDefault (-14 dB Q10), matching
@@ -207,21 +205,7 @@ func ReconstructWide(pastQuaEn *[4]int16, c *[40]int16, ga, gb uint8) (gpQ14, gc
 func UpdatePastQuaEn(pastQuaEn *[4]int16, gammaCQ13 int16) {
 	var uCurrent int16
 	if gammaCQ13 > 0 {
-		gammaLog2Q15 := int32(gain.Log2FixedQ15(fixed.Word32(gammaCQ13))) - 13*(1<<15)
-		if gammaLog2Q15 == 0 {
-			pastQuaEn[3] = pastQuaEn[2]
-			pastQuaEn[2] = pastQuaEn[1]
-			pastQuaEn[1] = pastQuaEn[0]
-			pastQuaEn[0] = 0
-			return
-		}
-		val := int32((int64(gammaLog2Q15)*int64(dbPerLog2Q13) - (1 << 16)) >> 17)
-		if val > 32767 {
-			val = 32767
-		} else if val < -32768 {
-			val = -32768
-		}
-		uCurrent = int16(val)
+		uCurrent = gain.QuantizedPredictionErrorQ10(int32(gammaCQ13))
 	} else {
 		uCurrent = gain.PastErrorsDefault
 	}
