@@ -104,13 +104,13 @@ func (pf *Postfilter) filter(a *[11]int16, tInt int, s *[subframeLen]int16, sPf 
 	T := pf.refinePitch(&r, tInt)
 
 	var rOut [subframeLen]int16
-	g0, g1 := pf.computeLongTermGain(&r, T)
-	pf.applyLongTermWithGains(T, g0, g1, &rOut)
+	longTermWeights := pf.computeLongTermGainWeights(&r, T)
+	pf.applyLongTermWithGainQ15(T, longTermWeights, &rOut)
 	if taps != nil {
 		taps.LongTerm = rOut
 		taps.LongTermT = T
-		taps.LongTermG0 = g0
-		taps.LongTermG1 = g1
+		taps.LongTermG0 = longTermWeights.g0Q14
+		taps.LongTermG1 = longTermWeights.g1Q14
 	}
 
 	var sSt [subframeLen]int16

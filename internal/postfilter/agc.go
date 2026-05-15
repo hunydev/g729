@@ -1,5 +1,7 @@
 package postfilter
 
+import "github.com/hunydev/g729/internal/fixed"
+
 // agcAlphaQ15 is the Annex A adaptive-gain smoothing factor α = 0.9 in
 // Q15. The main G.729 postfilter uses a slower α, but Annex A §A.4.2.4
 // tightens the smoother to track the lower-complexity decoder envelope.
@@ -16,11 +18,14 @@ const agcAlphaComplementQ15 int64 = 3276
 func (pf *Postfilter) computeAGCTargetGain(s, sTilt *[subframeLen]int16) int16 {
 	eS := agcTargetEnergy(s)
 	eT := agcTargetEnergy(sTilt)
-	if eT == 0 {
+	if eS == 0 || eT == 0 {
 		return 0
 	}
-	ratioQ24 := (eS << 24) / eT
-	sqrtQ12 := isqrtRoundedQ12(ratioQ24)
+	if eS == eT {
+		targetQ12 := (int64(4096) * agcAlphaComplementQ15) >> 15
+		return int16(targetQ12 << 2)
+	}
+	sqrtQ12 := agcTargetSqrtInputOverPostQ12(eS, eT)
 	targetQ12 := (sqrtQ12 * agcAlphaComplementQ15) >> 15
 	return int16(targetQ12 << 2)
 }
@@ -32,6 +37,99 @@ func agcTargetEnergy(x *[subframeLen]int16) int64 {
 		energy += 2 * v * v
 	}
 	return energy
+}
+
+func agcTargetSqrtInputOverPostQ12(inputEnergy, postEnergy int64) int64 {
+	postShift := agcTargetNormShift(postEnergy)
+	inputShift := agcTargetNormShift(inputEnergy)
+	postNorm := agcTargetRoundedNorm(postEnergy, postShift)
+	inputNorm := agcTargetRoundedNorm(inputEnergy, inputShift)
+
+	// DivS requires numerator <= denominator. The inverse-sqrt path also wants
+	// an even exponent delta so the square-root denormalization is integral.
+	if postNorm > inputNorm || ((postShift-inputShift)&1) != 0 {
+		if postShift > 0 {
+			postShift--
+			postNorm = agcTargetRoundedNorm(postEnergy, postShift)
+		}
+	}
+
+	if postNorm <= 0 || inputNorm <= 0 {
+		return 0
+	}
+	ratioDivQ15 := fixed.DivS(int16(postNorm), int16(inputNorm))
+	expDelta := postShift - inputShift
+	shift := 7 - expDelta
+	ratioQ28 := int64(ratioDivQ15)
+	if shift >= 0 {
+		ratioQ28 <<= shift
+	} else {
+		ratioQ28 >>= -shift
+	}
+	return agcInverseSqrtQ12(ratioQ28)
+}
+
+func agcTargetNormShift(v int64) int {
+	if v <= 0 {
+		return 0
+	}
+	var shift int
+	for v < 0x40000000 {
+		v <<= 1
+		shift++
+	}
+	return shift
+}
+
+func agcTargetRoundedNorm(v int64, shift int) int64 {
+	norm := ((v << shift) + 0x8000) >> 16
+	if norm > 32767 {
+		return 32767
+	}
+	return norm
+}
+
+func agcInverseSqrtQ12(x int64) int64 {
+	if x <= 0 {
+		return 0
+	}
+	normShift := agcTargetNormShift(x)
+	normX := x << normShift
+	adjustedX := normX
+	if normShift%2 == 0 {
+		adjustedX >>= 1
+	}
+
+	index := int((adjustedX >> 25) - 16)
+	if index < 0 {
+		index = 0
+	} else if index > 30 {
+		index = 30
+	}
+	frac := (adjustedX >> 10) & 0x7fff
+
+	base := agcInverseSqrtTableValue(index)
+	next := agcInverseSqrtTableValue(index + 1)
+	acc := (base << 16) - 2*(base-next)*frac
+	denormShift := 16 - ((normShift + 1) >> 1)
+	out := acc >> denormShift
+	return (out + 64) >> 7
+}
+
+func agcInverseSqrtTableValue(index int) int64 {
+	const tableScale = int64(32768)
+	numerator := int64(16) * tableScale * tableScale
+	denominator := int64(16 + index)
+	root := isqrt64(numerator / denominator)
+	for (root+1)*(root+1)*denominator <= numerator {
+		root++
+	}
+	loDiff := numerator - root*root*denominator
+	hiDiff := (root+1)*(root+1)*denominator - numerator
+	if hiDiff < loDiff {
+		root++
+	}
+	return root
 }
 
 // isqrtRoundedQ12 returns round(√x) where x is interpreted at Q24.
