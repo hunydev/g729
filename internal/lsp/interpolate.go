@@ -6,10 +6,10 @@ package lsp
 //	sf1[i] = 0.5·prev[i] + 0.5·curr[i]
 //	sf2[i] = curr[i]
 //
-// The midpoint is computed in 32-bit before the shift so the average
-// of two near-full-scale Q15 operands does not saturate prematurely.
-// The result is always within Word16 range, so no explicit saturation
-// is needed after the shift.
+// The midpoint is computed as the sum of two independently halved
+// Word16 values. This is not algebraically identical to
+// (prev+curr)>>1 for odd/odd pairs; the independent shifts are pinned
+// by the decoder_tame_lsp_pipeline numeric oracle.
 //
 // ============================================================================
 // SPEC VERBATIM CITATION (ITU-T G.729 (06/2012), PDF p. 14, §3.2.5
@@ -34,13 +34,11 @@ package lsp
 //	 of the quantized LSP coefficients by substituting q_i by q̂_i in
 //	 equation (24)."
 //
-// R-C ambiguity (Phase 1m CE-3, commit 5232411): the spec's "0.5
-// multiplication" of the half-sum is silent on the fixed-point
-// rounding mode. Production uses arithmetic right shift `>> 1` which
-// is floor-toward-negative-infinity on the int32 sum; for odd
-// `(prev+curr)` with negative result this differs by −1 LSB from
-// symmetric rounding (round-half-away-from-zero). On ALGTHM frame 0
-// the i=1 and i=5 cells fall in this odd-half-sum regime.
+// R-C disposition (decoder_tame_lsp_pipeline): the spec's "0.5
+// multiplication" is implemented with per-operand arithmetic shifts:
+// (prev >> 1) + (curr >> 1). For odd/odd pairs this is 1 LSB smaller
+// than shifting the summed pair, and that difference is visible in the
+// reference LSP interpolation and LP coefficient oracles.
 //
 // ============================================================================
 // PHASE 1n RC-1 EMPIRICAL DISPOSITION (commit a47f03f)
@@ -56,18 +54,15 @@ package lsp
 // LP taps a[8..10]; at frame 0 the past synth-filter state is zero
 // so a[8..10] multiply zero for n < 10 and cannot reach n=5..7.
 //
-// Per E2' cycle-end commitment, the knob (and its test setter
-// `SetLSPInterpRoundModeForTest`) were removed at Phase 1n RC-3,
-// restoring this function to its cycle-entry single-line floor
-// expression. Production behaviour is byte-EQ to the cycle-entry
-// state. R-C remains an unresolved verbatim documentation issue but
-// is no longer a candidate gate 17 sample-5..7 mechanism. See the
-// Phase 1n RC-3 synthesis report
+// Per E2' cycle-end commitment, the old round-mode knob (and its test
+// setter `SetLSPInterpRoundModeForTest`) were removed at Phase 1n
+// RC-3. The later TAME verifier artifact resolved the fixed-point
+// ambiguity directly. See the Phase 1n RC-3 synthesis report
 // (`docs/superpowers/plans/2026-05-08-phase1n-stage-r-c-empirical-synthesis-report.md`)
 // for the full mechanistic argument and cumulative scoreboard.
 func interpolateLSP(prev, curr, sf1, sf2 *[10]int16) {
 	for i := 0; i < 10; i++ {
-		sf1[i] = int16((int32(prev[i]) + int32(curr[i])) >> 1)
+		sf1[i] = int16((int32(prev[i]) >> 1) + (int32(curr[i]) >> 1))
 		sf2[i] = curr[i]
 	}
 }

@@ -8,7 +8,7 @@ func TestInterpolateSubframe1Midpoint(t *testing.T) {
 	var sf1, sf2 [10]int16
 	interpolateLSP(&prev, &curr, &sf1, &sf2)
 	for i := 0; i < 10; i++ {
-		want := (prev[i] + curr[i]) / 2
+		want := int16((int32(prev[i]) >> 1) + (int32(curr[i]) >> 1))
 		if sf1[i] != want {
 			t.Errorf("sf1[%d] = %d, want %d (midpoint)", i, sf1[i], want)
 		}
@@ -24,7 +24,7 @@ func TestInterpolateNegativeRange(t *testing.T) {
 	var sf1, sf2 [10]int16
 	interpolateLSP(&prev, &curr, &sf1, &sf2)
 	for i := 0; i < 10; i++ {
-		want := (int32(prev[i]) + int32(curr[i])) / 2
+		want := (int32(prev[i]) >> 1) + (int32(curr[i]) >> 1)
 		if int32(sf1[i]) != want {
 			t.Errorf("sf1[%d] = %d, want %d", i, sf1[i], want)
 		}
