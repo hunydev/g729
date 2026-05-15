@@ -145,7 +145,7 @@ func DequantGc(log2GcPredQ15 int32, ok bool, gammaCQ13 int32) (gcMantQ14 int16, 
 	if !ok || gammaCQ13 <= 0 {
 		return 0, 0
 	}
-	gainQ14 := gain.FixedGainQ14FromLog2Gamma(log2GcPredQ15, gammaCQ13)
+	gainQ14 := gain.QuantizeFixedGainQ1(gain.FixedGainQ14FromLog2Gamma(log2GcPredQ15, gammaCQ13))
 	return gain.SplitGainQ14(gainQ14)
 }
 

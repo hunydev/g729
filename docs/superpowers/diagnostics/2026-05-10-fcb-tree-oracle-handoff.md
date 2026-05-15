@@ -129,7 +129,7 @@ The current repo-external verifier bundle is:
 
 ```text
 /tmp/g729-fcb-verifier-handoff-2026-05-10.tar.gz
-sha256 c7e4bcea541982455aef8c61fd46fd67d51b1aff0919a4a56eefd5136eced706
+sha256 105385be9ea62b52a95b825322620274ae6f38ba22f51e3162359fc4655d308e
 ```
 
 External verifiers should start with
@@ -153,19 +153,25 @@ adaptive-codebook fix, which changed the encoder closed-loop/FCB numeric
 surface. The refreshed verifier output was validated and applied on
 2026-05-13.
 
-Current strict compare after the refresh:
+Strict compare after the 2026-05-13 refresh:
 
 - `fcb_tree_search_expected_template.csv`: exact `10194/10194`, mismatches
   `0`, blanks `0`, missing `0`.
 - `fcb_tree_search_user_audio_expected_template.csv`: exact `10194/10194`,
   mismatches `0`, blanks `0`, missing `0`.
 
+2026-05-15 note: the fixed-gain Q1 quantization fix changed the encoder local
+synthesis surface, so both `*_got.csv` files were refreshed. The verifier-filled
+`expected` cells above are now historical for the prior surface. Current
+non-strict compares against those old expected cells are exact `241/10194` for
+SPEECH and `407/10194` for user audio. Rerun the focused FCB verifier before
+using the `G729_REQUIRE_EXACT_*FCB_TREE*` gates again.
+
 ## Finding
 
 At the time of this handoff, no production encoder behavior had changed. The
-verifier-filled focused FCB
-handoffs provide clean-room evidence for deciding whether the current Core
-focused-search approximation differs from the exact Annex A
+verifier-filled focused FCB handoffs provide clean-room evidence for deciding
+whether that Core focused-search approximation differs from the exact Annex A
 reduced-complexity tree subset.
 
 `fcb_tree_search_expected_template.csv` strict-compares exactly:

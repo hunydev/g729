@@ -81,6 +81,12 @@ func FixedGainQ14FromLog2Gamma(log2GcQ15 int32, gammaCQ13 int32) int64 {
 	return fixedGainQ14FromLog2Gamma(log2GcQ15, gammaCQ13)
 }
 
+// QuantizeFixedGainQ1 mirrors the decoder's final fixed-codebook gain
+// quantization before the mantissa/exponent split.
+func QuantizeFixedGainQ1(gainQ14 int64) int64 {
+	return quantizeFixedGainQ1(gainQ14)
+}
+
 func SplitGainQ14(gainQ14 int64) (mant int16, exp int8) {
 	return splitGainQ14(gainQ14)
 }
@@ -129,6 +135,17 @@ func fixedGainQ14FromLog2Gamma(log2GcQ15 int32, gammaCQ13 int32) int64 {
 		return 0
 	}
 	return baseQ14 >> uint(shift)
+}
+
+func quantizeFixedGainQ1(gainQ14 int64) int64 {
+	if gainQ14 <= 0 {
+		return 0
+	}
+	gainQ1 := gainQ14 >> 13
+	if gainQ1 > 32767 {
+		gainQ1 = 32767
+	}
+	return gainQ1 << 13
 }
 
 func splitGainQ14(gainQ14 int64) (mant int16, exp int8) {

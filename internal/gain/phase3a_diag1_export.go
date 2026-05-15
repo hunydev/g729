@@ -175,7 +175,7 @@ func (d *Decoder) DecodeWithFullTaps(idx Indices, c *[40]int16) GainDecodeFullTa
 	out.GpQ14Final = gp
 	out.GammaCQ13 = gammaC
 
-	gainQ14 := fixedGainQ14FromLog2Gamma(log2GcQ15, gammaC)
+	gainQ14 := quantizeFixedGainQ1(fixedGainQ14FromLog2Gamma(log2GcQ15, gammaC))
 	prod64 := gainQ14 >> 2
 	var prodUnsat int32
 	switch {

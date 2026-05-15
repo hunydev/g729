@@ -181,13 +181,16 @@ FCB tree-search strict compare exact-passed at goal closure. After the
 2026-05-12 short-pitch `T_frac=0` adaptive-codebook fix, the encoder
 closed-loop/FCB numeric surface changed and the focused FCB verifier artifacts
 were rerun. The refreshed 2026-05-13 verifier output is again current and exact.
+After the 2026-05-15 fixed-gain Q1 quantization fix, the local encoder surface
+changed again; the `*_got.csv` files were refreshed and the focused FCB verifier
+should be rerun before claiming current strict exactness.
 
-Current compare results after that refresh:
+Current compare results after the 2026-05-15 surface change:
 
 | Command | Current result |
 | --- | --- |
-| `G729_COMPARE_FCB_TREE_SEARCH_HANDOFF=1 G729_REQUIRE_COMPLETE_FCB_TREE_SEARCH_HANDOFF=1 G729_REQUIRE_EXACT_FCB_TREE_SEARCH_HANDOFF=1 go test -run TestOracleHandoff_CompareFCBTreeSearchHandoff -count=1 -v` | Passes: exact `10194/10194`, mismatches `0`, blanks `0`, missing `0` |
-| `G729_COMPARE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 G729_REQUIRE_COMPLETE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 G729_REQUIRE_EXACT_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 go test -run TestOracleHandoff_CompareFCBTreeSearchUserAudioHandoff -count=1 -v` | Passes: exact `10194/10194`, mismatches `0`, blanks `0`, missing `0` |
+| `G729_COMPARE_FCB_TREE_SEARCH_HANDOFF=1 G729_REQUIRE_COMPLETE_FCB_TREE_SEARCH_HANDOFF=1 go test -run TestOracleHandoff_CompareFCBTreeSearchHandoff -count=1 -v` | Historical verifier expected vs refreshed got: exact `241/10194`, mismatches `9953`, blanks `0`, missing `0`; external verifier rerun required before strict exact gate |
+| `G729_COMPARE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 G729_REQUIRE_COMPLETE_FCB_TREE_SEARCH_USER_AUDIO_HANDOFF=1 go test -run TestOracleHandoff_CompareFCBTreeSearchUserAudioHandoff -count=1 -v` | Historical verifier expected vs refreshed got: exact `407/10194`, mismatches `9787`, blanks `0`, missing `0`; external verifier rerun required before strict exact gate |
 | `G729_COMPARE_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 G729_REQUIRE_COMPLETE_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 G729_REQUIRE_EXACT_ENCODER_CLOSEDLOOP_STAGE_HANDOFF=1 go test -run TestOracleHandoff_CompareEncoderClosedLoopStageHandoff -count=1 -v` | Optional follow-up remains unfilled: `expected handoff has no filled numeric cells; verifier output is required before comparison` |
 
 Before sending or consuming verifier files, keep the default handoff guards
@@ -201,7 +204,7 @@ The current repo-external verifier bundle is:
 
 ```text
 /tmp/g729-fcb-verifier-handoff-2026-05-10.tar.gz
-sha256 c7e4bcea541982455aef8c61fd46fd67d51b1aff0919a4a56eefd5136eced706
+sha256 105385be9ea62b52a95b825322620274ae6f38ba22f51e3162359fc4655d308e
 ```
 
 When sending the bundle to another AI or engineer, ask them to start with

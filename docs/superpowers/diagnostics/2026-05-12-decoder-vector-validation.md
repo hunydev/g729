@@ -110,15 +110,15 @@ Result:
 
 | Vector | Frames | Bad frames | Exact frames | Exact samples | First diff | Max abs delta | Mean abs delta | RMS delta |
 | --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: |
-| `ALGTHM` | 35 | 0 | 0.00% | 3.07% | 0:2 | 5247 | 140.50 | 410.21 |
-| `SPEECH` | 3750 | 0 | 0.00% | 14.59% | 0:0 | 5555 | 20.25 | 58.89 |
-| `FIXED` | 120 | 0 | 0.00% | 19.82% | 0:3 | 497 | 5.97 | 18.66 |
-| `LSP` | 2232 | 0 | 0.00% | 2.66% | 0:40 | 813 | 31.85 | 59.53 |
-| `PITCH` | 1835 | 0 | 0.00% | 2.63% | 0:2 | 6532 | 50.82 | 133.54 |
-| `TAME` | 128 | 0 | 0.00% | 0.52% | 0:41 | 15672 | 4833.11 | 6222.91 |
-| `TEST` | 176 | 0 | 0.00% | 7.98% | 0:40 | 1859 | 19.46 | 58.98 |
-| `OVERFLOW` | 384 | 0 | 0.00% | 0.22% | 0:41 | 65535 | 6453.58 | 9837.31 |
-| `TOTAL` | 8660 | 0 | 0.00% | 8.03% | 0:0 | 65535 | 417.00 | 2298.12 |
+| `ALGTHM` | 35 | 0 | 0.00% | 3.82% | 0:2 | 5247 | 140.63 | 411.49 |
+| `SPEECH` | 3750 | 0 | 4.45% | 16.11% | 0:0 | 5601 | 19.62 | 59.50 |
+| `FIXED` | 120 | 0 | 0.00% | 21.20% | 0:3 | 499 | 5.95 | 18.82 |
+| `LSP` | 2232 | 0 | 0.27% | 2.85% | 5:40 | 799 | 30.74 | 56.04 |
+| `PITCH` | 1835 | 0 | 0.00% | 2.72% | 0:2 | 6526 | 50.60 | 133.47 |
+| `TAME` | 128 | 0 | 0.00% | 0.54% | 0:41 | 15798 | 4847.13 | 6243.47 |
+| `TEST` | 176 | 0 | 0.57% | 8.76% | 1:40 | 1869 | 18.72 | 58.69 |
+| `OVERFLOW` | 384 | 0 | 0.00% | 0.22% | 0:41 | 65535 | 6449.57 | 9710.74 |
+| `TOTAL` | 8660 | 0 | 2.01% | 8.79% | 0:0 | 65535 | 419.73 | 2282.48 |
 
 Interpretation:
 
@@ -150,6 +150,21 @@ Update after the LP polynomial recurrence fix:
 - Ordinary-good vector RMS improved overall, especially SPEECH and PITCH.
   TAME and OVERFLOW still have large late-frame drift, so the next decoder
   conformance work should target gain/excitation history rather than LP.
+
+Update after the fixed-gain Q1 quantization fix:
+
+- Strict decoder gain reconstruction now quantizes the final fixed-codebook
+  gain to Q1 before the native `(gcMantQ14, gcExp)` split. The encoder
+  `gainquant` local reconstruction mirrors the same commit path.
+- `decoder_tame_gain_internals_expected.csv` improved to exact `1394/4864`;
+  `fixed_gain_q14` improved to exact `192/256` while `bitstream_ga`,
+  `bitstream_gb`, and `gamma_q13` remain exact `256/256`.
+- `decoder_tame_full_stage_expected.csv` improved to exact `24317/122112`;
+  `fixed_gain_q14` is exact `192/256` and `fixed_contrib_q0` is exact
+  `9938/10240`.
+- Final reference-PCM comparison is exact `67417/740800` (`9.10%`) across all
+  ten Annex A vectors. The ordinary-good vector gate is still not exact, but
+  total RMS is down to `2282.48` after this fix.
 
 ## PST Output Failure Frontier
 

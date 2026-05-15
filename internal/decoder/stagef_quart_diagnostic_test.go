@@ -499,11 +499,11 @@ func productionGainProbe(idx gain.Indices, c *[40]int16, d *gain.Decoder) produc
 }
 
 func gainLinearClose(got, want float64) bool {
-	const q12Tol = 32.0 / 4096.0
+	const q1Tol = 0.5
 	if math.IsNaN(got) || math.IsNaN(want) || math.IsInf(got, 0) || math.IsInf(want, 0) {
 		return got == want
 	}
-	tol := q12Tol
+	tol := q1Tol
 	if rel := math.Abs(want) * 0.005; rel > tol {
 		tol = rel
 	}
@@ -651,15 +651,10 @@ func runRefCrossCheck(
 
 	// ── F-quint-1 assertion promotion ──────────────────────────────
 	// Branch P/S × sf0/sf1 = 4 비교점. ITU §3.9 식 (66) 기준 reference
-	// 와 production이 모든 4 지점에서 일치해야 한다 (gp 정확, gc는 ±4
-	// LSB 톨러런스 — production은 log2Fixed/pow2Fixed 고정소수 체인,
-	// reference는 float64 math.Log10/Pow를 사용해 sub-LSB 양자화 차이가
-	// 불가피하다. Branch S는 C2 fix 이후 caller-pre-applied Imap 위에
-	// production이 Imap을 다시 적용하는 degenerate 경로로, 결과 gc 가
-	// saturation 인근(>32000 Q12)에 위치하여 float↔fixed 체인 누적
-	// 편차가 ~20 LSB까지 관측된다. ±32 톨러런스는 여전히 본 task가
-	// fix하는 결함은 ÷64 dB / ×8192 스케일 즉 gc_q12 절대 편차 수천
-	// LSB 이상의 defect 를 충분히 검출한다.).
+	// 와 production이 모든 4 지점에서 일치해야 한다 (gp 정확, gc는 final
+	// fixed-gain Q1 quantization 이후의 ±0.5 linear tolerance). 이 여유는
+	// 여전히 본 task가 fix했던 ÷64 dB / ×8192 스케일 defect를 충분히
+	// 검출한다.
 	if prod0.gpQ14 != refOut0.gpQ14 {
 		t.Fatalf("[%s] sf0 gp_q14 mismatch: prod=%d ref=%d", tag, prod0.gpQ14, refOut0.gpQ14)
 	}

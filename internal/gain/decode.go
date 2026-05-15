@@ -140,7 +140,7 @@ func (d *Decoder) decode(idx Indices, c *[40]int16, ecQCorrection, gammaQCorrect
 		gcMantQ14 = 0
 		gcExp = 0
 	} else if gammaQCorrection == 13 {
-		gainQ14 := fixedGainQ14FromLog2Gamma(log2GcQ15, gammaC)
+		gainQ14 := quantizeFixedGainQ1(fixedGainQ14FromLog2Gamma(log2GcQ15, gammaC))
 		gcMantQ14, gcExp = splitGainQ14(gainQ14)
 	} else {
 		gammaLog2Q10 := int32(log2Fixed(fixed.Word32(gammaC))) - int32(gammaQCorrection)*1024
