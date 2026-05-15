@@ -129,7 +129,7 @@ The current repo-external verifier bundle is:
 
 ```text
 /tmp/g729-fcb-verifier-handoff-2026-05-10.tar.gz
-sha256 105385be9ea62b52a95b825322620274ae6f38ba22f51e3162359fc4655d308e
+sha256 269b7f3dca8557fc8fc27333ec6fc17558cecd3bc0e73e0d0a6ba3c1c49ada0d
 ```
 
 External verifiers should start with
@@ -149,23 +149,17 @@ complete numeric `expected` cells.
 ## Refresh Status
 
 This diagnostic was rerun after the 2026-05-12 short-pitch `T_frac=0`
-adaptive-codebook fix, which changed the encoder closed-loop/FCB numeric
-surface. The refreshed verifier output was validated and applied on
-2026-05-13.
+adaptive-codebook fix and again after the 2026-05-15 fixed-gain Q1
+quantization fix. Both changes affected the encoder closed-loop/FCB numeric
+surface. The latest refreshed verifier output was validated and applied on
+2026-05-15.
 
-Strict compare after the 2026-05-13 refresh:
+Strict compare after the 2026-05-15 refresh:
 
 - `fcb_tree_search_expected_template.csv`: exact `10194/10194`, mismatches
   `0`, blanks `0`, missing `0`.
 - `fcb_tree_search_user_audio_expected_template.csv`: exact `10194/10194`,
   mismatches `0`, blanks `0`, missing `0`.
-
-2026-05-15 note: the fixed-gain Q1 quantization fix changed the encoder local
-synthesis surface, so both `*_got.csv` files were refreshed. The verifier-filled
-`expected` cells above are now historical for the prior surface. Current
-non-strict compares against those old expected cells are exact `241/10194` for
-SPEECH and `407/10194` for user audio. Rerun the focused FCB verifier before
-using the `G729_REQUIRE_EXACT_*FCB_TREE*` gates again.
 
 ## Finding
 

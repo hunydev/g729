@@ -72,8 +72,8 @@ identify the current files after numeric `expected` cells were filled.
 | `pitch_closedloop_search_expected_template.csv` | 3192 | `e855712427f3da636f4db1c00045782e8b8aec0b7191b0db342c7e57ccba6b8a` |
 | `lsp_decision_expected_template.csv` | 1472 | `7e3b481a2263fe8ed0811ad38b7fdfd0d1e0c69c01e6fdca6a3f623cda7b7f20` |
 | `tame_gain_taming_expected_template.csv` | 8962 | `ab66f67c7f498cf41858f15c45faafaf949e36dcd1319054e69ef14580b85dd4` |
-| `fcb_tree_search_expected_template.csv` | 10194 | `8b5ba16cbe19f28c8a6bd4ce1c035cc2b13538b59ec207d345af9f341e66b772` |
-| `fcb_tree_search_user_audio_expected_template.csv` | 10194 | `a75707e42fd44475caa3df144dbf539de354aa568c342779e9f86fdaecdae6a2` |
+| `fcb_tree_search_expected_template.csv` | 10194 | `3de52bccab39e2fd75d4e62af80d9d54d523441c2bc1c3ae16905584fd2cc2c5` |
+| `fcb_tree_search_user_audio_expected_template.csv` | 10194 | `4fb6ff3d96ab786166970ed65919441cd1986a5fbdc3393faa240c65a0239bf2` |
 | `decoder_itu_fcb_position_clarification_expected.csv` | 30 | `e2a8ff28bbd291c251e9d8dad13e2d82da9985bf342246ed9c7ac9fcf145fca2` |
 | `decoder_tame_stage_wide_expected.csv` | 1518 | `ca9809900a74be1345f844bcc00090d31b0bfe4c3ada6bd1d82702d5c578b35e` |
 | `decoder_itu_frame0_hp_input_inverse_expected_template.csv` | 480 | `5dbfcd17059df81a630a4c0391094937c99bb1373a04af12e5b05362f31578cf` |

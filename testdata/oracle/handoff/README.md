@@ -44,9 +44,8 @@ These files are not oracle artifacts and are intentionally ignored by the option
   tree-search numeric surface for SPEECH.IN frames 292 through 294.
 - `fcb_tree_search_expected_template.csv`: verifier-owned template
   for the exact reduced-complexity Annex A fixed-codebook tree-search
-  scalar rows; verifier-filled for the 2026-05-13 surface. After the
-  2026-05-15 fixed-gain Q1 quantization got refresh, rerun the verifier
-  before treating it as current exact evidence.
+  scalar rows; verifier-filled for the 2026-05-15 fixed-gain Q1
+  quantization surface and exact-compared.
 - `FCB_TREE_SEARCH_VERIFIER_PROMPT.md`: copyable prompt for an isolated
   clean-room verifier that will fill only numeric `expected` cells in
   the FCB tree-search template.
@@ -55,9 +54,8 @@ These files are not oracle artifacts and are intentionally ignored by the option
   sample frames 292 through 294.
 - `fcb_tree_search_user_audio_expected_template.csv`: verifier-owned
   template for the user-audio fixed-codebook tree-search scalar rows;
-  verifier-filled for the 2026-05-13 surface. After the 2026-05-15
-  fixed-gain Q1 quantization got refresh, rerun the verifier before
-  treating it as current exact evidence.
+  verifier-filled for the 2026-05-15 fixed-gain Q1 quantization surface
+  and exact-compared.
 - `FCB_TREE_SEARCH_USER_AUDIO_VERIFIER_PROMPT.md`: copyable prompt for an
   isolated clean-room verifier that will fill only numeric `expected`
   cells in the user-audio FCB tree-search template.
