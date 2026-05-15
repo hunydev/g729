@@ -28,6 +28,11 @@ const (
 	tenLog10_40ReferenceQ10 = 16404
 	invDbScaleQ15           = 5439
 	dbPerLog2Q10            = 6165
+
+	// gainLogEcBarBiasQ14 is the fixed Q14 accumulator seed used by the
+	// receiver log-gain path before subtracting the uncorrected Ec Log2 dB
+	// product. It is pinned by decoder_tame_gain_log_gain_micro_expected.csv.
+	gainLogEcBarBiasQ14 = 2085632
 )
 
 // Decode decodes one subframe's gains from idx and the fixed codebook
@@ -119,6 +124,9 @@ func (d *Decoder) decode(idx Indices, c *[40]int16, ecQCorrection, gammaQCorrect
 	// saturating here collapses high-dynamic-range fixed-codebook gains before
 	// the pow2 reconstruction has a chance to express them.
 	logGainDbQ10 := predicted + int32(tenLog10_40ReferenceQ10) - ecDbQ10
+	if ecQCorrection == 26 {
+		logGainDbQ10 = logGainDbQ10FromEnergyQ24(&d.pastErrors, ecEnergy)
+	}
 	log2GcQ15 := logGainToLog2Q15(logGainDbQ10)
 	log2GcQ10 := log2GcQ15 >> 5
 
@@ -186,6 +194,36 @@ func fixedCodebookEnergyLog2Q15(ecEnergy fixed.Word32, ecQCorrection int) int32 
 		qCorrection = 27
 	}
 	return int32(log2FixedQ15(logInput)) - int32(qCorrection)*(1<<15)
+}
+
+// LogGainDbQ10FromCodebook returns the receiver-aligned fixed-codebook log
+// gain target in Q10 dB. It keeps the MA predictor and Ec-bar terms in Q24
+// until the final truncation, which avoids the 1-LSB drift caused by combining
+// separately truncated Q10 terms.
+func LogGainDbQ10FromCodebook(pastErrors *[4]int16, c *[40]int16) (int32, bool) {
+	ecEnergy := fixedCodebookEnergy(c)
+	if ecEnergy <= 0 {
+		return 0, false
+	}
+	return logGainDbQ10FromEnergyQ24(pastErrors, ecEnergy), true
+}
+
+func logGainDbQ10FromEnergyQ24(pastErrors *[4]int16, ecEnergy fixed.Word32) int32 {
+	rawLog2Q15 := int32(log2FixedQ15(fixed.LShl(ecEnergy, 1)))
+	intPart := rawLog2Q15 >> 15
+	fracQ15 := rawLog2Q15 - (intPart << 15)
+	ecBarQ14 := int64(gainLogEcBarBiasQ14) + log2DBProductQ14(intPart, fracQ15, -dbPerLog2Q13)
+	logGainQ24 := (ecBarQ14 << 10) + PredictedEnergyQ24(pastErrors)
+	return int32(logGainQ24 >> 14)
+}
+
+func log2DBProductQ14(intPart, fracQ15, multiplierQ13 int32) int64 {
+	// The reference path does not multiply the full Q15 log2 value in one
+	// wide expression. It doubles the integer contribution and the Q15
+	// fractional Mult result separately, which changes half-LSB ties by one.
+	intTerm := int64(intPart) * int64(multiplierQ13) * 2
+	fracTerm := int64(fixed.Mult(fixed.Word16(fracQ15), fixed.Word16(multiplierQ13))) * 2
+	return intTerm + fracTerm
 }
 
 func energyDbFromLog2Q15Trunc(log2Q15 int32) int32 {

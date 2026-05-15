@@ -141,6 +141,7 @@ func (d *Decoder) DecodeWithFullTaps(idx Indices, c *[40]int16) GainDecodeFullTa
 	out.EcBarDbQ10 = ecBarDbQ10
 
 	logGainDbQ10 := predicted + int32(tenLog10_40ReferenceQ10) - ecDbQ10
+	logGainDbQ10 = logGainDbQ10FromEnergyQ24(&d.pastErrors, ecEnergy)
 	out.LogGainDbQ10 = logGainDbQ10
 	log2GcQ15 := logGainToLog2Q15(logGainDbQ10)
 	log2GcQ10 := log2GcQ15 >> 5

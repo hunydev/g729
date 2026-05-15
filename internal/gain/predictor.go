@@ -25,12 +25,19 @@ import (
 // surface uses PredictedLogGainSat16 to preserve the legacy bounded VQ search
 // state while receiver-side reconstruction keeps this wider value.
 func PredictedLogGain(pastErrors *[4]int16) int32 {
+	predicted := int32(PredictedEnergyQ24(pastErrors) >> 14)
+	return int32(tables.GainMeanEnergyQ10) + predicted
+}
+
+// PredictedEnergyQ24 returns the MA-predicted energy delta term from eq. 69
+// before the final Q10 truncation. Keeping this Q24 accumulator until it is
+// combined with Ec-bar matches the decoder gain log-gain oracle.
+func PredictedEnergyQ24(pastErrors *[4]int16) int64 {
 	var acc int64
 	for i := 0; i < 4; i++ {
 		acc += int64(2) * int64(tables.GainMAPredictor[i]) * int64(pastErrors[i])
 	}
-	predicted := int32((acc * 4) >> 16)
-	return int32(tables.GainMeanEnergyQ10) + predicted
+	return acc
 }
 
 // PredictedLogGainSat16 returns the legacy Word16-saturated form of

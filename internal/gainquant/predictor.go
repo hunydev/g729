@@ -98,15 +98,10 @@ func predictedLog2GcQ15Search(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
 }
 
 func predictedLog2GcQ15Wide(pastQuaEn *[4]int16, c *[40]int16) (int32, bool) {
-	ecEnergy := gain.FixedCodebookEnergy(c)
-	if ecEnergy <= 0 {
+	logGainDbQ10, ok := gain.LogGainDbQ10FromCodebook(pastQuaEn, c)
+	if !ok {
 		return 0, false
 	}
-
-	predicted := gain.PredictedLogGain(pastQuaEn)
-
-	ecDbQ10 := fixedCodebookEnergyDbQ10(ecEnergy)
-	logGainDbQ10 := predicted + int32(tenLog10_40ReferenceQ10) - ecDbQ10
 	return gain.LogGainToLog2Q15(logGainDbQ10), true
 }
 

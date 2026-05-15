@@ -128,7 +128,11 @@ func fixedGainQ14FromLog2Gamma(log2GcQ15 int32, gammaCQ13 int32) int64 {
 	intPart := log2GcQ15 >> 15
 	fracQ15 := log2GcQ15 - (intPart << 15)
 	gc0Q14 := int64(pow2FracQ14FromQ15(fracQ15))
-	baseQ14 := (int64(gammaCQ13) * gc0Q14) >> 13
+	// Receiver reconstruction first drops gamma from Q13 to Q12, then
+	// multiplies by gc0. A single algebraic Q13 multiply is usually equal but
+	// is one quantization step high when an odd gamma lands on a Q1 boundary.
+	gammaCQ12 := int64(gammaCQ13 >> 1)
+	baseQ14 := (gammaCQ12 * gc0Q14) >> 12
 	if intPart >= 0 {
 		if intPart >= 62 {
 			return int64(0x7FFFFFFFFFFFFFFF)
