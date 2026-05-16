@@ -46,6 +46,52 @@ GOMAXPROCS=1 go test -run=^$ \
 For a release note, prefer reporting the median of several runs and include
 the CPU/VM type. Performance numbers are hardware- and load-dependent.
 
+## Load and Soak Test Command
+
+`cmd/g729loadtest` is the release-facing smoke/soak driver. It creates one
+independent codec instance per simulated stream and can pace each stream at one
+10 ms frame per tick. Use it to check that the codec hot path does not miss the
+G.729 frame deadline under the chosen single-core or multi-core load.
+
+Single-core encode soak:
+
+```sh
+go run ./cmd/g729loadtest \
+  -mode=encode -profile=core -streams=1 -gomaxprocs=1 -duration=60s \
+  -max-p99-deadline-ratio=1
+```
+
+Single-core multi-stream capacity probe:
+
+```sh
+go run ./cmd/g729loadtest \
+  -mode=encode -profile=core -streams=64 -gomaxprocs=1 -duration=60s \
+  -max-p99-deadline-ratio=1
+```
+
+Loopback stress, useful as a conservative upper-bound check:
+
+```sh
+go run ./cmd/g729loadtest \
+  -mode=loopback -profile=core -streams=32 -gomaxprocs=1 -duration=60s \
+  -max-p99-deadline-ratio=1
+```
+
+The command reports:
+
+- `codec_rtf`: summed codec processing time divided by summed media duration.
+- `codec_streams_per_core`: `1 / codec_rtf`, a codec-only capacity estimate.
+- `processing_us p99`: p99 per-frame codec processing time.
+- `codec_deadline_misses`: frames whose codec processing time exceeded 10 ms.
+- `p99_deadline`: p99 processing time divided by the 10 ms frame deadline.
+- `wake_late_*`: scheduler/timer wake-up lateness in realtime mode.
+
+Treat wake lateness as an OS scheduling signal, not codec work. A loaded VM can
+wake goroutines late even when codec processing is well below the 10 ms budget.
+For release gating, prefer `p99_deadline < 1.0` and zero codec errors; record
+max/outlier deadline misses separately rather than treating one VM scheduling
+outlier as an automatic codec failure.
+
 ## Current exe.dev VM Snapshot
 
 Command:
