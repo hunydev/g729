@@ -88,19 +88,25 @@ func SearchConjugatePreselectTargetBits(x, y, z *[40]int16, gpcPredQ12 int32, ta
 	return searchConjugatePreselectTargetBits(x, y, z, gpcPredQ12, targetBits)
 }
 
+// SearchConjugatePreselectFloatCenter keeps the Annex A 4x8 GA/GB preselect
+// and final integer cost search, but computes the unquantized gp/gc preselect
+// center from the full correlation products in float64. The normal target-bit
+// path truncates correlations before the 2x2 solve; on high-energy speech this
+// can move the center enough to drop the better GA/GB pair from the preselect
+// set.
+//
+// This path is intended for the product-quality encoder profile. Low-latency
+// profiles can use SearchConjugate/SearchConjugatePreselectTargetBits to avoid
+// the float64 center solve in the hot path.
+func SearchConjugatePreselectFloatCenter(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
+	rawA, rawB, rawC, rawD, rawF := gainSearchCorrelations(x, y, z)
+	gpOptQ14, gcOptQ12 := floatGainOptimumCenter(rawA, rawB, rawC, rawD, rawF)
+	return searchConjugateSelectFromCenter(rawA, rawB, rawC, rawD, rawF, gpcPredQ12, gpOptQ14, gcOptQ12)
+}
+
 func searchConjugatePreselectTargetBits(x, y, z *[40]int16, gpcPredQ12 int32, targetBits uint) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	// 1. Correlations in a shared Q24 physical-correlation scale.
-	var A, B, C, D, F int64
-	for i := 0; i < 40; i++ {
-		xi := int64(x[i])
-		yi := int64(y[i])
-		zi := int64(z[i])
-		A += (yi * yi) << 24
-		B += zi * zi
-		C += (yi * zi) << 12
-		D += (xi * yi) << 24
-		F += (xi * zi) << 12
-	}
+	A, B, C, D, F := gainSearchCorrelations(x, y, z)
 	rawA, rawB, rawC, rawD, rawF := A, B, C, D, F
 
 	// 2. Normalize so max |corr| ≤ 2^targetBits. SearchConjugate uses
@@ -165,6 +171,24 @@ func searchConjugatePreselectTargetBits(x, y, z *[40]int16, gpcPredQ12 int32, ta
 		gcOptQ12 = 0
 	}
 
+	return searchConjugateSelectFromCenter(rawA, rawB, rawC, rawD, rawF, gpcPredQ12, gpOptQ14, gcOptQ12)
+}
+
+func gainSearchCorrelations(x, y, z *[40]int16) (A, B, C, D, F int64) {
+	for i := 0; i < 40; i++ {
+		xi := int64(x[i])
+		yi := int64(y[i])
+		zi := int64(z[i])
+		A += (yi * yi) << 24
+		B += zi * zi
+		C += (yi * zi) << 12
+		D += (xi * yi) << 24
+		F += (xi * zi) << 12
+	}
+	return
+}
+
+func searchConjugateSelectFromCenter(A, B, C, D, F int64, gpcPredQ12 int32, gpOptQ14, gcOptQ12 int64) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	// 4. GA preselect: 4-of-8 minimising |γ̂_GA·g'c − gc_opt|  (Q12).
 	//    γ̂_GA·g'c at Q12 = (GainGBK1[i][1] · gpcPredQ12) >> 13.
 	var gaIdx [8]uint8
@@ -200,12 +224,12 @@ func searchConjugatePreselectTargetBits(x, y, z *[40]int16, gpcPredQ12 int32, ta
 	//    the selected candidates rather than clamping all correlations to
 	//    14 bits; this preserves materially more ordering precision while
 	//    keeping int64 products bounded.
-	costShift := gainSearchCostShift(rawA, rawB, rawC, rawD, rawF, gaCands, gbCands, gpcPredQ12)
-	costA := signedRsh(rawA, costShift)
-	costB := signedRsh(rawB, costShift)
-	costC := signedRsh(rawC, costShift)
-	costD := signedRsh(rawD, costShift)
-	costF := signedRsh(rawF, costShift)
+	costShift := gainSearchCostShift(A, B, C, D, F, gaCands, gbCands, gpcPredQ12)
+	costA := signedRsh(A, costShift)
+	costB := signedRsh(B, costShift)
+	costC := signedRsh(C, costShift)
+	costD := signedRsh(D, costShift)
+	costF := signedRsh(F, costShift)
 
 	const costInit int64 = 1 << 62
 	bestCost := costInit
@@ -242,6 +266,31 @@ func searchConjugatePreselectTargetBits(x, y, z *[40]int16, gpcPredQ12 int32, ta
 	gammaCQ13 = bestGam
 	ga = bestGA
 	gb = bestGB
+	return
+}
+
+func floatGainOptimumCenter(A, B, C, D, F int64) (gpOptQ14, gcOptQ12 int64) {
+	Af := float64(A)
+	Bf := float64(B)
+	Cf := float64(C)
+	Df := float64(D)
+	Ff := float64(F)
+	det := Af*Bf - Cf*Cf
+	switch {
+	case det > 0:
+		gpOptQ14 = int64(((Df*Bf - Ff*Cf) * 16384.0) / det)
+		gcOptQ12 = int64(((Ff*Af - Df*Cf) * 4096.0) / det)
+	case A > 0:
+		gpOptQ14 = int64(Df * 16384.0 / Af)
+	case B > 0:
+		gcOptQ12 = int64(Ff * 4096.0 / Bf)
+	}
+	if gpOptQ14 < 0 {
+		gpOptQ14 = 0
+	}
+	if gcOptQ12 < 0 {
+		gcOptQ12 = 0
+	}
 	return
 }
 

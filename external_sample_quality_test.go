@@ -723,6 +723,110 @@ func TestExternalSampleEncoderCandidatePESQDiagnostic(t *testing.T) {
 	}
 }
 
+func TestExternalSampleCoreBCGGapLocalizationDiagnostic(t *testing.T) {
+	if os.Getenv("G729_EXTERNAL_SAMPLE_CORE_GAP") != "1" {
+		t.Skip("set G729_EXTERNAL_SAMPLE_CORE_GAP=1 to localize Core-vs-bcg729 quality gaps")
+	}
+	path := externalSampleQualityPath()
+	if path == "" {
+		t.Skip("set G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav, or add testdata/external/user_quality_input.{wav,mp3,pcm,raw,sln,s16le,in}")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skipf("ffmpeg unavailable: %v", err)
+	}
+
+	src := readExternalQualitySamples(t, path)
+	if len(src) < FrameSamples {
+		t.Fatalf("%s produced %d samples; need at least one 80-sample frame", path, len(src))
+	}
+	originalSamples := len(src)
+	if rem := len(src) % FrameSamples; rem != 0 {
+		src = append(src, make([]int16, FrameSamples-rem)...)
+	}
+	ref := src[:originalSamples]
+
+	tmp := t.TempDir()
+	coreRawPath := filepath.Join(tmp, "core.g729")
+	bcgRawPath := filepath.Join(tmp, "bcg.g729")
+	corePCMPath := filepath.Join(tmp, "core.ffmpeg.s16le")
+	bcgPCMPath := filepath.Join(tmp, "bcg.ffmpeg.s16le")
+	writeOurEncodedRawG729(t, src, coreRawPath)
+	writeBCGEncodedRawG729(t, src, bcgRawPath)
+	ffmpegDecodeRawG729(t, coreRawPath, corePCMPath)
+	ffmpegDecodeRawG729(t, bcgRawPath, bcgPCMPath)
+
+	coreRaw := readFile(t, coreRawPath)
+	bcgRaw := readFile(t, bcgRawPath)
+	coreDecoded := s16leToSamples(readFile(t, corePCMPath))
+	bcgDecoded := s16leToSamples(readFile(t, bcgPCMPath))
+	if len(coreDecoded) > originalSamples {
+		coreDecoded = coreDecoded[:originalSamples]
+	}
+	if len(bcgDecoded) > originalSamples {
+		bcgDecoded = bcgDecoded[:originalSamples]
+	}
+	if len(coreDecoded) < originalSamples || len(bcgDecoded) < originalSamples {
+		t.Fatalf("decoded output too short: core=%d bcg=%d want >= %d", len(coreDecoded), len(bcgDecoded), originalSamples)
+	}
+
+	coreFrames := unpackExternalRawG729Frames(t, "core", coreRaw)
+	bcgFrames := unpackExternalRawG729Frames(t, "bcg729", bcgRaw)
+	if len(coreFrames) != len(bcgFrames) {
+		t.Fatalf("frame count mismatch: core=%d bcg=%d", len(coreFrames), len(bcgFrames))
+	}
+
+	coreMetrics := externalQualityMetricsFor(ref, coreDecoded, 240)
+	bcgMetrics := externalQualityMetricsFor(ref, bcgDecoded, 240)
+	corePESQ := math.NaN()
+	bcgPESQ := math.NaN()
+	if strings.TrimSpace(os.Getenv("G729_PESQ_PYTHON")) != "" {
+		corePESQ = pesqNBScore(t, tmp, "core-gap-core", ref, coreDecoded)
+		bcgPESQ = pesqNBScore(t, tmp, "core-gap-bcg", ref, bcgDecoded)
+	}
+
+	gaps := externalCoreBCGFrameGaps(ref, coreDecoded, bcgDecoded, coreMetrics.shift, bcgMetrics.shift)
+	sort.Slice(gaps, func(i, j int) bool {
+		return gaps[i].deltaSNR > gaps[j].deltaSNR
+	})
+
+	t.Logf("external sample Core-vs-bcg729 gap localization: %s", path)
+	t.Logf("samples=%d padded=%d frames=%d", originalSamples, len(src)-originalSamples, len(src)/FrameSamples)
+	t.Logf("%-28s %6s %10s %10s %8s %8s %8s %8s %7s %8s %8s",
+		"Path", "shift", "GlobalSNR", "SegSNR", "Corr", "RMS/ref", "PESQ", "Peak", "Clip", "ErrRMS", "HighDB")
+	coreNoise := externalResidualNoiseMetricsFor(ref, coreDecoded, coreMetrics.shift)
+	bcgNoise := externalResidualNoiseMetricsFor(ref, bcgDecoded, bcgMetrics.shift)
+	t.Logf("%-28s %6d %10.2f %10.2f %8.4f %8.4f %8.4f %8d %7d %8.2f %8.2f",
+		"Core -> FFmpeg", coreMetrics.shift, coreMetrics.globalSNR, coreMetrics.segSNR, coreMetrics.corr, coreMetrics.rmsRatio, corePESQ, coreMetrics.peak, coreMetrics.nearClip, coreNoise.errorDB, coreNoise.highDB)
+	t.Logf("%-28s %6d %10.2f %10.2f %8.4f %8.4f %8.4f %8d %7d %8.2f %8.2f",
+		"bcg729 -> FFmpeg", bcgMetrics.shift, bcgMetrics.globalSNR, bcgMetrics.segSNR, bcgMetrics.corr, bcgMetrics.rmsRatio, bcgPESQ, bcgMetrics.peak, bcgMetrics.nearClip, bcgNoise.errorDB, bcgNoise.highDB)
+
+	logExternalCoreBCGFieldStats(t, coreFrames, bcgFrames, gaps)
+
+	limit := 12
+	if len(gaps) < limit {
+		limit = len(gaps)
+	}
+	t.Logf("top %d frames where bcg729 beats Core most under FFmpeg decode", limit)
+	t.Logf("%5s %8s %10s %10s %10s %10s %10s %10s %s", "frame", "time", "coreSNR", "bcgSNR", "delta", "refRMS", "coreRMS", "bcgRMS", "bitstream fields")
+	for i := 0; i < limit; i++ {
+		gap := gaps[i]
+		if gap.frame >= len(coreFrames) || gap.frame >= len(bcgFrames) {
+			continue
+		}
+		t.Logf("%5d %7.3fs %10.2f %10.2f %10.2f %10.1f %10.1f %10.1f %s",
+			gap.frame,
+			float64(gap.frame*FrameSamples)/SampleRate,
+			gap.coreSNR,
+			gap.bcgSNR,
+			gap.deltaSNR,
+			gap.refRMS,
+			gap.coreRMS,
+			gap.bcgRMS,
+			externalBitstreamFrameSummary(coreFrames[gap.frame], bcgFrames[gap.frame]),
+		)
+	}
+}
+
 func TestExternalSampleQualityWindowDiagnostic(t *testing.T) {
 	if os.Getenv("G729_EXTERNAL_SAMPLE_QUALITY_WINDOW") != "1" {
 		t.Skip("set G729_EXTERNAL_SAMPLE_QUALITY_WINDOW=1 to compare quality variants in a focused frame window")
@@ -2419,13 +2523,28 @@ func TestExternalSampleProductionGainModeDiagnostic(t *testing.T) {
 	}
 
 	tmp := t.TempDir()
+	withPESQ := strings.TrimSpace(os.Getenv("G729_PESQ_PYTHON")) != ""
 	t.Logf("external sample production gain-mode diagnostic: %s", path)
-	t.Logf("%-18s %6s %10s %10s %10s %8s %8s %7s %8s %10s %10s %8s",
-		"Mode", "shift", "RMS", "GlobalSNR", "SegSNR", "Corr", "RMS/ref", "Peak", "NearClip", "LocalSNR", "LocalSeg", "LocalNC")
+	if withPESQ {
+		t.Logf("%-38s %6s %10s %10s %10s %8s %8s %7s %8s %8s %8s %10s %10s %8s",
+			"Mode", "shift", "RMS", "GlobalSNR", "SegSNR", "Corr", "RMS/ref", "Peak", "NearClip", "FFPESQ", "LocPESQ", "LocalSNR", "LocalSeg", "LocalNC")
+	} else {
+		t.Logf("%-38s %6s %10s %10s %10s %8s %8s %7s %8s %10s %10s %8s",
+			"Mode", "shift", "RMS", "GlobalSNR", "SegSNR", "Corr", "RMS/ref", "Peak", "NearClip", "LocalSNR", "LocalSeg", "LocalNC")
+	}
 	for _, mode := range modes {
 		frames := encodeBitstreamFramesProductionGainMode(t, src, mode)
-		ff, local := measureExternalSampleFramesQualityPair(t, tmp, mode.name, frames, ref, originalSamples)
-		t.Logf("%-18s %6d %10.0f %10.2f %10.2f %8.4f %8.4f %7d %8d %10.2f %10.2f %8d",
+		ff, local, ffAudio, localAudio := measureExternalSampleFramesQualityPairWithAudio(t, tmp, mode.name, frames, ref, originalSamples)
+		if withPESQ {
+			ffPESQ := pesqNBScore(t, tmp, mode.name+"-ffmpeg", ref, ffAudio)
+			localPESQ := pesqNBScore(t, tmp, mode.name+"-local", ref, localAudio)
+			t.Logf("%-38s %6d %10.0f %10.2f %10.2f %8.4f %8.4f %7d %8d %8.4f %8.4f %10.2f %10.2f %8d",
+				mode.name,
+				ff.shift, ff.rms, ff.globalSNR, ff.segSNR, ff.corr, ff.rmsRatio,
+				ff.peak, ff.nearClip, ffPESQ, localPESQ, local.globalSNR, local.segSNR, local.nearClip)
+			continue
+		}
+		t.Logf("%-38s %6d %10.0f %10.2f %10.2f %8.4f %8.4f %7d %8d %10.2f %10.2f %8d",
 			mode.name,
 			ff.shift, ff.rms, ff.globalSNR, ff.segSNR, ff.corr, ff.rmsRatio,
 			ff.peak, ff.nearClip, local.globalSNR, local.segSNR, local.nearClip)
@@ -8129,6 +8248,16 @@ type externalNearClipMarker struct {
 	value          int
 }
 
+type externalCoreBCGFrameGap struct {
+	frame    int
+	coreSNR  float64
+	bcgSNR   float64
+	deltaSNR float64
+	refRMS   float64
+	coreRMS  float64
+	bcgRMS   float64
+}
+
 type externalGainPatchCandidate struct {
 	name string
 	ga   uint8
@@ -8160,6 +8289,145 @@ func externalQualityMetricsFor(ref, test []int16, maxShift int) externalQualityM
 		peak:      peak,
 		nearClip:  nearClip,
 	}
+}
+
+func externalCoreBCGFrameGaps(ref, core, bcg []int16, coreShift, bcgShift int) []externalCoreBCGFrameGap {
+	frames := len(ref) / FrameSamples
+	minRefRMS := math.Max(200, rmsAmp(ref)*0.08)
+	gaps := make([]externalCoreBCGFrameGap, 0, frames)
+	for frame := 0; frame < frames; frame++ {
+		start := frame * FrameSamples
+		end := start + FrameSamples
+		var signal, coreErr, bcgErr, coreEnergy, bcgEnergy float64
+		var count int
+		for i := start; i < end; i++ {
+			coreIndex := i + coreShift
+			bcgIndex := i + bcgShift
+			if coreIndex < 0 || coreIndex >= len(core) || bcgIndex < 0 || bcgIndex >= len(bcg) {
+				continue
+			}
+			r := float64(ref[i])
+			c := float64(core[coreIndex])
+			b := float64(bcg[bcgIndex])
+			signal += r * r
+			coreErr += (r - c) * (r - c)
+			bcgErr += (r - b) * (r - b)
+			coreEnergy += c * c
+			bcgEnergy += b * b
+			count++
+		}
+		if count == 0 || signal <= 0 {
+			continue
+		}
+		refRMS := math.Sqrt(signal / float64(count))
+		if refRMS < minRefRMS {
+			continue
+		}
+		coreSNR := externalEnergySNR(signal, coreErr)
+		bcgSNR := externalEnergySNR(signal, bcgErr)
+		gaps = append(gaps, externalCoreBCGFrameGap{
+			frame:    frame,
+			coreSNR:  coreSNR,
+			bcgSNR:   bcgSNR,
+			deltaSNR: bcgSNR - coreSNR,
+			refRMS:   refRMS,
+			coreRMS:  math.Sqrt(coreEnergy / float64(count)),
+			bcgRMS:   math.Sqrt(bcgEnergy / float64(count)),
+		})
+	}
+	return gaps
+}
+
+func externalEnergySNR(signal, err float64) float64 {
+	if err <= 0 {
+		return math.Inf(+1)
+	}
+	if signal <= 0 {
+		return math.Inf(-1)
+	}
+	return 10 * math.Log10(signal/err)
+}
+
+func unpackExternalRawG729Frames(t *testing.T, name string, raw []byte) []bitstream.Frame {
+	t.Helper()
+	if len(raw)%FrameBytes != 0 {
+		t.Fatalf("%s raw payload length %d is not a multiple of %d", name, len(raw), FrameBytes)
+	}
+	frames := make([]bitstream.Frame, len(raw)/FrameBytes)
+	for i := range frames {
+		if err := bitstream.Unpack(raw[i*FrameBytes:(i+1)*FrameBytes], &frames[i]); err != nil {
+			t.Fatalf("%s frame %d unpack: %v", name, i, err)
+		}
+	}
+	return frames
+}
+
+func logExternalCoreBCGFieldStats(t *testing.T, core, bcg []bitstream.Frame, gaps []externalCoreBCGFrameGap) {
+	t.Helper()
+	type fieldSpec struct {
+		name string
+		get  func(bitstream.Frame) uint16
+	}
+	fields := []fieldSpec{
+		{name: "L0", get: func(f bitstream.Frame) uint16 { return f.L0 }},
+		{name: "L1", get: func(f bitstream.Frame) uint16 { return f.L1 }},
+		{name: "L2", get: func(f bitstream.Frame) uint16 { return f.L2 }},
+		{name: "L3", get: func(f bitstream.Frame) uint16 { return f.L3 }},
+		{name: "P1", get: func(f bitstream.Frame) uint16 { return f.P1 }},
+		{name: "P0", get: func(f bitstream.Frame) uint16 { return f.P0 }},
+		{name: "P2", get: func(f bitstream.Frame) uint16 { return f.P2 }},
+		{name: "C1", get: func(f bitstream.Frame) uint16 { return f.C1 }},
+		{name: "S1", get: func(f bitstream.Frame) uint16 { return f.S1 }},
+		{name: "GA1", get: func(f bitstream.Frame) uint16 { return f.GA1 }},
+		{name: "GB1", get: func(f bitstream.Frame) uint16 { return f.GB1 }},
+		{name: "C2", get: func(f bitstream.Frame) uint16 { return f.C2 }},
+		{name: "S2", get: func(f bitstream.Frame) uint16 { return f.S2 }},
+		{name: "GA2", get: func(f bitstream.Frame) uint16 { return f.GA2 }},
+		{name: "GB2", get: func(f bitstream.Frame) uint16 { return f.GB2 }},
+	}
+	total := min(len(core), len(bcg))
+	top := min(50, len(gaps))
+	topFrames := make(map[int]bool, top)
+	for i := 0; i < top; i++ {
+		topFrames[gaps[i].frame] = true
+	}
+	t.Logf("bitstream field equality vs bcg729: field overall_eq top50_bcgwin_eq")
+	for _, field := range fields {
+		var overallEq, topEq, topSeen int
+		for i := 0; i < total; i++ {
+			if field.get(core[i]) == field.get(bcg[i]) {
+				overallEq++
+			}
+			if topFrames[i] {
+				topSeen++
+				if field.get(core[i]) == field.get(bcg[i]) {
+					topEq++
+				}
+			}
+		}
+		overallPct := 0.0
+		if total > 0 {
+			overallPct = float64(overallEq) * 100 / float64(total)
+		}
+		topPct := 0.0
+		if topSeen > 0 {
+			topPct = float64(topEq) * 100 / float64(topSeen)
+		}
+		t.Logf("  %-3s %6.2f%% %6.2f%%", field.name, overallPct, topPct)
+	}
+}
+
+func externalBitstreamFrameSummary(core, bcg bitstream.Frame) string {
+	return fmt.Sprintf("LSP core=(%d,%d,%d,%d) bcg=(%d,%d,%d,%d) P core=(%d,%d,%d) bcg=(%d,%d,%d) G core=(%d/%d,%d/%d) bcg=(%d/%d,%d/%d) FCB core=(%d/%d,%d/%d) bcg=(%d/%d,%d/%d)",
+		core.L0, core.L1, core.L2, core.L3,
+		bcg.L0, bcg.L1, bcg.L2, bcg.L3,
+		core.P1, core.P0, core.P2,
+		bcg.P1, bcg.P0, bcg.P2,
+		core.GA1, core.GB1, core.GA2, core.GB2,
+		bcg.GA1, bcg.GB1, bcg.GA2, bcg.GB2,
+		core.C1, core.S1, core.C2, core.S2,
+		bcg.C1, bcg.S1, bcg.C2, bcg.S2,
+	)
 }
 
 func externalAlignedWindowQualityMetrics(ref, test []int16, shift, startFrame, endFrame, threshold int) externalWindowQualityMetrics {

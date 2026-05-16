@@ -46,7 +46,8 @@
 // LSP VQ path, applies the open-loop submultiple lift across all lower ranges
 // using the Core lift, and evaluates encodable closed-loop pitch boundary
 // codepoints. Its gain path keeps Annex A's 4x8 GA/GB preselection breadth
-// while preserving wider fixed-point precision for the preselect-center solve.
+// while using a higher-precision preselect-center solve before the final
+// integer codebook cost ranking.
 // It is not an ITU byte-exact conformance mode.
 // EncoderProfileCoreClipRepair is a listening-diagnostic Core variant that
 // keeps that Core search policy but permits decoder-in-loop gain clip repair

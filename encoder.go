@@ -593,10 +593,9 @@ const (
 	qualityGainSearchFixedContributionScaleNum    int32 = 4
 	qualityGainSearchFixedContributionScaleDen    int32 = 3
 
-	// Core keeps the Annex A preselect structure but preserves the maximum
-	// zero-allocation-safe correlation precision for the unquantized
-	// gp_opt/gc_opt center solve. This is not used by the Quality profile's
-	// native gain-search heuristic.
+	// Diagnostic target for the legacy zero-allocation gain-preselect center.
+	// Core now uses a full-correlation float64 center solve; CoreFast keeps the
+	// 14-bit default through gainquant.SearchConjugate.
 	encoderCoreGainPreselectTargetBits uint = 24
 )
 
@@ -1707,7 +1706,7 @@ func (e *Encoder) fcbStep(
 		// GA/GB preselect procedure, so Core deliberately leaves it disabled.
 		gaPhys, gbPhys, gpHatQ14, gammaCQ13 = searchConjugateNativeGainWide(&e.pastQuaEn, &c, x, y, &z)
 	} else if e.coreGainPreselectPrecisionEnabled() {
-		gaPhys, gbPhys, gpHatQ14, gammaCQ13 = gainquant.SearchConjugatePreselectTargetBits(&xSearch, &ySearch, &z, gpcSearchQ12, encoderCoreGainPreselectTargetBits)
+		gaPhys, gbPhys, gpHatQ14, gammaCQ13 = gainquant.SearchConjugatePreselectFloatCenter(&xSearch, &ySearch, &z, gpcSearchQ12)
 	} else {
 		gaPhys, gbPhys, gpHatQ14, gammaCQ13 = gainquant.SearchConjugate(&xSearch, &ySearch, &z, gpcSearchQ12)
 	}
@@ -1878,7 +1877,7 @@ func (e *Encoder) scoreFCBRerankPosition(
 	if useNativeGainSearch {
 		gaPhys, gbPhys, _, _ = searchConjugateNativeGainWide(&e.pastQuaEn, &c, x, y, &z)
 	} else if e.coreGainPreselectPrecisionEnabled() {
-		gaPhys, gbPhys, _, _ = gainquant.SearchConjugatePreselectTargetBits(&xSearch, &ySearch, &z, gpcSearchQ12, encoderCoreGainPreselectTargetBits)
+		gaPhys, gbPhys, _, _ = gainquant.SearchConjugatePreselectFloatCenter(&xSearch, &ySearch, &z, gpcSearchQ12)
 	} else {
 		gaPhys, gbPhys, _, _ = gainquant.SearchConjugate(&xSearch, &ySearch, &z, gpcSearchQ12)
 	}
