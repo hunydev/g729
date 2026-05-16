@@ -23,7 +23,9 @@ encoder byte-exact conformance are not claimed.
 | IP | Clean-room provenance record | No third-party codec source used |
 
 See [performance.md](performance.md) for the real-time factor and jitter
-benchmark methodology.
+benchmark methodology. See [encoder-validation.md](encoder-validation.md) for
+the post-`v0.1.0` encoder validation plan and current product-default
+black-box baseline.
 
 ## ITU Decoder Vector Validation
 

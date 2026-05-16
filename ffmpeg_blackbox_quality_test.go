@@ -131,6 +131,27 @@ func TestExternalFFmpegBlackboxQuality_SPEECH(t *testing.T) {
 	}
 }
 
+func TestWriteOurEncodedRawG729UsesProductDefault(t *testing.T) {
+	samples := make([]int16, FrameSamples*3)
+	for i := range samples {
+		// Deterministic non-silence across several frames so encoder state is
+		// exercised without depending on external media fixtures.
+		samples[i] = int16(((i*251 + 97) % 4096) - 2048)
+	}
+
+	tmp := t.TempDir()
+	helperPath := filepath.Join(tmp, "helper.g729")
+	defaultPath := filepath.Join(tmp, "default.g729")
+	writeOurEncodedRawG729(t, samples, helperPath)
+	writeRawG729WithEncoder(t, samples, defaultPath, NewEncoder())
+
+	helper := readFile(t, helperPath)
+	def := readFile(t, defaultPath)
+	if !bytes.Equal(helper, def) {
+		t.Fatalf("writeOurEncodedRawG729 helper no longer matches NewEncoder product default")
+	}
+}
+
 func TestExternalFFmpegBlackboxProfileCompare_SPEECH(t *testing.T) {
 	if os.Getenv("G729_FFMPEG_BLACKBOX_PROFILE_COMPARE") != "1" {
 		t.Skip("set G729_FFMPEG_BLACKBOX_PROFILE_COMPARE=1 to compare encoder profiles on SPEECH")
@@ -1632,7 +1653,8 @@ func writeG192AsRawG729(t *testing.T, g192 []byte, path string) {
 
 func writeOurEncodedRawG729(t *testing.T, samples []int16, path string) {
 	t.Helper()
-	writeOurEncodedRawG729WithProfile(t, samples, path, EncoderProfileQuality)
+	enc := NewEncoder()
+	writeRawG729WithEncoder(t, samples, path, enc)
 }
 
 func writeOurEncodedRawG729WithProfile(t *testing.T, samples []int16, path string, profile EncoderProfile) {
