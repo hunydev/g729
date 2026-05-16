@@ -27,6 +27,7 @@ intended deployment targets are SIP/RTP, MRCP, TTS, IVR, and server-side media
 applications that need `G729/8000` with `annexb=no`.
 This package targets the common RTP profile `G729/8000` with `annexb=no`.
 It is not a full implementation of every G.729 family variant.
+See [docs/annex-b.md](docs/annex-b.md) for the Annex B / `annexb=yes` policy.
 
 ---
 
@@ -81,6 +82,8 @@ undesirable.
 | G.729.1 (wideband / scalable) | **Not supported** |
 | G.729D / G.729E | **Not supported** |
 | ITU certified conformance claim | **Not made** |
+
+The Annex B boundary is documented in [docs/annex-b.md](docs/annex-b.md).
 
 ---
 
@@ -236,7 +239,9 @@ a=maxptime:20
 
 `annexb=no` MUST be advertised — this codec does not implement
 Annex B SID / CNG / DTX. RTP Annex B SID/CNG frames are rejected with
-`ErrUnsupportedAnnexB` rather than decoded as speech.
+`ErrUnsupportedAnnexB` rather than decoded as speech. See
+[docs/annex-b.md](docs/annex-b.md) for the current policy and future
+implementation requirements.
 
 ---
 
@@ -275,7 +280,8 @@ For the full test matrix, opt-in commands, PESQ notes, and private oracle
 workflow, see [docs/validation.md](docs/validation.md). For operational
 hardening, see [docs/operational-hardening.md](docs/operational-hardening.md).
 For release wording boundaries, see
-[docs/claims-and-nonclaims.md](docs/claims-and-nonclaims.md).
+[docs/claims-and-nonclaims.md](docs/claims-and-nonclaims.md). For Annex B
+scope, see [docs/annex-b.md](docs/annex-b.md).
 
 ---
 
@@ -299,7 +305,8 @@ evidence, and standards certification:
    execution CSVs are not part of the MIT-licensed source distribution and are
    not relicensed as MIT.
 5. **Annex B and other G.729 variants remain out of scope.** SID/CNG/DTX
-   (`annexb=yes`), G.729.1, G.729D, and G.729E are not implemented.
+   (`annexb=yes`), G.729.1, G.729D, and G.729E are not implemented. See
+   [docs/annex-b.md](docs/annex-b.md).
 6. **`DecodeFrameEnhanced` is diagnostic-only.** It is useful for listening
    experiments but is not the strict decoder path and is not used as conformance
    evidence.

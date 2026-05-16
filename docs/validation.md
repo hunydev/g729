@@ -26,7 +26,8 @@ encoder byte-exact conformance are not claimed.
 See [performance.md](performance.md) for the real-time factor and jitter
 benchmark methodology. See [encoder-validation.md](encoder-validation.md) for
 the post-`v0.1.0` encoder validation plan and current product-default
-black-box baseline.
+black-box baseline. See [annex-b.md](annex-b.md) for the current
+`annexb=no` boundary and the negative SID/CNG fixture policy.
 
 ## ITU Decoder Vector Validation
 

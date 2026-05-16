@@ -18,6 +18,9 @@ The supported production profile is intentionally narrow:
 The project does not implement Annex B SID/CNG/DTX, G.729.1, G.729D, or
 G.729E.
 
+The detailed Annex B / `annexb=yes` policy is recorded in
+[`annex-b.md`](annex-b.md).
+
 ## Payload Boundary
 
 The decoder accepts one 10-byte speech frame per `DecodeFrame` call. It rejects
@@ -60,6 +63,7 @@ go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=0 -in /tmp/g729-sid.pcap
 
 The `-sid` fixture is expected to fail today with `ErrUnsupportedAnnexB`; it is
 kept as an explicit boundary test until an `annexb=yes` implementation exists.
+See [`annex-b.md`](annex-b.md) for the required implementation scope.
 
 The checker verifies payload length, packetized frame count, optional RTP
 sequence/timestamp continuity, and optional decode traversal. The report also

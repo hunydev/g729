@@ -28,6 +28,9 @@ record, not legal advice.
   external G.729 implementation source or binaries are not redistributed as
   part of the MIT-licensed source distribution.
 
+See [annex-b.md](annex-b.md) for the detailed Annex B / `annexb=yes` boundary
+and future implementation requirements.
+
 ## Non-Claims
 
 - No ITU certification is claimed.
