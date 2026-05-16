@@ -443,7 +443,7 @@ function activateBlindArena() {
     accent: "#c2410c",
     emptyText: "Right sample pending."
   });
-  const arenaAssetVersion = "speech-active-v2";
+  const arenaAssetVersion = "speech-active-v3";
 
   const trials = Array.from({ length: total }, (_, index) => {
     const id = String(index + 1).padStart(2, "0");
@@ -487,8 +487,8 @@ function activateBlindArena() {
       button.disabled = true;
     });
     await Promise.all([
-      loadAudioPlayerURL(leftPlayer, trial[leftKind], { stateText: "Blind sample A · 1.6 s" }),
-      loadAudioPlayerURL(rightPlayer, trial[rightKind], { stateText: "Blind sample B · 1.6 s" })
+      loadAudioPlayerURL(leftPlayer, trial[leftKind], { stateText: "Blind sample A · 2.8 s" }),
+      loadAudioPlayerURL(rightPlayer, trial[rightKind], { stateText: "Blind sample B · 2.8 s" })
     ]);
     buttons.forEach((button) => {
       button.disabled = false;

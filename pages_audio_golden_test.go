@@ -125,16 +125,16 @@ var pagesArenaClips = []struct {
 	offsetSamples int
 	sampleCount   int
 }{
-	{name: "trial-01", offsetSamples: 4160, sampleCount: 12800},
-	{name: "trial-02", offsetSamples: 34400, sampleCount: 12800},
-	{name: "trial-03", offsetSamples: 45600, sampleCount: 12800},
-	{name: "trial-04", offsetSamples: 61760, sampleCount: 12800},
-	{name: "trial-05", offsetSamples: 88160, sampleCount: 12800},
-	{name: "trial-06", offsetSamples: 114800, sampleCount: 12800},
-	{name: "trial-07", offsetSamples: 139040, sampleCount: 12800},
-	{name: "trial-08", offsetSamples: 155600, sampleCount: 12800},
-	{name: "trial-09", offsetSamples: 188960, sampleCount: 12800},
-	{name: "trial-10", offsetSamples: 238560, sampleCount: 12800},
+	{name: "trial-01", offsetSamples: 4160, sampleCount: 22400},
+	{name: "trial-02", offsetSamples: 34400, sampleCount: 22400},
+	{name: "trial-03", offsetSamples: 45600, sampleCount: 22400},
+	{name: "trial-04", offsetSamples: 61760, sampleCount: 22400},
+	{name: "trial-05", offsetSamples: 88160, sampleCount: 22400},
+	{name: "trial-06", offsetSamples: 114800, sampleCount: 22400},
+	{name: "trial-07", offsetSamples: 139040, sampleCount: 22400},
+	{name: "trial-08", offsetSamples: 155600, sampleCount: 22400},
+	{name: "trial-09", offsetSamples: 188960, sampleCount: 22400},
+	{name: "trial-10", offsetSamples: 236160, sampleCount: 22400},
 }
 
 func arenaAudioPath(name, suffix string) string {

@@ -11,9 +11,9 @@
   },
   "generation": {
     "trial_count": 10,
-    "trial_duration_seconds": 1.6,
+    "trial_duration_seconds": 2.8,
     "sample_rate": 8000,
-    "samples_per_trial": 12800,
+    "samples_per_trial": 22400,
     "normalization": "Each selected clip is peak-normalized to 18000 before both codec paths.",
     "notes": [
       "Each trial compares two hidden paths: bcg729 black-box encode -> FFmpeg black-box decode, and local EncoderProfileCore -> local decoder.",
@@ -80,7 +80,7 @@
     },
     {
       "id": "trial-10",
-      "offset_seconds": 29.82,
+      "offset_seconds": 29.52,
       "bcg729_ffmpeg": "trial-10-bcg729-ffmpeg.wav",
       "our_loopback": "trial-10-our-loopback.wav"
     }
