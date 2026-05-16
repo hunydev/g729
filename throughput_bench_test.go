@@ -10,9 +10,17 @@ import (
 )
 
 func BenchmarkThroughput_EncodeFrame(b *testing.B) {
+	benchmarkThroughputEncodeFrameProfile(b, EncoderProfileCore)
+}
+
+func BenchmarkThroughput_EncodeFrameCoreFast(b *testing.B) {
+	benchmarkThroughputEncodeFrameProfile(b, EncoderProfileCoreFast)
+}
+
+func benchmarkThroughputEncodeFrameProfile(b *testing.B, profile EncoderProfile) {
 	defer pinBenchmarkToSingleThread(b)()
 
-	enc := NewEncoder()
+	enc := NewEncoderWithProfile(profile)
 	pcm := pcmDeterministic()
 	var out [FrameBytes]byte
 	for i := 0; i < 8; i++ {
@@ -54,10 +62,18 @@ func BenchmarkThroughput_DecodeFrame(b *testing.B) {
 }
 
 func BenchmarkThroughput_StreamingWrite800(b *testing.B) {
+	benchmarkThroughputStreamingWrite800Profile(b, EncoderProfileCore)
+}
+
+func BenchmarkThroughput_StreamingWrite800CoreFast(b *testing.B) {
+	benchmarkThroughputStreamingWrite800Profile(b, EncoderProfileCoreFast)
+}
+
+func benchmarkThroughputStreamingWrite800Profile(b *testing.B, profile EncoderProfile) {
 	defer pinBenchmarkToSingleThread(b)()
 
 	const framesPerWrite = 10
-	se := NewStreamingEncoder(io.Discard)
+	se := NewStreamingEncoderWithProfile(io.Discard, profile)
 	pcm := make([]int16, framesPerWrite*FrameSamples)
 	src := pcmDeterministic()
 	for frame := 0; frame < framesPerWrite; frame++ {
@@ -80,9 +96,17 @@ func BenchmarkThroughput_StreamingWrite800(b *testing.B) {
 }
 
 func BenchmarkRealtimeJitter_EncodeFrame(b *testing.B) {
+	benchmarkRealtimeJitterEncodeFrameProfile(b, EncoderProfileCore)
+}
+
+func BenchmarkRealtimeJitter_EncodeFrameCoreFast(b *testing.B) {
+	benchmarkRealtimeJitterEncodeFrameProfile(b, EncoderProfileCoreFast)
+}
+
+func benchmarkRealtimeJitterEncodeFrameProfile(b *testing.B, profile EncoderProfile) {
 	defer pinBenchmarkToSingleThread(b)()
 
-	enc := NewEncoder()
+	enc := NewEncoderWithProfile(profile)
 	pcm := pcmDeterministic()
 	var out [FrameBytes]byte
 	for i := 0; i < 16; i++ {
@@ -134,9 +158,17 @@ func BenchmarkRealtimeJitter_DecodeFrame(b *testing.B) {
 }
 
 func BenchmarkRealtimeJitter_EncodeDecodeLoopback(b *testing.B) {
+	benchmarkRealtimeJitterEncodeDecodeLoopbackProfile(b, EncoderProfileCore)
+}
+
+func BenchmarkRealtimeJitter_EncodeDecodeLoopbackCoreFast(b *testing.B) {
+	benchmarkRealtimeJitterEncodeDecodeLoopbackProfile(b, EncoderProfileCoreFast)
+}
+
+func benchmarkRealtimeJitterEncodeDecodeLoopbackProfile(b *testing.B, profile EncoderProfile) {
 	defer pinBenchmarkToSingleThread(b)()
 
-	enc := NewEncoder()
+	enc := NewEncoderWithProfile(profile)
 	dec := NewDecoder()
 	pcm := pcmDeterministic()
 	var bits [FrameBytes]byte

@@ -21,6 +21,27 @@ Core keeps the public frame shape and decoder compatibility:
 - `annexb=no`; no SID/CNG/DTX.
 - Zero-allocation steady-state frame encode path.
 
+## Core Fast
+
+`EncoderProfileCoreFast` is an explicit opt-in for low-latency or
+high-density deployments. It keeps the normal 10-byte G.729 payload shape and
+the same public decoder compatibility as Core, but reduces selected encoder
+search precision/budget:
+
+- The focused fixed-codebook fourth-loop budget is reduced from the Core
+  frame-level 180-entry cap to 60 entries per frame.
+- Subframe 0 is capped at 30 entries so it cannot consume the whole fast frame
+  budget.
+- Gain preselect uses the standard-width center solve instead of Core's wider
+  preselect-center precision.
+- The wider gain predictor arithmetic is still retained; disabling it was
+  tested and caused a large Pages sample quality regression.
+
+Core Fast is not the product default, not a decoder exact path, and not an ITU
+encoder byte-exact claim. Treat it as a throughput/latency trade-off profile:
+run local listening and regression checks before using it for production
+streams that are quality-sensitive.
+
 ## Core Algorithm Notes
 
 The Core open-loop path follows Annex A's raw-correlation per-range maxima
@@ -103,6 +124,9 @@ sound with a minimal clipping safety valve, not as a conformance claim.
 
 Use `NewEncoder()` or `NewEncoderWithProfile(EncoderProfileCore)` for normal
 applications.
+
+Use `NewEncoderWithProfile(EncoderProfileCoreFast)` only when channel density
+or latency is more important than preserving the default Core search result.
 
 Use diagnostic profiles only when you are explicitly running the private
 quality/PESQ/blind-listening test workflows described in

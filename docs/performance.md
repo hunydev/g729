@@ -68,21 +68,33 @@ Median throughput from the five-run sample:
 
 | Path | ns/op | us/frame | RTF | x-realtime | Codec-only streams/core | Allocs |
 |---|---:|---:|---:|---:|---:|---:|
-| EncodeFrame | 100811 | 100.8 | 0.01008 | 99.2x | 99.2 | 0 |
+| EncodeFrame Core | 101083 | 101.1 | 0.01011 | 98.9x | 98.9 | 0 |
+| EncodeFrame CoreFast | 92241 | 92.24 | 0.009224 | 108.4x | 108.4 | 0 |
 | DecodeFrame | 11902 | 11.90 | 0.001190 | 840x | 840 | 0 |
-| StreamingWrite800 | 1008700 per 10 frames | 100.9 | 0.01009 | 99.1x | 99.1 | 0 |
+| StreamingWrite800 Core | 1011006 per 10 frames | 101.1 | 0.01011 | 98.9x | 98.9 | 0 |
+| StreamingWrite800 CoreFast | 923959 per 10 frames | 92.40 | 0.009240 | 108.2x | 108.2 | 0 |
 
 Median per-frame processing-time distribution from the same five-run sample:
 
 | Path | mean us | p50 us | p95 us | p99 us | p99 deadline | observed max us |
 |---|---:|---:|---:|---:|---:|---:|
-| EncodeFrame | 100.8 | 99.83 | 108.0 | 118.2 | 0.01183 | 206 |
+| EncodeFrame Core | 100.8 | 99.99 | 108.6 | 117.2 | 0.01172 | 147 |
+| EncodeFrame CoreFast | 92.37 | 91.07 | 98.62 | 106.3 | 0.01063 | 183 |
 | DecodeFrame | 11.83 | 11.67 | 11.72 | 18.35 | 0.001835 | 81.5 |
 | EncodeFrame + DecodeFrame | 112.9 | 112.0 | 120.3 | 133.8 | 0.01338 | 688 |
 
 The observed max column is sensitive to OS scheduling. The p99 deadline column
 is the more useful codec-hot-path jitter signal: on this VM, p99 processing
 time stays far below the 10 ms G.729 frame budget.
+
+CoreFast is an opt-in encoder profile. On the same public Pages sample used by
+the default quality regression, the measured local-decode metrics were close to
+Core while improving encoder throughput:
+
+```text
+Core:     globalSNR=2.12 corr=0.6782 rms/ref=0.9506 peak=8493 nearClip=0
+CoreFast: globalSNR=2.13 corr=0.6769 rms/ref=0.9417 peak=8376 nearClip=0
+```
 
 ## Interpretation
 

@@ -66,6 +66,7 @@ undesirable.
 | `ptime=20` (two frames per RTP packet) | **Supported** (caller bundles two encoder outputs) |
 | `annexb=no` SDP advertisement | **Required** |
 | Single-stream `Encoder` / `Decoder` | **Supported** |
+| Opt-in `EncoderProfileCoreFast` | **Supported as performance trade-off profile** |
 | Opt-in `DecodeFrameEnhanced` listening aid | **Experimental; not a conformance claim** |
 | Streaming `Encoder.Write` / `Encoder.Flush` | **Supported** |
 | Hot-path 0-allocation steady state | **Verified** |
@@ -167,6 +168,12 @@ The default encoder profile is selected by listening quality, not PESQ alone.
 A diagnostic PESQ-oriented profile can score closer to the local `bcg729`
 black-box anchor on some samples, but recent blind tests preferred Core because
 the PESQ-led candidate sounded slightly more muffled.
+
+`EncoderProfileCoreFast` is available as an explicit opt-in for
+low-latency/high-density deployments. It keeps normal 10-byte G.729 payloads
+and zero steady-state allocations, but reduces selected encoder search
+precision/budget. It is a performance trade-off profile, not the product
+default and not a stronger conformance claim.
 
 See [docs/encoder-profiles.md](docs/encoder-profiles.md) for detailed profile
 notes.

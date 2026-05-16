@@ -69,6 +69,10 @@
 // repair, and fixed-codebook residual reranking. EncoderProfileQualityPESQDegrit
 // is a PESQ-candidate variant that also enables bounded gain MSE/noise repair
 // for blind tests targeting high-residual grit.
+// EncoderProfileCoreFast is an explicit opt-in throughput profile. It keeps
+// the normal 10-byte payload shape but reduces selected encoder search
+// precision/budget, so it is a performance trade-off rather than the default
+// quality/conformance evidence path.
 //
 // EncodeFrame and DecodeFrame are zero-allocation in steady state; see the
 // v0.1.0-rc1 release verification log for hot-path benchmarks.

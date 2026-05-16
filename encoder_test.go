@@ -58,12 +58,38 @@ func TestEncoderProfiles(t *testing.T) {
 	if coreEnc.profile != EncoderProfileCore ||
 		coreEnc.qualityHeuristicsEnabled() ||
 		coreEnc.qualityNormalizedOpenLoopSearchEnabled() ||
-		!coreEnc.coreFCBThresholdScanEnabled() {
-		t.Fatalf("NewEncoderWithProfile(Core) profile = %v quality=%t normOpenLoop=%t coreFCB=%t, want core heuristics disabled with spec FCB threshold scan",
+		!coreEnc.coreFCBThresholdScanEnabled() ||
+		!coreEnc.coreGainPreselectPrecisionEnabled() ||
+		!coreEnc.coreGainPredictorPrecisionEnabled() {
+		t.Fatalf("NewEncoderWithProfile(Core) profile = %v quality=%t normOpenLoop=%t coreFCB=%t coreGainPreselect=%t coreGainPredictor=%t, want core heuristics disabled with spec FCB threshold scan",
 			coreEnc.profile,
 			coreEnc.qualityHeuristicsEnabled(),
 			coreEnc.qualityNormalizedOpenLoopSearchEnabled(),
-			coreEnc.coreFCBThresholdScanEnabled())
+			coreEnc.coreFCBThresholdScanEnabled(),
+			coreEnc.coreGainPreselectPrecisionEnabled(),
+			coreEnc.coreGainPredictorPrecisionEnabled())
+	}
+
+	coreFastEnc := NewEncoderWithProfile(EncoderProfileCoreFast)
+	if coreFastEnc.profile != EncoderProfileCoreFast ||
+		coreFastEnc.qualityHeuristicsEnabled() ||
+		coreFastEnc.qualityNormalizedOpenLoopSearchEnabled() ||
+		!coreFastEnc.coreFCBThresholdScanEnabled() ||
+		!coreFastEnc.coreFastFCBThresholdScanEnabled() ||
+		coreFastEnc.coreFCBThresholdScanFrameLimit() != encoderCoreFastFCBThresholdScanFrameLimit ||
+		coreFastEnc.coreFCBThresholdScanSubframe0Limit() != encoderCoreFastFCBThresholdScanSubframe0Limit ||
+		coreFastEnc.coreGainPreselectPrecisionEnabled() ||
+		!coreFastEnc.coreGainPredictorPrecisionEnabled() {
+		t.Fatalf("NewEncoderWithProfile(CoreFast) profile=%v quality=%t normOpenLoop=%t coreFCB=%t fastFCB=%t frameLimit=%d sub0Limit=%d coreGainPreselect=%t coreGainPredictor=%t, want opt-in reduced-budget Core fast profile",
+			coreFastEnc.profile,
+			coreFastEnc.qualityHeuristicsEnabled(),
+			coreFastEnc.qualityNormalizedOpenLoopSearchEnabled(),
+			coreFastEnc.coreFCBThresholdScanEnabled(),
+			coreFastEnc.coreFastFCBThresholdScanEnabled(),
+			coreFastEnc.coreFCBThresholdScanFrameLimit(),
+			coreFastEnc.coreFCBThresholdScanSubframe0Limit(),
+			coreFastEnc.coreGainPreselectPrecisionEnabled(),
+			coreFastEnc.coreGainPredictorPrecisionEnabled())
 	}
 
 	coreClipEnc := NewEncoderWithProfile(EncoderProfileCoreClipRepair)

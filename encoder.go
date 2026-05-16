@@ -285,6 +285,13 @@ const (
 	// It keeps Core's narrow search policy and only enables decoder-in-loop gain
 	// clip repair when the selected gain would produce near-clipped output.
 	EncoderProfileCoreClipRepair
+
+	// EncoderProfileCoreFast is an opt-in low-latency/high-density profile. It
+	// keeps the normal 10-byte G.729 payload shape and Core's broad search
+	// structure, but uses a smaller fixed-codebook focused-search budget and the
+	// standard-width gain-preselect center. It is not the product default and is
+	// not part of the decoder exact or encoder quality-default claims.
+	EncoderProfileCoreFast
 )
 
 const defaultEncoderProfile = EncoderProfileCore
@@ -337,7 +344,7 @@ func NewEncoderWithProfile(profile EncoderProfile) *Encoder {
 
 func normalizeEncoderProfile(profile EncoderProfile) EncoderProfile {
 	switch profile {
-	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep, EncoderProfileQualityCleanFCBRerank, EncoderProfileQualityPESQ, EncoderProfileQualityPESQDegrit, EncoderProfileCoreClipRepair:
+	case EncoderProfileCore, EncoderProfileQuality, EncoderProfileQualityAnnexALSP, EncoderProfileQualityClean, EncoderProfileQualityCleanSNR, EncoderProfileQualityCleanSmooth, EncoderProfileQualityCleanVoiced, EncoderProfileQualityCleanDegrit, EncoderProfileQualityCleanHarmonic, EncoderProfileQualityCleanHarmonicStrong, EncoderProfileQualityCleanHarmonicDeep, EncoderProfileQualityCleanFCBRerank, EncoderProfileQualityPESQ, EncoderProfileQualityPESQDegrit, EncoderProfileCoreClipRepair, EncoderProfileCoreFast:
 		return profile
 	default:
 		return defaultEncoderProfile
@@ -391,7 +398,7 @@ func (e *Encoder) qualityFCBThresholdScanActive() bool {
 
 func (e *Encoder) coreSearchPolicyEnabled() bool {
 	switch e.profile {
-	case EncoderProfileCore:
+	case EncoderProfileCore, EncoderProfileCoreFast:
 		return e.qualityTuning == 0
 	case EncoderProfileCoreClipRepair:
 		return e.qualityTuning == encoderTuningGainClipRepair
@@ -405,15 +412,41 @@ func (e *Encoder) coreFCBThresholdScanEnabled() bool {
 }
 
 func (e *Encoder) coreGainPreselectPrecisionEnabled() bool {
+	return e.coreSearchPolicyEnabled() && e.profile != EncoderProfileCoreFast
+}
+
+func (e *Encoder) coreGainPredictorPrecisionEnabled() bool {
 	return e.coreSearchPolicyEnabled()
+}
+
+func (e *Encoder) coreFCBThresholdScanFrameLimit() int {
+	if e.profile == EncoderProfileCoreFast {
+		return encoderCoreFastFCBThresholdScanFrameLimit
+	}
+	return fcbsearch.SearchThresholdScanDefaultLimit
 }
 
 func (e *Encoder) coreFCBThresholdScanLimit(sub int) int {
 	limit := e.coreFCBThresholdEntriesRemaining
-	if sub == 0 && limit > encoderCoreFCBThresholdScanSubframe0Limit {
-		return encoderCoreFCBThresholdScanSubframe0Limit
+	if sub == 0 && limit > e.coreFCBThresholdScanSubframe0Limit() {
+		return e.coreFCBThresholdScanSubframe0Limit()
 	}
 	return limit
+}
+
+func (e *Encoder) coreFCBThresholdScanSubframe0Limit() int {
+	if e.profile == EncoderProfileCoreFast {
+		return encoderCoreFastFCBThresholdScanSubframe0Limit
+	}
+	return encoderCoreFCBThresholdScanSubframe0Limit
+}
+
+func (e *Encoder) coreFastProfileEnabled() bool {
+	return e.profile == EncoderProfileCoreFast
+}
+
+func (e *Encoder) coreFastFCBThresholdScanEnabled() bool {
+	return e.coreFastProfileEnabled()
 }
 
 func (e *Encoder) recordCoreFCBThresholdEntries(entered int) {
@@ -591,6 +624,14 @@ var qualityFCBClipCooldownFrames = 20
 // this conservative first-subframe guard preserves that frame cap while leaving
 // the second subframe the remaining budget.
 var encoderCoreFCBThresholdScanSubframe0Limit = fcbsearch.SearchThresholdScanDefaultLimit / 2
+
+// EncoderProfileCoreFast keeps the focused fixed-codebook search but reduces
+// the frame-level fourth-loop budget. This is a latency/density trade-off, not
+// a conformance profile.
+const (
+	encoderCoreFastFCBThresholdScanFrameLimit     = fcbsearch.SearchThresholdScanDefaultLimit / 3
+	encoderCoreFastFCBThresholdScanSubframe0Limit = encoderCoreFastFCBThresholdScanFrameLimit / 2
+)
 
 // qualityPitchCenterFullSearchMinScoreRatio is a diagnostic rescue
 // threshold for replacing a high open-loop centre with a lower full-range
@@ -796,7 +837,7 @@ func (e *Encoder) lpcStep(pcm []int16) (lsp.Indices, error) {
 	e.qualityFCBThresholdEntriesFrame = 0
 	e.qualityFCBThresholdEntriesLast = 0
 	if e.coreFCBThresholdScanEnabled() {
-		e.coreFCBThresholdEntriesRemaining = fcbsearch.SearchThresholdScanDefaultLimit
+		e.coreFCBThresholdEntriesRemaining = e.coreFCBThresholdScanFrameLimit()
 	} else {
 		e.coreFCBThresholdEntriesRemaining = 0
 	}
@@ -1629,7 +1670,10 @@ func (e *Encoder) fcbStep(
 	// so encoder local state must mirror the receiver rather than reusing
 	// the sparse eq. 45 vector for gain prediction.
 	useNativeGainSearch := e.qualityNativeGainSearchEnabled()
-	useWideGainPredictor := e.coreSearchPolicyEnabled() || !e.qualityHeuristicsEnabled() || e.qualityWideGainPredictorEnabled() || useNativeGainSearch
+	useWideGainPredictor := e.coreGainPredictorPrecisionEnabled() ||
+		!e.qualityHeuristicsEnabled() ||
+		e.qualityWideGainPredictorEnabled() ||
+		useNativeGainSearch
 	gpcPredQ12 := gainquant.PredictedGcQ12(&e.pastQuaEn, &c)
 	if useWideGainPredictor {
 		gpcPredQ12 = gainquant.PredictedGcQ12Wide(&e.pastQuaEn, &c)
@@ -1807,7 +1851,10 @@ func (e *Encoder) scoreFCBRerankPosition(
 	fcbsearch.FilterCode(&c, h, &z)
 
 	useNativeGainSearch := e.qualityNativeGainSearchEnabled()
-	useWideGainPredictor := e.coreSearchPolicyEnabled() || !e.qualityHeuristicsEnabled() || e.qualityWideGainPredictorEnabled() || useNativeGainSearch
+	useWideGainPredictor := e.coreGainPredictorPrecisionEnabled() ||
+		!e.qualityHeuristicsEnabled() ||
+		e.qualityWideGainPredictorEnabled() ||
+		useNativeGainSearch
 	gpcPredQ12 := gainquant.PredictedGcQ12(&e.pastQuaEn, &c)
 	if useWideGainPredictor {
 		gpcPredQ12 = gainquant.PredictedGcQ12Wide(&e.pastQuaEn, &c)
