@@ -19,9 +19,10 @@ import (
 //	ITU .BIT -> local decoder -> PCM
 //	ITU .PST reference PCM
 //
-// PESQ/POLQA/MOS are deliberately not involved here. For decoder validation,
-// the bitstream is fixed, so sample-level equality against the reference vector
-// is a stronger and more direct signal than an objective listening score.
+// PESQ and subjective listening scores are deliberately not involved here. For
+// decoder validation, the bitstream is fixed, so sample-level equality against
+// the reference vector is a stronger and more direct signal than an objective
+// listening score.
 //
 // Clean-room boundary: this test consumes only test-vector data files already
 // present in testdata/itu. It does not inspect or execute any external G.729

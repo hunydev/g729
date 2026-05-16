@@ -26,23 +26,12 @@ ITU .PST reference PCM
 
 and then sample-level comparison. If output is bit-exact, or if any accepted
 delta is explicitly justified by a documented fixed/floating-point tolerance,
-the decoder has much stronger evidence than a MOS-style quality score.
+the decoder has much stronger evidence than an objective listening-quality
+score.
 
-PESQ/POLQA remain useful as end-to-end listening-quality diagnostics, but they
-are not the primary decoder conformance gate:
-
-- ITU's P.862 pages state that P.862/P.862.1/P.862.2/P.862.3 were deleted on
-  2024-01-05 and point users to P.863/P.863.1/P.863.2.
-- ITU-T P.863.1 documents comparison guidance between older P.862/PESQ results
-  and P.863 narrowband mode, including standard-codec average-score context.
-- Therefore PESQ NB can remain a legacy VoIP quality diagnostic, but public
-  decoder credibility should be based on vector PCM equality first.
-
-References:
-
-- <https://www.itu.int/rec/t-rec-p.862>
-- <https://www.itu.int/rec/T-REC-P.863/>
-- <https://www.itu.int/rec/dologin_pub.asp?id=T-REC-P.863.1-201305-S%21%21PDF-E&lang=e&type=items>
+PESQ NB can remain a legacy VoIP quality diagnostic for end-to-end encoder
+work, but it is not the primary decoder conformance gate. Public decoder
+credibility should be based on vector PCM equality first.
 
 ## Harness
 
@@ -123,7 +112,7 @@ Result:
 Interpretation:
 
 - The decoder is not yet ITU-vector bit-exact.
-- This is a stronger blocker than any PESQ/POLQA score for decoder credibility.
+- This is a stronger blocker than any PESQ score for decoder credibility.
 - Existing FFmpeg black-box and listening-quality gates remain useful
   interoperability/quality checks, but they do not replace vector equality.
 

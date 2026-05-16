@@ -21,6 +21,8 @@ G.729A-compatible codec for `G729/8000 annexb=no` RTP send paths.
 No cgo, native codec dependency, or vendored codec source is required. The
 intended deployment targets are SIP/RTP, MRCP, TTS, IVR, and server-side media
 applications that need `G729/8000` with `annexb=no`.
+In RTP/SDP terms, Annex B SID/CNG/DTX and other G.729 variants are out of
+scope for this package.
 
 ---
 
@@ -68,7 +70,7 @@ undesirable.
 | Streaming `Encoder.Write` / `Encoder.Flush` | **Supported** |
 | Hot-path 0-allocation steady state | **Verified** |
 | Single-thread RTF / jitter benchmarks | **Available** |
-| Decoder ITU Annex A final PCM conformance | **Sample-exact in current private oracle gate: `740800/740800` final PCM samples** |
+| Decoder ITU Annex A final PCM conformance | **Sample-exact in current private oracle gate** |
 | Encoder ITU byte-exact conformance | **Not claimed** |
 | G.729 Annex B (SID / CNG / DTX) | **Not supported** |
 | G.729.1 (wideband / scalable) | **Not supported** |
@@ -251,13 +253,12 @@ diagnostics. It is non-strict and is not used as evidence for the
 | Decoder | ITU Annex A `.BIT -> local decoder -> PCM` private oracle | `740800/740800` final PCM samples exact |
 | Encoder | FFmpeg black-box quality gate | Product send path is quality-gated |
 | Encoder quality | Public sample regression, private PESQ NB matrix, blind listening | Diagnostic quality evidence, not certification |
-| Optional MOS-LQO | External `G729_MOS_LQO_TOOL` wrapper | Customer-facing objective score when a licensed scorer is available |
 | Performance | Single-thread RTF and frame-time jitter benchmarks | Real-time streaming capacity planning evidence |
 | RTP | Payload type 18, `ptime=10/20`, `annexb=no` checks | Send-path interoperability confidence |
 | IP | Clean-room provenance record | No third-party codec source used |
 
-For the full test matrix, opt-in commands, PESQ/MOS-LQO notes, and private
-oracle workflow, see [docs/validation.md](docs/validation.md).
+For the full test matrix, opt-in commands, PESQ notes, and private oracle
+workflow, see [docs/validation.md](docs/validation.md).
 
 ---
 
@@ -268,7 +269,8 @@ evidence, and standards certification:
 
 1. **Decoder final PCM exact gate passes.** Fixed ITU Annex A bitstreams
    decoded by this package match the official reference PCM sample-for-sample
-   in the current private verifier run: `740800/740800` final PCM samples exact.
+   in the current private verifier run. See the validation summary for the
+   current aggregate count.
 2. **The decoder claim is not an ITU certification claim.** ITU has not
    certified this implementation, and no endorsement is implied.
 3. **The encoder is quality-gated, not byte-exact-gated.**

@@ -321,7 +321,7 @@ Vectors are committed to `testdata/itu/` so tests are reproducible without exter
 ### 7.3 Level 3 — Interop and quality (release gate, outside this repo)
 
 - Send live G.729 RTP to a real MRCP endpoint and confirm recognition/playback.
-- Cross-decode our output with a reference decoder (e.g. bcg729 in a disposable test environment) and measure PESQ / POLQA against the original PCM.
+- Cross-decode our output with a reference decoder (e.g. bcg729 in a disposable test environment) and measure PESQ NB plus listening diagnostics against the original PCM.
 - Long-running streaming stability: memory growth, allocation rate, latency distribution over hours of concurrent channels.
 
 ### 7.4 Test infrastructure

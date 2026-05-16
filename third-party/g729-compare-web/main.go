@@ -65,7 +65,6 @@ type metricRow struct {
 	Corr       float64  `json:"corr"`
 	RMSRatio   float64  `json:"rmsRatio"`
 	PESQ       *float64 `json:"pesq,omitempty"`
-	MOSLQO     *float64 `json:"mosLqo,omitempty"`
 	OutputPeak int      `json:"outputPeak"`
 	NearClip   int      `json:"nearClip"`
 	LagSamples int      `json:"lagSamples"`
@@ -574,7 +573,6 @@ func compare(w http.ResponseWriter, r *http.Request) {
 		{Row: &externalFFmpegMetric, RefPCM: paddedPCM, OutPCM: ffmpegExternalPCM},
 	}
 	pesqNote := addPESQScores(tmp, scorePairs)
-	mosLQONote := addMOSLQOScores(tmp, scorePairs)
 	notes := []string{
 		"External encoder is isolated under gitignored third-party/ and used only as a black-box executable.",
 		"Clean candidate uses EncoderProfileQualityClean: no normalized closed-loop pitch reranking, stricter gain MSE repair.",
@@ -596,9 +594,6 @@ func compare(w http.ResponseWriter, r *http.Request) {
 	}
 	if pesqNote != "" {
 		notes = append(notes, pesqNote)
-	}
-	if mosLQONote != "" {
-		notes = append(notes, mosLQONote)
 	}
 
 	resp := response{
@@ -986,16 +981,12 @@ func writeSelectedAudioCompare(w http.ResponseWriter, tmp string, paddedPCM []by
 		})
 	}
 	pesqNote := addPESQScores(tmp, pesqPairs)
-	mosLQONote := addMOSLQOScores(tmp, pesqPairs)
 	notes := []string{
 		"Fast blind-test mode generated only the selected A/B candidates.",
 		"External encoder is isolated under gitignored third-party/ and used only as a black-box executable.",
 	}
 	if pesqNote != "" {
 		notes = append(notes, pesqNote)
-	}
-	if mosLQONote != "" {
-		notes = append(notes, mosLQONote)
 	}
 
 	clips := make(map[string][]clipEvent, len(decodedByKey))
@@ -1485,41 +1476,7 @@ func addPESQScores(tmp string, pairs []pesqPair) string {
 		scoreCopy := score
 		pairs[i].Row.PESQ = &scoreCopy
 	}
-	return "PESQ NB is an optional legacy P.862-style narrowband diagnostic computed against the converted source PCM; candidate-vs-bcg delta rows remain n/a. P.863/POLQA is the successor family."
-}
-
-func addMOSLQOScores(tmp string, pairs []pesqPair) string {
-	if len(pairs) == 0 {
-		return ""
-	}
-	if os.Getenv("G729_MOS_LQO_DISABLE") == "1" {
-		return "MOS-LQO is disabled by G729_MOS_LQO_DISABLE=1."
-	}
-	tool := strings.TrimSpace(os.Getenv("G729_MOS_LQO_TOOL"))
-	if tool == "" {
-		return "MOS-LQO is n/a because G729_MOS_LQO_TOOL is not set. Set it to a wrapper that accepts ref.wav degraded.wav and prints one score."
-	}
-	for i, pair := range pairs {
-		refPath := filepath.Join(tmp, fmt.Sprintf("mos_lqo_ref_%02d.wav", i))
-		outPath := filepath.Join(tmp, fmt.Sprintf("mos_lqo_out_%02d.wav", i))
-		if err := os.WriteFile(refPath, wavBytes(pair.RefPCM), 0o600); err != nil {
-			return "MOS-LQO is n/a because temporary reference WAV write failed: " + err.Error()
-		}
-		if err := os.WriteFile(outPath, wavBytes(pair.OutPCM), 0o600); err != nil {
-			return "MOS-LQO is n/a because temporary degraded WAV write failed: " + err.Error()
-		}
-		out, err := exec.Command(tool, refPath, outPath).CombinedOutput()
-		if err != nil {
-			return fmt.Sprintf("MOS-LQO is n/a because %s failed. %s", tool, compactNote(out))
-		}
-		score, ok := parseFirstFloat(string(out))
-		if !ok || math.IsNaN(score) || math.IsInf(score, 0) {
-			return fmt.Sprintf("MOS-LQO is n/a because %s did not print a finite score. %s", tool, compactNote(out))
-		}
-		scoreCopy := score
-		pair.Row.MOSLQO = &scoreCopy
-	}
-	return "MOS-LQO is computed by external G729_MOS_LQO_TOOL against the converted source PCM. It is an objective listening-quality estimate, not a subjective MOS panel or ITU conformance certification."
+	return "PESQ NB is an optional legacy P.862-style narrowband diagnostic computed against the converted source PCM; candidate-vs-bcg delta rows remain n/a."
 }
 
 func detectPESQPython() (python, source string) {
@@ -1571,19 +1528,6 @@ func compactNote(b []byte) string {
 		return s[:180] + "..."
 	}
 	return s
-}
-
-func parseFirstFloat(s string) (float64, bool) {
-	fields := strings.FieldsFunc(s, func(r rune) bool {
-		return !(r == '+' || r == '-' || r == '.' || r == 'e' || r == 'E' || (r >= '0' && r <= '9'))
-	})
-	for _, field := range fields {
-		v, err := strconv.ParseFloat(field, 64)
-		if err == nil {
-			return v, true
-		}
-	}
-	return 0, false
 }
 
 func qualityMetric(path string, refPCM, outPCM []byte) metricRow {
@@ -2106,8 +2050,8 @@ const pageHTML = `<!doctype html>
       section.innerHTML =
         "<h2>Blind test result</h2>" +
         "<div class=\"battle-result\">" +
-        scoreHTML(battleCandidates[pair[0]].label, counts[pair[0]], averageBattlePESQ(pair[0]), averageBattleMOSLQO(pair[0])) +
-        scoreHTML(battleCandidates[pair[1]].label, counts[pair[1]], averageBattlePESQ(pair[1]), averageBattleMOSLQO(pair[1])) +
+        scoreHTML(battleCandidates[pair[0]].label, counts[pair[0]], averageBattlePESQ(pair[0])) +
+        scoreHTML(battleCandidates[pair[1]].label, counts[pair[1]], averageBattlePESQ(pair[1])) +
         scoreHTML("Tie / unsure", counts.tie) +
         "</div>" +
         "<table class=\"metric-table\"><thead><tr><th>#</th><th>File</th><th>Left was</th><th>Left metrics</th><th>Right was</th><th>Right metrics</th><th>Picked</th><th>Note</th></tr></thead><tbody>" + rows + "</tbody></table>" +
@@ -2121,10 +2065,9 @@ const pageHTML = `<!doctype html>
       $("battleAgain").addEventListener("click", startBattle);
     }
 
-    function scoreHTML(label, count, pesqAvg = null, mosLqoAvg = null) {
+    function scoreHTML(label, count, pesqAvg = null) {
       const pesq = (typeof pesqAvg === "number" && Number.isFinite(pesqAvg)) ? "<small>PESQ avg " + fmtMaybe(pesqAvg, 3) + "</small>" : "";
-      const mosLqo = (typeof mosLqoAvg === "number" && Number.isFinite(mosLqoAvg)) ? "<small>MOS-LQO avg " + fmtMaybe(mosLqoAvg, 3) + "</small>" : "";
-      return "<div class=\"score\"><span>" + escapeHTML(label) + "</span><strong>" + count + "</strong>" + pesq + mosLqo + "</div>";
+      return "<div class=\"score\"><span>" + escapeHTML(label) + "</span><strong>" + count + "</strong>" + pesq + "</div>";
     }
 
     function battleMetric(trial, key) {
@@ -2136,10 +2079,9 @@ const pageHTML = `<!doctype html>
     }
 
     function metricSummary(metric, noise = null) {
-      if (!metric) return "PESQ n/a / MOS-LQO n/a";
+      if (!metric) return "PESQ n/a";
       const parts = [
         "PESQ " + fmtMaybe(metric.pesq, 3),
-        "MOS-LQO " + fmtMaybe(metric.mosLqo, 3),
         "SNR " + fmt(metric.snrDb),
         "Corr " + fmt(metric.corr, 4),
         "Clip " + metric.nearClip
@@ -2160,21 +2102,12 @@ const pageHTML = `<!doctype html>
       return values.reduce((sum, v) => sum + v, 0) / values.length;
     }
 
-    function averageBattleMOSLQO(key) {
-      const values = battleState.trials.map((trial) => {
-        const metric = battleMetric(trial, key);
-        return metric ? metric.mosLqo : null;
-      }).filter((v) => typeof v === "number" && Number.isFinite(v));
-      if (!values.length) return null;
-      return values.reduce((sum, v) => sum + v, 0) / values.length;
-    }
-
     function buildBattleResultText(pair, counts) {
       const lines = [];
       lines.push("Blind test result");
       lines.push("Generated: " + new Date().toISOString());
-      lines.push(battleCandidates[pair[0]].label + ": " + counts[pair[0]] + " (PESQ avg " + fmtMaybe(averageBattlePESQ(pair[0]), 3) + ", MOS-LQO avg " + fmtMaybe(averageBattleMOSLQO(pair[0]), 3) + ")");
-      lines.push(battleCandidates[pair[1]].label + ": " + counts[pair[1]] + " (PESQ avg " + fmtMaybe(averageBattlePESQ(pair[1]), 3) + ", MOS-LQO avg " + fmtMaybe(averageBattleMOSLQO(pair[1]), 3) + ")");
+      lines.push(battleCandidates[pair[0]].label + ": " + counts[pair[0]] + " (PESQ avg " + fmtMaybe(averageBattlePESQ(pair[0]), 3) + ")");
+      lines.push(battleCandidates[pair[1]].label + ": " + counts[pair[1]] + " (PESQ avg " + fmtMaybe(averageBattlePESQ(pair[1]), 3) + ")");
       lines.push("Tie / unsure: " + counts.tie);
       lines.push("");
       lines.push(["#", "File", "Left was", "Left metrics", "Right was", "Right metrics", "Picked", "Note"].join("\t"));
@@ -2234,11 +2167,11 @@ const pageHTML = `<!doctype html>
       }
       const table = document.createElement("table");
       table.className = "metric-table";
-      table.innerHTML = "<thead><tr><th>Path</th><th>SNR dB</th><th>Corr</th><th>RMS ratio</th><th>PESQ NB</th><th>MOS-LQO</th><th>Lag</th><th>Peak</th><th>Near clip</th></tr></thead><tbody></tbody>";
+      table.innerHTML = "<thead><tr><th>Path</th><th>SNR dB</th><th>Corr</th><th>RMS ratio</th><th>PESQ NB</th><th>Lag</th><th>Peak</th><th>Near clip</th></tr></thead><tbody></tbody>";
       const tbody = table.querySelector("tbody");
       data.metrics.forEach((m) => {
         const tr = document.createElement("tr");
-        tr.innerHTML = "<td>" + m.path + "</td><td>" + fmt(m.snrDb) + "</td><td>" + fmt(m.corr, 4) + "</td><td>" + fmt(m.rmsRatio, 4) + "</td><td>" + fmtMaybe(m.pesq, 3) + "</td><td>" + fmtMaybe(m.mosLqo, 3) + "</td><td>" + m.lagSamples + "</td><td>" + m.outputPeak + "</td><td>" + m.nearClip + "</td>";
+        tr.innerHTML = "<td>" + m.path + "</td><td>" + fmt(m.snrDb) + "</td><td>" + fmt(m.corr, 4) + "</td><td>" + fmt(m.rmsRatio, 4) + "</td><td>" + fmtMaybe(m.pesq, 3) + "</td><td>" + m.lagSamples + "</td><td>" + m.outputPeak + "</td><td>" + m.nearClip + "</td>";
         tbody.append(tr);
       });
       $("metrics").append(table);
@@ -2247,7 +2180,7 @@ const pageHTML = `<!doctype html>
       renderClips(data);
     }
     function renderNotes(data) {
-      const notes = ((data && data.notes) || []).filter((note) => String(note).includes("PESQ") || String(note).includes("MOS-LQO"));
+      const notes = ((data && data.notes) || []).filter((note) => String(note).includes("PESQ"));
       if (!notes.length) return;
       const wrap = document.createElement("section");
       wrap.className = "card clip-card";
