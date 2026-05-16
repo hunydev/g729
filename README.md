@@ -16,8 +16,10 @@ MRCP, TTS, IVR, and server-side media applications that need
 `G729/8000` with `annexb=no`.
 
 **Status: v0.1.0-rc1.** The outbound encoder/RTP send path is
-black-box tested against FFmpeg. The decoder has a stronger conformance
-result: in the current private verifier run, fixed ITU Annex A
+quality-gated with black-box FFmpeg decoding, public sample regression,
+private PESQ NB sample diagnostics, blind listening checks, and optional
+external MOS-LQO tooling when available. The decoder has a stronger
+conformance result: in the current private verifier run, fixed ITU Annex A
 bitstreams decoded by this package match the official reference PCM
 sample-for-sample (`740800/740800` final PCM samples exact). This is a
 decoder correctness claim, not ITU certification and not an encoder
@@ -306,10 +308,16 @@ evidence, and standards certification:
 2. **The decoder claim is not an ITU certification claim.** ITU has not
    certified this implementation, and no endorsement is implied. The claim is
    limited to the private, reproducible verifier result described above.
-3. **The encoder is not claimed byte-exact.** `EncoderProfileCore` emits
-   standard 10-byte G.729 frames and passes the project FFmpeg black-box
-   outbound quality gate, but it is an independent encoder implementation and
-   is not expected to match the ITU reference encoder or `bcg729` bit-for-bit.
+3. **The encoder is quality-gated, not byte-exact-gated.**
+   `EncoderProfileCore` emits standard 10-byte G.729 frames and passes the
+   project FFmpeg black-box outbound quality gate, but it is an independent
+   encoder implementation and is not expected to match the ITU reference
+   encoder or `bcg729` bit-for-bit. Current encoder evidence is layered:
+   public Core regression, FFmpeg black-box decode metrics, private PESQ NB
+   sample matrices against a local `bcg729` black-box anchor, blind listening
+   checks, and optional external MOS-LQO/POLQA-style reporting when a licensed
+   scorer is supplied. These are quality/regression indicators, not ITU
+   encoder conformance certification.
 4. **Verifier data is not redistributed.** The private oracle directory
    contains numeric outputs derived from external conformance materials. Those
    data files are not part of the MIT-licensed source distribution and are not
@@ -356,6 +364,59 @@ Stage and arithmetic oracles are also kept private. They are used to localize
 bugs without importing implementation source; public repo artifacts should
 contain only prompts, schemas, aggregate results, and clean-room notes unless
 a small numeric fixture is explicitly reviewed for redistribution.
+
+### Encoder quality evidence
+
+The encoder cannot be validated the same way as the decoder. A decoder has a
+fixed bitstream input, so exact `.BIT -> PCM` comparison is direct. An encoder
+has search freedoms and may produce a different valid G.729 bitstream for the
+same PCM input, so this project uses the strongest practical quality stack
+available without importing third-party codec source:
+
+1. **Default release regression.** `go test ./...` includes
+   `TestEncoderCorePagesQualityRegression`, which encodes the public Pages
+   demo sample with `EncoderProfileCore`, decodes it with the exact local
+   decoder, and checks SNR, correlation, RMS ratio, and clipping headroom.
+2. **Black-box interoperability.** The opt-in FFmpeg gate encodes with the
+   local encoder and decodes with FFmpeg as an executable-only black box. This
+   catches payload compatibility and gross quality regressions without relying
+   on FFmpeg source.
+3. **Private sample quality matrix.** For local customer/problem samples, the
+   PESQ NB diagnostic compares Core, diagnostic profiles, and the local
+   `bcg729` black-box anchor through both the exact local decoder and FFmpeg.
+   PESQ NB is a legacy P.862-style objective score; it remains useful for
+   regression and relative ranking, but it is not current ITU certification.
+4. **Blind listening.** The comparison web app keeps the release decision tied
+   to A/B listening when objective scores disagree with perceived quality. The
+   current product default remains `EncoderProfileCore` because recent blind
+   tests preferred it over the more PESQ-led candidate, which measured well but
+   sounded slightly more muffled.
+5. **Optional MOS-LQO/POLQA reporting.** If a customer requires MOS-LQO, set
+   `G729_MOS_LQO_TOOL` to an external scorer wrapper. The repository does not
+   ship POLQA/P.863 because the standard implementation is not open source or
+   free for general commercial use. MOS-LQO output is reported as an objective
+   listening-quality number, not as a subjective MOS panel result and not as an
+   ITU conformance certificate.
+
+Representative private PESQ NB runs on the current sample set place the best
+diagnostic candidate close to the local `bcg729` anchor while leaving Core as
+the default for listening quality:
+
+```text
+user_quality_audio.m4a:
+bcg729 -> ffmpeg decode        PESQ NB 3.6975
+Core -> ffmpeg decode          PESQ NB 3.4654
+PESQ candidate -> ffmpeg       PESQ NB 3.6354
+
+user_quality_input.m4a:
+bcg729 -> ffmpeg decode        PESQ NB 3.6557
+Core -> ffmpeg decode          PESQ NB 3.4952
+PESQ candidate -> ffmpeg       PESQ NB 3.5683
+```
+
+These numbers are intentionally framed as release diagnostics. They support
+regression control and customer-facing quality discussion, but they do not
+replace codec-vector conformance evidence.
 
 ### FFmpeg black-box quality gate
 
@@ -441,10 +502,11 @@ go test -run TestExternalSampleEncoderCandidatePESQDiagnostic -count=1 -v
 
 If a customer asks for MOS-LQO/POLQA-style objective listening-quality numbers,
 provide an external scorer wrapper through `G729_MOS_LQO_TOOL`. The wrapper is
-not bundled with this MIT repository; it must accept `ref.wav degraded.wav` and
-print one finite score to stdout. When configured, the sample PESQ matrix,
-focused encoder candidate diagnostic, and comparison web app print a MOS-LQO
-column next to PESQ NB:
+not bundled with this MIT repository because POLQA/P.863 is not generally
+available as open-source/free commercial software. It must accept
+`ref.wav degraded.wav` and print one finite score to stdout. When configured,
+the sample PESQ matrix, focused encoder candidate diagnostic, and comparison
+web app print a MOS-LQO column next to PESQ NB:
 
 ```sh
 G729_MOS_LQO_TOOL=/path/to/mos-lqo-wrapper \
@@ -455,7 +517,9 @@ go test -run TestExternalSampleEncoderCandidatePESQDiagnostic -count=1 -v
 ```
 
 MOS-LQO is an objective model output, not a subjective MOS listening panel and
-not an ITU conformance certificate.
+not an ITU conformance certificate. Without a licensed external scorer, the
+project's best available objective encoder score remains PESQ NB plus the
+SNR/correlation/RMS/headroom metrics described above.
 
 To turn that matrix into a hard regression gate for private listening/PESQ
 samples, add `G729_REQUIRE_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1`. The gate
@@ -561,6 +625,7 @@ gate role:
 | Pages Core quality regression | `go test -run TestEncoderCorePagesQualityRegression -count=1 -v` | Included in default tests. Pins the public demo sample against the current Core encoder and exact local decoder so obvious SNR/correlation/headroom regressions are caught without external tools. |
 | Decoder final PCM oracle | `G729_COMPARE_DECODER_REFERENCE_FINAL_PCM=1 G729_REQUIRE_EXACT_DECODER_REFERENCE_FINAL_PCM=1 G729_DECODER_REFERENCE_ORACLE_DIR=/path/to/private/verifier-output go test ./internal/decoder -run TestOracleHandoff_CompareDecoderReferenceFinalPCM -count=1 -v` | **Binding for strict decoder conformance when private oracle data is available.** Current private run PASSes `740800/740800` final PCM samples exact. |
 | Private PESQ candidate regression | `G729_PESQ_PYTHON=/path/to/python G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav G729_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1 G729_REQUIRE_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1 go test -run TestExternalSampleEncoderCandidatePESQDiagnostic -count=1 -v` | Binding when private listening samples, PESQ, FFmpeg, and the local black-box anchor are available. Pins the decoder-exact-informed candidate against Core and `bcg729` without changing the product default. |
+| Optional MOS-LQO reporting | `G729_MOS_LQO_TOOL=/path/to/wrapper G729_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1 go test -run TestExternalSampleEncoderCandidatePESQDiagnostic -count=1 -v` | Informational. Uses an external scorer wrapper to print customer-facing MOS-LQO/POLQA-style objective scores when a licensed tool is available. Not bundled, not a conformance gate, and not a substitute for subjective MOS. |
 | FFmpeg quality (product) | `G729_FFMPEG_BLACKBOX_QUALITY=1 G729_REQUIRE_FFMPEG_BLACKBOX_QUALITY=1 go test -run TestExternalFFmpegBlackboxQuality_SPEECH -count=1 -v` | **Binding for outbound G.729 encoder support.** Currently PASSes. |
 | Local decoder quality | `G729_FFMPEG_BLACKBOX_QUALITY=1 G729_REQUIRE_LOCAL_DECODER_FFMPEG_QUALITY=1 go test -run TestExternalFFmpegBlackboxLocalDecoderDelta_SPEECH -count=1 -v` | **Binding for strict local decoder regression coverage.** Currently PASSes against FFmpeg on the local encoder SPEECH payload. |
 | Asterisk local decode quality | `G729_DECODER_ASTERISK_FFMPEG_QUALITY=1 G729_REQUIRE_DECODER_ASTERISK_FFMPEG_QUALITY=1 go test ./internal/decoder -run TestPhase3rAsteriskFFmpegQualityGate -count=1 -v` | **Binding when a local non-redistributed Asterisk-origin inbound sample is present.** PASSed during rc1 verification against FFmpeg; not broad sender certification. |
