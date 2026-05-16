@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"strings"
 	"testing"
 
@@ -28,8 +29,8 @@ func TestAnalyzePayloadStreamRejectsSIDLikePayload(t *testing.T) {
 		mode:  "payload",
 		ptime: 10,
 	})
-	if err == nil || !strings.Contains(err.Error(), "multiple of 10") {
-		t.Fatalf("err = %v, want G.729 frame length error", err)
+	if !errors.Is(err, g729.ErrUnsupportedAnnexB) {
+		t.Fatalf("err = %v, want ErrUnsupportedAnnexB", err)
 	}
 }
 

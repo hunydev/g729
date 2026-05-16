@@ -52,6 +52,8 @@ the CPU/VM type. Performance numbers are hardware- and load-dependent.
 independent codec instance per simulated stream and can pace each stream at one
 10 ms frame per tick. Use it to check that the codec hot path does not miss the
 G.729 frame deadline under the chosen single-core or multi-core load.
+The current release hardening checklist and latest smoke snapshot are recorded
+in [`operational-hardening.md`](operational-hardening.md).
 
 Single-core encode soak:
 

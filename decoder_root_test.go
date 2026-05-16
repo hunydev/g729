@@ -20,6 +20,25 @@ func TestDecoder_DecodeFrame_RejectsShortBitstream(t *testing.T) {
 	}
 }
 
+func TestDecoder_DecodeFrame_RejectsAnnexBSIDFrame(t *testing.T) {
+	d := NewDecoder()
+	var out [FrameSamples]int16
+	if err := d.DecodeFrame([]byte{0, 0}, out[:]); !errors.Is(err, ErrUnsupportedAnnexB) {
+		t.Fatalf("got %v want ErrUnsupportedAnnexB", err)
+	}
+}
+
+func TestDecoder_DiagnosticPathsRejectAnnexBSIDFrame(t *testing.T) {
+	d := NewDecoder()
+	var out [FrameSamples]int16
+	if err := d.DecodeFrameEnhanced([]byte{0, 0}, out[:]); !errors.Is(err, ErrUnsupportedAnnexB) {
+		t.Fatalf("DecodeFrameEnhanced got %v want ErrUnsupportedAnnexB", err)
+	}
+	if err := d.DecodeFramePostfilterBlend([]byte{0, 0}, out[:], 1, 2); !errors.Is(err, ErrUnsupportedAnnexB) {
+		t.Fatalf("DecodeFramePostfilterBlend got %v want ErrUnsupportedAnnexB", err)
+	}
+}
+
 func TestDecoder_DecodeFrame_RejectsShortOutput(t *testing.T) {
 	d := NewDecoder()
 	var bits [FrameBytes]byte

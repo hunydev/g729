@@ -102,6 +102,9 @@ func analyzePayloadStream(r io.Reader, opt options) (report, error) {
 	if err != nil {
 		return report{}, err
 	}
+	if len(data) == 2 {
+		return report{}, fmt.Errorf("packet 0: 2-byte Annex B SID/CNG RTP payload: %w", g729.ErrUnsupportedAnnexB)
+	}
 	if len(data)%packetBytes != 0 {
 		return report{}, fmt.Errorf("payload stream length %d is not a multiple of %d bytes for ptime=%d",
 			len(data), packetBytes, opt.ptime)
@@ -225,6 +228,9 @@ func packetFrameCount(ptime int) (int, error) {
 func validatePayload(payload []byte, framesPerPacket int) (int, error) {
 	if len(payload) == 0 {
 		return 0, errors.New("empty G.729 RTP payload")
+	}
+	if len(payload) == 2 {
+		return 0, fmt.Errorf("2-byte Annex B SID/CNG RTP payload: %w", g729.ErrUnsupportedAnnexB)
 	}
 	if len(payload)%g729.FrameBytes != 0 {
 		return 0, fmt.Errorf("payload length %d is not a multiple of %d-byte G.729 frames (Annex B SID/CNG is not supported)",

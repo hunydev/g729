@@ -14,6 +14,7 @@ func TestErrors_AreSentinels(t *testing.T) {
 		{"ErrShortPCM", ErrShortPCM, "g729: input PCM length not multiple of frame size (80)"},
 		{"ErrShortOutput", ErrShortOutput, "g729: output buffer too small"},
 		{"ErrShortBitstream", ErrShortBitstream, "g729: bitstream length not multiple of 10 bytes"},
+		{"ErrUnsupportedAnnexB", ErrUnsupportedAnnexB, "g729: Annex B SID/CNG/DTX is not supported"},
 		{"ErrNoStreamSink", ErrNoStreamSink, "g729: encoder has no streaming sink (use NewStreamingEncoder)"},
 	}
 	for _, c := range cases {

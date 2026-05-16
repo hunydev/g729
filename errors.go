@@ -20,6 +20,11 @@ var (
 	// ErrShortBitstream is returned by DecodeFrame and Decode when the
 	// input length is not a multiple of FrameBytes.
 	ErrShortBitstream = errors.New("g729: bitstream length not multiple of 10 bytes")
+
+	// ErrUnsupportedAnnexB is returned when an input has the RTP Annex B
+	// SID/CNG frame shape. This package supports G729/8000 annexb=no speech
+	// frames only; it does not synthesize comfort noise or DTX state.
+	ErrUnsupportedAnnexB = errors.New("g729: Annex B SID/CNG/DTX is not supported")
 )
 
 // Public frame-shape constants.

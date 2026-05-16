@@ -27,12 +27,16 @@ func (d *Decoder) Reset() {
 // DecodeFrame consumes exactly FrameBytes (10) bytes from bits and
 // writes exactly FrameSamples (80) int16 samples (8 kHz mono) to out.
 //
-// Returns ErrShortBitstream if len(bits) != FrameBytes, or
-// ErrShortOutput if len(out) < FrameSamples. Internal state (LSP
-// history, adaptive codebook, postfilter memories) is retained across
-// calls. The decoder treats every frame as good; bad-frame /
-// erasure-concealment handling is out of scope for v0.1.0.
+// Returns ErrUnsupportedAnnexB for the 2-byte RTP Annex B SID/CNG frame
+// shape, ErrShortBitstream if len(bits) != FrameBytes, or ErrShortOutput if
+// len(out) < FrameSamples. Internal state (LSP history, adaptive codebook,
+// postfilter memories) is retained across calls. The decoder treats every
+// 10-byte speech frame as good; Annex B SID/CNG/DTX and network
+// erasure-concealment handling are out of scope.
 func (d *Decoder) DecodeFrame(bits []byte, out []int16) error {
+	if isAnnexBSIDFrame(bits) {
+		return ErrUnsupportedAnnexB
+	}
 	if len(bits) != FrameBytes {
 		return ErrShortBitstream
 	}
@@ -47,6 +51,9 @@ func (d *Decoder) DecodeFrame(bits []byte, out []int16) error {
 // required; use this only as an audible fallback while the decoder core is
 // still under black-box verification.
 func (d *Decoder) DecodeFrameEnhanced(bits []byte, out []int16) error {
+	if isAnnexBSIDFrame(bits) {
+		return ErrUnsupportedAnnexB
+	}
 	if len(bits) != FrameBytes {
 		return ErrShortBitstream
 	}
@@ -64,6 +71,9 @@ func (d *Decoder) DecodeFrameEnhanced(bits []byte, out []int16) error {
 // Use DecodeFrame for the strict decoder path. This method exists to A/B test
 // decoder-side grit/noise reduction without changing the emitted G.729 payload.
 func (d *Decoder) DecodeFramePostfilterBlend(bits []byte, out []int16, synthNum, den int) error {
+	if isAnnexBSIDFrame(bits) {
+		return ErrUnsupportedAnnexB
+	}
 	if len(bits) != FrameBytes {
 		return ErrShortBitstream
 	}
@@ -71,4 +81,8 @@ func (d *Decoder) DecodeFramePostfilterBlend(bits []byte, out []int16, synthNum,
 		return ErrShortOutput
 	}
 	return d.inner.DecodePostfilterBlend(bits, false, out, synthNum, den)
+}
+
+func isAnnexBSIDFrame(bits []byte) bool {
+	return len(bits) == 2
 }

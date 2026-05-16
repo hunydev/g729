@@ -67,8 +67,8 @@ a=maxptime:20
 ```
 
 `annexb=no` MUST be advertised — this codec does not implement
-Annex B SID / CNG / DTX. Receiving SID frames is undefined behaviour
-in v0.1.0.
+Annex B SID / CNG / DTX. RTP Annex B SID/CNG frames are rejected with
+`ErrUnsupportedAnnexB` rather than decoded as speech.
 
 ## Notes
 

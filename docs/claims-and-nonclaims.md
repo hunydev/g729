@@ -22,6 +22,8 @@ record, not legal advice.
   samples exact.
 - RTP send-path tooling targets payload type 18, `ptime=10`, `ptime=20`, and
   `annexb=no`.
+- RTP Annex B SID/CNG payloads are explicitly rejected at the decoder boundary;
+  they are not decoded as speech or treated as Annex B support.
 - Private oracle data, official ITU vectors, customer/user samples, and
   external G.729 implementation source or binaries are not redistributed as
   part of the MIT-licensed source distribution.

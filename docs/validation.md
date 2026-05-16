@@ -20,6 +20,7 @@ encoder byte-exact conformance are not claimed.
 | Encoder quality | Public sample regression, private PESQ NB matrix, blind listening | Diagnostic quality evidence, not certification |
 | Performance | Single-thread RTF and frame-time jitter benchmarks | Real-time streaming capacity planning evidence |
 | RTP | Payload type 18, `ptime=10/20`, `annexb=no` checks | Send-path interoperability confidence |
+| Operational hardening | SID/CNG rejection, RTP payload checks, realtime load smoke | `G729/8000 annexb=no` deployment confidence |
 | IP | Clean-room provenance record | No third-party codec source used |
 
 See [performance.md](performance.md) for the real-time factor and jitter

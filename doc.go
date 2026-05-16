@@ -15,9 +15,9 @@
 //
 // All public API entry points enforce these lengths and return one of
 // the exported sentinel errors (ErrShortPCM, ErrShortOutput,
-// ErrShortBitstream, ErrNoStreamSink) on contract violation. The
-// codec never panics and never wraps internal errors; DSP overflow is
-// absorbed by saturating fixed-point arithmetic at every stage.
+// ErrShortBitstream, ErrUnsupportedAnnexB, ErrNoStreamSink) on contract
+// violation. The codec never panics and never wraps internal errors; DSP
+// overflow is absorbed by saturating fixed-point arithmetic at every stage.
 //
 // # Public API
 //
@@ -95,6 +95,8 @@
 // The codec produces and consumes RTP-suitable 10-byte payloads. RTP
 // header construction belongs to the caller. SDP must advertise
 // "annexb=no" because Annex B (SID / CNG / DTX) is not implemented.
+// 2-byte RTP Annex B SID/CNG frames are rejected with ErrUnsupportedAnnexB
+// rather than decoded as speech.
 // See README.md, examples/, and cmd/g729rtpcheck for ptime=10 and
 // ptime=20 SDP fragments, payload bundling, and black-box RTP capture
 // validation.

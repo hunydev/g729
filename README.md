@@ -68,6 +68,7 @@ undesirable.
 | `ptime=10` (one frame per RTP packet) | **Supported** |
 | `ptime=20` (two frames per RTP packet) | **Supported** (caller bundles two encoder outputs) |
 | `annexb=no` SDP advertisement | **Required** |
+| Annex B SID/CNG receive guard | **2-byte SID/CNG frames are explicitly rejected** |
 | Single-stream `Encoder` / `Decoder` | **Supported** |
 | Opt-in `EncoderProfileCoreFast` | **Supported as performance trade-off profile** |
 | Opt-in `DecodeFrameEnhanced` listening aid | **Experimental; not a conformance claim** |
@@ -225,8 +226,8 @@ a=maxptime:20
 ```
 
 `annexb=no` MUST be advertised — this codec does not implement
-Annex B SID / CNG / DTX. Receiving SID frames is not supported in
-v0.1.x and may return an error or produce invalid audio.
+Annex B SID / CNG / DTX. RTP Annex B SID/CNG frames are rejected with
+`ErrUnsupportedAnnexB` rather than decoded as speech.
 
 ---
 
@@ -257,13 +258,15 @@ diagnostics. It is non-strict and is not used as evidence for the
 | Decoder | ITU Annex A `.BIT -> local decoder -> PCM` private oracle | `740800/740800` final PCM samples exact |
 | Encoder | FFmpeg black-box quality gate | Product send path is quality-gated |
 | Encoder quality | Public sample regression, private PESQ NB matrix, blind listening | Diagnostic quality evidence, not certification |
-| Performance | Single-thread RTF and frame-time jitter benchmarks | Real-time streaming capacity planning evidence |
-| RTP | Payload type 18, `ptime=10/20`, `annexb=no` checks | Send-path interoperability confidence |
+| Performance | Single-thread RTF, frame-time jitter benchmarks, and load-test smoke | Real-time streaming capacity planning evidence |
+| RTP | Payload type 18, `ptime=10/20`, `annexb=no`, and SID/CNG rejection checks | Send-path interoperability confidence |
 | IP | Clean-room provenance and audit records | No third-party codec source used |
 
 For the full test matrix, opt-in commands, PESQ notes, and private oracle
-workflow, see [docs/validation.md](docs/validation.md). For release wording
-boundaries, see [docs/claims-and-nonclaims.md](docs/claims-and-nonclaims.md).
+workflow, see [docs/validation.md](docs/validation.md). For operational
+hardening, see [docs/operational-hardening.md](docs/operational-hardening.md).
+For release wording boundaries, see
+[docs/claims-and-nonclaims.md](docs/claims-and-nonclaims.md).
 
 ---
 
