@@ -94,7 +94,7 @@ env GOCACHE=/tmp/go-build go run ./cmd/g729loadtest \
 Longer production soak runs should use the same commands with a longer
 `-duration` and deployment-specific stream counts.
 
-## Current v0.2.0-rc1 Smoke Snapshot
+## Current v0.2.0 Smoke Snapshot
 
 Environment:
 
@@ -108,9 +108,9 @@ cpu: AMD EPYC 9554P 64-Core Processor
 
 | Mode | Streams | Errors | Codec misses | Codec RTF | Streams/core | p99 us | p99 deadline |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| encode Core | 1 | 0 | 0 | 0.021057 | 47.49 | 331.78 | 0.033178 |
-| decode | 1 | 0 | 0 | 0.002681 | 372.97 | 57.19 | 0.005719 |
-| loopback Core | 1 | 0 | 0 | 0.031777 | 31.47 | 404.33 | 0.040433 |
+| encode Core | 1 | 0 | 0 | 0.027272 | 36.67 | 448.31 | 0.044831 |
+| decode | 1 | 0 | 0 | 0.003585 | 278.97 | 50.20 | 0.005020 |
+| loopback Core | 1 | 0 | 0 | 0.030904 | 32.36 | 392.69 | 0.039269 |
 
 Wake-late values are OS scheduling signals from the VM timer path, not codec
 processing-time misses. The codec processing path stayed well inside the 10 ms

@@ -61,7 +61,7 @@ undesirable.
 
 ## Supported codec scope
 
-| Capability | v0.1.x status |
+| Capability | Current status |
 |---|---|
 | `G729/8000` RTP payload type 18 | **Encoder/send path supported for `annexb=no`; decoder supported** |
 | 10 ms frame: 80 int16 samples ↔ 10 packed bytes | **Supported** |
@@ -302,7 +302,7 @@ evidence, and standards certification:
 This project maintains a clean-room constraint. No ITU reference C,
 bcg729, FFmpeg, Sipro, or other G.729 implementation source was used.
 Public specifications, black-box executable behavior, private numeric
-oracle outputs, and independently written tests were used. v0.1.x claims
+oracle outputs, and independently written tests were used. Current release claims
 strict decoder final-PCM sample equality against the current private ITU
 Annex A oracle gate; it does not claim ITU certification, ITU endorsement,
 or encoder byte-exact conformance.
@@ -354,15 +354,15 @@ notice inventory in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Development status
 
-This is the v0.1.x release line. The encoder/decoder core, RTP send-path
-tooling, decoder oracle workflow, WebAssembly demo assets, and release
-packaging pass the current project gates.
+This is the v0.2.x release line. The encoder/decoder core, RTP send-path
+tooling, decoder oracle workflow, WebAssembly demo assets, operational
+hardening checks, and release packaging pass the current project gates.
 
 The public API (`Encoder`, `Decoder`, `EncoderProfile`, `NewEncoder`,
 `NewEncoderWithProfile`, `NewDecoder`, `NewStreamingEncoder`,
 `NewStreamingEncoderWithProfile`, `EncodeFrame`, `DecodeFrame`, `Reset`,
 `Write`, `Flush`, sentinel errors, and frame-shape constants) is intended to be
-stable across the v0.1.x line.
+stable across the v0.2.x line.
 
 Detailed engineering plans and historical diagnostics remain in
 [`docs/superpowers/`](docs/superpowers/) for auditability, but they are not
