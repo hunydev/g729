@@ -55,9 +55,12 @@ headers, and CSRC entries. Use `-json` for CI/release artifacts.
 The `cmd/g729rtpcheck` tests include Pion RTP generated packets in addition to
 hand-built packet fixtures. This keeps the RTP parser checked against a generic
 Go RTP implementation while keeping the codec runtime free of RTP-library
-dependencies. The same fixture path pins the current behavior for 2-byte
-Annex B SID/CNG payloads: they are rejected with `ErrUnsupportedAnnexB` until
-an explicit `annexb=yes` implementation exists.
+dependencies. The Pion fixture matrix covers `ptime=20`, multi-SSRC streams,
+payload-type skip behavior, RTP marker/padding/extension/CSRC counters, strict
+timestamp discontinuity, and malformed padding/extension guards. The same
+fixture path pins the current behavior for 2-byte Annex B SID/CNG payloads:
+they are rejected with `ErrUnsupportedAnnexB` until an explicit `annexb=yes`
+implementation exists.
 
 ## Encoder Quality Gate
 
