@@ -351,9 +351,9 @@ notice inventory in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Development status
 
-This is a v0.1.0 release candidate. The encoder/decoder core, RTP send-path
-tooling, decoder oracle workflow, and release packaging pass the current
-project gates.
+This is the v0.1.0 release line. The encoder/decoder core, RTP send-path
+tooling, decoder oracle workflow, WebAssembly demo assets, and release
+packaging pass the current project gates.
 
 The public API (`Encoder`, `Decoder`, `EncoderProfile`, `NewEncoder`,
 `NewEncoderWithProfile`, `NewDecoder`, `NewStreamingEncoder`,

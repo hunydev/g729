@@ -254,4 +254,4 @@ go test -run TestOracleHandoff_CompareFCBTreeSearchUserAudioHandoff -count=1 -v
 
 The conformance and diagnostic suites do not block release; their
 expected-failure inventories are catalogued in
-[`releases/v0.1.0-rc1-checklist.md`](releases/v0.1.0-rc1-checklist.md).
+[`releases/v0.1.0-checklist.md`](releases/v0.1.0-checklist.md).

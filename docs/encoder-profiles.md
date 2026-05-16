@@ -7,7 +7,7 @@ ITU encoder byte-exact or certification claim.
 ## Product Default
 
 `NewEncoder()` and `NewStreamingEncoder()` use `EncoderProfileCore`. This is
-the product default for v0.1.0-rc1.
+the product default for v0.1.0.
 
 Core is selected by listening quality, not PESQ alone. A diagnostic PESQ-led
 profile can score closer to the local `bcg729` black-box anchor on some private
