@@ -475,9 +475,10 @@ pre code {
 
 .player-controls {
   display: grid;
-  grid-template-columns: auto minmax(120px, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
+  min-width: 0;
 }
 
 .play-toggle {
@@ -672,6 +673,14 @@ pre code {
   border: 1px solid var(--line);
   border-radius: 22px;
   background: var(--surface);
+  min-width: 0;
+}
+
+.wasm-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.64fr) minmax(0, 1.36fr);
+  gap: clamp(30px, 5vw, 64px);
+  align-items: start;
 }
 
 .file-picker {
@@ -684,6 +693,7 @@ pre code {
 
 .file-picker input {
   width: 100%;
+  min-width: 0;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -764,8 +774,19 @@ pre code {
 
 .wasm-audio-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 14px;
+}
+
+.wasm-player {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #f7f8f6;
+}
+
+.wasm-player .mini-wave {
+  height: 104px;
 }
 
 .link-list {
@@ -806,7 +827,8 @@ pre code {
   }
 
   .intro-grid,
-  .split-grid {
+  .split-grid,
+  .wasm-layout {
     grid-template-columns: 1fr;
   }
 

@@ -598,7 +598,6 @@ function writeASCII(view, offset, text) {
 }
 
 async function decodeToPCM16(file) {
-  const sourceURL = URL.createObjectURL(file);
   const inputBytes = await file.arrayBuffer();
   const AudioCtor = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtor || !window.OfflineAudioContext) {
@@ -626,7 +625,7 @@ async function decodeToPCM16(file) {
     view.setInt16(i * 2, sample, true);
   }
 
-  return { pcm, sourceURL, samples: channel.length, sampleRate };
+  return { pcm, samples: channel.length, sampleRate };
 }
 
 function renderMetrics(container, rows) {
@@ -640,48 +639,6 @@ function renderMetrics(container, rows) {
     item.append(labelEl, valueEl);
     return item;
   }));
-}
-
-function streamPCM16(bytes, sampleRate = 8000) {
-  const AudioCtor = window.AudioContext || window.webkitAudioContext;
-  if (!AudioCtor) throw new Error("Web Audio API is unavailable in this browser");
-
-  const ctx = new AudioCtor();
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const totalSamples = bytes.byteLength / 2;
-  const buffer = ctx.createBuffer(1, totalSamples, sampleRate);
-  const channel = buffer.getChannelData(0);
-
-  for (let i = 0; i < totalSamples; i += 1) {
-    channel[i] = sampleAtPCM16(view, i, totalSamples) / 32768;
-  }
-
-  const fadeSamples = Math.min(Math.floor(sampleRate * 0.005), Math.floor(totalSamples / 2));
-  for (let i = 0; i < fadeSamples; i += 1) {
-    const gain = i / fadeSamples;
-    channel[i] *= gain;
-    channel[totalSamples - 1 - i] *= gain;
-  }
-
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-  source.connect(ctx.destination);
-  source.onended = () => ctx.close();
-
-  const prebufferSeconds = 0.12;
-  source.start(ctx.currentTime + prebufferSeconds);
-  return {
-    contextRate: ctx.sampleRate,
-    bufferRate: sampleRate,
-    outputSamples: totalSamples,
-    prebufferMS: Math.round(prebufferSeconds * 1000)
-  };
-}
-
-function sampleAtPCM16(view, index, totalSamples) {
-  if (index < 0) return 0;
-  if (index >= totalSamples) return totalSamples ? view.getInt16((totalSamples - 1) * 2, true) : 0;
-  return view.getInt16(index * 2, true);
 }
 
 function isG729Payload(file) {
@@ -805,11 +762,12 @@ async function activateWasmDemo() {
         status.textContent = "WASM payload decode complete.";
       } else {
         selected = await decodeToPCM16(file);
+        const sourceBlob = pcmBytesToWavBlob(selected.pcm, selected.sampleRate);
         setAudioPlayerSource(sourcePlayer, {
-          src: rememberURL(selected.sourceURL),
+          src: rememberURL(URL.createObjectURL(sourceBlob)),
           samples: samplesFromPCM16Bytes(selected.pcm),
           sampleRate: selected.sampleRate,
-          stateText: `${formatDuration(selected.samples / selected.sampleRate)} · browser decoded and resampled`
+          stateText: `${formatDuration(selected.samples / selected.sampleRate)} · 8 kHz input fed to WASM`
         });
         const result = wasm.roundTripPCM16(selected.pcm);
         if (!result.ok) throw new Error(result.error || "WASM roundtrip failed");
@@ -843,10 +801,19 @@ async function activateWasmDemo() {
     }
   });
 
-  streamButton.addEventListener("click", () => {
-    if (!decodedPCM) return;
-    const playback = streamPCM16(decodedPCM, 8000);
-    status.textContent = `Current WASM decoded PCM scheduled as one ${playback.prebufferMS} ms buffered 8 kHz AudioBuffer; browser output context is ${playback.contextRate} Hz.`;
+  streamButton.addEventListener("click", async () => {
+    if (!decodedPCM || !decodedPlayer.ready) return;
+    if (activeAudioPlayer && activeAudioPlayer !== decodedPlayer) {
+      activeAudioPlayer.audio.pause();
+    }
+    decodedPlayer.audio.currentTime = 0;
+    activeAudioPlayer = decodedPlayer;
+    try {
+      await decodedPlayer.audio.play();
+      status.textContent = "Playing the current WASM result through the same WAV/media path used by the waveform player.";
+    } catch (err) {
+      status.textContent = `Playback failed: ${err.message}`;
+    }
   });
 }
 

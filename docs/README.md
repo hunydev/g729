@@ -116,11 +116,11 @@ The Pages site includes a Go WebAssembly build of the public codec API:
 
 The browser demo accepts normal browser-decodable audio files, resamples them
 to 8 kHz mono signed 16-bit PCM through Web Audio, runs the Go WASM
-`EncoderProfileCore` encode/decode path, and schedules decoded PCM as an
-8 kHz `AudioBuffer` so the browser's native output path handles resampling.
-Raw `.g729` payload uploads are decoded directly through the WASM decoder.
-The WASM demo is a smoke/interoperability check; the reviewed listening
-references are the generated sample files above.
+`EncoderProfileCore` encode/decode path, and previews the exact 8 kHz input
+and decoded WAV through the same custom waveform player used by the listening
+samples. Raw `.g729` payload uploads are decoded directly through the WASM
+decoder. The WASM demo is a smoke/interoperability check; the reviewed
+listening references are the generated sample files above.
 
 The checked-in WASM binary must be rebuilt whenever the codec algorithm or
 default encoder profile changes. The current public asset is built from the
