@@ -439,6 +439,14 @@ G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav \
 go test -run TestExternalSampleEncoderCandidatePESQDiagnostic -count=1 -v
 ```
 
+To turn that matrix into a hard regression gate for private listening/PESQ
+samples, add `G729_REQUIRE_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1`. The gate
+currently pins the narrow decoder-exact-informed candidate path: native
+reconstructed-gain search + decoder-in-loop gain clip repair + fixed-codebook
+residual reranking (`EncoderProfileQualityPESQ`). It must beat Core by at
+least `0.05` PESQ NB locally and through FFmpeg, keep the FFmpeg PESQ gap to
+the local `bcg729` black-box anchor within `0.15`, and avoid local near-clips.
+
 See `docs/superpowers/diagnostics/2026-05-12-pesq-candidate-status.md` for
 the PESQ candidate evidence, web-app checks, and the later blind-listening
 decision that returned the product default to `EncoderProfileCore`.
@@ -532,7 +540,9 @@ gate role:
 | Suite | Invocation | Release gate role |
 |---|---|---|
 | Default (release) | `go test ./...` | **Binding.** Must PASS at the v0.1.0-rc1 tag commit. |
+| Pages Core quality regression | `go test -run TestEncoderCorePagesQualityRegression -count=1 -v` | Included in default tests. Pins the public demo sample against the current Core encoder and exact local decoder so obvious SNR/correlation/headroom regressions are caught without external tools. |
 | Decoder final PCM oracle | `G729_COMPARE_DECODER_REFERENCE_FINAL_PCM=1 G729_REQUIRE_EXACT_DECODER_REFERENCE_FINAL_PCM=1 G729_DECODER_REFERENCE_ORACLE_DIR=/path/to/private/verifier-output go test ./internal/decoder -run TestOracleHandoff_CompareDecoderReferenceFinalPCM -count=1 -v` | **Binding for strict decoder conformance when private oracle data is available.** Current private run PASSes `740800/740800` final PCM samples exact. |
+| Private PESQ candidate regression | `G729_PESQ_PYTHON=/path/to/python G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav G729_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1 G729_REQUIRE_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1 go test -run TestExternalSampleEncoderCandidatePESQDiagnostic -count=1 -v` | Binding when private listening samples, PESQ, FFmpeg, and the local black-box anchor are available. Pins the decoder-exact-informed candidate against Core and `bcg729` without changing the product default. |
 | FFmpeg quality (product) | `G729_FFMPEG_BLACKBOX_QUALITY=1 G729_REQUIRE_FFMPEG_BLACKBOX_QUALITY=1 go test -run TestExternalFFmpegBlackboxQuality_SPEECH -count=1 -v` | **Binding for outbound G.729 encoder support.** Currently PASSes. |
 | Local decoder quality | `G729_FFMPEG_BLACKBOX_QUALITY=1 G729_REQUIRE_LOCAL_DECODER_FFMPEG_QUALITY=1 go test -run TestExternalFFmpegBlackboxLocalDecoderDelta_SPEECH -count=1 -v` | **Binding for strict local decoder regression coverage.** Currently PASSes against FFmpeg on the local encoder SPEECH payload. |
 | Asterisk local decode quality | `G729_DECODER_ASTERISK_FFMPEG_QUALITY=1 G729_REQUIRE_DECODER_ASTERISK_FFMPEG_QUALITY=1 go test ./internal/decoder -run TestPhase3rAsteriskFFmpegQualityGate -count=1 -v` | **Binding when a local non-redistributed Asterisk-origin inbound sample is present.** PASSed during rc1 verification against FFmpeg; not broad sender certification. |

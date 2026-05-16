@@ -64,6 +64,7 @@ The post-v0.1 gate should include:
 
 - `go test ./... -count=1`
 - `G729_COMPARE_DECODER_REFERENCE_FINAL_PCM=1 G729_REQUIRE_EXACT_DECODER_REFERENCE_FINAL_PCM=1 G729_DECODER_REFERENCE_ORACLE_DIR=/path/to/private/verifier-output go test ./internal/decoder -run TestOracleHandoff_CompareDecoderReferenceFinalPCM -count=1 -v` when the private oracle is available
+- `G729_PESQ_PYTHON=/path/to/python G729_EXTERNAL_SAMPLE_QUALITY=/path/to/private-sample G729_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1 G729_REQUIRE_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1 go test -run TestExternalSampleEncoderCandidatePESQDiagnostic -count=1 -v` when private listening samples, PESQ, FFmpeg, and the local black-box anchor are available
 - `go test -tags=conformance ./... -count=1`
 - `go test -tags=diagnostic ./... -count=1` with exactly 4 expected
   PSTdomain pins unless a documented diagnostic cycle changes the

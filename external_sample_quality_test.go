@@ -49,6 +49,7 @@ const encoderDiagnosticBoundedGainPredictorTuning encoderQualityTuning = 1 << 31
 // Usage:
 //
 //	G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav go test -run TestExternalSampleQualityDiagnostic -count=1 -v
+//	G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav G729_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1 G729_REQUIRE_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1 go test -run TestExternalSampleEncoderCandidatePESQDiagnostic -count=1 -v
 //
 // Raw .pcm/.raw/.sln/.s16le/.in files are treated as 8 kHz mono signed
 // little-endian int16 PCM. Other extensions, including .m4a, are
@@ -691,6 +692,34 @@ func TestExternalSampleEncoderCandidatePESQDiagnostic(t *testing.T) {
 		}
 		t.Logf("%-48s %10.4f %10.4f %+12.4f %+12.4f %9.2f%% %8d %8d",
 			r.name, r.localPESQ, r.ffPESQ, localDelta, ffDelta, payloadEq, r.localm.nearClip, r.ffm.nearClip)
+	}
+
+	if os.Getenv("G729_REQUIRE_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ") == "1" {
+		byName := make(map[string]row, len(rows))
+		for _, r := range rows {
+			byName[r.name] = r
+		}
+		core, okCore := byName["core"]
+		pesq, okPESQ := byName["pesq"]
+		bcg, okBCG := byName["bcg729"]
+		if !okCore || !okPESQ || !okBCG {
+			t.Fatalf("missing required rows for PESQ candidate gate: core=%t pesq=%t bcg729=%t", okCore, okPESQ, okBCG)
+		}
+		if got, want := pesq.localPESQ-core.localPESQ, 0.05; got < want {
+			t.Fatalf("PESQ candidate local score delta vs core = %.4f, want >= %.4f", got, want)
+		}
+		if got, want := pesq.ffPESQ-core.ffPESQ, 0.05; got < want {
+			t.Fatalf("PESQ candidate FFmpeg score delta vs core = %.4f, want >= %.4f", got, want)
+		}
+		if got, maxGap := bcg.ffPESQ-pesq.ffPESQ, 0.15; got > maxGap {
+			t.Fatalf("PESQ candidate FFmpeg score gap vs bcg729 = %.4f, want <= %.4f", got, maxGap)
+		}
+		if pesq.localm.nearClip != 0 {
+			t.Fatalf("PESQ candidate local near-clip count = %d, want 0", pesq.localm.nearClip)
+		}
+		if pesq.ffm.nearClip > 4 {
+			t.Fatalf("PESQ candidate FFmpeg near-clip count = %d, want <= 4", pesq.ffm.nearClip)
+		}
 	}
 }
 
