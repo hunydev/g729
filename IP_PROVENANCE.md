@@ -99,6 +99,12 @@ decoders, encoders, RTP peers, or servers. The permitted operation is:
 The prohibited operation is reading, copying, or deriving implementation
 logic from their G.729 source code.
 
+The optional real SIP/RTP peer workflow is documented in
+[docs/sip-rtp-blackbox-integration.md](docs/sip-rtp-blackbox-integration.md).
+It treats SDP, pcaps, logs, decoded PCM, and numeric reports as black-box
+evidence while keeping private captures and third-party codec source outside
+the repository.
+
 ## Public Demo Media
 
 The GitHub Pages site under `docs/` redistributes a small owner-provided

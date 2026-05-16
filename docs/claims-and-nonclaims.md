@@ -24,12 +24,17 @@ record, not legal advice.
   `annexb=no`.
 - RTP Annex B SID/CNG payloads are explicitly rejected at the decoder boundary;
   they are not decoded as speech or treated as Annex B support.
+- Optional real SIP/RTP peer validation may be performed with black-box
+  captures and `cmd/g729rtpcheck`; it is packetization and interoperability
+  evidence, not certification.
 - Private oracle data, official ITU vectors, customer/user samples, and
   external G.729 implementation source or binaries are not redistributed as
   part of the MIT-licensed source distribution.
 
 See [annex-b.md](annex-b.md) for the detailed Annex B / `annexb=yes` boundary
-and future implementation requirements.
+and future implementation requirements. See
+[sip-rtp-blackbox-integration.md](sip-rtp-blackbox-integration.md) for the
+optional real SIP/RTP peer validation workflow.
 
 ## Non-Claims
 

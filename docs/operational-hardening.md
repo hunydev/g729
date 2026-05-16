@@ -80,6 +80,12 @@ fixture path pins the current behavior for 2-byte Annex B SID/CNG payloads:
 they are rejected with `ErrUnsupportedAnnexB` until an explicit `annexb=yes`
 implementation exists.
 
+For optional validation against real SIP/RTP peers such as Asterisk,
+FreeSWITCH, SBCs, or media gateways used only as black boxes, see
+[`sip-rtp-blackbox-integration.md`](sip-rtp-blackbox-integration.md). That
+workflow records SDP, pcap, RTP checker JSON, and audio metrics without
+importing third-party codec source or committing private captures.
+
 ## Encoder Quality Gate
 
 The release-facing FFmpeg black-box gate compares:

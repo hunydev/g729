@@ -71,7 +71,8 @@ verification, but they are not distributed as part of this repository:
 - FFmpeg executable, used only as a black-box converter/decoder in opt-in
   tests.
 - Asterisk or FreeSWITCH servers, used only as black-box SIP/RTP peers in
-  optional integration tests.
+  optional integration tests. See
+  [docs/sip-rtp-blackbox-integration.md](docs/sip-rtp-blackbox-integration.md).
 - Packet-capture tooling such as tcpdump or Wireshark.
 
 These tools keep their own licenses. Their source code is not included here.

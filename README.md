@@ -279,6 +279,8 @@ diagnostics. It is non-strict and is not used as evidence for the
 For the full test matrix, opt-in commands, PESQ notes, and private oracle
 workflow, see [docs/validation.md](docs/validation.md). For operational
 hardening, see [docs/operational-hardening.md](docs/operational-hardening.md).
+For optional real SIP/RTP peer validation, see
+[docs/sip-rtp-blackbox-integration.md](docs/sip-rtp-blackbox-integration.md).
 For release wording boundaries, see
 [docs/claims-and-nonclaims.md](docs/claims-and-nonclaims.md). For Annex B
 scope, see [docs/annex-b.md](docs/annex-b.md).
