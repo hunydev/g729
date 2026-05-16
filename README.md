@@ -21,8 +21,8 @@ G.729A-compatible codec for `G729/8000 annexb=no` RTP send paths.
 No cgo, native codec dependency, or vendored codec source is required. The
 intended deployment targets are SIP/RTP, MRCP, TTS, IVR, and server-side media
 applications that need `G729/8000` with `annexb=no`.
-In RTP/SDP terms, Annex B SID/CNG/DTX and other G.729 variants are out of
-scope for this package.
+This package targets the common RTP profile `G729/8000` with `annexb=no`.
+It is not a full implementation of every G.729 family variant.
 
 ---
 
