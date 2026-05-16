@@ -33,6 +33,7 @@ func TestMITDistributionAudit(t *testing.T) {
 		"Go standard library only",
 		"No vendored third-party source code",
 		"No third-party G.729 implementation source code",
+		"Open Speech Repository",
 		"testdata/itu/",
 		"docs/superpowers/specs/itu/",
 		"testdata/external/*.g729",

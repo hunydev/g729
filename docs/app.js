@@ -60,108 +60,205 @@ async function activateAudioSamples() {
   const cards = Array.from(document.querySelectorAll(".sample-card[data-audio]"));
 
   await Promise.all(cards.map(async (card, index) => {
-    const audioPath = card.dataset.audio;
-    const audio = card.querySelector("audio");
-    const canvas = card.querySelector(".mini-wave");
-    const playButton = card.querySelector(".play-toggle");
-    const seek = card.querySelector(".seek-bar");
-    const time = card.querySelector(".time-readout");
-    const state = card.querySelector(".sample-state");
+    const player = createAudioPlayer(card, {
+      accent: sampleAccent(index),
+      emptyText: "Sample pending."
+    });
     const unavailable = card.dataset.unavailable;
 
     if (unavailable) {
-      audio.removeAttribute("src");
-      if (playButton) playButton.disabled = true;
-      if (seek) seek.disabled = true;
-      state.textContent = unavailable;
+      clearAudioPlayer(player, unavailable);
       return;
     }
 
-    try {
-      const response = await fetch(audioPath, { cache: "no-store" });
-      if (!response.ok) throw new Error(`missing ${response.status}`);
-      const wav = parsePCM16WAV(await response.arrayBuffer());
-      audio.src = audioPath;
-      audio.preload = "metadata";
-      setupSamplePlayer({ card, audio, canvas, playButton, seek, time, state, wav, index });
-    } catch {
-      audio.removeAttribute("src");
-      if (canvas) drawEmptyWave(canvas);
-      if (playButton) playButton.disabled = true;
-      if (seek) seek.disabled = true;
-      state.textContent = `Add a reviewed sample at ${audioPath} to publish this slot.`;
-    }
+    await loadAudioPlayerURL(player, card.dataset.audio, {
+      missingText: `Add a reviewed sample at ${card.dataset.audio} to publish this slot.`
+    });
   }));
 }
 
-let activeSampleAudio = null;
-const samplePlayers = [];
+let activeAudioPlayer = null;
+let audioAnimationFrame = 0;
+const audioPlayers = [];
 
-function setupSamplePlayer({ audio, canvas, playButton, seek, time, state, wav, index }) {
-  const accent = index === 0 ? "#3558c7" : (index % 2 === 0 ? "#0f766e" : "#c2410c");
-  const duration = wav.samples.length / wav.sampleRate;
-  const player = { audio, canvas, samples: wav.samples, accent };
-  samplePlayers.push(player);
+function sampleAccent(index) {
+  if (index === 0) return "#3558c7";
+  return index % 2 === 0 ? "#0f766e" : "#c2410c";
+}
 
-  drawWaveform(canvas, wav.samples, 0, accent);
-  state.textContent = `${formatDuration(duration)} · ${wav.sampleRate / 1000} kHz mono PCM`;
-  playButton.disabled = false;
-  seek.disabled = false;
-  seek.value = "0";
-  time.textContent = `0:00 / ${formatDuration(duration)}`;
+function createAudioPlayer(root, options = {}) {
+  const audio = root.querySelector("audio");
+  const canvas = root.querySelector(".mini-wave");
+  const playButton = root.querySelector(".play-toggle");
+  const seek = root.querySelector(".seek-bar");
+  const time = root.querySelector(".time-readout");
+  const state = root.querySelector(".sample-state");
+  const player = {
+    root,
+    audio,
+    canvas,
+    playButton,
+    seek,
+    time,
+    state,
+    accent: options.accent || "#0f766e",
+    emptyText: options.emptyText || "Audio pending.",
+    samples: new Float32Array(0),
+    sampleRate: 8000,
+    duration: 0,
+    peaks: new Float32Array(0),
+    waveKey: "",
+    ready: false
+  };
 
-  playButton.addEventListener("click", async () => {
-    if (activeSampleAudio && activeSampleAudio !== audio) activeSampleAudio.pause();
-    if (audio.paused) {
-      activeSampleAudio = audio;
-      await audio.play();
+  audio.preload = "metadata";
+  audioPlayers.push(player);
+  installAudioPlayerEvents(player);
+  clearAudioPlayer(player, player.emptyText);
+  return player;
+}
+
+function installAudioPlayerEvents(player) {
+  player.playButton.addEventListener("click", async () => {
+    if (!player.ready) return;
+    if (activeAudioPlayer && activeAudioPlayer !== player) {
+      activeAudioPlayer.audio.pause();
+    }
+    if (player.audio.paused) {
+      activeAudioPlayer = player;
+      try {
+        await player.audio.play();
+      } catch (err) {
+        player.state.textContent = `Playback failed: ${err.message}`;
+      }
     } else {
-      audio.pause();
+      player.audio.pause();
     }
   });
 
-  seek.addEventListener("input", () => {
-    if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
-    audio.currentTime = (Number(seek.value) / 1000) * audio.duration;
+  player.seek.addEventListener("input", () => {
+    if (!player.ready || player.duration <= 0) return;
+    player.audio.currentTime = (Number(player.seek.value) / Number(player.seek.max || 10000)) * player.duration;
+    updateAudioPlayerProgress(player);
   });
 
-  canvas.addEventListener("click", (event) => {
-    if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
-    const rect = canvas.getBoundingClientRect();
+  player.canvas.addEventListener("click", (event) => {
+    if (!player.ready || player.duration <= 0) return;
+    const rect = player.canvas.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-    audio.currentTime = ratio * audio.duration;
+    player.audio.currentTime = ratio * player.duration;
+    updateAudioPlayerProgress(player);
   });
 
-  audio.addEventListener("play", () => {
-    playButton.textContent = "Pause";
+  player.audio.addEventListener("play", () => {
+    player.playButton.textContent = "Pause";
+    scheduleAudioAnimation();
   });
 
-  audio.addEventListener("pause", () => {
-    playButton.textContent = "Play";
+  player.audio.addEventListener("pause", () => {
+    player.playButton.textContent = "Play";
+    updateAudioPlayerProgress(player);
   });
 
-  audio.addEventListener("ended", () => {
-    playButton.textContent = "Play";
-    seek.value = "0";
-    drawWaveform(canvas, wav.samples, 0, accent);
-    time.textContent = `0:00 / ${formatDuration(duration)}`;
+  player.audio.addEventListener("ended", () => {
+    player.playButton.textContent = "Play";
+    player.audio.currentTime = 0;
+    updateAudioPlayerProgress(player);
   });
 
-  audio.addEventListener("timeupdate", () => {
-    const audioDuration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : duration;
-    const progress = audioDuration > 0 ? audio.currentTime / audioDuration : 0;
-    seek.value = String(Math.round(progress * 1000));
-    drawWaveform(canvas, wav.samples, progress, accent);
-    time.textContent = `${formatDuration(audio.currentTime)} / ${formatDuration(audioDuration)}`;
+  player.audio.addEventListener("loadedmetadata", () => {
+    if (Number.isFinite(player.audio.duration) && player.audio.duration > 0) {
+      player.duration = player.audio.duration;
+      updateAudioPlayerProgress(player);
+    }
+  });
+
+  player.audio.addEventListener("timeupdate", () => {
+    if (player.audio.paused) updateAudioPlayerProgress(player);
   });
 }
 
+async function loadAudioPlayerURL(player, audioPath, options = {}) {
+  clearAudioPlayer(player, "Loading sample.");
+  try {
+    const response = await fetch(audioPath, { cache: "no-store" });
+    if (!response.ok) throw new Error(`missing ${response.status}`);
+    const wav = parsePCM16WAV(await response.arrayBuffer());
+    setAudioPlayerSource(player, {
+      src: audioPath,
+      samples: wav.samples,
+      sampleRate: wav.sampleRate,
+      stateText: options.stateText || `${formatDuration(wav.samples.length / wav.sampleRate)} · ${wav.sampleRate / 1000} kHz mono PCM`
+    });
+  } catch {
+    clearAudioPlayer(player, options.missingText || `Add a reviewed sample at ${audioPath} to publish this slot.`);
+  }
+}
+
+function setAudioPlayerSource(player, { src, samples, sampleRate = 8000, stateText }) {
+  player.samples = samples || new Float32Array(0);
+  player.sampleRate = sampleRate;
+  player.duration = player.samples.length && sampleRate ? player.samples.length / sampleRate : 0;
+  player.peaks = new Float32Array(0);
+  player.waveKey = "";
+  player.ready = Boolean(src && player.samples.length);
+  player.audio.src = src;
+  player.audio.preload = "metadata";
+  player.playButton.disabled = !player.ready;
+  player.seek.disabled = !player.ready;
+  player.seek.value = "0";
+  player.playButton.textContent = "Play";
+  player.time.textContent = `0:00 / ${formatDuration(player.duration)}`;
+  player.state.textContent = stateText || (player.ready ? `${formatDuration(player.duration)} · ${sampleRate / 1000} kHz mono PCM` : player.emptyText);
+  drawAudioPlayerWaveform(player, 0);
+}
+
+function clearAudioPlayer(player, text) {
+  player.audio.pause();
+  player.audio.removeAttribute("src");
+  player.samples = new Float32Array(0);
+  player.duration = 0;
+  player.ready = false;
+  player.peaks = new Float32Array(0);
+  player.waveKey = "";
+  player.playButton.disabled = true;
+  player.seek.disabled = true;
+  player.seek.value = "0";
+  player.playButton.textContent = "Play";
+  player.time.textContent = "0:00 / 0:00";
+  player.state.textContent = text;
+  drawAudioPlayerWaveform(player, 0);
+}
+
+function updateAudioPlayerProgress(player) {
+  if (!player.ready) return;
+  const duration = player.duration > 0 ? player.duration : 0;
+  const progress = duration > 0 ? Math.max(0, Math.min(1, player.audio.currentTime / duration)) : 0;
+  player.seek.value = String(Math.round(progress * Number(player.seek.max || 10000)));
+  player.time.textContent = `${formatDuration(player.audio.currentTime)} / ${formatDuration(duration)}`;
+  drawAudioPlayerWaveform(player, progress);
+}
+
+function scheduleAudioAnimation() {
+  if (!audioAnimationFrame) {
+    audioAnimationFrame = window.requestAnimationFrame(updateAudioAnimation);
+  }
+}
+
+function updateAudioAnimation() {
+  audioAnimationFrame = 0;
+  let keepGoing = false;
+  for (const player of audioPlayers) {
+    if (player.ready && !player.audio.paused && !player.audio.ended) {
+      updateAudioPlayerProgress(player);
+      keepGoing = true;
+    }
+  }
+  if (keepGoing) scheduleAudioAnimation();
+}
+
 function redrawSamplePlayers() {
-  samplePlayers.forEach((player) => {
-    const duration = Number.isFinite(player.audio.duration) && player.audio.duration > 0 ? player.audio.duration : 0;
-    const progress = duration > 0 ? player.audio.currentTime / duration : 0;
-    drawWaveform(player.canvas, player.samples, progress, player.accent);
-  });
+  audioPlayers.forEach((player) => updateAudioPlayerProgress(player));
 }
 
 function parsePCM16WAV(buffer) {
@@ -224,11 +321,8 @@ function readASCII(view, offset, length) {
   return out;
 }
 
-function drawEmptyWave(canvas) {
-  drawWaveform(canvas, new Float32Array(0), 0, "#8b919e");
-}
-
-function drawWaveform(canvas, samples, progress, accent) {
+function drawAudioPlayerWaveform(player, progress) {
+  const canvas = player.canvas;
   if (!canvas) return;
 
   const rect = canvas.getBoundingClientRect();
@@ -242,6 +336,20 @@ function drawWaveform(canvas, samples, progress, accent) {
     canvas.height = height;
   }
 
+  const columns = Math.max(96, Math.floor(cssWidth / 2));
+  const key = `${width}:${height}:${columns}:${player.samples.length}`;
+  if (player.waveKey !== key) {
+    player.peaks = waveformPeaks(player.samples, columns);
+    player.waveKey = key;
+  }
+
+  drawWaveformPeaks(canvas, player.peaks, progress, player.accent);
+}
+
+function drawWaveformPeaks(canvas, peaks, progress, accent) {
+  const width = canvas.width;
+  const height = canvas.height;
+  const dpr = window.devicePixelRatio || 1;
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = "#f6f8f5";
@@ -250,10 +358,9 @@ function drawWaveform(canvas, samples, progress, accent) {
   const pad = Math.max(14 * dpr, height * 0.14);
   const center = height / 2;
   const usable = height - pad * 2;
-  const columns = Math.max(80, Math.floor(cssWidth / 2));
+  const columns = peaks.length;
   const barGap = Math.max(1, Math.floor(1.5 * dpr));
   const barWidth = Math.max(1, Math.floor(width / columns) - barGap);
-  const peaks = waveformPeaks(samples, columns);
 
   ctx.strokeStyle = "rgba(17, 19, 24, 0.07)";
   ctx.lineWidth = 1;
@@ -307,6 +414,136 @@ function formatDuration(seconds) {
   const minutes = Math.floor(total / 60);
   const rest = String(total % 60).padStart(2, "0");
   return `${minutes}:${rest}`;
+}
+
+function samplesFromPCM16Bytes(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const count = Math.floor(bytes.byteLength / 2);
+  const samples = new Float32Array(count);
+  for (let i = 0; i < count; i += 1) {
+    samples[i] = view.getInt16(i * 2, true) / 32768;
+  }
+  return samples;
+}
+
+function activateBlindArena() {
+  const arena = document.querySelector("#blind-arena");
+  if (!arena) return;
+
+  const total = Number(arena.dataset.trials || 10);
+  const progress = arena.querySelector("#arena-progress");
+  const result = arena.querySelector("#arena-result");
+  const reset = arena.querySelector("#arena-reset");
+  const buttons = Array.from(arena.querySelectorAll(".arena-pick"));
+  const leftPlayer = createAudioPlayer(arena.querySelector("#arena-left-player"), {
+    accent: "#3558c7",
+    emptyText: "Left sample pending."
+  });
+  const rightPlayer = createAudioPlayer(arena.querySelector("#arena-right-player"), {
+    accent: "#c2410c",
+    emptyText: "Right sample pending."
+  });
+
+  const trials = Array.from({ length: total }, (_, index) => {
+    const id = String(index + 1).padStart(2, "0");
+    return {
+      label: `Trial ${index + 1}`,
+      bcg: `assets/audio/arena/trial-${id}-bcg729-ffmpeg.wav`,
+      our: `assets/audio/arena/trial-${id}-our-loopback.wav`
+    };
+  });
+
+  let order = [];
+  let index = 0;
+  let picks = [];
+
+  function resetArena() {
+    order = shuffle(trials).map((trial) => ({
+      ...trial,
+      left: Math.random() < 0.5 ? "bcg" : "our"
+    }));
+    index = 0;
+    picks = [];
+    result.hidden = true;
+    result.replaceChildren();
+    buttons.forEach((button) => {
+      button.disabled = false;
+    });
+    loadArenaTrial();
+  }
+
+  async function loadArenaTrial() {
+    const trial = order[index];
+    if (!trial) {
+      showArenaResult();
+      return;
+    }
+
+    const leftKind = trial.left;
+    const rightKind = leftKind === "bcg" ? "our" : "bcg";
+    progress.textContent = `${trial.label} / ${total}`;
+    buttons.forEach((button) => {
+      button.disabled = true;
+    });
+    await Promise.all([
+      loadAudioPlayerURL(leftPlayer, trial[leftKind], { stateText: "Blind sample A · 2.4 s" }),
+      loadAudioPlayerURL(rightPlayer, trial[rightKind], { stateText: "Blind sample B · 2.4 s" })
+    ]);
+    buttons.forEach((button) => {
+      button.disabled = false;
+    });
+  }
+
+  function recordPick(choice) {
+    const trial = order[index];
+    if (!trial) return;
+    const leftKind = trial.left;
+    const rightKind = leftKind === "bcg" ? "our" : "bcg";
+    const picked = choice === "tie" ? "tie" : (choice === "left" ? leftKind : rightKind);
+    picks.push({ trial: trial.label, left: leftKind, right: rightKind, picked });
+    leftPlayer.audio.pause();
+    rightPlayer.audio.pause();
+    index += 1;
+    loadArenaTrial();
+  }
+
+  function showArenaResult() {
+    const counts = picks.reduce((acc, pick) => {
+      acc[pick.picked] += 1;
+      return acc;
+    }, { our: 0, bcg: 0, tie: 0 });
+    progress.textContent = "Arena complete";
+    buttons.forEach((button) => {
+      button.disabled = true;
+    });
+    clearAudioPlayer(leftPlayer, "Arena complete.");
+    clearAudioPlayer(rightPlayer, "Arena complete.");
+    result.hidden = false;
+    result.innerHTML = `
+      <h3>Blind result</h3>
+      <div class="arena-score-grid">
+        <div><span>our Core encode -> our decode</span><strong>${counts.our}</strong></div>
+        <div><span>bcg729 encode -> FFmpeg decode</span><strong>${counts.bcg}</strong></div>
+        <div><span>Tie / unsure</span><strong>${counts.tie}</strong></div>
+      </div>
+      <p>Refresh or restart to reshuffle left/right placement.</p>
+    `;
+  }
+
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => recordPick(button.dataset.pick));
+  });
+  reset.addEventListener("click", resetArena);
+  resetArena();
+}
+
+function shuffle(items) {
+  const out = items.slice();
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
 function waitForWasmReady() {
@@ -463,8 +700,14 @@ async function activateWasmDemo() {
   const downloadWAV = demo.querySelector("#wasm-download-wav");
   const status = demo.querySelector("#wasm-status");
   const metrics = demo.querySelector("#wasm-metrics");
-  const sourceAudio = demo.querySelector("#wasm-source-audio");
-  const decodedAudio = demo.querySelector("#wasm-decoded-audio");
+  const sourcePlayer = createAudioPlayer(demo.querySelector("#wasm-source-player"), {
+    accent: "#3558c7",
+    emptyText: "Input preview pending."
+  });
+  const decodedPlayer = createAudioPlayer(demo.querySelector("#wasm-decoded-player"), {
+    accent: "#0f766e",
+    emptyText: "Roundtrip pending."
+  });
   let wasm;
   let selected;
   let decodedPCM;
@@ -494,12 +737,12 @@ async function activateWasmDemo() {
   }
 
   function resetResult() {
+    clearAudioPlayer(sourcePlayer, "Input preview pending.");
+    clearAudioPlayer(decodedPlayer, "Roundtrip pending.");
     clearObjectURLs();
     selected = null;
     decodedPCM = null;
     metrics.replaceChildren();
-    decodedAudio.removeAttribute("src");
-    sourceAudio.removeAttribute("src");
     streamButton.disabled = true;
     disableDownload(downloadG729);
     disableDownload(downloadWAV);
@@ -543,7 +786,13 @@ async function activateWasmDemo() {
 
         decodedPCM = result.decodedPCM16;
         const decodedBlob = pcmBytesToWavBlob(decodedPCM, result.sampleRate);
-        decodedAudio.src = rememberURL(URL.createObjectURL(decodedBlob));
+        clearAudioPlayer(sourcePlayer, "Payload input has no browser audio preview.");
+        setAudioPlayerSource(decodedPlayer, {
+          src: rememberURL(URL.createObjectURL(decodedBlob)),
+          samples: samplesFromPCM16Bytes(decodedPCM),
+          sampleRate: result.sampleRate,
+          stateText: `${formatDuration(result.decodedSamples / result.sampleRate)} · WASM local decode`
+        });
         enableDownload(downloadG729, new Blob([payload], { type: "application/octet-stream" }), file.name);
         enableDownload(downloadWAV, decodedBlob, "g729-wasm-decoded.wav");
         renderMetrics(metrics, [
@@ -556,14 +805,24 @@ async function activateWasmDemo() {
         status.textContent = "WASM payload decode complete.";
       } else {
         selected = await decodeToPCM16(file);
-        sourceAudio.src = rememberURL(selected.sourceURL);
+        setAudioPlayerSource(sourcePlayer, {
+          src: rememberURL(selected.sourceURL),
+          samples: samplesFromPCM16Bytes(selected.pcm),
+          sampleRate: selected.sampleRate,
+          stateText: `${formatDuration(selected.samples / selected.sampleRate)} · browser decoded and resampled`
+        });
         const result = wasm.roundTripPCM16(selected.pcm);
         if (!result.ok) throw new Error(result.error || "WASM roundtrip failed");
 
         decodedPCM = result.decodedPCM16;
         const encodedBlob = new Blob([result.encoded], { type: "application/octet-stream" });
         const decodedBlob = pcmBytesToWavBlob(decodedPCM, result.sampleRate);
-        decodedAudio.src = rememberURL(URL.createObjectURL(decodedBlob));
+        setAudioPlayerSource(decodedPlayer, {
+          src: rememberURL(URL.createObjectURL(decodedBlob)),
+          samples: samplesFromPCM16Bytes(decodedPCM),
+          sampleRate: result.sampleRate,
+          stateText: `${formatDuration(result.decodedSamples / result.sampleRate)} · WASM Core loopback`
+        });
         enableDownload(downloadG729, encodedBlob, "g729-wasm-encoded.g729");
         enableDownload(downloadWAV, decodedBlob, "g729-wasm-roundtrip.wav");
         renderMetrics(metrics, [
@@ -596,4 +855,5 @@ window.addEventListener("resize", () => {
 }, { passive: true });
 window.requestAnimationFrame(drawHeroWave);
 activateAudioSamples();
+activateBlindArena();
 activateWasmDemo();

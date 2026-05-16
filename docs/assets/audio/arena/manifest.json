@@ -1,0 +1,85 @@
+{
+  "source": {
+    "file": "source-osr-us-0010-8k.wav",
+    "url": "https://www.voiptroubleshooter.com/open_speech/american/OSR_us_000_0010_8k.wav",
+    "source_name": "Open Speech Repository",
+    "description": "American English Harvard sentences",
+    "format": "8000 Hz mono signed linear 16-bit PCM WAV",
+    "duration_seconds": 33.623125,
+    "sha256": "a4bf9becd046d7aedb6d05b6e12347a6294a44f74d263089c636fb0a2b1e6561",
+    "attribution_note": "The Open Speech Repository requires identifying the source of the speech materials as \"Open Speech Repository\"."
+  },
+  "generation": {
+    "trial_count": 10,
+    "trial_duration_seconds": 2.4,
+    "sample_rate": 8000,
+    "samples_per_trial": 19200,
+    "notes": [
+      "Each trial compares two hidden paths: bcg729 black-box encode -> FFmpeg black-box decode, and local EncoderProfileCore -> local decoder.",
+      "bcg729 and FFmpeg were used only as executable black boxes while generating these demo assets.",
+      "No third-party G.729 source or binary is redistributed in this directory."
+    ]
+  },
+  "trials": [
+    {
+      "id": "trial-01",
+      "offset_seconds": 0.0,
+      "bcg729_ffmpeg": "trial-01-bcg729-ffmpeg.wav",
+      "our_loopback": "trial-01-our-loopback.wav"
+    },
+    {
+      "id": "trial-02",
+      "offset_seconds": 2.4,
+      "bcg729_ffmpeg": "trial-02-bcg729-ffmpeg.wav",
+      "our_loopback": "trial-02-our-loopback.wav"
+    },
+    {
+      "id": "trial-03",
+      "offset_seconds": 4.8,
+      "bcg729_ffmpeg": "trial-03-bcg729-ffmpeg.wav",
+      "our_loopback": "trial-03-our-loopback.wav"
+    },
+    {
+      "id": "trial-04",
+      "offset_seconds": 7.2,
+      "bcg729_ffmpeg": "trial-04-bcg729-ffmpeg.wav",
+      "our_loopback": "trial-04-our-loopback.wav"
+    },
+    {
+      "id": "trial-05",
+      "offset_seconds": 9.6,
+      "bcg729_ffmpeg": "trial-05-bcg729-ffmpeg.wav",
+      "our_loopback": "trial-05-our-loopback.wav"
+    },
+    {
+      "id": "trial-06",
+      "offset_seconds": 12.0,
+      "bcg729_ffmpeg": "trial-06-bcg729-ffmpeg.wav",
+      "our_loopback": "trial-06-our-loopback.wav"
+    },
+    {
+      "id": "trial-07",
+      "offset_seconds": 14.4,
+      "bcg729_ffmpeg": "trial-07-bcg729-ffmpeg.wav",
+      "our_loopback": "trial-07-our-loopback.wav"
+    },
+    {
+      "id": "trial-08",
+      "offset_seconds": 16.8,
+      "bcg729_ffmpeg": "trial-08-bcg729-ffmpeg.wav",
+      "our_loopback": "trial-08-our-loopback.wav"
+    },
+    {
+      "id": "trial-09",
+      "offset_seconds": 19.2,
+      "bcg729_ffmpeg": "trial-09-bcg729-ffmpeg.wav",
+      "our_loopback": "trial-09-our-loopback.wav"
+    },
+    {
+      "id": "trial-10",
+      "offset_seconds": 21.6,
+      "bcg729_ffmpeg": "trial-10-bcg729-ffmpeg.wav",
+      "our_loopback": "trial-10-our-loopback.wav"
+    }
+  ]
+}

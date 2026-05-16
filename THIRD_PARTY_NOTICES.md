@@ -37,6 +37,16 @@ small listening samples:
   `docs/assets/audio/bcg729-encode-g729-decode.wav`, and
   `docs/assets/audio/bcg729-encode-ffmpeg-decode.wav` are generated
   black-box-comparison derivatives of that owner-provided sample.
+- `docs/assets/audio/arena/source-osr-us-0010-8k.wav` is
+  `OSR_us_000_0010_8k.wav` from the Open Speech Repository, American English
+  Harvard sentences, 16-bit PCM at 8 kHz. Source page:
+  <https://www.voiptroubleshooter.com/open_speech/american.html>. The provider
+  requires identifying the source of the speech materials as "Open Speech
+  Repository".
+- `docs/assets/audio/arena/trial-XX-bcg729-ffmpeg.wav` files are generated
+  black-box-comparison derivatives of the Open Speech Repository sample.
+- `docs/assets/audio/arena/trial-XX-our-loopback.wav` files are generated
+  local-codec loopback derivatives of the Open Speech Repository sample.
 
 The FFmpeg executable was used only as a black-box converter/decoder while
 generating WAV derivatives. A local `bcg729` executable was used only as a
@@ -94,5 +104,6 @@ For the distributed repository:
 - Redistributed ITU reference source: none.
 - Redistributed external G.729 implementation source: none.
 - Redistributed private decoder exact oracle data: none.
-- Redistributed local speech samples: only the owner-provided public Pages
-  demo sample and generated derivatives listed above.
+- Redistributed speech samples: only the owner-provided public Pages demo
+  sample, the Open Speech Repository arena sample, and generated derivatives
+  listed above.

@@ -20,6 +20,7 @@
       <a href="#scope">Scope</a>
       <a href="#rtp">RTP</a>
       <a href="#quality">Quality</a>
+      <a href="#arena">Arena</a>
       <a href="#wasm">WASM</a>
       <a href="#clean-room">Clean room</a>
       <a href="https://github.com/hunydev/g729">GitHub</a>
@@ -162,7 +163,7 @@ a=maxptime:20</code></pre>
             project's exact local decoder.
           </p>
         </div>
-        <div class="sample-grid" id="sample-grid" aria-live="polite">
+        <div class="sample-source-row" aria-live="polite">
           <article class="sample-card source-card" data-audio="assets/audio/source-8k-16bit.wav">
             <div class="sample-meta">
               <span class="sample-label">Source</span>
@@ -172,77 +173,93 @@ a=maxptime:20</code></pre>
               <canvas class="mini-wave" width="760" height="132" aria-label="Source waveform"></canvas>
               <div class="player-controls">
                 <button class="play-toggle" type="button" disabled>Play</button>
-                <input class="seek-bar" type="range" min="0" max="1000" value="0" disabled aria-label="Seek source sample">
+                <input class="seek-bar" type="range" min="0" max="10000" value="0" disabled aria-label="Seek source sample">
                 <span class="time-readout">0:00 / 0:00</span>
               </div>
               <audio preload="metadata"></audio>
             </div>
             <p class="sample-state">Sample pending.</p>
           </article>
-          <article class="sample-card anchor-card" data-audio="assets/audio/bcg729-encode-ffmpeg-decode.wav">
-            <div class="sample-meta">
-              <span class="sample-label">Black-box anchor</span>
-              <h3>bcg729 encode -> FFmpeg decode</h3>
+        </div>
+        <div class="codec-path-groups" id="sample-grid" aria-live="polite">
+          <section class="codec-path-group anchor-group" aria-labelledby="bcg-path-title">
+            <div class="path-group-heading">
+              <span class="sample-label">Black-box encoder anchor</span>
+              <h3 id="bcg-path-title">bcg729 encoded payload</h3>
+              <p>Same payload, decoded through two independent paths.</p>
             </div>
-            <div class="wave-player">
-              <canvas class="mini-wave" width="560" height="116" aria-label="bcg729 FFmpeg decoded waveform"></canvas>
-              <div class="player-controls">
-                <button class="play-toggle" type="button" disabled>Play</button>
-                <input class="seek-bar" type="range" min="0" max="1000" value="0" disabled aria-label="Seek bcg729 FFmpeg decoded sample">
-                <span class="time-readout">0:00 / 0:00</span>
+            <article class="sample-card anchor-card" data-audio="assets/audio/bcg729-encode-ffmpeg-decode.wav">
+              <div class="sample-meta">
+                <span class="sample-label">Anchor path</span>
+                <h3>bcg729 encode -> FFmpeg decode</h3>
               </div>
-              <audio preload="metadata"></audio>
-            </div>
-            <p class="sample-state">Sample pending.</p>
-          </article>
-          <article class="sample-card anchor-card" data-audio="assets/audio/bcg729-encode-g729-decode.wav">
-            <div class="sample-meta">
-              <span class="sample-label">Decoder check</span>
-              <h3>bcg729 encode -> g729 decode</h3>
-            </div>
-            <div class="wave-player">
-              <canvas class="mini-wave" width="560" height="116" aria-label="bcg729 local decoded waveform"></canvas>
-              <div class="player-controls">
-                <button class="play-toggle" type="button" disabled>Play</button>
-                <input class="seek-bar" type="range" min="0" max="1000" value="0" disabled aria-label="Seek bcg729 local decoded sample">
-                <span class="time-readout">0:00 / 0:00</span>
+              <div class="wave-player">
+                <canvas class="mini-wave" width="560" height="116" aria-label="bcg729 FFmpeg decoded waveform"></canvas>
+                <div class="player-controls">
+                  <button class="play-toggle" type="button" disabled>Play</button>
+                  <input class="seek-bar" type="range" min="0" max="10000" value="0" disabled aria-label="Seek bcg729 FFmpeg decoded sample">
+                  <span class="time-readout">0:00 / 0:00</span>
+                </div>
+                <audio preload="metadata"></audio>
               </div>
-              <audio preload="metadata"></audio>
-            </div>
-            <p class="sample-state">Sample pending.</p>
-          </article>
-          <article class="sample-card" data-audio="assets/audio/g729-encode-g729-decode.wav">
-            <div class="sample-meta">
-              <span class="sample-label">Project loopback</span>
-              <h3>g729 encode -> g729 decode</h3>
-            </div>
-            <div class="wave-player">
-              <canvas class="mini-wave" width="560" height="116" aria-label="g729 local decoded waveform"></canvas>
-              <div class="player-controls">
-                <button class="play-toggle" type="button" disabled>Play</button>
-                <input class="seek-bar" type="range" min="0" max="1000" value="0" disabled aria-label="Seek g729 local decoded sample">
-                <span class="time-readout">0:00 / 0:00</span>
+              <p class="sample-state">Sample pending.</p>
+            </article>
+            <article class="sample-card anchor-card" data-audio="assets/audio/bcg729-encode-g729-decode.wav">
+              <div class="sample-meta">
+                <span class="sample-label">Decoder path</span>
+                <h3>bcg729 encode -> our decode</h3>
               </div>
-              <audio preload="metadata"></audio>
-            </div>
-            <p class="sample-state">Sample pending.</p>
-          </article>
-          <article class="sample-card" data-audio="assets/audio/g729-encode-ffmpeg-decode.wav">
-            <div class="sample-meta">
-              <span class="sample-label">Interop path</span>
-              <h3>g729 encode -> FFmpeg decode</h3>
-            </div>
-            <div class="wave-player">
-              <canvas class="mini-wave" width="560" height="116" aria-label="g729 FFmpeg decoded waveform"></canvas>
-              <div class="player-controls">
-                <button class="play-toggle" type="button" disabled>Play</button>
-                <input class="seek-bar" type="range" min="0" max="1000" value="0" disabled aria-label="Seek g729 FFmpeg decoded sample">
-                <span class="time-readout">0:00 / 0:00</span>
+              <div class="wave-player">
+                <canvas class="mini-wave" width="560" height="116" aria-label="bcg729 local decoded waveform"></canvas>
+                <div class="player-controls">
+                  <button class="play-toggle" type="button" disabled>Play</button>
+                  <input class="seek-bar" type="range" min="0" max="10000" value="0" disabled aria-label="Seek bcg729 local decoded sample">
+                  <span class="time-readout">0:00 / 0:00</span>
+                </div>
+                <audio preload="metadata"></audio>
               </div>
-              <audio preload="metadata"></audio>
+              <p class="sample-state">Sample pending.</p>
+            </article>
+          </section>
+          <section class="codec-path-group project-group" aria-labelledby="our-path-title">
+            <div class="path-group-heading">
+              <span class="sample-label">This project</span>
+              <h3 id="our-path-title">our Core encoded payload</h3>
+              <p>Same local encoder payload, decoded through FFmpeg and the local decoder.</p>
             </div>
-            <p class="sample-state">Sample pending.</p>
-          </article>
+            <article class="sample-card" data-audio="assets/audio/g729-encode-ffmpeg-decode.wav">
+              <div class="sample-meta">
+                <span class="sample-label">Interop path</span>
+                <h3>our encode -> FFmpeg decode</h3>
+              </div>
+              <div class="wave-player">
+                <canvas class="mini-wave" width="560" height="116" aria-label="our FFmpeg decoded waveform"></canvas>
+                <div class="player-controls">
+                  <button class="play-toggle" type="button" disabled>Play</button>
+                  <input class="seek-bar" type="range" min="0" max="10000" value="0" disabled aria-label="Seek our FFmpeg decoded sample">
+                  <span class="time-readout">0:00 / 0:00</span>
+                </div>
+                <audio preload="metadata"></audio>
+              </div>
+              <p class="sample-state">Sample pending.</p>
+            </article>
+            <article class="sample-card" data-audio="assets/audio/g729-encode-g729-decode.wav">
+              <div class="sample-meta">
+                <span class="sample-label">Loopback path</span>
+                <h3>our encode -> our decode</h3>
+              </div>
+              <div class="wave-player">
+                <canvas class="mini-wave" width="560" height="116" aria-label="our local decoded waveform"></canvas>
+                <div class="player-controls">
+                  <button class="play-toggle" type="button" disabled>Play</button>
+                  <input class="seek-bar" type="range" min="0" max="10000" value="0" disabled aria-label="Seek our local decoded sample">
+                  <span class="time-readout">0:00 / 0:00</span>
+                </div>
+                <audio preload="metadata"></audio>
+              </div>
+              <p class="sample-state">Sample pending.</p>
+            </article>
+          </section>
         </div>
         <div class="quality-note">
           <strong>Current gate:</strong> the outbound encoder/RTP send path is
@@ -257,6 +274,67 @@ a=maxptime:20</code></pre>
       </div>
     </section>
 
+    <section class="section arena-section" id="arena" aria-labelledby="arena-title">
+      <div class="section-inner">
+        <div class="section-heading">
+          <p class="eyebrow">Blind listening arena</p>
+          <h2 id="arena-title">Can you hear the loopback difference?</h2>
+          <p>
+            Ten short clips are derived from an Open Speech Repository 8 kHz
+            WAV sample. Each round hides which side is
+            <code>bcg729 encode -> FFmpeg decode</code> and which side is
+            <code>our Core encode -> our decode</code>.
+          </p>
+        </div>
+        <div class="arena-panel" id="blind-arena" data-trials="10">
+          <div class="arena-topline">
+            <span id="arena-progress">Trial 1 / 10</span>
+            <button class="arena-reset" id="arena-reset" type="button">Restart</button>
+          </div>
+          <div class="arena-sides">
+            <article class="arena-side">
+              <span class="side-label">Left</span>
+              <div class="wave-player arena-player" id="arena-left-player">
+                <canvas class="mini-wave" width="560" height="126" aria-label="Left blind sample waveform"></canvas>
+                <div class="player-controls">
+                  <button class="play-toggle" type="button" disabled>Play</button>
+                  <input class="seek-bar" type="range" min="0" max="10000" value="0" disabled aria-label="Seek left blind sample">
+                  <span class="time-readout">0:00 / 0:00</span>
+                </div>
+                <audio preload="metadata"></audio>
+                <p class="sample-state">Loading round.</p>
+              </div>
+            </article>
+            <article class="arena-side">
+              <span class="side-label">Right</span>
+              <div class="wave-player arena-player" id="arena-right-player">
+                <canvas class="mini-wave" width="560" height="126" aria-label="Right blind sample waveform"></canvas>
+                <div class="player-controls">
+                  <button class="play-toggle" type="button" disabled>Play</button>
+                  <input class="seek-bar" type="range" min="0" max="10000" value="0" disabled aria-label="Seek right blind sample">
+                  <span class="time-readout">0:00 / 0:00</span>
+                </div>
+                <audio preload="metadata"></audio>
+                <p class="sample-state">Loading round.</p>
+              </div>
+            </article>
+          </div>
+          <div class="arena-actions" aria-label="Blind test answer buttons">
+            <button class="button primary arena-pick" type="button" data-pick="left">Left is better</button>
+            <button class="button arena-pick" type="button" data-pick="tie">Tie / unsure</button>
+            <button class="button primary arena-pick" type="button" data-pick="right">Right is better</button>
+          </div>
+          <div class="arena-result" id="arena-result" hidden></div>
+        </div>
+        <p class="arena-note">
+          Arena source: Open Speech Repository,
+          <code>OSR_us_000_0010_8k.wav</code>, American English Harvard
+          sentences, 16-bit PCM at 8 kHz. The site requires identifying the
+          source as "Open Speech Repository".
+        </p>
+      </div>
+    </section>
+
     <section class="section split" id="wasm" aria-labelledby="wasm-title">
       <div class="section-inner split-grid">
         <div>
@@ -265,11 +343,12 @@ a=maxptime:20</code></pre>
           <p>
             Upload audio in the browser, resample it to 8 kHz mono PCM with
             Web Audio, encode and decode it through the current Go WASM Core
-            default, then play the decoded PCM through either a WAV element or
-            an AudioContext buffer built at the original 8 kHz sample rate. Raw
-            <code>.g729</code> payload files can be uploaded for decode-only
-            checks. The browser demo is a smoke/interoperability check; the
-            published samples above remain the reviewed listening references.
+            default, then play the decoded PCM through the custom waveform
+            player or an AudioContext buffer built at the original 8 kHz sample
+            rate. Raw <code>.g729</code> payload files can be uploaded for
+            decode-only checks. The browser demo is a smoke/interoperability
+            check; the published samples above remain the reviewed listening
+            references.
           </p>
         </div>
         <div class="wasm-panel" id="wasm-demo">
@@ -290,11 +369,29 @@ a=maxptime:20</code></pre>
           <div class="wasm-audio-grid">
             <div>
               <span class="sample-label">Input preview</span>
-              <audio id="wasm-source-audio" controls preload="metadata"></audio>
+              <div class="wave-player wasm-player" id="wasm-source-player">
+                <canvas class="mini-wave" width="520" height="104" aria-label="WASM input waveform"></canvas>
+                <div class="player-controls">
+                  <button class="play-toggle" type="button" disabled>Play</button>
+                  <input class="seek-bar" type="range" min="0" max="10000" value="0" disabled aria-label="Seek WASM input preview">
+                  <span class="time-readout">0:00 / 0:00</span>
+                </div>
+                <audio preload="metadata"></audio>
+                <p class="sample-state">Input preview pending.</p>
+              </div>
             </div>
             <div>
               <span class="sample-label">WASM roundtrip</span>
-              <audio id="wasm-decoded-audio" controls preload="metadata"></audio>
+              <div class="wave-player wasm-player" id="wasm-decoded-player">
+                <canvas class="mini-wave" width="520" height="104" aria-label="WASM roundtrip waveform"></canvas>
+                <div class="player-controls">
+                  <button class="play-toggle" type="button" disabled>Play</button>
+                  <input class="seek-bar" type="range" min="0" max="10000" value="0" disabled aria-label="Seek WASM roundtrip">
+                  <span class="time-readout">0:00 / 0:00</span>
+                </div>
+                <audio preload="metadata"></audio>
+                <p class="sample-state">Roundtrip pending.</p>
+              </div>
             </div>
           </div>
         </div>

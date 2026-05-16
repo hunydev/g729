@@ -95,7 +95,7 @@ logic from their G.729 source code.
 ## Public Demo Media
 
 The GitHub Pages site under `docs/` redistributes a small owner-provided
-speech sample and generated derivatives:
+speech sample, an Open Speech Repository sample, and generated derivatives:
 
 - `docs/assets/audio/source-8k-16bit.wav` — source WAV downloaded from
   `https://download.huny.dev/d/./8k_16bit.wav`.
@@ -111,6 +111,15 @@ speech sample and generated derivatives:
   by this repository's decoder.
 - `docs/assets/audio/bcg729-encode-ffmpeg-decode.wav` — `bcg729` payload
   decoded by FFmpeg as a black-box executable.
+- `docs/assets/audio/arena/source-osr-us-0010-8k.wav` — Open Speech Repository
+  `OSR_us_000_0010_8k.wav`, American English Harvard sentences, 16-bit PCM at
+  8 kHz. The source requires identifying the speech materials as "Open Speech
+  Repository".
+- `docs/assets/audio/arena/trial-XX-bcg729-ffmpeg.wav` — Open Speech
+  Repository clip derivatives encoded by a local `bcg729` black-box executable
+  and decoded by FFmpeg as a black-box executable.
+- `docs/assets/audio/arena/trial-XX-our-loopback.wav` — Open Speech Repository
+  clip derivatives encoded and decoded by this repository.
 
 These files are documentation/demo assets, not oracle artifacts and not
 conformance evidence. They do not contain external G.729 implementation source
@@ -131,8 +140,9 @@ redistributed by this repository:
   `testdata/external/`.
 - Local build, transfer, or agent artifacts.
 
-The public Pages demo sample listed above is intentionally excluded from this
-non-redistributed bucket because it is owner-provided for publication.
+The public Pages demo samples listed above are intentionally excluded from this
+non-redistributed bucket because they are reviewed for publication and carry
+source records.
 
 The repository `.gitignore` excludes these paths, and
 `TestMITDistributionAudit` checks that forbidden local materials are not

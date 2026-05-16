@@ -78,6 +78,31 @@ ffmpeg -y -hide_banner -loglevel error \
   docs/assets/audio/bcg729-encode-ffmpeg-decode.wav
 ```
 
+## Blind arena samples
+
+The blind listening arena uses an additional short, freely available speech WAV
+from the Open Speech Repository:
+
+- `docs/assets/audio/arena/source-osr-us-0010-8k.wav` —
+  `OSR_us_000_0010_8k.wav`, American English Harvard sentences, 16-bit PCM at
+  8 kHz.
+- `docs/assets/audio/arena/trial-XX-bcg729-ffmpeg.wav` — the corresponding
+  2.4 second clip encoded by a local `bcg729` black-box executable and decoded
+  by FFmpeg as a black-box decoder.
+- `docs/assets/audio/arena/trial-XX-our-loopback.wav` — the same 2.4 second
+  clip encoded by this repository's `EncoderProfileCore` default and decoded by
+  this repository's exact local decoder.
+
+Source attribution required by the provider: "Open Speech Repository".
+Source page:
+`https://www.voiptroubleshooter.com/open_speech/american.html`.
+
+Regenerate arena outputs with:
+
+```sh
+G729_WRITE_PAGES_AUDIO_ARENA=1 go test -run TestPagesAudioArenaWriteGoldenOutputs -count=1 -v
+```
+
 Keep generated sample files small enough for GitHub Pages. If samples become
 large, publish them through a reviewed static asset host and update
 `docs/index.html` to point at those URLs.

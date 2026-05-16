@@ -17,6 +17,15 @@
       "Each payload is decoded two ways for listening comparison: FFmpeg black-box decode and this repository's exact local decoder."
     ]
   },
+  "blind_arena": {
+    "manifest": "arena/manifest.json",
+    "source": "Open Speech Repository OSR_us_000_0010_8k.wav",
+    "trials": 10,
+    "paths": [
+      "bcg729 black-box encoder -> FFmpeg black-box decoder",
+      "local EncoderProfileCore -> local decoder"
+    ]
+  },
   "files": [
     {
       "file": "bcg729-encode.g729",

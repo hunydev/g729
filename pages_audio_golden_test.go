@@ -43,6 +43,26 @@ func TestPagesAudioGoldenOutputs(t *testing.T) {
 	readPagesAudioWAVFixture(t, "docs/assets/audio/bcg729-encode-ffmpeg-decode.wav", len(padded))
 }
 
+func TestPagesAudioArenaOutputs(t *testing.T) {
+	sourcePCM, format := readPCM16WAVFixture(t, "docs/assets/audio/arena/source-osr-us-0010-8k.wav")
+	if format.sampleRate != SampleRate || format.channels != 1 || format.bitsPerSample != 16 {
+		t.Fatalf("arena source WAV format = %d Hz, %d channel(s), %d bits; want 8000 Hz mono s16",
+			format.sampleRate, format.channels, format.bitsPerSample)
+	}
+
+	for _, clip := range pagesArenaClips {
+		clipPCM := arenaClipPCMBytes(t, sourcePCM, clip.offsetSamples, clip.sampleCount)
+		padded := padPCM16ToFrames(t, clipPCM)
+		encoded := encodePCM16LEForGolden(t, padded)
+		decoded := decodeG729ForGolden(t, encoded)
+		wantDecoded := readPagesAudioWAVFixture(t, arenaAudioPath(clip.name, "our-loopback.wav"), len(padded))
+		if !bytes.Equal(decoded, wantDecoded) {
+			t.Fatalf("arena %s local loopback mismatch: %s", clip.name, byteMismatch(decoded, wantDecoded))
+		}
+		readPagesAudioWAVFixture(t, arenaAudioPath(clip.name, "bcg729-ffmpeg.wav"), len(padded))
+	}
+}
+
 func TestPagesAudioWriteGoldenOutputs(t *testing.T) {
 	if os.Getenv("G729_WRITE_PAGES_AUDIO_GOLDEN") != "1" {
 		t.Skip("set G729_WRITE_PAGES_AUDIO_GOLDEN=1 to refresh docs/assets/audio golden outputs")
@@ -73,6 +93,62 @@ func TestPagesAudioWriteGoldenOutputs(t *testing.T) {
 	writeFFmpegDecodedG729WAVFixture(t, "docs/assets/audio/bcg729-encode-ffmpeg-decode.wav", bcgEncoded)
 
 	t.Logf("wrote local payload %d bytes, bcg729 payload %d bytes, decoded PCM %d bytes", len(encoded), len(bcgEncoded), len(decoded))
+}
+
+func TestPagesAudioArenaWriteGoldenOutputs(t *testing.T) {
+	if os.Getenv("G729_WRITE_PAGES_AUDIO_ARENA") != "1" {
+		t.Skip("set G729_WRITE_PAGES_AUDIO_ARENA=1 to refresh docs/assets/audio/arena outputs")
+	}
+
+	sourcePCM, format := readPCM16WAVFixture(t, "docs/assets/audio/arena/source-osr-us-0010-8k.wav")
+	if format.sampleRate != SampleRate || format.channels != 1 || format.bitsPerSample != 16 {
+		t.Fatalf("arena source WAV format = %d Hz, %d channel(s), %d bits; want 8000 Hz mono s16",
+			format.sampleRate, format.channels, format.bitsPerSample)
+	}
+
+	for _, clip := range pagesArenaClips {
+		clipPCM := arenaClipPCMBytes(t, sourcePCM, clip.offsetSamples, clip.sampleCount)
+		padded := padPCM16ToFrames(t, clipPCM)
+
+		encoded := encodePCM16LEForGolden(t, padded)
+		decoded := decodeG729ForGolden(t, encoded)
+		writePCM16WAVFixture(t, arenaAudioPath(clip.name, "our-loopback.wav"), decoded)
+
+		bcgEncoded := encodeBCG729ForPagesGolden(t, padded)
+		writeFFmpegDecodedG729WAVFixture(t, arenaAudioPath(clip.name, "bcg729-ffmpeg.wav"), bcgEncoded)
+		t.Logf("wrote arena %s: %d source samples, %d padded samples", clip.name, clip.sampleCount, len(padded)/2)
+	}
+}
+
+var pagesArenaClips = []struct {
+	name          string
+	offsetSamples int
+	sampleCount   int
+}{
+	{name: "trial-01", offsetSamples: 0, sampleCount: 19200},
+	{name: "trial-02", offsetSamples: 19200, sampleCount: 19200},
+	{name: "trial-03", offsetSamples: 38400, sampleCount: 19200},
+	{name: "trial-04", offsetSamples: 57600, sampleCount: 19200},
+	{name: "trial-05", offsetSamples: 76800, sampleCount: 19200},
+	{name: "trial-06", offsetSamples: 96000, sampleCount: 19200},
+	{name: "trial-07", offsetSamples: 115200, sampleCount: 19200},
+	{name: "trial-08", offsetSamples: 134400, sampleCount: 19200},
+	{name: "trial-09", offsetSamples: 153600, sampleCount: 19200},
+	{name: "trial-10", offsetSamples: 172800, sampleCount: 19200},
+}
+
+func arenaAudioPath(name, suffix string) string {
+	return fmt.Sprintf("docs/assets/audio/arena/%s-%s", name, suffix)
+}
+
+func arenaClipPCMBytes(t *testing.T, pcm []byte, offsetSamples, sampleCount int) []byte {
+	t.Helper()
+	start := offsetSamples * 2
+	end := start + sampleCount*2
+	if start < 0 || end > len(pcm) || start > end {
+		t.Fatalf("arena clip range [%d,%d) outside source PCM length %d", start, end, len(pcm))
+	}
+	return append([]byte(nil), pcm[start:end]...)
 }
 
 type wavFixtureFormat struct {
