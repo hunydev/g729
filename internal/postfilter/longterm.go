@@ -9,6 +9,13 @@ type longTermGainWeights struct {
 	longTermFilterEnabled bool
 }
 
+const (
+	longTermIdentityG0Q14              int16 = 16383
+	longTermMaxGammaScaledGainQ15      int16 = 10923
+	longTermGateThresholdQ15Sq         int64 = 16384
+	longTermUnityGainBaseQ15WhenMaxLag int64 = 1 << 15
+)
+
 // refinePitch selects the best integer pitch lag T in the Annex A search
 // range [Tcl-3, Tcl+3] (within [20, pitchMax]) by maximising the
 // cross-correlation with the residual per ITU-T G.729 §A.4.2.1.
@@ -40,7 +47,7 @@ func (pf *Postfilter) refinePitch(r *[subframeLen]int16, tInt int) int {
 	}
 
 	bestT := lo
-	bestCorr := int64(-1)
+	bestCorr := int64(-1 << 63)
 
 	for T := lo; T <= hi; T++ {
 		var R int64
@@ -77,12 +84,6 @@ func (pf *Postfilter) computeLongTermGain(r *[subframeLen]int16, T int) (g0, g1 
 }
 
 func (pf *Postfilter) computeLongTermGainWeights(r *[subframeLen]int16, T int) longTermGainWeights {
-	const (
-		identityG0Q14              int16 = 16383
-		maxGammaScaledGainQ15      int16 = 10923
-		longTermGateThresholdQ15Sq int64 = 16384
-	)
-
 	var R int64
 	delayedE := int64(1)
 	currentE := int64(1)
@@ -94,8 +95,8 @@ func (pf *Postfilter) computeLongTermGainWeights(r *[subframeLen]int16, T int) l
 		currentE += longTermScaledProduct(r[n], r[n])
 	}
 
-	if R <= 0 || delayedE == 0 || currentE == 0 {
-		return longTermGainWeights{g0Q14: identityG0Q14}
+	if R < 0 || delayedE == 0 || currentE == 0 {
+		return longTermGainWeights{g0Q14: longTermIdentityG0Q14}
 	}
 
 	normShift := longTermNormShift(R, delayedE, currentE)
@@ -104,11 +105,15 @@ func (pf *Postfilter) computeLongTermGainWeights(r *[subframeLen]int16, T int) l
 	currentENormQ15 := longTermRoundedNormQ15(currentE, normShift)
 
 	if int64(rNormQ15)*int64(rNormQ15) < longTermGateThresholdQ15Sq*int64(delayedENormQ15)*int64(currentENormQ15)>>15 {
-		return longTermGainWeights{g0Q14: identityG0Q14}
+		return longTermGainWeights{g0Q14: longTermIdentityG0Q14}
 	}
 
-	gammaScaledGainQ15 := maxGammaScaledGainQ15
-	if rNormQ15 < delayedENormQ15 {
+	if rNormQ15 == 0 || delayedENormQ15 == 0 {
+		return longTermGainWeights{g0Q14: longTermIdentityG0Q14, longTermFilterEnabled: true}
+	}
+
+	gammaScaledGainQ15 := longTermMaxGammaScaledGainQ15
+	if rNormQ15 <= delayedENormQ15 {
 		gammaScaledRQ14 := rNormQ15 >> 2
 		gainDenQ14 := (delayedENormQ15 >> 1) + gammaScaledRQ14
 		gammaScaledGainQ15 = fixed.DivS(gammaScaledRQ14, gainDenQ14)
@@ -116,7 +121,7 @@ func (pf *Postfilter) computeLongTermGainWeights(r *[subframeLen]int16, T int) l
 
 	g1Q14 := gammaScaledGainQ15 >> 1
 	return longTermGainWeights{
-		g0Q14:                 identityG0Q14 - g1Q14,
+		g0Q14:                 longTermIdentityG0Q14 - g1Q14,
 		g1Q14:                 g1Q14,
 		gammaScaledGainQ15:    gammaScaledGainQ15,
 		longTermFilterEnabled: true,
@@ -169,7 +174,11 @@ func (pf *Postfilter) applyLongTermWithGainQ15(T int, weights longTermGainWeight
 		copy(rOut[:], pf.pastResidual[pitchMax:pitchMax+subframeLen])
 		return
 	}
-	g0Q15 := int64(fixed.Max16 - weights.gammaScaledGainQ15)
+	g0BaseQ15 := int64(fixed.Max16)
+	if weights.gammaScaledGainQ15 == longTermMaxGammaScaledGainQ15 {
+		g0BaseQ15 = longTermUnityGainBaseQ15WhenMaxLag
+	}
+	g0Q15 := g0BaseQ15 - int64(weights.gammaScaledGainQ15)
 	g1Q15 := int64(weights.gammaScaledGainQ15)
 	for n := 0; n < subframeLen; n++ {
 		p0 := (g0Q15 * int64(pf.pastResidual[pitchMax+n])) >> 15

@@ -81,9 +81,14 @@
             <p>Annex B SID, CNG, and DTX are not implemented in this release.</p>
           </article>
           <article class="capability">
+            <span class="status">Verified</span>
+            <h3>Strict decoder</h3>
+            <p>Private ITU Annex A oracle gate matches 740800/740800 final PCM samples.</p>
+          </article>
+          <article class="capability">
             <span class="status muted">Not claimed</span>
             <h3>No certification claim</h3>
-            <p>ITU byte-exact conformance and broad interoperability certification are not claimed.</p>
+            <p>ITU certification, ITU endorsement, and encoder byte-exact conformance are not claimed.</p>
           </article>
         </div>
       </div>
@@ -172,10 +177,11 @@ a=maxptime:20</code></pre>
         </div>
         <div class="quality-note">
           <strong>Current gate:</strong> the outbound encoder/RTP send path is
-          black-box tested against FFmpeg, and the strict decoder has local
-          FFmpeg/Asterisk-origin sample regression coverage. These are project
-          release gates, not ITU certification. The generated raw Core payload is
-          available as <a href="assets/audio/g729-encode.g729" download>g729-encode.g729</a>.
+          black-box tested against FFmpeg, and the strict decoder is
+          sample-exact against the private ITU Annex A final-PCM oracle
+          (740800/740800 samples). These are project release gates, not ITU
+          certification. The generated raw Core payload is available as
+          <a href="assets/audio/g729-encode.g729" download>g729-encode.g729</a>.
         </div>
       </div>
     </section>

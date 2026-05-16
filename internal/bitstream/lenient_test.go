@@ -56,7 +56,7 @@ func TestReadG192FrameLenient_AcceptsZeroSoftbit(t *testing.T) {
 		t.Fatalf("ReadG192FrameLenient: unexpected error %v", err)
 	}
 	if bad {
-		t.Errorf("bad = true, want false on good sync")
+		t.Errorf("bad = true, want false for mixed zero softbits on good sync")
 	}
 	for i := 0; i < FrameBits; i++ {
 		byteIdx := i >> 3
@@ -130,6 +130,9 @@ func TestReadG192File_HandlesOverflowVector(t *testing.T) {
 		if b != 0 {
 			t.Errorf("frame 19 byte %d = %#x, want 0", i, b)
 		}
+	}
+	if !bads[19] {
+		t.Errorf("bads[19] = false, want true for all-zero softbit frame")
 	}
 }
 

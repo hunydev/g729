@@ -16,9 +16,12 @@ MRCP, TTS, IVR, and server-side media applications that need
 `G729/8000` with `annexb=no`.
 
 **Status: v0.1.0-rc1.** The outbound encoder/RTP send path is
-black-box tested against FFmpeg. The decoder is included for loopback,
-tooling, and limited inbound regression testing. Broad interoperability
-certification and ITU byte-exact conformance are not claimed.
+black-box tested against FFmpeg. The decoder has a stronger conformance
+result: in the current private verifier run, fixed ITU Annex A
+bitstreams decoded by this package match the official reference PCM
+sample-for-sample (`740800/740800` final PCM samples exact). This is a
+decoder correctness claim, not ITU certification and not an encoder
+byte-exact claim.
 
 ---
 
@@ -55,7 +58,7 @@ undesirable.
 
 | Capability | v0.1.0 status |
 |---|---|
-| `G729/8000` RTP payload type 18 | **Encoder/send path supported for `annexb=no`; decoder included with limited interoperability coverage** |
+| `G729/8000` RTP payload type 18 | **Encoder/send path supported for `annexb=no`; decoder supported** |
 | 10 ms frame: 80 int16 samples ↔ 10 packed bytes | **Supported** |
 | `ptime=10` (one frame per RTP packet) | **Supported** |
 | `ptime=20` (two frames per RTP packet) | **Supported** (caller bundles two encoder outputs) |
@@ -64,8 +67,8 @@ undesirable.
 | Opt-in `DecodeFrameEnhanced` listening aid | **Experimental; not a conformance claim** |
 | Streaming `Encoder.Write` / `Encoder.Flush` | **Supported** |
 | Hot-path 0-allocation steady state | **Verified** |
-| ITU reference byte-exact conformance | **Not claimed** (explicit decoder vector gate exists; see Known limitations) |
-| ITU vector full byte-EQ | **Not passing yet** |
+| Decoder ITU Annex A final PCM conformance | **Sample-exact in current private oracle gate: `740800/740800` final PCM samples** |
+| Encoder ITU byte-exact conformance | **Not claimed** |
 | G.729 Annex B (SID / CNG / DTX) | **Not supported** |
 | G.729.1 (wideband / scalable) | **Not supported** |
 | G.729D / G.729E | **Not supported** |
@@ -272,14 +275,15 @@ endpoint.
 Decoder side is provided for inbound audio (e.g. ASR ingress),
 loopback testing, and tooling.
 
-Current status: the outbound TTS/RTP send path now passes the binding
-FFmpeg black-box encoder quality gate for `G729/8000 annexb=no`
-payloads. This is not an ITU byte-exact or certification claim. The
-strict local decoder also passes the current FFmpeg black-box regression
-gates for this repository's local encoder payload and a local,
-non-redistributed Asterisk-origin `.g729` payload sample. That is enough for current
-tooling and loopback confidence, but it is still not broad
-interoperability certification for every external G.729 sender.
+Current status: the outbound TTS/RTP send path passes the binding FFmpeg
+black-box encoder quality gate for `G729/8000 annexb=no` payloads. The
+strict local decoder also passes the strongest decoder gate available to
+this project: fixed ITU Annex A `.BIT` streams decoded by this package match
+the companion reference `.PST` PCM sample-for-sample in the private oracle
+run (`740800/740800` final PCM samples exact). This gives the decoder a
+concrete conformance basis beyond MOS/PESQ-style quality scores. It is still
+not ITU certification, not an endorsement by ITU, and not a claim that the
+encoder is byte-exact to the ITU reference encoder.
 
 An experimental `DecodeFrameEnhanced` path remains available for listening
 diagnostics. It is non-strict and is not used as evidence for the
@@ -287,125 +291,71 @@ diagnostics. It is non-strict and is not used as evidence for the
 
 ---
 
-## Known limitations
+## Known scope and limitations
 
-This release does not claim ITU byte-exact or certified G.729
-conformance. The outbound encoder/RTP send path is now black-box gated
-against FFmpeg, and the strict local decoder is black-box gated against
-FFmpeg for the local encoder payload plus a local, non-redistributed
-Asterisk-origin payload sample.
+This release distinguishes decoder conformance evidence, encoder quality
+evidence, and standards certification:
 
-Concretely:
-
-1. **FFmpeg black-box encoder gate passes.** On the ITU SPEECH corpus,
-   `SPEECH.BIT -> ffmpeg` tracks `SPEECH.PST` at about `GlobalSNR=7.04
-   dB`, `SegSNR=4.39 dB`, while `SPEECH.IN -> our encoder -> ffmpeg`
-   currently measures about `GlobalSNR=7.12 dB`, `SegSNR=4.61 dB`.
-   The deltas (`+0.08 dB` global, `+0.22 dB` segmental) pass the
-   project-defined `>= -2.00 dB` release gate for outbound encoder
-   quality.
-2. **Local decoder roundtrip gate passes against FFmpeg.** On the local
-   encoder's own SPEECH payload, `our encoder -> local decoder` now tracks
-   `our encoder -> ffmpeg` at about `GlobalSNR=16.12 dB`,
-   `SegSNR=14.41 dB`, and RMS ratio `0.992` local-vs-FFmpeg. The
-   end-to-end source quality is still bounded by the outbound encoder gate,
-   not by ITU byte-exact vector certification.
-3. **Local Asterisk payload decoder gate passes against FFmpeg.**
-   The strict local decoder now tracks FFmpeg on a local, non-redistributed
-   Asterisk-origin `.g729` payload sample at about `GlobalSNR=14.64 dB`,
-   `SegSNR=15.23 dB`, `corr=0.983`, and RMS ratio `0.985`. This is a
-   useful inbound regression gate for MRCP/SIP integration, but it is not a
-   blanket claim that arbitrary external G.729 payloads from every sender
-   have been exhaustively qualified. The non-strict enhanced listening path
-   is currently worse than strict on this gate and is not conformance
-   evidence.
-4. **0 encoder byte-EQ expected failures** in the conformance suite.
-   The LSP vector, TAME byte-EQ, former Phase 2c closed-loop pitch,
-   and Phase 2d FCB pins now pass as source-divergence diagnostics
-   after clean-room numeric handoff audits. These measurements remain
-   informational and are not sufficient to certify audio quality.
-   Excluded from the default test suite via the `conformance` build tag.
-5. **Decoder ITU vector exact gate is explicit and not passing yet.**
-   For decoder credibility, the direct gate is fixed ITU `.BIT` payloads
-   decoded by this repository compared sample-by-sample against companion
-   `.PST` reference PCM, not PESQ/MOS. The opt-in matrix currently shows
-   `0.00%` exact frames and `7.14%` exact samples across the Annex A
-   ordinary-good vector scope, so this remains the main decoder
-   conformance blocker. Older PSTdomain PASS-by-design diagnostic pins are
-   retained as history, not as a public conformance claim.
-6. **`TestDiagnostic_SinglePulseChain`** is retained as a
-   diagnostic-only instrumentation log and currently PASSes. Excluded
-   from the default test suite via the `diagnostic` build tag.
+1. **Decoder final PCM exact gate passes.** Fixed ITU Annex A bitstreams
+   decoded by this package match the official reference PCM sample-for-sample
+   in the current private verifier run: `740800/740800` final PCM samples
+   exact across `ALGTHM`, `ERASURE`, `FIXED`, `LSP`, `OVERFLOW`, `PARITY`,
+   `PITCH`, `SPEECH`, `TAME`, and `TEST`. For a decoder, this is stronger
+   evidence than PESQ/MOS because the input bitstream is fixed and the output
+   can be compared directly.
+2. **The decoder claim is not an ITU certification claim.** ITU has not
+   certified this implementation, and no endorsement is implied. The claim is
+   limited to the private, reproducible verifier result described above.
+3. **The encoder is not claimed byte-exact.** `EncoderProfileCore` emits
+   standard 10-byte G.729 frames and passes the project FFmpeg black-box
+   outbound quality gate, but it is an independent encoder implementation and
+   is not expected to match the ITU reference encoder or `bcg729` bit-for-bit.
+4. **Verifier data is not redistributed.** The private oracle directory
+   contains numeric outputs derived from external conformance materials. Those
+   data files are not part of the MIT-licensed source distribution and are not
+   relicensed as MIT. Public documentation records aggregate pass/fail counts
+   and clean-room process only.
+5. **Annex B and other G.729 variants remain out of scope.** SID/CNG/DTX
+   (`annexb=yes`), G.729.1, G.729D, and G.729E are not implemented.
+6. **`DecodeFrameEnhanced` is diagnostic-only.** It is useful for listening
+   experiments but is not the strict decoder path and is not used as
+   conformance evidence.
 
 ### ITU decoder vector validation
 
-Decoder validation is stronger when it uses fixed ITU bitstreams:
+Decoder validation is strongest when it uses fixed ITU bitstreams:
 `.BIT -> local decoder -> PCM` compared directly against the companion
-`.PST` reference PCM. PESQ/POLQA/MOS are useful listening-quality metrics,
-but they are secondary for decoder conformance because the input bitstream is
-already fixed.
+`.PST` reference PCM. The current strict decoder reaches exact final PCM
+equality in the private oracle gate:
 
-Run the current sample-level matrix:
-
-```sh
-G729_DECODER_ITU_VECTOR_VALIDATION=1 \
-go test ./internal/decoder -run TestDecoderITUVectorValidation -count=1 -v
+```text
+ALGTHM    2800/2800 exact
+ERASURE  24000/24000 exact
+FIXED    9600/9600 exact
+LSP      178560/178560 exact
+OVERFLOW 30720/30720 exact
+PARITY   24000/24000 exact
+PITCH    146800/146800 exact
+SPEECH   300000/300000 exact
+TAME     10240/10240 exact
+TEST     14080/14080 exact
+TOTAL    740800/740800 exact
 ```
 
-When the matrix reaches exact equality, promote it to a hard gate:
+The hard gate is opt-in because the large oracle data is intentionally kept
+outside the public repository:
 
 ```sh
-G729_DECODER_ITU_VECTOR_VALIDATION=1 \
-G729_REQUIRE_DECODER_ITU_VECTOR_EXACT=1 \
-go test ./internal/decoder -run TestDecoderITUVectorValidation -count=1 -v
+G729_COMPARE_DECODER_REFERENCE_FINAL_PCM=1 \
+G729_REQUIRE_EXACT_DECODER_REFERENCE_FINAL_PCM=1 \
+G729_DECODER_REFERENCE_ORACLE_DIR=/path/to/private/verifier-output \
+go test ./internal/decoder -run TestOracleHandoff_CompareDecoderReferenceFinalPCM -count=1 -v
 ```
 
-To localize the first or largest vector divergence without adding a default
-test cost:
-
-```sh
-G729_DECODER_ITU_VECTOR_TRACE=1 \
-G729_DECODER_ITU_VECTOR_TRACE_VECTOR=ALGTHM \
-G729_DECODER_ITU_VECTOR_TRACE_MODE=worst-frame \
-go test ./internal/decoder -run TestDecoderITUVectorFirstDiffTrace -count=1 -v
-```
-
-To prepare an independent numeric verifier handoff for the current high-value
-decoder frames:
-
-```sh
-G729_DUMP_DECODER_ITU_STAGE_HANDOFF=1 \
-go test ./internal/decoder -run TestDecoderITUStageHandoffTemplate -count=1 -v
-```
-
-This writes:
-
-- `testdata/oracle/handoff/decoder_itu_stage_expected_template.csv`
-- `testdata/oracle/handoff/decoder_itu_stage_got.csv`
-
-The template covers `ALGTHM` frame `0/14/15`, `TAME` frame
-`0/98/117/118/119/123`, and `OVERFLOW` frame `0/106/107/108`. An independent
-verifier should fill only the numeric `expected` column, then save the result
-as `testdata/oracle/handoff/decoder_itu_stage_expected.csv`.
-
-Compare a completed verifier artifact with:
-
-```sh
-G729_COMPARE_DECODER_ITU_STAGE_HANDOFF=1 \
-G729_REQUIRE_COMPLETE_DECODER_ITU_STAGE_HANDOFF=1 \
-G729_REQUIRE_EXACT_DECODER_ITU_STAGE_HANDOFF=1 \
-G729_REJECT_DECODER_ITU_STAGE_SELF_ORACLE=1 \
-go test ./internal/decoder -run TestOracleHandoff_CompareDecoderITUStageHandoff -count=1 -v
-```
-
-The default scope is `annexa-good` (`ALGTHM`, `SPEECH`, `FIXED`, `LSP`,
-`PITCH`, `TAME`, `TEST`, `OVERFLOW`). Set
-`G729_DECODER_ITU_VECTOR_SCOPE=all` to include `ERASURE` and `PARITY`, which
-belong to the separate bad-frame concealment/parity behavior surface.
-
-See `docs/superpowers/diagnostics/2026-05-12-decoder-vector-validation.md`
-for the current matrix and why this gate supersedes PESQ for decoder
-credibility.
+Stage and arithmetic oracles are also kept private. They are used to localize
+bugs without importing implementation source; public repo artifacts should
+contain only prompts, schemas, aggregate results, and clean-room notes unless
+a small numeric fixture is explicitly reviewed for redistribution.
 
 ### FFmpeg black-box quality gate
 
@@ -582,6 +532,7 @@ gate role:
 | Suite | Invocation | Release gate role |
 |---|---|---|
 | Default (release) | `go test ./...` | **Binding.** Must PASS at the v0.1.0-rc1 tag commit. |
+| Decoder final PCM oracle | `G729_COMPARE_DECODER_REFERENCE_FINAL_PCM=1 G729_REQUIRE_EXACT_DECODER_REFERENCE_FINAL_PCM=1 G729_DECODER_REFERENCE_ORACLE_DIR=/path/to/private/verifier-output go test ./internal/decoder -run TestOracleHandoff_CompareDecoderReferenceFinalPCM -count=1 -v` | **Binding for strict decoder conformance when private oracle data is available.** Current private run PASSes `740800/740800` final PCM samples exact. |
 | FFmpeg quality (product) | `G729_FFMPEG_BLACKBOX_QUALITY=1 G729_REQUIRE_FFMPEG_BLACKBOX_QUALITY=1 go test -run TestExternalFFmpegBlackboxQuality_SPEECH -count=1 -v` | **Binding for outbound G.729 encoder support.** Currently PASSes. |
 | Local decoder quality | `G729_FFMPEG_BLACKBOX_QUALITY=1 G729_REQUIRE_LOCAL_DECODER_FFMPEG_QUALITY=1 go test -run TestExternalFFmpegBlackboxLocalDecoderDelta_SPEECH -count=1 -v` | **Binding for strict local decoder regression coverage.** Currently PASSes against FFmpeg on the local encoder SPEECH payload. |
 | Asterisk local decode quality | `G729_DECODER_ASTERISK_FFMPEG_QUALITY=1 G729_REQUIRE_DECODER_ASTERISK_FFMPEG_QUALITY=1 go test ./internal/decoder -run TestPhase3rAsteriskFFmpegQualityGate -count=1 -v` | **Binding when a local non-redistributed Asterisk-origin inbound sample is present.** PASSed during rc1 verification against FFmpeg; not broad sender certification. |
@@ -598,8 +549,11 @@ their expected-failure inventories are catalogued in
 
 This project maintains a clean-room constraint. No ITU reference C,
 bcg729, FFmpeg, Sipro, or other G.729 implementation source was used.
-Public specifications, test vectors, and independently written tests
-were used. v0.1.0 does not claim ITU byte-exact conformance.
+Public specifications, black-box executable behavior, private numeric
+oracle outputs, and independently written tests were used. v0.1.0 claims
+strict decoder final-PCM sample equality against the current private ITU
+Annex A oracle gate; it does not claim ITU certification, ITU endorsement,
+or encoder byte-exact conformance.
 See [IP_PROVENANCE.md](IP_PROVENANCE.md) for the distribution provenance
 record and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the
 redistribution notice inventory.
@@ -647,11 +601,11 @@ third-party notice inventory in
 - **Phase 0 / 1 / 2** — encoder/decoder core implementation, completed.
   See `docs/superpowers/plans/2026-05-02-phase2-encoder-plan.md`
   (master plan).
-- **Phase 3 — CLOSED-PARTIAL**. Encoder and decoder diagnostics were
-  closed enough to proceed to RC packaging, with the current public
-  claim bounded by the FFmpeg black-box outbound encoder gate and the
-  decoder limitations above. See
-  [Phase 3-final closure report](docs/superpowers/plans/2026-05-04-phase3-final-closure-report.md).
+- **Phase 3 — CLOSED**. Decoder exactness work reached strict final-PCM
+  equality against the private ITU Annex A oracle gate (`740800/740800`
+  samples exact). Encoder quality remains bounded by the FFmpeg black-box
+  outbound gate and listening diagnostics; encoder byte-exact conformance is
+  not claimed.
 - **Phase 4 — CLOSED**. Release packaging cycle for v0.1.0-rc1. See
   [Phase 4 plan](docs/superpowers/plans/2026-05-04-phase4-v0.1.0-release-packaging-plan.md).
 

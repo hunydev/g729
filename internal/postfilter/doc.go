@@ -12,9 +12,9 @@
 //  2. Residual FIR:         r(n) = Σ aNum[i]·s(n−i)
 //  3. Pitch refinement:     T ∈ {t_int−1, t_int, t_int+1}, max cross-correlation
 //  4. Long-term postfilter: r′(n) = (r(n) + g_l·r(n−T)) / (1 + g_l)
-//  5. Short-term synthesis: s_st(n) = r′(n) − Σ aDen[i]·s_st(n−i)
-//  6. Tilt compensation:    s_tilt(n) = s_st(n) + μ·s_st(n−1)
-//  7. Adaptive gain control: s_pf(n) = g_pf(n)·s_tilt(n) with smoothing
+//  5. Tilt compensation:    s_tilt(n) = r′(n) − μ·r′(n−1)
+//  6. Short-term synthesis: s_st(n) = s_tilt(n) − Σ aDen[i]·s_st(n−i)
+//  7. Adaptive gain control: s_pf(n) = g_pf(n)·s_st(n) with smoothing
 //
 // Each stage carries its own state across subframes. A Postfilter's zero
 // value is a valid reset state per §A.4.2 first-frame initialisation.

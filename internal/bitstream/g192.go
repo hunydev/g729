@@ -97,8 +97,10 @@ func ReadG192Frame(r io.Reader, frame []byte) (bool, error) {
 // ReadG192FrameLenient reads one G.192 frame from r with a relaxed
 // softbit policy: the data words 0x0000 are additionally accepted and
 // mapped to logical 0, alongside the canonical 0x007F (logical 0) and
-// 0x0081 (logical 1). All other validation (sync word, length word,
-// frame-bits count, error semantics) is identical to ReadG192Frame.
+// 0x0081 (logical 1). A frame whose entire 80-bit payload is 0x0000 is
+// reported as bad even when the sync word is the canonical good marker.
+// All other validation (sync word, length word, frame-bits count, error
+// semantics) is identical to ReadG192Frame.
 //
 // Rationale (informed inference, not chapter-and-verse):
 // the ITU G.729A test vector OVERFLOW.BIT contains exactly one frame
@@ -156,6 +158,7 @@ func readG192FrameWithSoftbitPolicy(r io.Reader, frame []byte, allowZeroSoftbit 
 	for i := range out {
 		out[i] = 0
 	}
+	zeroSoftbits := 0
 	for i := 0; i < FrameBits; i++ {
 		off := 4 + 2*i
 		word := binary.LittleEndian.Uint16(buf[off : off+2])
@@ -170,10 +173,14 @@ func readG192FrameWithSoftbitPolicy(r io.Reader, frame []byte, allowZeroSoftbit 
 			if !allowZeroSoftbit {
 				return false, ErrBadG192Bit
 			}
+			zeroSoftbits++
 			// lenient: indeterminate softbit → logical 0
 		default:
 			return false, ErrBadG192Bit
 		}
+	}
+	if allowZeroSoftbit && zeroSoftbits == FrameBits {
+		bad = true
 	}
 	return bad, nil
 }

@@ -6,13 +6,13 @@ import "github.com/hunydev/g729/internal/fixed"
 // in Q13 (π ≈ 25736 in Q13).
 //
 //   - lsfMinEdge   = 0.005  rad → 41    (ω̂_1 floor, post-predictor)
-//   - lsfMinGap    = 0.0391 rad → 320   (post-predictor min adjacent gap)
+//   - lsfMinGap    = 0.0391 rad → 321   (post-predictor min adjacent gap)
 //   - lsfMaxEdge   = 3.135  rad → 25682 (ω̂_10 ceiling)
 //   - lsfRearrJ1   = 0.0012 rad → 10    (pre-predictor pass 1 gap)
 //   - lsfRearrJ2   = 0.0006 rad → 5     (pre-predictor pass 2 gap)
 const (
 	lsfMinEdge int16 = 41
-	lsfMinGap  int16 = 320
+	lsfMinGap  int16 = 321
 	lsfMaxEdge int16 = 25682
 	lsfRearrJ1 int16 = 10
 	lsfRearrJ2 int16 = 5
@@ -56,21 +56,24 @@ func enforceLSFStability(lsf *[10]int16) {
 
 // rearrangeAdjacent applies the pre-predictor pair-rearrangement of
 // ITU-T G.729 §3.2.4 to the residual l̂ in place. For each adjacent
-// pair whose gap is below J, the two values are spread to differ by
-// exactly J around their midpoint:
+// pair whose gap is below J, the two values are moved apart by half of
+// the missing gap:
 //
-//	l̂_{i-1} = (l̂_i + l̂_{i-1} − J) / 2
-//	l̂_i     = (l̂_i + l̂_{i-1} + J) / 2
+//	d        = J − (l̂_i − l̂_{i-1})
+//	l̂_{i-1} = l̂_{i-1} − d/2
+//	l̂_i     = l̂_i     + d/2
 //
 // The spec applies this routine twice per frame, with J = 0.0012 then
 // J = 0.0006 (lsfRearrJ1 / lsfRearrJ2). One forward pass is sufficient
-// because each rewrite leaves the two elements gap-J apart.
+// because each rewrite leaves the two elements at or within 1 LSB of
+// the requested gap, depending on the odd/even correction.
 func rearrangeAdjacent(lsf *[10]int16, J int16) {
 	for i := 1; i < 10; i++ {
-		if lsf[i]-lsf[i-1] < J {
-			sum := int32(lsf[i]) + int32(lsf[i-1])
-			lsf[i-1] = int16((sum - int32(J)) / 2)
-			lsf[i] = int16((sum + int32(J)) / 2)
+		gap := lsf[i] - lsf[i-1]
+		if gap < J {
+			correction := (J - gap) >> 1
+			lsf[i-1] = fixed.Sub(lsf[i-1], correction)
+			lsf[i] = fixed.Add(lsf[i], correction)
 		}
 	}
 }

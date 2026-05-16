@@ -54,12 +54,17 @@ The following local materials are intentionally excluded from git:
 
 - `testdata/itu/` — ITU test vectors.
 - `docs/superpowers/specs/itu/` — ITU specification PDFs/text.
+- Private verifier output directories such as
+  `/home/exedev/g729_untracked/verifier-output/` — external conformance
+  oracle outputs, including decoder final PCM oracle CSVs.
 - `testdata/external/*.g729` and `testdata/external/user_quality_input.*` —
   user, customer, or external system audio/payload samples.
 - Local build, transfer, and agent artifacts.
 
-Only small documentation files and numeric oracle artifacts may be tracked
-when they satisfy the clean-room oracle policy in [IP_PROVENANCE.md](IP_PROVENANCE.md).
+Only small prompts, schemas, diagnostic tables, or narrowly reviewed numeric
+fixtures may be tracked when they satisfy the clean-room oracle policy in
+[IP_PROVENANCE.md](IP_PROVENANCE.md). Large external conformance vectors and
+private verifier outputs are not redistributed.
 
 ## External Trademarks and Names
 
@@ -78,5 +83,6 @@ For the distributed repository:
 - Vendored codec code: none.
 - Redistributed ITU reference source: none.
 - Redistributed external G.729 implementation source: none.
+- Redistributed private decoder exact oracle data: none.
 - Redistributed local speech samples: only the owner-provided public Pages
   demo sample and generated derivatives listed above.

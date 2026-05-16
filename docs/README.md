@@ -5,6 +5,15 @@ This directory is the source for <https://g729.huny.dev/>.
 GitHub Pages should be configured to publish from the `main` branch and the
 `/docs` path. `CNAME` pins the custom domain to `g729.huny.dev`.
 
+## Verification note
+
+The Pages assets are demo and listening assets, not conformance oracle data.
+The current strict decoder conformance result is recorded in the repository
+README: private ITU Annex A oracle verification matches `740800/740800` final
+PCM samples sample-for-sample. The private oracle CSVs and official ITU
+test-vector files are intentionally not stored in `docs/` or redistributed as
+MIT-licensed source.
+
 ## Audio samples
 
 The landing page publishes a small owner-provided source WAV and generated

@@ -81,6 +81,40 @@ func (d *Decoder) DecodeWithLogCorrections(idx Indices, c *[40]int16, ecQCorrect
 	return d.decode(idx, c, ecQCorrection, gammaQCorrection)
 }
 
+// MarkErasure advances the gain-predictor error FIFO for a concealed
+// subframe. No VQ indices or fixed-codebook energy are decoded on this path.
+func (d *Decoder) MarkErasure() {
+	if !d.initialized {
+		for i := range d.pastErrors {
+			d.pastErrors[i] = pastErrorsDefault
+		}
+		d.initialized = true
+	}
+	avg := (int32(d.pastErrors[0]) + int32(d.pastErrors[1]) + int32(d.pastErrors[2]) + int32(d.pastErrors[3])) >> 2
+	uCurrent := avg - 4096
+	if uCurrent < int32(pastErrorsDefault) {
+		uCurrent = int32(pastErrorsDefault)
+	}
+	d.pastErrors[3] = d.pastErrors[2]
+	d.pastErrors[2] = d.pastErrors[1]
+	d.pastErrors[1] = d.pastErrors[0]
+	d.pastErrors[0] = int16(uCurrent)
+}
+
+// PredictorErrors returns the current gain MA predictor FIFO. A cold decoder
+// reports the spec initial state without mutating the decoder.
+func (d *Decoder) PredictorErrors() [4]int16 {
+	if d.initialized {
+		return d.pastErrors
+	}
+	return [4]int16{
+		pastErrorsDefault,
+		pastErrorsDefault,
+		pastErrorsDefault,
+		pastErrorsDefault,
+	}
+}
+
 func (d *Decoder) decode(idx Indices, c *[40]int16, ecQCorrection, gammaQCorrection int) (gpQ14, gcMantQ14 int16, gcExp int8) {
 	if !d.initialized {
 		for i := range d.pastErrors {

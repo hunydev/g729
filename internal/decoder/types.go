@@ -34,8 +34,14 @@ type Decoder struct {
 
 	pastExc [pastExcLen]int16
 
-	prevGpQ14     int16
-	havePrevGpQ14 bool
+	prevGpQ14        int16
+	havePrevGpQ14    bool
+	prevFixedGainQ14 int64
+
+	prevPitchDelay        int
+	havePrevPitchDelay    bool
+	randomSeed            uint16
+	randomSeedInitialized bool
 
 	hpX [2]int16
 	hpY [2]int32

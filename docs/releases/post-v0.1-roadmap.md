@@ -7,6 +7,9 @@ and verification log.
 ## Current Baseline
 
 - Default suite: expected PASS.
+- Strict decoder final PCM oracle gate: private ITU Annex A verification
+  reaches `740800/740800` exact final PCM samples when
+  `G729_DECODER_REFERENCE_ORACLE_DIR` points at the private verifier output.
 - Conformance suite: 0 expected failures under `-tags=conformance`.
 - Diagnostic suite: 5 expected PSTdomain pins under `-tags=diagnostic`.
 - Gain decoder diagnostics use native `(gcMantQ14, gcExp)` output;
@@ -19,12 +22,14 @@ and verification log.
 ## v0.1.x Patch Scope
 
 - Documentation, examples, and release-gate maintenance.
+- Keep README and package documentation aligned with the decoder final-PCM
+  exact result while preserving the no-ITU-certification and no encoder
+  byte-exact claim boundaries.
 - `cmd/g729rtpcheck` improvements that stay tooling-only:
   better report formatting, fixture examples, and additional pcap
   link-layer support if needed.
-- Decoder PSTdomain limitation disposition: keep as a permanent known
-  limitation unless a new spec-derived clean-room diagnostic candidate
-  appears.
+- Retire or relabel older decoder PSTdomain diagnostic notes where they are
+  superseded by the private final-PCM oracle gate.
 - Throughput tracking through `BenchmarkThroughput_*`; no release
   should regress allocation behavior from 0 B/op, 0 allocs/op.
 
@@ -46,7 +51,8 @@ These are not v0.1.x work:
 - Annex B SID / CNG / DTX.
 - G.729D and G.729E low/high bit-rate variants.
 - G.729.1 wideband / scalable codec.
-- ITU certification or byte-exact conformance claims.
+- ITU certification, ITU endorsement, and encoder byte-exact conformance
+  claims.
 
 Each item above requires its own clean-room plan, oracle/verifier
 protocol, public API review, and release-gate expansion before any code
@@ -57,6 +63,7 @@ is accepted.
 The post-v0.1 gate should include:
 
 - `go test ./... -count=1`
+- `G729_COMPARE_DECODER_REFERENCE_FINAL_PCM=1 G729_REQUIRE_EXACT_DECODER_REFERENCE_FINAL_PCM=1 G729_DECODER_REFERENCE_ORACLE_DIR=/path/to/private/verifier-output go test ./internal/decoder -run TestOracleHandoff_CompareDecoderReferenceFinalPCM -count=1 -v` when the private oracle is available
 - `go test -tags=conformance ./... -count=1`
 - `go test -tags=diagnostic ./... -count=1` with exactly 4 expected
   PSTdomain pins unless a documented diagnostic cycle changes the

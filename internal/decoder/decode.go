@@ -15,8 +15,8 @@ import (
 //     index fields defined in ITU-T G.729 §4 / §A.4 (encoded MSB-first
 //     by the bitstream package).
 //   - bad is the frame-erasure marker supplied by the transport layer.
-//     The current implementation treats it as a no-op; full concealment
-//     per G.729 §4.4 / §A.4.1 is not yet wired in.
+//     When set, the decoder conceals the frame from its previous LSP,
+//     pitch, gain, synthesis, postfilter, and HP-filter state.
 //   - out must hold at least 80 int16 samples; only out[0:80] is written
 //     (Q0 samples post-HP-filter and final amplitude recovery).
 //
@@ -36,8 +36,7 @@ import (
 //
 // Conformance caveat: this decoder is not currently claimed to be ITU-vector
 // byte-exact. Use TestDecoderITUVectorValidation for the current sample-level
-// matrix against the Annex A .BIT/.PST vectors. Bad-frame concealment and
-// parity handling are also not fully wired yet.
+// matrix against the Annex A .BIT/.PST vectors.
 func (d *Decoder) Decode(packed []byte, bad bool, out []int16) error {
 	if len(packed) < bitstream.FrameBytes {
 		return ErrShortInput
@@ -45,11 +44,20 @@ func (d *Decoder) Decode(packed []byte, bad bool, out []int16) error {
 	if len(out) < frameSamples {
 		return ErrShortOutput
 	}
-	_ = bad // Phase 1g ignores; Phase 1h implements concealment.
 
 	var f bitstream.Frame
 	if err := bitstream.Unpack(packed, &f); err != nil {
 		return err
+	}
+
+	if bad {
+		sf1A, sf2A := d.lsp.DecodeErasure()
+		tInt1 := d.concealedPitchDelay()
+		tInt2 := nextConcealedPitchDelay(tInt1)
+		d.decodeErasureSubframe(&sf1A, tInt1, out[:subframeLen])
+		d.decodeErasureSubframe(&sf2A, tInt2, out[subframeLen:frameSamples])
+		d.rememberPitchDelay(nextConcealedPitchDelay(tInt2))
+		return nil
 	}
 
 	sf1A, sf2A := d.lsp.Decode(lsp.Indices{
@@ -60,14 +68,15 @@ func (d *Decoder) Decode(packed []byte, bad bool, out []int16) error {
 	})
 
 	tInt1, tFrac1 := pitch.DecodeDelaySubframe1(uint8(f.P1))
-	_ = pitch.CheckParity(uint8(f.P1), uint8(f.P0))
+	if !pitch.CheckParity(uint8(f.P1), uint8(f.P0)) {
+		tInt1 = d.concealedPitchDelay()
+		tFrac1 = 0
+	}
 
 	tInt2, tFrac2 := pitch.DecodeDelaySubframe2(uint8(f.P2), tInt1)
 
 	d.decodeSubframe(&sf1A, tInt1, tFrac1, f.C1, uint8(f.S1), uint8(f.GA1), uint8(f.GB1), out[:subframeLen])
 	d.decodeSubframe(&sf2A, tInt2, tFrac2, f.C2, uint8(f.S2), uint8(f.GA2), uint8(f.GB2), out[subframeLen:frameSamples])
-
-	scaleDecoderOutput(out[:frameSamples])
 
 	return nil
 }

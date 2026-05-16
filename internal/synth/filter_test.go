@@ -162,9 +162,9 @@ func TestFilter_SaturationTriggersTwoPassRecovery(t *testing.T) {
 	// past-synth state: every LMsu in the pass-1 chain pushes the
 	// accumulator further past Word32 range, causing the original (non-
 	// saturating-aware) filter to flat-line at Word16 saturation for the
-	// entire subframe.  With the §3.10 two-pass guard, the recovery pass
-	// runs on a 1/4-scaled u and pastSynth and produces output that
-	// preserves dynamic information instead of collapsing to ±32767.
+	// entire subframe.  With the two-pass guard, the recovery pass runs on a
+	// 1/4-scaled current excitation and produces output that preserves
+	// dynamic information instead of collapsing to ±32767.
 	a := [11]int16{4096, 2000, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500}
 	var u [40]int16
 	var s [40]int16
@@ -209,14 +209,10 @@ func TestFilter_NonSaturatingInputIsUnchanged(t *testing.T) {
 // TestFilter_GuardUsesFixedOverflowFlag asserts that the §3.10 guard
 // triggers via fixed.Overflow on saturation in the LMsu/LShl/Round
 // chain and that the recovery pass actually executes.  With the
-// extreme positive feedback below (a[1] = -32768), pass 1 LShl
-// saturates at sample 1.  In the recovery pass u and pastSynth are
-// scaled by ¼; the first sample becomes Round(LShl(2·4096·4096, 3))
-// = 4096, which after the ×4 post-scale equals 16384 (matching the
-// original input magnitude).  Without the flag-driven recovery the
-// first sample would already be 16384 directly from pass 1 and the
-// rest of the subframe would flat-line at ±32767; with recovery, the
-// first sample matches pass-2's scaled-and-rescaled outcome.
+// extreme positive feedback below (a[1] = -32768), pass 1 LShl saturates at
+// sample 1. In the recovery pass the current excitation is scaled by 1/4 and
+// the output is not scaled back up; the decoder observes this scale shift and
+// commits the scaled excitation to its adaptive-codebook history.
 func TestFilter_GuardUsesFixedOverflowFlag(t *testing.T) {
 	var syn Synthesizer
 
@@ -232,9 +228,12 @@ func TestFilter_GuardUsesFixedOverflowFlag(t *testing.T) {
 	var s [40]int16
 	syn.Filter(&a, &u, &s)
 
-	if s[0] != 16384 {
-		t.Fatalf("Filter s[0] = %d; want 16384 (post-recovery first sample). "+
+	if s[0] != 4096 {
+		t.Fatalf("Filter s[0] = %d; want 4096 (post-recovery first sample). "+
 			"§3.10 overflow guard is not running the recovery pass via fixed.Overflow.", s[0])
+	}
+	if shift := syn.LastExcitationScaleShift(); shift != 2 {
+		t.Fatalf("LastExcitationScaleShift() = %d; want 2", shift)
 	}
 }
 
@@ -299,13 +298,13 @@ func TestFilter_ImpulseResponse_OnePoleClosedForm(t *testing.T) {
 }
 
 // TestFilter_SaturationRecovery_ScalingFactorMatchesSpec: ITU-T G.729
-// §3.10 "When overflow occurs, the speech samples and the filter
-// memory are divided by 4 and the filtering is re-done. The output
-// is multiplied by 4 with saturation."
+// §3.10 overflow recovery is exercised through a pathological input. The
+// reference trace for decoder overflow recovery keeps the synthesis memory,
+// scales the current excitation by 1/4, and leaves the output at that scale.
 //
 // 자극 설계: A(z)=1−0.99·z^-1 강한 IIR 누적.
-// 이 pathological 입력은 올바른 ÷4 + ×4 recovery 후에도 일부 sample이
-// saturation될 수 있으므로 headroom 관측은 log로 남긴다. 실제 scale-factor
+// 이 pathological 입력은 recovery 후에도 일부 sample이 saturation될 수 있으므로
+// headroom 관측은 log로 남긴다. 실제 scale-factor
 // 회귀는 TestFilter_OverflowRecoveryUsesQuarterScale이 잡는다.
 func TestFilter_SaturationRecovery_ScalingFactorMatchesSpec(t *testing.T) {
 	var sy Synthesizer
@@ -328,7 +327,7 @@ func TestFilter_SaturationRecovery_ScalingFactorMatchesSpec(t *testing.T) {
 	if nSat > 5 {
 		t.Logf("OBSERVATION (F-prep-2 Q-saturation): Pass-2 saturation count = %d "+
 			"(samples == ±max). This stress input still reaches Word16 range even with "+
-			"the §3.10 divide-by-4 + multiply-by-4 recovery path.", nSat)
+			"the divide-by-4 recovery path.", nSat)
 	}
 }
 

@@ -11,6 +11,11 @@ This is an engineering record, not legal advice.
 implementation of a G.729A-compatible 8 kbit/s speech codec for
 `G729/8000 annexb=no` RTP speech frames.
 
+The strict decoder has been checked with a private numeric oracle generated
+outside this repository: fixed ITU Annex A bitstreams decoded by this package
+match companion reference PCM for `740800/740800` final PCM samples. The
+oracle data itself is not redistributed and is not relicensed as MIT.
+
 The repository is licensed under the MIT License. The distributed source
 does not include ITU reference source code, bcg729, FFmpeg, Sipro Lab
 implementation code, Asterisk/FreeSWITCH codec implementation code, or any
@@ -67,6 +72,11 @@ controlled labels. They must not contain:
 This keeps verifier output useful for debugging while avoiding source-code
 contamination.
 
+Large verifier outputs, official ITU `.BIT/.PST` files, and reference-decoder
+execution CSVs are kept outside the public repository. They are verification
+inputs/outputs, not MIT-licensed project source, and they should not be
+published as part of the module release.
+
 ## Black-Box Verification
 
 FFmpeg, Asterisk, FreeSWITCH, and similar tools may be used as black-box
@@ -104,6 +114,8 @@ redistributed by this repository:
 
 - ITU test vectors under `testdata/itu/`.
 - ITU specification PDFs/text under `docs/superpowers/specs/itu/`.
+- Private verifier output directories such as
+  `/home/exedev/g729_untracked/verifier-output/`.
 - User, customer, or Asterisk-origin audio/payload samples under
   `testdata/external/`.
 - Local build, transfer, or agent artifacts.
@@ -127,6 +139,7 @@ Useful public references:
 - https://lwn.net/Articles/713292/
 - https://bugzilla.redhat.com/show_bug.cgi?id=1358293
 
-This project does not claim ITU certification, ITU byte-exact conformance, or
-endorsement by ITU, FFmpeg, Asterisk, FreeSWITCH, Sangoma, Sipro, or any other
-third party.
+This project does not claim ITU certification, ITU endorsement, or encoder
+byte-exact conformance. Decoder final-PCM exactness is an engineering
+verification result from the private numeric oracle gate, not an ITU
+certification or third-party endorsement.

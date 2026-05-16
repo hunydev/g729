@@ -102,14 +102,14 @@ func TestDecode_ResetRestoresDeterminism(t *testing.T) {
 	}
 }
 
-func TestDecode_BadFlagAcceptedButIgnored(t *testing.T) {
+func TestDecode_BadFlagUsesConcealmentPath(t *testing.T) {
 	var d1, d2 Decoder
 	var packed [10]byte
 	var out1, out2 [80]int16
 	_ = d1.Decode(packed[:], false, out1[:])
 	_ = d2.Decode(packed[:], true, out2[:])
-	if out1 != out2 {
-		t.Fatal("Phase 1g must ignore the bad flag; Phase 1h will add concealment")
+	if out1 == out2 {
+		t.Fatal("bad frame should use concealment instead of the normal all-zero parameter path")
 	}
 }
 

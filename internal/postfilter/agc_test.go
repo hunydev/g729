@@ -1,6 +1,10 @@
 package postfilter
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/hunydev/g729/internal/fixed"
+)
 
 // Energy-neutral case: s and sTilt have equal energies → g_target ≈ 1.0 Q14.
 func TestComputeAGCTargetGain_EqualEnergy(t *testing.T) {
@@ -27,6 +31,17 @@ func TestComputeAGCTargetGain_ZeroTiltEnergy(t *testing.T) {
 	g := pf.computeAGCTargetGain(&s, &sTilt)
 	if g != 0 {
 		t.Errorf("g = %d, want 0 (zero sTilt energy)", g)
+	}
+}
+
+func TestAGCTargetEnergySaturatesWord32(t *testing.T) {
+	var x [subframeLen]int16
+	for i := range x {
+		x[i] = fixed.Max16
+	}
+
+	if got := agcTargetEnergy(&x); got != int64(fixed.Max32) {
+		t.Fatalf("agcTargetEnergy(max subframe) = %d; want Word32 saturation %d", got, fixed.Max32)
 	}
 }
 

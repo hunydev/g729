@@ -1,6 +1,10 @@
 package postfilter
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/hunydev/g729/internal/fixed"
+)
 
 func TestRefinePitch_LocksToTruePeriod(t *testing.T) {
 	var pf Postfilter
@@ -72,8 +76,9 @@ func TestFilter_PitchLag144DoesNotPanic(t *testing.T) {
 	pf.Filter(&a, 144, &s, &sPf)
 }
 
-// With g_l = 0 (zero correlation), long-term postfilter is identity.
-func TestApplyLongTerm_ZeroGainIsIdentity(t *testing.T) {
+// With g_l = 0 after the gate passes, the long-term postfilter applies the
+// Q15 identity multiply used by the reference fixed-point path.
+func TestApplyLongTerm_ZeroGainUsesQ15Identity(t *testing.T) {
 	var pf Postfilter
 	var r, rOut [subframeLen]int16
 	for i := range r {
@@ -85,9 +90,10 @@ func TestApplyLongTerm_ZeroGainIsIdentity(t *testing.T) {
 	pf.applyLongTerm(&r, 40, &rOut)
 
 	for i := range rOut {
-		if rOut[i] != r[i] {
-			t.Errorf("rOut[%d] = %d, want %d (zero gain is identity)",
-				i, rOut[i], r[i])
+		want := int16((int64(fixed.Max16) * int64(r[i])) >> 15)
+		if rOut[i] != want {
+			t.Errorf("rOut[%d] = %d, want %d (zero gain Q15 identity)",
+				i, rOut[i], want)
 		}
 	}
 }

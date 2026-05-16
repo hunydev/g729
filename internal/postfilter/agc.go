@@ -21,10 +21,6 @@ func (pf *Postfilter) computeAGCTargetGain(s, sTilt *[subframeLen]int16) int16 {
 	if eS == 0 || eT == 0 {
 		return 0
 	}
-	if eS == eT {
-		targetQ12 := (int64(4096) * agcAlphaComplementQ15) >> 15
-		return int16(targetQ12 << 2)
-	}
 	sqrtQ12 := agcTargetSqrtInputOverPostQ12(eS, eT)
 	targetQ12 := (sqrtQ12 * agcAlphaComplementQ15) >> 15
 	return int16(targetQ12 << 2)
@@ -35,6 +31,9 @@ func agcTargetEnergy(x *[subframeLen]int16) int64 {
 	for n := 0; n < subframeLen; n++ {
 		v := int64(x[n] >> 2)
 		energy += 2 * v * v
+		if energy > int64(fixed.Max32) {
+			return int64(fixed.Max32)
+		}
 	}
 	return energy
 }
@@ -42,17 +41,9 @@ func agcTargetEnergy(x *[subframeLen]int16) int64 {
 func agcTargetSqrtInputOverPostQ12(inputEnergy, postEnergy int64) int64 {
 	postShift := agcTargetNormShift(postEnergy)
 	inputShift := agcTargetNormShift(inputEnergy)
+	postShift--
 	postNorm := agcTargetRoundedNorm(postEnergy, postShift)
 	inputNorm := agcTargetRoundedNorm(inputEnergy, inputShift)
-
-	// DivS requires numerator <= denominator. The inverse-sqrt path also wants
-	// an even exponent delta so the square-root denormalization is integral.
-	if postNorm > inputNorm || ((postShift-inputShift)&1) != 0 {
-		if postShift > 0 {
-			postShift--
-			postNorm = agcTargetRoundedNorm(postEnergy, postShift)
-		}
-	}
 
 	if postNorm <= 0 || inputNorm <= 0 {
 		return 0
@@ -82,6 +73,13 @@ func agcTargetNormShift(v int64) int {
 }
 
 func agcTargetRoundedNorm(v int64, shift int) int64 {
+	if shift < 0 {
+		norm := ((v >> uint(-shift)) + 0x8000) >> 16
+		if norm > 32767 {
+			return 32767
+		}
+		return norm
+	}
 	norm := ((v << shift) + 0x8000) >> 16
 	if norm > 32767 {
 		return 32767
@@ -103,8 +101,6 @@ func agcInverseSqrtQ12(x int64) int64 {
 	index := int((adjustedX >> 25) - 16)
 	if index < 0 {
 		index = 0
-	} else if index > 30 {
-		index = 30
 	}
 	frac := (adjustedX >> 10) & 0x7fff
 
@@ -129,20 +125,8 @@ func agcInverseSqrtTableValue(index int) int64 {
 	if hiDiff < loDiff {
 		root++
 	}
-	return root
-}
-
-// isqrtRoundedQ12 returns round(√x) where x is interpreted at Q24.
-func isqrtRoundedQ12(xQ24 int64) int64 {
-	if xQ24 <= 0 {
-		return 0
-	}
-	root := isqrt64(xQ24)
-	loDiff := xQ24 - root*root
-	hi := root + 1
-	hiDiff := hi*hi - xQ24
-	if hiDiff < loDiff {
-		return hi
+	if root > int64(fixed.Max16) {
+		return int64(fixed.Max16)
 	}
 	return root
 }
@@ -193,7 +177,7 @@ func (pf *Postfilter) applyAGCWithTaps(sTilt *[subframeLen]int16, gTargetQ14 int
 		pf.agcGainPrev = 1 << 24
 		pf.initialized = true
 	}
-	if gTargetQ14 == 0 {
+	if gTargetQ14 == 0 && agcTargetEnergy(sTilt) == 0 {
 		copy(sPf[:], sTilt[:])
 		if taps != nil {
 			for n := 0; n < subframeLen; n++ {

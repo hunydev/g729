@@ -27,7 +27,7 @@ func TestStabilityOutOfOrder(t *testing.T) {
 func TestStabilityTooClose(t *testing.T) {
 	in := [10]int16{2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009}
 	enforceLSFStability(&in)
-	const minGap = 320 // ITU §3.2.4: J = 0.0391 rad ≈ 320 in Q13
+	const minGap = 321 // Reference fixed-point J for the post-predictor minimum gap.
 	for i := 1; i < 10; i++ {
 		if in[i]-in[i-1] < minGap {
 			t.Fatalf("gap at i=%d is %d, want >= %d: %v", i, in[i]-in[i-1], minGap, in)
@@ -36,12 +36,14 @@ func TestStabilityTooClose(t *testing.T) {
 }
 
 func TestRearrangeAdjacentTooClose(t *testing.T) {
-	// Adjacent pair within J → both moved so their gap equals J.
+	// Adjacent pair within J -> both moved by floor((J-gap)/2). For odd
+	// corrections, the final gap can remain one LSB below J; this matches
+	// the fixed-point reference path.
 	const J int16 = 10
 	in := [10]int16{1000, 1005, 4000, 6000, 8000, 10000, 12000, 14000, 16000, 18000}
 	rearrangeAdjacent(&in, J)
-	if g := in[1] - in[0]; g < J {
-		t.Errorf("after rearrange, gap[0..1] = %d < J = %d (in=%v)", g, J, in)
+	if g := in[1] - in[0]; g != J-1 {
+		t.Errorf("after odd-correction rearrange, gap[0..1] = %d, want %d (in=%v)", g, J-1, in)
 	}
 }
 

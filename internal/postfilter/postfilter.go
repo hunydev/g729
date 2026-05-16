@@ -51,6 +51,8 @@ type FilterTaps struct {
 	LongTermT              int
 	LongTermG0             int16
 	LongTermG1             int16
+	LongTermGammaScaledQ15 int16
+	LongTermEnabled        bool
 	TiltMuQ15              int16
 	AGCTargetQ14           int16
 	AGCGainBeforeUpdateQ24 [subframeLen]int32
@@ -111,27 +113,29 @@ func (pf *Postfilter) filter(a *[11]int16, tInt int, s *[subframeLen]int16, sPf 
 		taps.LongTermT = T
 		taps.LongTermG0 = longTermWeights.g0Q14
 		taps.LongTermG1 = longTermWeights.g1Q14
-	}
-
-	var sSt [subframeLen]int16
-	pf.applyShortTerm(&aDen, &rOut, &sSt)
-	if taps != nil {
-		taps.ShortTerm = sSt
+		taps.LongTermGammaScaledQ15 = longTermWeights.gammaScaledGainQ15
+		taps.LongTermEnabled = longTermWeights.longTermFilterEnabled
 	}
 
 	muQ15 := pf.computeTiltMu(&aNum, &aDen)
 	var sTilt [subframeLen]int16
-	pf.applyTiltWithMu(&sSt, muQ15, &sTilt)
+	pf.applyTiltWithMu(&rOut, muQ15, &sTilt)
 	if taps != nil {
 		taps.Tilt = sTilt
 		taps.TiltMuQ15 = muQ15
 	}
 
-	gTarget := pf.computeAGCTargetGain(s, &sTilt)
+	var sSt [subframeLen]int16
+	pf.applyShortTerm(&aDen, &sTilt, &sSt)
+	if taps != nil {
+		taps.ShortTerm = sSt
+	}
+
+	gTarget := pf.computeAGCTargetGain(s, &sSt)
 	if taps != nil {
 		taps.AGCTargetQ14 = gTarget
 	}
-	pf.applyAGCWithTaps(&sTilt, gTarget, sPf, taps)
+	pf.applyAGCWithTaps(&sSt, gTarget, sPf, taps)
 	copy(pf.pastResidual[:pitchMax], pf.pastResidual[subframeLen:])
 	copy(pf.pastResidual[pitchMax:], r[:])
 	if taps != nil {

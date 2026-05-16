@@ -25,6 +25,29 @@ func readG192Frames(tb testing.TB, path string) ([][]byte, []bool) {
 	return frames, bads
 }
 
+func readG192ZeroSoftbitCounts(tb testing.TB, path string) []int {
+	tb.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		tb.Fatalf("readG192ZeroSoftbitCounts: %v", err)
+	}
+	if len(data)%bitstream.G192FrameBytes != 0 {
+		tb.Fatalf("readG192ZeroSoftbitCounts(%s): size %d is not a multiple of %d",
+			path, len(data), bitstream.G192FrameBytes)
+	}
+	counts := make([]int, len(data)/bitstream.G192FrameBytes)
+	for frame := range counts {
+		base := frame * bitstream.G192FrameBytes
+		for i := 0; i < bitstream.FrameBits; i++ {
+			off := base + 4 + 2*i
+			if binary.LittleEndian.Uint16(data[off:off+2]) == 0 {
+				counts[frame]++
+			}
+		}
+	}
+	return counts
+}
+
 // readPSTFrames loads a raw 16-bit little-endian PCM file (ITU Annex A
 // .pst format) from path, split into consecutive 80-sample frames.
 func readPSTFrames(tb testing.TB, path string) [][80]int16 {

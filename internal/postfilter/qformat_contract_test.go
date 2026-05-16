@@ -64,14 +64,14 @@ func TestQFormatContract_AGCAlphaIsQ15(t *testing.T) {
 	}
 }
 
-// TestQFormatContract_AnnexATiltGammaConstants verifies the simplified
-// Annex A tilt-compensation branch: γ_t = 0.8 if k1' < 0, else γ_t = 0.
+// TestQFormatContract_AnnexATiltGammaConstants verifies the Annex A
+// tilt-compensation branch: γ_t = 0.8 if k1' > 0, else γ_t = 0.
 func TestQFormatContract_AnnexATiltGammaConstants(t *testing.T) {
-	if gammaTiltNegativeK1Q14 != 13107 {
-		t.Fatalf("gammaTiltNegativeK1Q14 = %d, want 13107", gammaTiltNegativeK1Q14)
+	if gammaTiltPositiveK1Q14 != 13107 {
+		t.Fatalf("gammaTiltPositiveK1Q14 = %d, want 13107", gammaTiltPositiveK1Q14)
 	}
-	if gammaTiltNonNegativeK1Q14 != 0 {
-		t.Fatalf("gammaTiltNonNegativeK1Q14 = %d, want 0", gammaTiltNonNegativeK1Q14)
+	if gammaTiltNonPositiveK1Q14 != 0 {
+		t.Fatalf("gammaTiltNonPositiveK1Q14 = %d, want 0", gammaTiltNonPositiveK1Q14)
 	}
 }
 

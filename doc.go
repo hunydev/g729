@@ -96,17 +96,22 @@
 //
 // # Conformance scope
 //
-// The outbound encoder/RTP send path is black-box gated against FFmpeg
-// executable decode for G729/8000 annexb=no speech frames. This module
-// does not claim ITU byte-exact conformance, ITU certification, or
-// high-quality inbound decode of arbitrary external G.729 payloads. It
-// does not implement Annex B, G.729.1, G.729D, or G.729E. See README.md
-// "Known limitations" for the canonical disclosure.
+// The strict decoder has a private oracle gate that decodes fixed ITU Annex A
+// bitstreams and compares final PCM sample-for-sample against companion
+// reference PCM; the current run is exact across 740800/740800 final PCM
+// samples. The outbound encoder/RTP send path is separately black-box gated
+// against FFmpeg executable decode for G729/8000 annexb=no speech frames.
+// This module does not claim ITU certification, ITU endorsement, or encoder
+// byte-exact conformance. It does not implement Annex B, G.729.1, G.729D, or
+// G.729E. See README.md "Known scope and limitations" for the canonical
+// disclosure.
 //
 // # Clean-room declaration
 //
 // This project maintains a clean-room constraint. No ITU reference C,
 // bcg729, FFmpeg, Sipro, or other G.729 implementation source was used.
-// Public specifications, test vectors, and independently written tests
-// were used. v0.1.0 does not claim ITU byte-exact conformance.
+// Public specifications, black-box executable behavior, private numeric
+// oracle outputs, and independently written tests were used. v0.1.0 claims
+// strict decoder final-PCM sample equality against the private oracle gate; it
+// does not claim ITU certification or encoder byte-exact conformance.
 package g729

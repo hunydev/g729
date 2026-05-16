@@ -9,14 +9,16 @@ import "github.com/hunydev/g729/internal/fixed"
 // Round chain in fixed primitives, check Overflow at end. If NOT set,
 // persist the output as-is.
 //
-// Pass 2 (on Overflow): scale both u and pastSynth by ¼, re-run, then
-// scale the resulting Word16 per-sample output by ×4 with Word16
-// saturation. The persisted pastSynth holds the post-recovery output
-// so subsequent subframes inherit the correct state.
+// Pass 2 (on Overflow): scale the current excitation by 1/4 and re-run the
+// synthesis filter with the original synthesis memory. The caller observes the
+// scale shift and commits the scaled excitation to the adaptive-codebook
+// history so the next subframe inherits the reference recovery state.
 //
-// Past-state scaling is required because past-driven overflow cannot
-// be cancelled by input-only scaling.
+// The decoder is responsible for committing the scaled excitation history when
+// this recovery path is taken.
 func (synth *Synthesizer) filterSubframe(a *[11]int16, u, s *[40]int16) {
+	synth.lastExcitationScaleShift = 0
+
 	var work [50]int16
 	copy(work[:10], synth.pastSynth[:])
 
@@ -28,11 +30,10 @@ func (synth *Synthesizer) filterSubframe(a *[11]int16, u, s *[40]int16) {
 		return
 	}
 
-	// Pass 2: scale input and past state by 1/4.
+	// Pass 2: scale current excitation by 1/4.
+	synth.lastExcitationScaleShift = 2
 	var work2 [50]int16
-	for i, v := range synth.pastSynth {
-		work2[i] = int16(int32(v) >> 2)
-	}
+	copy(work2[:10], synth.pastSynth[:])
 	var uScaled [40]int16
 	for i, v := range u {
 		uScaled[i] = int16(int32(v) >> 2)
@@ -40,10 +41,6 @@ func (synth *Synthesizer) filterSubframe(a *[11]int16, u, s *[40]int16) {
 	fixed.ClearOverflow()
 	synth.onePass(a, &uScaled, &work2)
 
-	// Scale back up by ×4 with Word16 saturation.
-	for i := 10; i < 50; i++ {
-		work2[i] = fixed.Shl(work2[i], 2)
-	}
 	copy(s[:], work2[10:])
 	copy(synth.pastSynth[:], work2[40:])
 }
