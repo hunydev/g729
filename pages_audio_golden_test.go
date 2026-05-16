@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"os/exec"
 	"testing"
 )
 
@@ -23,14 +24,23 @@ func TestPagesAudioGoldenOutputs(t *testing.T) {
 	}
 
 	decoded := decodeG729ForGolden(t, wantEncoded)
-	wantDecoded, decodedFormat := readPCM16WAVFixture(t, "docs/assets/audio/g729-encode-g729-decode.wav")
-	if decodedFormat.sampleRate != SampleRate || decodedFormat.channels != 1 || decodedFormat.bitsPerSample != 16 {
-		t.Fatalf("decoded WAV format = %d Hz, %d channel(s), %d bits; want 8000 Hz mono s16",
-			decodedFormat.sampleRate, decodedFormat.channels, decodedFormat.bitsPerSample)
-	}
+	wantDecoded := readPagesAudioWAVFixture(t, "docs/assets/audio/g729-encode-g729-decode.wav", len(padded))
 	if !bytes.Equal(decoded, wantDecoded) {
 		t.Fatalf("Pages decoder golden mismatch: %s", byteMismatch(decoded, wantDecoded))
 	}
+
+	bcgPayload := readGoldenFile(t, "docs/assets/audio/bcg729-encode.g729")
+	if len(bcgPayload) != len(wantEncoded) {
+		t.Fatalf("bcg729 payload bytes = %d, want %d", len(bcgPayload), len(wantEncoded))
+	}
+	bcgDecoded := decodeG729ForGolden(t, bcgPayload)
+	wantBCGDecoded := readPagesAudioWAVFixture(t, "docs/assets/audio/bcg729-encode-g729-decode.wav", len(padded))
+	if !bytes.Equal(bcgDecoded, wantBCGDecoded) {
+		t.Fatalf("Pages bcg729 payload local decode golden mismatch: %s", byteMismatch(bcgDecoded, wantBCGDecoded))
+	}
+
+	readPagesAudioWAVFixture(t, "docs/assets/audio/g729-encode-ffmpeg-decode.wav", len(padded))
+	readPagesAudioWAVFixture(t, "docs/assets/audio/bcg729-encode-ffmpeg-decode.wav", len(padded))
 }
 
 func TestPagesAudioWriteGoldenOutputs(t *testing.T) {
@@ -52,7 +62,17 @@ func TestPagesAudioWriteGoldenOutputs(t *testing.T) {
 
 	decoded := decodeG729ForGolden(t, encoded)
 	writePCM16WAVFixture(t, "docs/assets/audio/g729-encode-g729-decode.wav", decoded)
-	t.Logf("wrote %d encoded bytes and %d decoded PCM bytes", len(encoded), len(decoded))
+	writeFFmpegDecodedG729WAVFixture(t, "docs/assets/audio/g729-encode-ffmpeg-decode.wav", encoded)
+
+	bcgEncoded := encodeBCG729ForPagesGolden(t, padded)
+	if err := os.WriteFile("docs/assets/audio/bcg729-encode.g729", bcgEncoded, 0o644); err != nil {
+		t.Fatalf("write bcg729-encode.g729: %v", err)
+	}
+	bcgDecoded := decodeG729ForGolden(t, bcgEncoded)
+	writePCM16WAVFixture(t, "docs/assets/audio/bcg729-encode-g729-decode.wav", bcgDecoded)
+	writeFFmpegDecodedG729WAVFixture(t, "docs/assets/audio/bcg729-encode-ffmpeg-decode.wav", bcgEncoded)
+
+	t.Logf("wrote local payload %d bytes, bcg729 payload %d bytes, decoded PCM %d bytes", len(encoded), len(bcgEncoded), len(decoded))
 }
 
 type wavFixtureFormat struct {
@@ -114,6 +134,19 @@ func readPCM16WAVFixture(t *testing.T, path string) ([]byte, wavFixtureFormat) {
 	return pcm, format
 }
 
+func readPagesAudioWAVFixture(t *testing.T, path string, wantPCMBytes int) []byte {
+	t.Helper()
+	pcm, format := readPCM16WAVFixture(t, path)
+	if format.sampleRate != SampleRate || format.channels != 1 || format.bitsPerSample != 16 {
+		t.Fatalf("%s format = %d Hz, %d channel(s), %d bits; want 8000 Hz mono s16",
+			path, format.sampleRate, format.channels, format.bitsPerSample)
+	}
+	if len(pcm) != wantPCMBytes {
+		t.Fatalf("%s PCM bytes = %d, want %d", path, len(pcm), wantPCMBytes)
+	}
+	return pcm
+}
+
 func padPCM16ToFrames(t *testing.T, pcm []byte) []byte {
 	t.Helper()
 	frameBytes := FrameSamples * 2
@@ -124,6 +157,27 @@ func padPCM16ToFrames(t *testing.T, pcm []byte) []byte {
 	out := append([]byte(nil), pcm...)
 	if pad != 0 {
 		out = append(out, make([]byte, pad)...)
+	}
+	return out
+}
+
+func encodeBCG729ForPagesGolden(t *testing.T, pcm []byte) []byte {
+	t.Helper()
+	bin := "third-party/bcg729-blackbox/bcg729_encode"
+	if _, err := os.Stat(bin); err != nil {
+		t.Fatalf("bcg729 black-box executable unavailable at %s: %v", bin, err)
+	}
+	cmd := exec.Command(bin)
+	cmd.Stdin = bytes.NewReader(pcm)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("bcg729 black-box encode failed: %v: %s", err, string(stderr.Bytes()))
+	}
+	want := len(pcm) / (FrameSamples * 2) * FrameBytes
+	if len(out) != want {
+		t.Fatalf("bcg729 black-box encoded bytes = %d, want %d", len(out), want)
 	}
 	return out
 }
@@ -148,6 +202,34 @@ func encodePCM16LEForGolden(t *testing.T, pcm []byte) []byte {
 		out = append(out, frameBits[:]...)
 	}
 	return out
+}
+
+func writeFFmpegDecodedG729WAVFixture(t *testing.T, path string, payload []byte) {
+	t.Helper()
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Fatalf("ffmpeg unavailable for Pages audio golden refresh: %v", err)
+	}
+	tmp := t.TempDir()
+	payloadPath := tmp + "/input.g729"
+	if err := os.WriteFile(payloadPath, payload, 0o600); err != nil {
+		t.Fatalf("write temporary G.729 payload: %v", err)
+	}
+	cmd := exec.Command(
+		"ffmpeg",
+		"-y",
+		"-hide_banner",
+		"-loglevel", "error",
+		"-f", "g729",
+		"-i", payloadPath,
+		"-ar", "8000",
+		"-ac", "1",
+		"-c:a", "pcm_s16le",
+		path,
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("ffmpeg decode %s: %v: %s", path, err, string(out))
+	}
 }
 
 func decodeG729ForGolden(t *testing.T, payload []byte) []byte {

@@ -12,22 +12,35 @@
     "g729_frames": 804,
     "notes": [
       "FFmpeg was used as a black-box converter/decoder executable.",
+      "bcg729 was used only as a local black-box encoder executable; no bcg729 source is redistributed in docs.",
       "The local repository encoder generated g729-encode.g729 with the EncoderProfileCore product default.",
-      "FFmpeg reference-encoder samples are not present because the release VM FFmpeg build is decoder-only for G.729."
+      "Each payload is decoded two ways for listening comparison: FFmpeg black-box decode and this repository's exact local decoder."
     ]
   },
   "files": [
     {
-      "file": "g729-encode.g729",
-      "path": "local encoder raw G.729 payload"
+      "file": "bcg729-encode.g729",
+      "path": "bcg729 black-box encoder raw G.729 payload"
     },
     {
-      "file": "g729-encode-g729-decode.wav",
-      "path": "local encoder -> local decoder -> WAV"
+      "file": "bcg729-encode-ffmpeg-decode.wav",
+      "path": "bcg729 black-box encoder -> FFmpeg black-box decoder -> WAV"
+    },
+    {
+      "file": "bcg729-encode-g729-decode.wav",
+      "path": "bcg729 black-box encoder -> local decoder -> WAV"
+    },
+    {
+      "file": "g729-encode.g729",
+      "path": "local EncoderProfileCore raw G.729 payload"
     },
     {
       "file": "g729-encode-ffmpeg-decode.wav",
-      "path": "local encoder -> FFmpeg black-box decoder -> WAV"
+      "path": "local EncoderProfileCore -> FFmpeg black-box decoder -> WAV"
+    },
+    {
+      "file": "g729-encode-g729-decode.wav",
+      "path": "local EncoderProfileCore -> local decoder -> WAV"
     }
   ]
 }

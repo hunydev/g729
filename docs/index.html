@@ -122,10 +122,10 @@ a=maxptime:20</code></pre>
           <h2 id="quality-title">Codec quality samples.</h2>
           <p>
             Source audio is an 8 kHz mono signed 16-bit PCM WAV. The current
-            published samples use this project's current Core encoder default
-            decoded by this project and by FFmpeg. FFmpeg reference-encoder
-            slots are shown but disabled because the packaged FFmpeg build
-            exposes a G.729 decoder, not a G.729 encoder.
+            published comparison uses two payloads and two decoders: a
+            <code>bcg729</code> black-box encoded payload and this project's
+            current Core encoder payload, each decoded by FFmpeg and by this
+            project's exact local decoder.
           </p>
         </div>
         <div class="sample-grid" id="sample-grid" aria-live="polite">
@@ -138,19 +138,19 @@ a=maxptime:20</code></pre>
             <audio controls preload="metadata"></audio>
             <p class="sample-state">Sample pending.</p>
           </article>
-          <article class="sample-card unavailable" data-audio="assets/audio/ffmpeg-encode-g729-decode.wav" data-unavailable="FFmpeg G.729 encoder sample pending; this FFmpeg build is decoder-only for G.729.">
+          <article class="sample-card anchor-card" data-audio="assets/audio/bcg729-encode-ffmpeg-decode.wav">
             <div class="sample-meta">
-              <span class="sample-label">Reference payload</span>
-              <h3>FFmpeg encode -> g729 decode</h3>
+              <span class="sample-label">Black-box anchor</span>
+              <h3>bcg729 encode -> FFmpeg decode</h3>
             </div>
             <canvas class="mini-wave" width="420" height="92" aria-hidden="true"></canvas>
             <audio controls preload="metadata"></audio>
             <p class="sample-state">Sample pending.</p>
           </article>
-          <article class="sample-card unavailable" data-audio="assets/audio/ffmpeg-encode-ffmpeg-decode.wav" data-unavailable="FFmpeg G.729 encoder sample pending; this FFmpeg build is decoder-only for G.729.">
+          <article class="sample-card anchor-card" data-audio="assets/audio/bcg729-encode-g729-decode.wav">
             <div class="sample-meta">
-              <span class="sample-label">Reference path</span>
-              <h3>FFmpeg encode -> FFmpeg decode</h3>
+              <span class="sample-label">Decoder check</span>
+              <h3>bcg729 encode -> g729 decode</h3>
             </div>
             <canvas class="mini-wave" width="420" height="92" aria-hidden="true"></canvas>
             <audio controls preload="metadata"></audio>
@@ -180,8 +180,10 @@ a=maxptime:20</code></pre>
           black-box tested against FFmpeg, and the strict decoder is
           sample-exact against the private ITU Annex A final-PCM oracle
           (740800/740800 samples). These are project release gates, not ITU
-          certification. The generated raw Core payload is available as
-          <a href="assets/audio/g729-encode.g729" download>g729-encode.g729</a>.
+          certification. Download payloads:
+          <a href="assets/audio/g729-encode.g729" download>g729-encode.g729</a>
+          and
+          <a href="assets/audio/bcg729-encode.g729" download>bcg729-encode.g729</a>.
         </div>
       </div>
     </section>
@@ -194,9 +196,11 @@ a=maxptime:20</code></pre>
           <p>
             Upload audio in the browser, resample it to 8 kHz mono PCM with
             Web Audio, encode and decode it through the current Go WASM Core
-            default, then play the decoded PCM through a small buffered
-            AudioContext path. Raw <code>.g729</code> payload files can be
-            uploaded for decode-only checks.
+            default, then play the decoded PCM through either a WAV element or
+            an AudioContext buffer built at the original 8 kHz sample rate. Raw
+            <code>.g729</code> payload files can be uploaded for decode-only
+            checks. The browser demo is a smoke/interoperability check; the
+            published samples above remain the reviewed listening references.
           </p>
         </div>
         <div class="wasm-panel" id="wasm-demo">

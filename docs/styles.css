@@ -316,6 +316,15 @@ pre code {
   background: #f8f7f2;
 }
 
+.sample-card.source-card {
+  grid-column: 1 / -1;
+}
+
+.sample-card.anchor-card {
+  border-color: rgba(15, 118, 110, 0.28);
+  background: #f7fcfa;
+}
+
 .sample-meta {
   display: grid;
   gap: 7px;

@@ -217,25 +217,18 @@ function streamPCM16(bytes, sampleRate = 8000) {
   const ctx = new AudioCtor();
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const totalSamples = bytes.byteLength / 2;
-  const outputRate = ctx.sampleRate;
-  const outputSamples = Math.max(1, Math.ceil((totalSamples / sampleRate) * outputRate));
-  const buffer = ctx.createBuffer(1, outputSamples, outputRate);
+  const buffer = ctx.createBuffer(1, totalSamples, sampleRate);
   const channel = buffer.getChannelData(0);
 
-  for (let i = 0; i < outputSamples; i += 1) {
-    const src = (i * sampleRate) / outputRate;
-    const base = Math.floor(src);
-    const frac = src - base;
-    const s0 = sampleAtPCM16(view, base, totalSamples);
-    const s1 = sampleAtPCM16(view, base + 1, totalSamples);
-    channel[i] = (s0 + (s1 - s0) * frac) / 32768;
+  for (let i = 0; i < totalSamples; i += 1) {
+    channel[i] = sampleAtPCM16(view, i, totalSamples) / 32768;
   }
 
-  const fadeSamples = Math.min(Math.floor(outputRate * 0.005), Math.floor(outputSamples / 2));
+  const fadeSamples = Math.min(Math.floor(sampleRate * 0.005), Math.floor(totalSamples / 2));
   for (let i = 0; i < fadeSamples; i += 1) {
     const gain = i / fadeSamples;
     channel[i] *= gain;
-    channel[outputSamples - 1 - i] *= gain;
+    channel[totalSamples - 1 - i] *= gain;
   }
 
   const source = ctx.createBufferSource();
@@ -246,8 +239,9 @@ function streamPCM16(bytes, sampleRate = 8000) {
   const prebufferSeconds = 0.12;
   source.start(ctx.currentTime + prebufferSeconds);
   return {
-    outputRate,
-    outputSamples,
+    contextRate: ctx.sampleRate,
+    bufferRate: sampleRate,
+    outputSamples: totalSamples,
     prebufferMS: Math.round(prebufferSeconds * 1000)
   };
 }
@@ -398,7 +392,7 @@ async function activateWasmDemo() {
   streamButton.addEventListener("click", () => {
     if (!decodedPCM) return;
     const playback = streamPCM16(decodedPCM, 8000);
-    status.textContent = `Current WASM decoded PCM scheduled as one ${playback.prebufferMS} ms buffered AudioContext stream at ${playback.outputRate} Hz.`;
+    status.textContent = `Current WASM decoded PCM scheduled as one ${playback.prebufferMS} ms buffered 8 kHz AudioBuffer; browser output context is ${playback.contextRate} Hz.`;
   });
 }
 

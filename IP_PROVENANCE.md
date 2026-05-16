@@ -102,10 +102,18 @@ speech sample and generated derivatives:
   decoded by this repository's decoder.
 - `docs/assets/audio/g729-encode-ffmpeg-decode.wav` — local encoder payload
   decoded by FFmpeg as a black-box executable.
+- `docs/assets/audio/bcg729-encode.g729` — raw payload produced by a local
+  `bcg729` black-box executable.
+- `docs/assets/audio/bcg729-encode-g729-decode.wav` — `bcg729` payload decoded
+  by this repository's decoder.
+- `docs/assets/audio/bcg729-encode-ffmpeg-decode.wav` — `bcg729` payload
+  decoded by FFmpeg as a black-box executable.
 
 These files are documentation/demo assets, not oracle artifacts and not
 conformance evidence. They do not contain external G.729 implementation source
-or implementation-derived structure.
+or implementation-derived structure. The `bcg729` executable is used only as a
+black-box encoder while generating the demo payload; no `bcg729` source code is
+redistributed or consulted for algorithmic work.
 
 ## Non-Redistributed Materials
 

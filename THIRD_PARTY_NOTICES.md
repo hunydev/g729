@@ -29,9 +29,15 @@ small listening samples:
   `docs/assets/audio/g729-encode-g729-decode.wav`, and
   `docs/assets/audio/g729-encode-ffmpeg-decode.wav` are generated derivatives
   of that owner-provided sample.
+- `docs/assets/audio/bcg729-encode.g729`,
+  `docs/assets/audio/bcg729-encode-g729-decode.wav`, and
+  `docs/assets/audio/bcg729-encode-ffmpeg-decode.wav` are generated
+  black-box-comparison derivatives of that owner-provided sample.
 
 The FFmpeg executable was used only as a black-box converter/decoder while
-generating one WAV derivative. FFmpeg source code and binaries are not
+generating WAV derivatives. A local `bcg729` executable was used only as a
+black-box encoder while generating the comparison payload. FFmpeg source code,
+FFmpeg binaries, `bcg729` source code, and `bcg729` binaries are not
 redistributed in this repository.
 
 ## Optional Development Tools
