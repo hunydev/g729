@@ -197,10 +197,10 @@ func ReconstructWide(pastQuaEn *[4]int16, c *[40]int16, ga, gb uint8) (gpQ14, gc
 // Protective branch: γ̂ ≤ 0 is mathematically out-of-domain for log10;
 // re-seed pastQuaEn[0] with PastErrorsDefault (-14 dB Q10), matching
 // the decoder's gain.Decode zero-energy guard.
-func UpdatePastQuaEn(pastQuaEn *[4]int16, gammaCQ13 int16) {
+func UpdatePastQuaEn(pastQuaEn *[4]int16, gammaCQ13 int32) {
 	var uCurrent int16
 	if gammaCQ13 > 0 {
-		uCurrent = gain.QuantizedPredictionErrorQ10(int32(gammaCQ13))
+		uCurrent = gain.QuantizedPredictionErrorQ10(gammaCQ13)
 	} else {
 		uCurrent = gain.PastErrorsDefault
 	}

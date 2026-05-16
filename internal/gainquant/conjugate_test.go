@@ -17,7 +17,7 @@ import (
 // in practice; see PredictedGcQ12 docstring).
 func dequantize(ga, gb uint8, gpcPredQ12 int32) (gpQ14 int16, gcQ12 int32) {
 	gpQ14 = fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[ga][0]) + int32(tables.GainGBK2[gb][0])))
-	gammaCQ13 := int32(fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1]))))
+	gammaCQ13 := int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1])
 	gcQ12 = (gammaCQ13 * gpcPredQ12) >> 13
 	return
 }
@@ -25,7 +25,7 @@ func dequantize(ga, gb uint8, gpcPredQ12 int32) (gpQ14 int16, gcQ12 int32) {
 // gcFromGamma reconstructs ĝc Q12 (int32, unsaturated) from the
 // (gammaCQ13, g'c Q12) pair returned by SearchConjugate, mirroring
 // the encoder's downstream dequant before the §A.3.10 commit.
-func gcFromGamma(gammaCQ13 int16, gpcPredQ12 int32) int32 {
+func gcFromGamma(gammaCQ13 int32, gpcPredQ12 int32) int32 {
 	v := (int64(gammaCQ13) * int64(gpcPredQ12)) >> 13
 	if v > 0x7fffffff {
 		return 0x7fffffff
@@ -443,7 +443,7 @@ func TestSearchConjugate_DecoderRoundTrip(t *testing.T) {
 		t.Fatalf("GB round-trip: %d → %d → %d", gb, transmittedGB, physGB)
 	}
 	gpDecoded := fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[physGA][0]) + int32(tables.GainGBK2[physGB][0])))
-	gammaDecoded := int32(fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[physGA][1]) + int32(tables.GainGBK2[physGB][1]))))
+	gammaDecoded := int32(tables.GainGBK1[physGA][1]) + int32(tables.GainGBK2[physGB][1])
 	gcDecoded := (gammaDecoded * gpcPred) >> 13
 	if gpDecoded != gp {
 		t.Fatalf("decoder gp = %d, encoder gp = %d", gpDecoded, gp)

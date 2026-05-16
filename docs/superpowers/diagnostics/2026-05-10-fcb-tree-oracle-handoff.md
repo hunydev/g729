@@ -129,7 +129,7 @@ The current repo-external verifier bundle is:
 
 ```text
 /tmp/g729-fcb-verifier-handoff-2026-05-10.tar.gz
-sha256 ec92b2323a8555f3f7a8abd928951ee17a3b8410ff1883a907fab7bc13b5635a
+sha256 8cfc4a87d5c74f5eccfefe809e43edfeea60995254bcb3460b79caf187463581
 ```
 
 External verifiers should start with
@@ -153,6 +153,12 @@ adaptive-codebook fix and again after the 2026-05-15 fixed-gain Q1
 quantization fix. Both changes affected the encoder closed-loop/FCB numeric
 surface. The latest refreshed verifier output was validated and applied on
 2026-05-15.
+
+2026-05-16 update: the receiver-aligned encoder gain-predictor fix changed the
+Core encoder surface again. The `*_got.csv` files and outgoing verifier bundle
+hash were refreshed for the new surface; the verifier-filled `expected`
+templates still describe the prior surface until an external clean-room
+verifier refreshes them.
 
 Strict compare after the 2026-05-15 refresh:
 

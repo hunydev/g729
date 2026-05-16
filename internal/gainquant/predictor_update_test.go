@@ -78,7 +78,7 @@ func TestUpdatePastQuaEn_NonPositiveSeedsDefault(t *testing.T) {
 // predictor call.
 func TestUpdatePastQuaEn_RoundTripWithPredictor(t *testing.T) {
 	// Use codebook entry (ga=0, gb=0): γ̂_c Q13 = GBK1[0][1] + GBK2[0][1].
-	gammaCQ13 := tables.GainGBK1[0][1] + tables.GainGBK2[0][1]
+	gammaCQ13 := int32(tables.GainGBK1[0][1]) + int32(tables.GainGBK2[0][1])
 
 	past := [4]int16{0, 0, 0, 0}
 	UpdatePastQuaEn(&past, gammaCQ13)
@@ -90,7 +90,7 @@ func TestUpdatePastQuaEn_RoundTripWithPredictor(t *testing.T) {
 	if gammaCQ13 <= 0 {
 		t.Skip("codebook entry non-positive; cross-check requires γ̂>0")
 	}
-	wantQ10 := gain.QuantizedPredictionErrorQ10(int32(gammaCQ13))
+	wantQ10 := gain.QuantizedPredictionErrorQ10(gammaCQ13)
 
 	if past[0] != wantQ10 {
 		t.Fatalf("UpdatePastQuaEn(γ̂=%d Q13) → past[0]=%d, want %d (re-derived)",
@@ -100,12 +100,13 @@ func TestUpdatePastQuaEn_RoundTripWithPredictor(t *testing.T) {
 
 func TestUpdatePastQuaEn_UCurrentOracleBoundaries(t *testing.T) {
 	cases := []struct {
-		gammaCQ13 int16
+		gammaCQ13 int32
 		wantQ10   int16
 	}{
 		{gammaCQ13: 8360, wantQ10: 179},
 		{gammaCQ13: 7339, wantQ10: -980},
 		{gammaCQ13: 32023, wantQ10: 12124},
+		{gammaCQ13: 41438, wantQ10: 14416},
 	}
 	for _, tc := range cases {
 		past := [4]int16{}

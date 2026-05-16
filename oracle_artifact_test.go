@@ -4667,7 +4667,7 @@ func forceReferenceFieldStep(e *Encoder, sub int, intLag int16, frac int8, pitch
 		e.oldExc[base+n] = fixed.Saturate(gpV + gcC)
 	}
 
-	gammaCQ13 := tables.GainGBK1[gaPhys][1] + tables.GainGBK2[gbPhys][1]
+	gammaCQ13 := int32(tables.GainGBK1[gaPhys][1]) + int32(tables.GainGBK2[gbPhys][1])
 	gainquant.UpdatePastQuaEn(&e.pastQuaEn, gammaCQ13)
 	e.prevGpQ14 = gpQ14
 	e.prevTaming = false

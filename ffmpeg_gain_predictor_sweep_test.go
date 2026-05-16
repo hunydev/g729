@@ -2183,7 +2183,8 @@ func fcbStepGainAwareRerank(
 	var bestPos [4]int8
 	var bestC, bestZ [N]int16
 	var bestGA, bestGB uint8
-	var bestGp, bestGamma int16
+	var bestGp int16
+	var bestGamma int32
 	var bestMant int16
 	var bestExp int8
 	bestTaming := false
@@ -2426,7 +2427,8 @@ func fcbStepGainSearchScale(
 	scaleVectorInt16(&zSearch, zNum, zDen)
 	gpcPredQ12 := scaleInt32Ratio(gainquant.PredictedGcQ12(&e.pastQuaEn, &c), gpcNum, gpcDen)
 	var gaPhys, gbPhys uint8
-	var gpHatQ14, gammaCQ13 int16
+	var gpHatQ14 int16
+	var gammaCQ13 int32
 	if rawLinear {
 		gaPhys, gbPhys, gpHatQ14, gammaCQ13 = searchConjugateRawLinearExhaustive(&xSearch, &ySearch, &zSearch, gpcPredQ12)
 	} else if native {
@@ -3086,7 +3088,7 @@ func scaleInt32Ratio(v, num, den int32) int32 {
 	return int32(x)
 }
 
-func searchConjugateNativeExhaustive(past *[4]int16, c, x, y, z *[40]int16) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+func searchConjugateNativeExhaustive(past *[4]int16, c, x, y, z *[40]int16) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	bestCost := int64(1<<63 - 1)
 	for gai := uint8(0); gai < 8; gai++ {
 		for gbi := uint8(0); gbi < 16; gbi++ {
@@ -3104,7 +3106,7 @@ func searchConjugateNativeExhaustive(past *[4]int16, c, x, y, z *[40]int16) (ga,
 	return
 }
 
-func searchConjugateFullCostExhaustive(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+func searchConjugateFullCostExhaustive(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	var A, B, C, D, F int64
 	for i := 0; i < 40; i++ {
 		xi := int64(x[i])
@@ -3153,14 +3155,14 @@ func searchConjugateFullCostExhaustive(x, y, z *[40]int16, gpcPredQ12 int32) (ga
 				ga = gai
 				gb = gbi
 				gpQ14 = int16(gp)
-				gammaCQ13 = int16(gamma)
+				gammaCQ13 = int32(gamma)
 			}
 		}
 	}
 	return
 }
 
-func searchConjugateRawLinearExhaustive(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+func searchConjugateRawLinearExhaustive(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	var A, B, C, D, F int64
 	for i := 0; i < 40; i++ {
 		xi := int64(x[i])
@@ -3203,7 +3205,7 @@ func searchConjugateRawLinearExhaustive(x, y, z *[40]int16, gpcPredQ12 int32) (g
 				ga = gai
 				gb = gbi
 				gpQ14 = int16(gp)
-				gammaCQ13 = int16(gamma)
+				gammaCQ13 = int32(gamma)
 			}
 		}
 	}

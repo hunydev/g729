@@ -2260,14 +2260,14 @@ type forcedGainSelectionExample struct {
 	ownGA       uint8
 	ownGB       uint8
 	ownGpQ14    int16
-	ownGammaQ13 int16
+	ownGammaQ13 int32
 	ownGcQ12    int32
 	ownCost     int64
 
 	refGA       uint8
 	refGB       uint8
 	refGpQ14    int16
-	refGammaQ13 int16
+	refGammaQ13 int32
 	refGcQ12    int32
 	refCost     int64
 
@@ -2442,7 +2442,7 @@ func observeReferenceCodeGainSelection(
 	var gaBits, gbBits uint8
 	var gpCommitQ14, gcMantQ14 int16
 	var gcExp int8
-	var gammaQ13 int16
+	var gammaQ13 int32
 	var tamed bool
 	switch commit {
 	case "own":
@@ -2641,8 +2641,8 @@ func observeGainCostSurfaceMode(
 	}
 }
 
-func gainGammaQ13(gaPhys, gbPhys uint8) int16 {
-	return saturateInt32ToInt16(int32(tables.GainGBK1[gaPhys][1]) + int32(tables.GainGBK2[gbPhys][1]))
+func gainGammaQ13(gaPhys, gbPhys uint8) int32 {
+	return int32(tables.GainGBK1[gaPhys][1]) + int32(tables.GainGBK2[gbPhys][1])
 }
 
 const maxInt32ForEnergyAudit = int64(1<<31 - 1)

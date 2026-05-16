@@ -3,7 +3,6 @@ package gainquant
 import (
 	"math/bits"
 
-	"github.com/hunydev/g729/internal/fixed"
 	"github.com/hunydev/g729/internal/tables"
 )
 
@@ -61,7 +60,7 @@ import (
 //
 // I4 (zero allocation): all scratch buffers are fixed-size local
 // arrays.
-func SearchConjugate(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+func SearchConjugate(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	return searchConjugatePreselectTargetBits(x, y, z, gpcPredQ12, gainPreselectDefaultTargetBits)
 }
 
@@ -79,7 +78,7 @@ const (
 // targetBits is clamped to [1, 24]. 24 is the largest safe value for the
 // current int64 optimum solve: each product is <2^48, the signed numerator
 // difference is <2^49, and the largest Q14 numerator shift remains <2^63.
-func SearchConjugatePreselectTargetBits(x, y, z *[40]int16, gpcPredQ12 int32, targetBits uint) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+func SearchConjugatePreselectTargetBits(x, y, z *[40]int16, gpcPredQ12 int32, targetBits uint) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	if targetBits == 0 {
 		targetBits = 1
 	}
@@ -89,7 +88,7 @@ func SearchConjugatePreselectTargetBits(x, y, z *[40]int16, gpcPredQ12 int32, ta
 	return searchConjugatePreselectTargetBits(x, y, z, gpcPredQ12, targetBits)
 }
 
-func searchConjugatePreselectTargetBits(x, y, z *[40]int16, gpcPredQ12 int32, targetBits uint) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+func searchConjugatePreselectTargetBits(x, y, z *[40]int16, gpcPredQ12 int32, targetBits uint) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	// 1. Correlations in a shared Q24 physical-correlation scale.
 	var A, B, C, D, F int64
 	for i := 0; i < 40; i++ {
@@ -219,9 +218,9 @@ func searchConjugatePreselectTargetBits(x, y, z *[40]int16, gpcPredQ12 int32, ta
 		for _, gbi := range gbCands {
 			gp2 := int64(tables.GainGBK2[gbi][0])
 			gam2 := int32(tables.GainGBK2[gbi][1])
-			gpQ := gp1 + gp2                                        // Q14
-			gam := int64(fixed.Saturate(fixed.Word32(gam1 + gam2))) // Q13
-			gcQ := (gam * int64(gpcPredQ12)) >> 13                  // Q12
+			gpQ := gp1 + gp2                       // Q14
+			gam := int64(gam1 + gam2)              // Q13
+			gcQ := (gam * int64(gpcPredQ12)) >> 13 // Q12
 
 			cost := gpQ * gpQ * costA        // Q28
 			cost += (gcQ * gcQ * costB) << 4 // Q24<<4 = Q28
@@ -240,7 +239,7 @@ func searchConjugatePreselectTargetBits(x, y, z *[40]int16, gpcPredQ12 int32, ta
 	}
 
 	gpQ14 = int16(bestGp) // sum ≤ 22215, fits Word16
-	gammaCQ13 = fixed.Saturate(fixed.Word32(bestGam))
+	gammaCQ13 = bestGam
 	ga = bestGA
 	gb = bestGB
 	return
@@ -277,7 +276,7 @@ func gainSearchCostShift(A, B, C, D, F int64, gaCands []uint8, gbCands []uint8, 
 			if gp > maxGp {
 				maxGp = gp
 			}
-			gam := int64(fixed.Saturate(fixed.Word32(gam1 + int32(tables.GainGBK2[gbi][1]))))
+			gam := int64(gam1 + int32(tables.GainGBK2[gbi][1]))
 			gc := (gam * int64(gpcPredQ12)) >> 13
 			if gc < 0 {
 				gc = -gc

@@ -1698,7 +1698,8 @@ func (e *Encoder) fcbStep(
 
 	// 9. GQ-2: conjugate-codebook 2D VQ → (ga, gb, ĝp Q14, γ̂_c Q13).
 	var gaPhys, gbPhys uint8
-	var gpHatQ14, gammaCQ13 int16
+	var gpHatQ14 int16
+	var gammaCQ13 int32
 	if useNativeGainSearch {
 		// Quality heuristic: evaluate all standard gain-index pairs using
 		// the exact reconstructed-gain residual that will be committed below.
@@ -1907,7 +1908,7 @@ func encoderQualityFCBRerankScoreLess(candidate, best encoderQualityOutputScore)
 	return false
 }
 
-func searchConjugateNativeGainWide(past *[4]int16, c, x, y, z *[40]int16) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+func searchConjugateNativeGainWide(past *[4]int16, c, x, y, z *[40]int16) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	bestCost := int64(1<<63 - 1)
 	for gai := uint8(0); gai < 8; gai++ {
 		for gbi := uint8(0); gbi < 16; gbi++ {
@@ -1918,7 +1919,7 @@ func searchConjugateNativeGainWide(past *[4]int16, c, x, y, z *[40]int16) (ga, g
 				ga = gai
 				gb = gbi
 				gpQ14 = gp
-				gammaCQ13 = fixed.Saturate(fixed.Word32(int32(tables.GainGBK1[gai][1]) + int32(tables.GainGBK2[gbi][1])))
+				gammaCQ13 = int32(tables.GainGBK1[gai][1]) + int32(tables.GainGBK2[gbi][1])
 			}
 		}
 	}
@@ -1979,11 +1980,11 @@ func (e *Encoder) qualityRepairGainClip(
 	gaPhys uint8,
 	gbPhys uint8,
 	gpQ14 int16,
-	gammaCQ13 int16,
+	gammaCQ13 int32,
 	taming bool,
 	gcMantQ14 int16,
 	gcExp int8,
-) (uint8, uint8, int16, int16, bool, int16, int8) {
+) (uint8, uint8, int16, int32, bool, int16, int8) {
 	ref := *refSpeech
 	pcm.ScaleUpSat(ref[:], ref[:])
 
@@ -2096,10 +2097,10 @@ func (e *Encoder) qualityRepairGainClip(
 	return bestGA, bestGB, bestGp, bestGamma, bestTaming, bestGcMant, bestGcExp
 }
 
-func encoderGainCandidate(ga, gb uint8) (gpQ14 int16, gammaCQ13 int16) {
+func encoderGainCandidate(ga, gb uint8) (gpQ14 int16, gammaCQ13 int32) {
 	gp := int32(tables.GainGBK1[ga][0]) + int32(tables.GainGBK2[gb][0])
 	gamma := int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1])
-	return int16(gp), fixed.Saturate(fixed.Word32(gamma))
+	return int16(gp), gamma
 }
 
 func simulateEncoderQualityDecodeOutput(

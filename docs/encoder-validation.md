@@ -16,13 +16,22 @@ instead of the product default. The helper has been corrected to use
 `NewEncoder()`, and `TestWriteOurEncodedRawG729UsesProductDefault` pins that
 test-helper contract.
 
-With the corrected product-default helper, the SPEECH/FFmpeg black-box gate
-still passes:
+The next encoder audit added a receiver-mirror invariant:
+`TestEncoderReceiverMirrorStateMatchesEmittedBitstream` decodes each emitted
+G.729 frame through an independent local receiver-state mirror and checks that
+the encoder's cached LP, pitch, gain-predictor, pitch-gain, and past-excitation
+state match what the transmitted bitstream will reconstruct. That test exposed
+and now pins a gain-codebook arithmetic-width bug: encoder-side `gammaCQ13`
+must keep the receiver's full `GBK1+GBK2` `int32` value when updating
+`pastQuaEn`, rather than an `int16`-saturated surrogate.
+
+With the corrected product-default helper and receiver-aligned gain update, the
+SPEECH/FFmpeg black-box gate still passes:
 
 ```text
 SPEECH.BIT -> ffmpeg       GlobalSNR 7.04 dB   SegSNR 4.39 dB
-our Core encoder -> ffmpeg GlobalSNR 6.90 dB   SegSNR 4.38 dB
-delta vs reference path    GlobalSNR -0.14 dB  SegSNR -0.01 dB
+our Core encoder -> ffmpeg GlobalSNR 6.92 dB   SegSNR 4.38 dB
+delta vs reference path    GlobalSNR -0.12 dB  SegSNR -0.01 dB
 ```
 
 The diagnostic `EncoderProfileQuality` scores higher on this specific numeric
@@ -35,6 +44,7 @@ blind listening preferred Core on private samples.
 | Tier | Purpose | Evidence |
 |---|---|---|
 | API/default identity | Prevent test and docs from drifting away from the product default | `TestWriteOurEncodedRawG729UsesProductDefault` |
+| Receiver-state mirror | Ensure encoder state follows the decoder reconstruction implied by its own emitted bitstream | `TestEncoderReceiverMirrorStateMatchesEmittedBitstream` |
 | Public regression | Keep a redistributable sample in default `go test ./...` | `TestEncoderCorePagesQualityRegression` |
 | Black-box interoperability | Verify local encoder payloads decode cleanly with FFmpeg executable black box | `TestExternalFFmpegBlackboxQuality_SPEECH` |
 | Decoder separation | Compare local decoder and FFmpeg on the same local encoder payload | `TestExternalFFmpegBlackboxLocalDecoderDelta_SPEECH` |

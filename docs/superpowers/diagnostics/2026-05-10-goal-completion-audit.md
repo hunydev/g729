@@ -202,8 +202,13 @@ The current repo-external verifier bundle is:
 
 ```text
 /tmp/g729-fcb-verifier-handoff-2026-05-10.tar.gz
-sha256 ec92b2323a8555f3f7a8abd928951ee17a3b8410ff1883a907fab7bc13b5635a
+sha256 8cfc4a87d5c74f5eccfefe809e43edfeea60995254bcb3460b79caf187463581
 ```
+
+2026-05-16 note: after the receiver-aligned encoder gain-predictor fix, the
+focused FCB `*_got.csv` files and bundle hash were refreshed for the new Core
+surface. The verifier-filled focused FCB `expected` files above are historical
+for the prior surface until an external clean-room verifier refreshes them.
 
 When sending the bundle to another AI or engineer, ask them to start with
 `testdata/oracle/handoff/EXTERNAL_VERIFIER_REQUEST.md`. That file is the

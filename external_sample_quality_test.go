@@ -2901,7 +2901,8 @@ func (e *Encoder) fcbStepProductionGainMode(
 	}
 
 	var gaPhys, gbPhys uint8
-	var gpHatQ14, gammaCQ13 int16
+	var gpHatQ14 int16
+	var gammaCQ13 int32
 	switch mode.search {
 	case "preselect":
 		gaPhys, gbPhys, gpHatQ14, gammaCQ13 = gainquant.SearchConjugate(x, y, &z, gpcPredQ12)
@@ -2995,7 +2996,7 @@ func (e *Encoder) fcbStepProductionGainMode(
 	e.prevTaming = taming
 }
 
-func searchConjugatePreselectNativeExhaustiveWide(past *[4]int16, c, x, y, z *[40]int16, gpcSearchQ12 int32, wide bool) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+func searchConjugatePreselectNativeExhaustiveWide(past *[4]int16, c, x, y, z *[40]int16, gpcSearchQ12 int32, wide bool) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	ctx := gainSearchCostContext(x, y, z)
 	bestCost := int64(1<<63 - 1)
 	for gai := uint8(0); gai < 8; gai++ {
@@ -3019,7 +3020,7 @@ func searchConjugatePreselectNativeExhaustiveWide(past *[4]int16, c, x, y, z *[4
 
 const gainPreselectGpOptUpperQ14 = int64(19661) // round(1.2 * 2^14), §3.7.3 eq. (43)
 
-func searchConjugatePreselectNativeGpClipExhaustiveWide(past *[4]int16, c, x, y, z *[40]int16, gpcSearchQ12 int32, wide bool) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+func searchConjugatePreselectNativeGpClipExhaustiveWide(past *[4]int16, c, x, y, z *[40]int16, gpcSearchQ12 int32, wide bool) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	ctx := gainSearchCostContext(x, y, z)
 	bestCost := int64(1<<63 - 1)
 	for gai := uint8(0); gai < 8; gai++ {
@@ -3041,7 +3042,7 @@ func searchConjugatePreselectNativeGpClipExhaustiveWide(past *[4]int16, c, x, y,
 	return
 }
 
-func searchConjugateNativeExhaustiveWide(past *[4]int16, c, x, y, z *[40]int16, wide bool) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+func searchConjugateNativeExhaustiveWide(past *[4]int16, c, x, y, z *[40]int16, wide bool) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	bestCost := int64(1<<63 - 1)
 	for gai := uint8(0); gai < 8; gai++ {
 		for gbi := uint8(0); gbi < 16; gbi++ {
@@ -3059,7 +3060,7 @@ func searchConjugateNativeExhaustiveWide(past *[4]int16, c, x, y, z *[40]int16, 
 	return
 }
 
-func searchConjugatePreselectGpClipExhaustive(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+func searchConjugatePreselectGpClipExhaustive(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	ctx := gainSearchCostContext(x, y, z)
 	shift := gainSearchCostShiftDiagnostic(&ctx, gpcPredQ12, func(ga, gb uint8) bool {
 		return gainSearchPreselectContainsGpClip(&ctx, gpcPredQ12, ga, gb)
@@ -3083,7 +3084,7 @@ func searchConjugatePreselectGpClipExhaustive(x, y, z *[40]int16, gpcPredQ12 int
 	return
 }
 
-func searchConjugatePreselectLinearExhaustive(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+func searchConjugatePreselectLinearExhaustive(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	ctx := gainSearchCostContext(x, y, z)
 	bestCost := math.Inf(1)
 	for gai := uint8(0); gai < 8; gai++ {
@@ -3104,7 +3105,7 @@ func searchConjugatePreselectLinearExhaustive(x, y, z *[40]int16, gpcPredQ12 int
 	return
 }
 
-func searchConjugatePreselectMixedOptExhaustive(x, y, z *[40]int16, gpcPredQ12 int32, floatGP, floatGC bool) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+func searchConjugatePreselectMixedOptExhaustive(x, y, z *[40]int16, gpcPredQ12 int32, floatGP, floatGC bool) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	ctx := gainSearchCostContext(x, y, z)
 	gpOptQ14, gcOptQ12 := gainSearchFloatOptQ(&ctx)
 	if !floatGP {
@@ -3136,7 +3137,7 @@ func searchConjugatePreselectMixedOptExhaustive(x, y, z *[40]int16, gpcPredQ12 i
 	return
 }
 
-func searchConjugatePreselectBigOptExhaustive(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14, gammaCQ13 int16) {
+func searchConjugatePreselectBigOptExhaustive(x, y, z *[40]int16, gpcPredQ12 int32) (ga, gb uint8, gpQ14 int16, gammaCQ13 int32) {
 	ctx := gainSearchCostContext(x, y, z)
 	gpOptQ14, gcOptQ12 := gainSearchBigOptQ(&ctx)
 	allow := func(ga, gb uint8) bool {
@@ -12373,10 +12374,10 @@ func externalGainGpQ14(gaBits, gbBits uint8) int16 {
 	return saturateInt32ToInt16(int32(tables.GainGBK1[ga][0]) + int32(tables.GainGBK2[gb][0]))
 }
 
-func externalGainGammaQ13(gaBits, gbBits uint8) int16 {
+func externalGainGammaQ13(gaBits, gbBits uint8) int32 {
 	ga := tables.GainImap1[gaBits&7]
 	gb := tables.GainImap2[gbBits&15]
-	return saturateInt32ToInt16(int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1]))
+	return int32(tables.GainGBK1[ga][1]) + int32(tables.GainGBK2[gb][1])
 }
 
 func scaleInt16RatioForDiagnostic(v int16, num, den int32) int16 {
@@ -12740,7 +12741,7 @@ func observeExternalBCGGainRankForEncoder(
 
 	var gpCommitQ14, gcMantQ14 int16
 	var gcExp int8
-	var gammaQ13 int16
+	var gammaQ13 int32
 	switch commit {
 	case "own":
 		gpCommitQ14, gcMantQ14, gcExp = ownGpCommitQ14, ownGcMantQ14, ownGcExp
@@ -12814,7 +12815,7 @@ func observeExternalBCGGainRank(
 
 	var gpCommitQ14, gcMantQ14 int16
 	var gcExp int8
-	var gammaQ13 int16
+	var gammaQ13 int32
 	switch commit {
 	case "own":
 		gpCommitQ14, gcMantQ14, gcExp = ownGpCommitQ14, ownGcMantQ14, ownGcExp
@@ -13301,7 +13302,7 @@ func observeExternalBCGCodeGainSelection(
 
 	var gpCommitQ14, gcMantQ14 int16
 	var gcExp int8
-	var gammaQ13 int16
+	var gammaQ13 int32
 	switch commit {
 	case "own":
 		gpCommitQ14, gcMantQ14, gcExp = ownGpCommitQ14, ownGcMantQ14, ownGcExp
