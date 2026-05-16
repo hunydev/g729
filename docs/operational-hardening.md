@@ -86,7 +86,8 @@ FreeSWITCH, SBCs, or media gateways used only as black boxes, see
 workflow records SDP, pcap, RTP checker JSON, and audio metrics without
 importing third-party codec source or committing private captures.
 Use `cmd/g729rtpreport` when the capture needs to be archived as compact JSON
-evidence.
+evidence, and `cmd/g729rtpreportcheck` when that JSON needs a release-local
+acceptance verdict.
 
 ## Encoder Quality Gate
 

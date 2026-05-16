@@ -90,6 +90,7 @@ Capture RTP from a real call and validate packet shape:
 tcpdump -i any -s 0 -w /tmp/g729-call.pcap udp
 go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -json -in /tmp/g729-call.pcap
 go run ./cmd/g729rtpreport -in /tmp/g729-call.pcap -pt=18 -ptime=20 -out /tmp/g729-call-report.json
+go run ./cmd/g729rtpreportcheck -in /tmp/g729-call-report.json -pt=18 -ptime=20
 ```
 
 Use `-ptime=10` when the call sends one speech frame per RTP packet. The
@@ -109,6 +110,10 @@ payload type with `-pt`.
 metrics and integration metadata fields. Use optional flags such as `-peer`,
 `-peer-role`, `-topology`, `-sdp-offer`, `-sdp-answer`, and `-notes` to record
 the black-box peer context without committing private captures.
+`cmd/g729rtpreportcheck` applies release-local thresholds to the JSON report.
+Use stricter flags for longer real calls, for example `-min-duration=5`,
+`-max-skipped=0` when the capture contains only the target stream, and
+`-require-clean-vcs` at release commits.
 
 ## Local Fixture Workflow
 
@@ -128,6 +133,7 @@ The generated fixture can also exercise the report path:
 
 ```sh
 go run ./cmd/g729rtpreport -in /tmp/g729-fixture.pcap -pt=18 -ptime=20 -out /tmp/g729-fixture-report.json
+go run ./cmd/g729rtpreportcheck -in /tmp/g729-fixture-report.json -pt=18 -ptime=20 -min-duration=0.01
 ```
 
 ## Negative Boundary Workflow
@@ -211,7 +217,7 @@ or encoder byte-exact conformance.
 
 ## Future Automation
 
-Future work may add an env-gated command or test that consumes externally
-captured pcaps and enforces site-specific acceptance thresholds over the
-`cmd/g729rtpreport` JSON output. Such automation must still keep pcaps and
-private audio outside git.
+Future work may add site-specific wrappers around `cmd/g729rtpreportcheck`,
+for example stricter duration, single-SSRC, and skipped-packet thresholds for a
+particular carrier/SBC lab. Such automation must still keep pcaps and private
+audio outside git.

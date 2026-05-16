@@ -79,6 +79,13 @@ go run ./cmd/g729rtpreport \
   -pt 18 \
   -ptime 20 \
   -out /tmp/g729-sip-rtp-report.json
+
+go run ./cmd/g729rtpreportcheck \
+  -in /tmp/g729-sip-rtp-report.json \
+  -pt 18 \
+  -ptime 20 \
+  -min-duration 5 \
+  -require-clean-vcs
 ```
 
 ## Final Notes

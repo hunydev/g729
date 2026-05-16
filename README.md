@@ -137,6 +137,7 @@ See [`examples/`](examples/) for fuller programs:
 - `cmd/g729rtpfixture` — Pion RTP pcap fixture generator for integration tests
 - `cmd/g729rtpcheck` — raw payload / Ethernet IPv4 UDP RTP pcap validator
 - `cmd/g729rtpreport` — optional SIP/RTP black-box pcap evidence JSON reporter
+- `cmd/g729rtpreportcheck` — optional SIP/RTP evidence report acceptance checker
 - `cmd/g729wasm` — Go WebAssembly wrapper used by the project website demo
 
 `cmd/g729rtpcheck` test fixtures include Pion RTP generated packets so the
@@ -215,6 +216,9 @@ go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -json -in captu
 
 # Write a private SIP/RTP integration evidence report from a captured call.
 go run ./cmd/g729rtpreport -in capture.pcap -pt=18 -ptime=20 -out report.json
+
+# Check that a private evidence report satisfies release-local thresholds.
+go run ./cmd/g729rtpreportcheck -in report.json -pt=18 -ptime=20
 ```
 
 ---
