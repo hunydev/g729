@@ -47,6 +47,20 @@ go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -in capture.pca
 go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -json -in capture.pcap
 ```
 
+Use `cmd/g729rtpfixture` to generate small Pion RTP based pcaps for repeatable
+tooling smoke tests:
+
+```sh
+go run ./cmd/g729rtpfixture -ptime=20 -packets=4 -multi-ssrc -wrong-pt -out /tmp/g729-fixture.pcap
+go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -json -in /tmp/g729-fixture.pcap
+
+go run ./cmd/g729rtpfixture -sid -out /tmp/g729-sid.pcap
+go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=0 -in /tmp/g729-sid.pcap
+```
+
+The `-sid` fixture is expected to fail today with `ErrUnsupportedAnnexB`; it is
+kept as an explicit boundary test until an `annexb=yes` implementation exists.
+
 The checker verifies payload length, packetized frame count, optional RTP
 sequence/timestamp continuity, and optional decode traversal. The report also
 counts matching SSRC streams, RTP marker packets, padding packets, extension

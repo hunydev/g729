@@ -14,6 +14,7 @@ constraint).
 | `streaming_encode/` | Same as `encode_pcm` but uses `NewStreamingEncoder` + `Write` + `Flush` (handles non-frame-aligned chunks) |
 | `rtp_packetize/` | Illustrative RTP payload packetization (`-ptime=10` or `-ptime=20`); emits hex-dump lines (no real RTP header generation) |
 | `rtp_pion_packetize/` | Practical full RTP packet marshal example using Pion RTP; emits one full RTP packet hex line per RTP packet |
+| `../cmd/g729rtpfixture/` | Pion RTP pcap fixture generator for `g729rtpcheck` and integration smoke tests |
 | `../cmd/g729rtpcheck/` | Black-box raw payload / Ethernet IPv4 UDP RTP pcap validator for payload type 18 captures |
 
 ## Running
@@ -37,6 +38,10 @@ go run ./examples/rtp_packetize -ptime=20 < output.g729
 # Full RTP packet marshal example using Pion RTP:
 go run ./examples/rtp_pion_packetize -ptime=20 -seq=1000 -ts=3200 -ssrc=0x11223344 < output.g729
 
+# Generate a small RTP pcap fixture and validate it:
+go run ./cmd/g729rtpfixture -ptime=20 -packets=4 -multi-ssrc -wrong-pt -out /tmp/g729-fixture.pcap
+go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -json -in /tmp/g729-fixture.pcap
+
 # Validate raw payload bytes or an RTP pcap:
 go run ./cmd/g729rtpcheck -mode=payload -ptime=10 -in output.g729
 go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -in capture.pcap
@@ -46,7 +51,7 @@ go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -json -in captu
 Build all example binaries:
 
 ```sh
-go build ./examples/... ./cmd/g729rtpcheck
+go build ./examples/... ./cmd/g729rtpfixture ./cmd/g729rtpcheck
 ```
 
 ## SDP examples for RTP integration

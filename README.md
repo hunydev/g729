@@ -131,12 +131,13 @@ See [`examples/`](examples/) for fuller programs:
 - `examples/streaming_encode` — `NewStreamingEncoder` + `Write` + `Flush`
 - `examples/rtp_packetize` — illustrative RTP payload packetization
 - `examples/rtp_pion_packetize` — full RTP packet marshal example using Pion RTP
+- `cmd/g729rtpfixture` — Pion RTP pcap fixture generator for integration tests
 - `cmd/g729rtpcheck` — raw payload / Ethernet IPv4 UDP RTP pcap validator
 - `cmd/g729wasm` — Go WebAssembly wrapper used by the project website demo
 
 `cmd/g729rtpcheck` test fixtures include Pion RTP generated packets so the
 pcap path is checked against a generic Go RTP packet library. Pion is used only
-in tests/examples and is not part of the codec runtime.
+in tests/examples/tools and is not part of the codec runtime.
 
 Each `Encoder` and each `Decoder` is **single-threaded**. Concurrent
 calls on the same instance are a data race; one instance per stream.

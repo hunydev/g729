@@ -16,11 +16,12 @@ The distributed codec library source uses:
 - No third-party G.729 implementation source code.
 - No generated code copied from a third-party G.729 implementation.
 
-The repository test suite and examples also import `github.com/pion/rtp` to
-marshal generic RTP packets for `cmd/g729rtpcheck` interoperability fixtures
-and the `examples/rtp_pion_packetize` RTP header example. Pion RTP is a
-generic RTP packet library, not a G.729 codec implementation, and it is used
-only as a non-runtime test/example dependency. Pion RTP and its `pion/randutil`
+The repository test suite, examples, and development tools also import
+`github.com/pion/rtp` to marshal generic RTP packets for `cmd/g729rtpcheck`
+interoperability fixtures, the `examples/rtp_pion_packetize` RTP header
+example, and the `cmd/g729rtpfixture` pcap generator. Pion RTP is a generic RTP
+packet library, not a G.729 codec implementation, and it is used only as a
+non-runtime test/example/tool dependency. Pion RTP and its `pion/randutil`
 dependency are MIT-licensed and are not vendored in this repository.
 
 ## Distributed Documentation and Demo Assets
@@ -105,8 +106,9 @@ For the distributed repository:
 
 - Project license: MIT.
 - Runtime third-party code for the Go codec library: none.
-- Non-runtime Go test/example dependency: Pion RTP, used only for generic RTP
-  packet fixture generation and example RTP header marshaling.
+- Non-runtime Go test/example/tool dependency: Pion RTP, used only for generic
+  RTP packet fixture generation, example RTP header marshaling, and pcap
+  fixture generation.
 - Documentation demo third-party helper: Go `wasm_exec.js` from the Go
   toolchain, under the Go BSD-style license.
 - Vendored codec code: none.
