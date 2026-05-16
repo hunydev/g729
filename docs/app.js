@@ -550,11 +550,12 @@ async function loadG729Wasm() {
   if (typeof Go === "undefined") throw new Error("Go WASM runtime is unavailable");
 
   const go = new Go();
+  const wasmURL = "assets/wasm/g729.wasm?v=ecca3a149170";
   let result;
   try {
-    result = await WebAssembly.instantiateStreaming(fetch("assets/wasm/g729.wasm"), go.importObject);
+    result = await WebAssembly.instantiateStreaming(fetch(wasmURL, { cache: "no-store" }), go.importObject);
   } catch {
-    const response = await fetch("assets/wasm/g729.wasm");
+    const response = await fetch(wasmURL, { cache: "no-store" });
     const bytes = await response.arrayBuffer();
     result = await WebAssembly.instantiate(bytes, go.importObject);
   }
