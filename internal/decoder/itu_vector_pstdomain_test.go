@@ -9,7 +9,7 @@ import "testing"
 // Phase 1o D-3 — Accept-PSTdomain demote (7 ITU vector tests, PASS-by-design)
 // =============================================================================
 //
-// This file is the permanent Phase 1o D-3 disposition of the seven ITU Annex A
+// This file is the historical Phase 1o D-3 disposition of the seven ITU Annex A
 // test-vector bit-exact comparisons that previously stood as `t.Skip` records
 // in `internal/decoder/decode_test.go` (TAME, SPEECH, FIXED, LSP, PITCH, TEST,
 // OVERFLOW). Original test names are preserved as comments above each new
@@ -19,11 +19,11 @@ import "testing"
 // scoped to the same investigation surface as the other six and is NOT
 // re-disposed here.
 //
-// Each demoted test asserts the CURRENT PRODUCTION OUTPUT for frame 0 of the
-// vector — embedded verbatim as `wantProduction` — as the LEGITIMATE
-// SPEC-CONFORMANT value, while the corresponding ITU `.pst` reference
-// (recorded in-source for posterity, not asserted) is documented as a
-// known PSTdomain ambiguity Δ.
+// Each demoted test historically asserted the then-current production output
+// for frame 0 of the vector — embedded verbatim as `wantProduction` — while
+// recording the corresponding ITU `.pst` reference for posterity. The current
+// strict decoder path is expected to match `.pst`; when it does, these
+// diagnostic tests pass as resolved historical drift monitors.
 //
 // -----------------------------------------------------------------------------
 // CYCLE PROVENANCE — Phase 1o D-3 state-bearing diagnostic 5/5 NO-FIX
@@ -152,6 +152,15 @@ func runD3KnownPSTDomainDifference(t *testing.T, c pstDomainCase) {
 			"got %d, expected %d (per Phase 1o D-3 b43c689 batch "+
 			"measurement). Investigate before silently updating.",
 			c.vector, c.pstFirstDivSample, gotPST, c.pstFirstDivValue)
+	}
+
+	// Current strict decoder exact path: the historical PST-domain drift is
+	// resolved when production frame 0 matches the official PST frame.
+	if out == wantFrames[0] {
+		t.Logf("%s: historical Phase 1o D-3 PST-domain drift resolved; "+
+			"production frame 0 now matches PST exactly.",
+			c.vector)
+		return
 	}
 
 	// Primary PASS-by-design assertion: production frame-0 output pinned.

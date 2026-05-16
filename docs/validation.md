@@ -250,7 +250,7 @@ go test -run TestOracleHandoff_CompareFCBTreeSearchUserAudioHandoff -count=1 -v
 | Local decoder quality | `G729_FFMPEG_BLACKBOX_QUALITY=1 G729_REQUIRE_LOCAL_DECODER_FFMPEG_QUALITY=1 go test -run TestExternalFFmpegBlackboxLocalDecoderDelta_SPEECH -count=1 -v` | **Binding for strict local decoder regression coverage.** |
 | Asterisk local decode quality | `G729_DECODER_ASTERISK_FFMPEG_QUALITY=1 G729_REQUIRE_DECODER_ASTERISK_FFMPEG_QUALITY=1 go test ./internal/decoder -run TestPhase3rAsteriskFFmpegQualityGate -count=1 -v` | Binding when a local non-redistributed Asterisk-origin inbound sample is present. |
 | Conformance | `go test -tags=conformance ./...` | Informational. Currently expects 0 failures. |
-| Diagnostic | `go test -tags=diagnostic ./...` | Informational. Currently expects documented PST-domain drift-monitoring failures. |
+| Diagnostic | `go test -tags=diagnostic ./...` | Informational. Historical PST-domain drift monitors pass when the current strict decoder path matches PST exactly. |
 
 The conformance and diagnostic suites do not block release; their
 expected-failure inventories are catalogued in
