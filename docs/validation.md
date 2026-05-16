@@ -19,8 +19,12 @@ encoder byte-exact conformance are not claimed.
 | Encoder | FFmpeg black-box quality gate | Product send path is quality-gated |
 | Encoder quality | Public sample regression, private PESQ NB matrix, blind listening | Diagnostic quality evidence, not certification |
 | Optional MOS-LQO | External `G729_MOS_LQO_TOOL` wrapper | Customer-facing objective score when a licensed scorer is available |
+| Performance | Single-thread RTF and frame-time jitter benchmarks | Real-time streaming capacity planning evidence |
 | RTP | Payload type 18, `ptime=10/20`, `annexb=no` checks | Send-path interoperability confidence |
 | IP | Clean-room provenance record | No third-party codec source used |
+
+See [performance.md](performance.md) for the real-time factor and jitter
+benchmark methodology.
 
 ## ITU Decoder Vector Validation
 

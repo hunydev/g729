@@ -69,6 +69,7 @@ undesirable.
 | Opt-in `DecodeFrameEnhanced` listening aid | **Experimental; not a conformance claim** |
 | Streaming `Encoder.Write` / `Encoder.Flush` | **Supported** |
 | Hot-path 0-allocation steady state | **Verified** |
+| Single-thread RTF / jitter benchmarks | **Available** |
 | Decoder ITU Annex A final PCM conformance | **Sample-exact in current private oracle gate: `740800/740800` final PCM samples** |
 | Encoder ITU byte-exact conformance | **Not claimed** |
 | G.729 Annex B (SID / CNG / DTX) | **Not supported** |
@@ -134,6 +135,26 @@ calls on the same instance are a data race; one instance per stream.
 `DecodeFrameEnhanced` is available as an opt-in, non-strict local
 listening aid. It is not used by the default decoder and is not an ITU
 conformance claim.
+
+### Real-time performance
+
+The repository includes single-thread benchmarks for real-time streaming
+capacity planning. They pin the benchmark to one OS thread, report real-time
+factor (`rtf`), codec-only `streams/core`, and per-frame processing-time jitter
+against the 10 ms G.729 deadline.
+
+```sh
+GOMAXPROCS=1 go test -run=^$ \
+  -bench='BenchmarkThroughput_|BenchmarkRealtimeJitter_' \
+  -benchmem -count=5
+```
+
+`rtf < 1.0` means the measured codec path is faster than real time. The
+`streams/core` metric is a codec-only upper bound; production sizing should
+apply safety margin for RTP, scheduling, jitter buffers, and co-hosted work.
+
+See [docs/performance.md](docs/performance.md) for metric definitions and
+interpretation.
 
 ### Encoder profiles
 
@@ -242,6 +263,7 @@ diagnostics. It is non-strict and is not used as evidence for the
 | Encoder | FFmpeg black-box quality gate | Product send path is quality-gated |
 | Encoder quality | Public sample regression, private PESQ NB matrix, blind listening | Diagnostic quality evidence, not certification |
 | Optional MOS-LQO | External `G729_MOS_LQO_TOOL` wrapper | Customer-facing objective score when a licensed scorer is available |
+| Performance | Single-thread RTF and frame-time jitter benchmarks | Real-time streaming capacity planning evidence |
 | RTP | Payload type 18, `ptime=10/20`, `annexb=no` checks | Send-path interoperability confidence |
 | IP | Clean-room provenance record | No third-party codec source used |
 
