@@ -151,6 +151,7 @@ func TestExternalSamplePESQMatrixDiagnostic(t *testing.T) {
 		samples []int16
 		metrics externalQualityMetrics
 		pesq    float64
+		mosLQO  float64
 	}{
 		{path: "our encode -> local decode", samples: ourLocal, metrics: externalQualityMetricsFor(src, ourLocal, 240)},
 		{path: "our encode -> blend50 local decode", samples: ourBlend50, metrics: externalQualityMetricsFor(src, ourBlend50, 240)},
@@ -163,15 +164,18 @@ func TestExternalSamplePESQMatrixDiagnostic(t *testing.T) {
 	}
 	for i := range rows {
 		rows[i].pesq = pesqNBScore(t, tmp, fmt.Sprintf("pesq-%02d", i), src, rows[i].samples)
+		rows[i].mosLQO = externalMOSLQOScoreOrNaN(t, tmp, fmt.Sprintf("mos-lqo-%02d", i), src, rows[i].samples)
 	}
 
 	t.Logf("external sample PESQ NB matrix: %s", path)
+	logExternalMOSLQOAvailability(t)
 	t.Logf("samples=%d padded=%d frames=%d", originalSamples, len(src)-originalSamples, len(src)/FrameSamples)
-	t.Logf("%-34s,%8s,%10s,%10s,%8s,%8s,%7s,%8s", "Path", "PESQ_NB", "GlobalSNR", "SegSNR", "Corr", "RMS/ref", "Peak", "NearClip")
+	t.Logf("%-34s,%8s,%8s,%10s,%10s,%8s,%8s,%7s,%8s", "Path", "PESQ_NB", "MOS_LQO", "GlobalSNR", "SegSNR", "Corr", "RMS/ref", "Peak", "NearClip")
 	for _, row := range rows {
-		t.Logf("%-34s,%8.4f,%10.2f,%10.2f,%8.4f,%8.4f,%7d,%8d",
+		t.Logf("%-34s,%8.4f,%8s,%10.2f,%10.2f,%8.4f,%8.4f,%7d,%8d",
 			row.path,
 			row.pesq,
+			formatExternalScoreOrNA(row.mosLQO),
 			row.metrics.globalSNR,
 			row.metrics.segSNR,
 			row.metrics.corr,
@@ -628,6 +632,8 @@ func TestExternalSampleEncoderCandidatePESQDiagnostic(t *testing.T) {
 		raw       []byte
 		localPESQ float64
 		ffPESQ    float64
+		localMOS  float64
+		ffMOS     float64
 		localm    externalQualityMetrics
 		ffm       externalQualityMetrics
 	}
@@ -661,6 +667,8 @@ func TestExternalSampleEncoderCandidatePESQDiagnostic(t *testing.T) {
 		}
 		ffPESQ := pesqNBScore(t, tmp, base+"-ffmpeg", ref, ff)
 		localPESQ := pesqNBScore(t, tmp, base+"-local", ref, local)
+		ffMOS := externalMOSLQOScoreOrNaN(t, tmp, base+"-ffmpeg", ref, ff)
+		localMOS := externalMOSLQOScoreOrNaN(t, tmp, base+"-local", ref, local)
 		if c.bcg {
 			bcgRaw = raw
 			bcgFFPESQ = ffPESQ
@@ -670,15 +678,18 @@ func TestExternalSampleEncoderCandidatePESQDiagnostic(t *testing.T) {
 			raw:       raw,
 			localPESQ: localPESQ,
 			ffPESQ:    ffPESQ,
+			localMOS:  localMOS,
+			ffMOS:     ffMOS,
 			localm:    externalQualityMetricsFor(ref, local, 240),
 			ffm:       externalQualityMetricsFor(ref, ff, 240),
 		})
 	}
 
 	t.Logf("external sample focused encoder PESQ diagnostic: %s", path)
+	logExternalMOSLQOAvailability(t)
 	t.Logf("samples=%d padded=%d frames=%d", originalSamples, len(src)-originalSamples, len(src)/FrameSamples)
-	t.Logf("%-48s %10s %10s %12s %12s %10s %8s %8s", "Candidate", "LocalPESQ", "FFPESQ", "LocalΔBCG", "FFΔBCG", "PayloadEq", "LocClip", "FFClip")
-	t.Logf("%-48s %10s %10s %12s %12s %10s %8s %8s", "---------", "---------", "------", "---------", "------", "---------", "-------", "------")
+	t.Logf("%-48s %10s %10s %10s %10s %12s %12s %10s %8s %8s", "Candidate", "LocalPESQ", "FFPESQ", "LocalMOS", "FFMOS", "LocalΔBCG", "FFΔBCG", "PayloadEq", "LocClip", "FFClip")
+	t.Logf("%-48s %10s %10s %10s %10s %12s %12s %10s %8s %8s", "---------", "---------", "------", "--------", "-----", "---------", "------", "---------", "-------", "------")
 	for _, r := range rows {
 		localDelta := math.NaN()
 		ffDelta := math.NaN()
@@ -690,8 +701,8 @@ func TestExternalSampleEncoderCandidatePESQDiagnostic(t *testing.T) {
 		if len(bcgRaw) > 0 {
 			payloadEq = payloadEqualPercent(r.raw, bcgRaw)
 		}
-		t.Logf("%-48s %10.4f %10.4f %+12.4f %+12.4f %9.2f%% %8d %8d",
-			r.name, r.localPESQ, r.ffPESQ, localDelta, ffDelta, payloadEq, r.localm.nearClip, r.ffm.nearClip)
+		t.Logf("%-48s %10.4f %10.4f %10s %10s %+12.4f %+12.4f %9.2f%% %8d %8d",
+			r.name, r.localPESQ, r.ffPESQ, formatExternalScoreOrNA(r.localMOS), formatExternalScoreOrNA(r.ffMOS), localDelta, ffDelta, payloadEq, r.localm.nearClip, r.ffm.nearClip)
 	}
 
 	if os.Getenv("G729_REQUIRE_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ") == "1" {
@@ -13551,6 +13562,60 @@ func pesqNBScore(t *testing.T, tmp, name string, ref, deg []int16) float64 {
 		t.Fatalf("invalid PESQ NB output %q: %v", strings.TrimSpace(string(out)), err)
 	}
 	return score
+}
+
+func externalMOSLQOScoreOrNaN(t *testing.T, tmp, name string, ref, deg []int16) float64 {
+	t.Helper()
+	tool := strings.TrimSpace(os.Getenv("G729_MOS_LQO_TOOL"))
+	if tool == "" {
+		return math.NaN()
+	}
+	refPath := filepath.Join(tmp, name+".mos-lqo.ref.wav")
+	degPath := filepath.Join(tmp, name+".mos-lqo.deg.wav")
+	if err := os.WriteFile(refPath, wavBytesFromSamples(ref), 0o600); err != nil {
+		t.Fatalf("write MOS-LQO ref WAV %s: %v", refPath, err)
+	}
+	if err := os.WriteFile(degPath, wavBytesFromSamples(deg), 0o600); err != nil {
+		t.Fatalf("write MOS-LQO degraded WAV %s: %v", degPath, err)
+	}
+	out, err := exec.Command(tool, refPath, degPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("MOS-LQO tool %s failed: %v: %s", tool, err, strings.TrimSpace(string(out)))
+	}
+	score, ok := firstExternalFloat(string(out))
+	if !ok || math.IsNaN(score) || math.IsInf(score, 0) {
+		t.Fatalf("MOS-LQO tool %s printed no finite score: %q", tool, strings.TrimSpace(string(out)))
+	}
+	return score
+}
+
+func logExternalMOSLQOAvailability(t *testing.T) {
+	t.Helper()
+	if tool := strings.TrimSpace(os.Getenv("G729_MOS_LQO_TOOL")); tool != "" {
+		t.Logf("MOS-LQO computed by external G729_MOS_LQO_TOOL=%s; wrapper must accept ref.wav degraded.wav and print one score", tool)
+		return
+	}
+	t.Log("MOS-LQO n/a: set G729_MOS_LQO_TOOL to a wrapper that accepts ref.wav degraded.wav and prints one score")
+}
+
+func formatExternalScoreOrNA(score float64) string {
+	if math.IsNaN(score) || math.IsInf(score, 0) {
+		return "n/a"
+	}
+	return fmt.Sprintf("%.4f", score)
+}
+
+func firstExternalFloat(s string) (float64, bool) {
+	fields := strings.FieldsFunc(s, func(r rune) bool {
+		return !(r == '+' || r == '-' || r == '.' || r == 'e' || r == 'E' || (r >= '0' && r <= '9'))
+	})
+	for _, field := range fields {
+		v, err := strconv.ParseFloat(field, 64)
+		if err == nil {
+			return v, true
+		}
+	}
+	return 0, false
 }
 
 const pesqNBPythonScript = `

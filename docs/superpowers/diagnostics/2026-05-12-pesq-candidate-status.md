@@ -303,3 +303,15 @@ expected to be:
 ```sh
 /tmp/g729-pesq-venv/bin/python
 ```
+
+MOS-LQO/POLQA-style objective scores are intentionally external. When
+`G729_MOS_LQO_TOOL` is set, the comparison web app and external sample
+diagnostics call that wrapper as:
+
+```sh
+$G729_MOS_LQO_TOOL ref.wav degraded.wav
+```
+
+The wrapper must print one finite score to stdout. The repo does not bundle or
+redistribute a POLQA/P.863 implementation; MOS-LQO output is a customer-facing
+measurement aid, not subjective MOS or ITU conformance certification.

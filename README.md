@@ -439,6 +439,24 @@ G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav \
 go test -run TestExternalSampleEncoderCandidatePESQDiagnostic -count=1 -v
 ```
 
+If a customer asks for MOS-LQO/POLQA-style objective listening-quality numbers,
+provide an external scorer wrapper through `G729_MOS_LQO_TOOL`. The wrapper is
+not bundled with this MIT repository; it must accept `ref.wav degraded.wav` and
+print one finite score to stdout. When configured, the sample PESQ matrix,
+focused encoder candidate diagnostic, and comparison web app print a MOS-LQO
+column next to PESQ NB:
+
+```sh
+G729_MOS_LQO_TOOL=/path/to/mos-lqo-wrapper \
+G729_PESQ_PYTHON=/tmp/g729-pesq-venv/bin/python \
+G729_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1 \
+G729_EXTERNAL_SAMPLE_QUALITY=/path/to/input.wav \
+go test -run TestExternalSampleEncoderCandidatePESQDiagnostic -count=1 -v
+```
+
+MOS-LQO is an objective model output, not a subjective MOS listening panel and
+not an ITU conformance certificate.
+
 To turn that matrix into a hard regression gate for private listening/PESQ
 samples, add `G729_REQUIRE_EXTERNAL_SAMPLE_ENCODER_CANDIDATE_PESQ=1`. The gate
 currently pins the narrow decoder-exact-informed candidate path: native
