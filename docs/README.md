@@ -87,11 +87,16 @@ from the Open Speech Repository:
   `OSR_us_000_0010_8k.wav`, American English Harvard sentences, 16-bit PCM at
   8 kHz.
 - `docs/assets/audio/arena/trial-XX-bcg729-ffmpeg.wav` — the corresponding
-  2.4 second clip encoded by a local `bcg729` black-box executable and decoded
-  by FFmpeg as a black-box decoder.
-- `docs/assets/audio/arena/trial-XX-our-loopback.wav` — the same 2.4 second
-  clip encoded by this repository's `EncoderProfileCore` default and decoded by
-  this repository's exact local decoder.
+  1.6 second speech-active clip encoded by a local `bcg729` black-box
+  executable and decoded by FFmpeg as a black-box decoder.
+- `docs/assets/audio/arena/trial-XX-our-loopback.wav` — the same 1.6 second
+  speech-active clip encoded by this repository's `EncoderProfileCore` default
+  and decoded by this repository's exact local decoder.
+
+The arena trial order is fixed. The web page randomizes only the left/right
+placement for each trial. Each selected source clip is peak-normalized to 18000
+before both codec paths so the blind comparison is not dominated by source
+level differences.
 
 Source attribution required by the provider: "Open Speech Repository".
 Source page:

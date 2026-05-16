@@ -443,13 +443,14 @@ function activateBlindArena() {
     accent: "#c2410c",
     emptyText: "Right sample pending."
   });
+  const arenaAssetVersion = "speech-active-v2";
 
   const trials = Array.from({ length: total }, (_, index) => {
     const id = String(index + 1).padStart(2, "0");
     return {
       label: `Trial ${index + 1}`,
-      bcg: `assets/audio/arena/trial-${id}-bcg729-ffmpeg.wav`,
-      our: `assets/audio/arena/trial-${id}-our-loopback.wav`
+      bcg: `assets/audio/arena/trial-${id}-bcg729-ffmpeg.wav?v=${arenaAssetVersion}`,
+      our: `assets/audio/arena/trial-${id}-our-loopback.wav?v=${arenaAssetVersion}`
     };
   });
 
@@ -458,7 +459,7 @@ function activateBlindArena() {
   let picks = [];
 
   function resetArena() {
-    order = shuffle(trials).map((trial) => ({
+    order = trials.map((trial) => ({
       ...trial,
       left: Math.random() < 0.5 ? "bcg" : "our"
     }));
@@ -486,8 +487,8 @@ function activateBlindArena() {
       button.disabled = true;
     });
     await Promise.all([
-      loadAudioPlayerURL(leftPlayer, trial[leftKind], { stateText: "Blind sample A · 2.4 s" }),
-      loadAudioPlayerURL(rightPlayer, trial[rightKind], { stateText: "Blind sample B · 2.4 s" })
+      loadAudioPlayerURL(leftPlayer, trial[leftKind], { stateText: "Blind sample A · 1.6 s" }),
+      loadAudioPlayerURL(rightPlayer, trial[rightKind], { stateText: "Blind sample B · 1.6 s" })
     ]);
     buttons.forEach((button) => {
       button.disabled = false;
@@ -526,7 +527,7 @@ function activateBlindArena() {
         <div><span>bcg729 encode -> FFmpeg decode</span><strong>${counts.bcg}</strong></div>
         <div><span>Tie / unsure</span><strong>${counts.tie}</strong></div>
       </div>
-      <p>Refresh or restart to reshuffle left/right placement.</p>
+      <p>Restart to reshuffle left/right placement. Trial order stays fixed.</p>
     `;
   }
 
@@ -535,15 +536,6 @@ function activateBlindArena() {
   });
   reset.addEventListener("click", resetArena);
   resetArena();
-}
-
-function shuffle(items) {
-  const out = items.slice();
-  for (let i = out.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
 }
 
 function waitForWasmReady() {

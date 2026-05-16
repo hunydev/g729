@@ -51,7 +51,7 @@ func TestPagesAudioArenaOutputs(t *testing.T) {
 	}
 
 	for _, clip := range pagesArenaClips {
-		clipPCM := arenaClipPCMBytes(t, sourcePCM, clip.offsetSamples, clip.sampleCount)
+		clipPCM := normalizeArenaClipPCM16(t, arenaClipPCMBytes(t, sourcePCM, clip.offsetSamples, clip.sampleCount))
 		padded := padPCM16ToFrames(t, clipPCM)
 		encoded := encodePCM16LEForGolden(t, padded)
 		decoded := decodeG729ForGolden(t, encoded)
@@ -107,7 +107,7 @@ func TestPagesAudioArenaWriteGoldenOutputs(t *testing.T) {
 	}
 
 	for _, clip := range pagesArenaClips {
-		clipPCM := arenaClipPCMBytes(t, sourcePCM, clip.offsetSamples, clip.sampleCount)
+		clipPCM := normalizeArenaClipPCM16(t, arenaClipPCMBytes(t, sourcePCM, clip.offsetSamples, clip.sampleCount))
 		padded := padPCM16ToFrames(t, clipPCM)
 
 		encoded := encodePCM16LEForGolden(t, padded)
@@ -125,16 +125,16 @@ var pagesArenaClips = []struct {
 	offsetSamples int
 	sampleCount   int
 }{
-	{name: "trial-01", offsetSamples: 0, sampleCount: 19200},
-	{name: "trial-02", offsetSamples: 19200, sampleCount: 19200},
-	{name: "trial-03", offsetSamples: 38400, sampleCount: 19200},
-	{name: "trial-04", offsetSamples: 57600, sampleCount: 19200},
-	{name: "trial-05", offsetSamples: 76800, sampleCount: 19200},
-	{name: "trial-06", offsetSamples: 96000, sampleCount: 19200},
-	{name: "trial-07", offsetSamples: 115200, sampleCount: 19200},
-	{name: "trial-08", offsetSamples: 134400, sampleCount: 19200},
-	{name: "trial-09", offsetSamples: 153600, sampleCount: 19200},
-	{name: "trial-10", offsetSamples: 172800, sampleCount: 19200},
+	{name: "trial-01", offsetSamples: 4160, sampleCount: 12800},
+	{name: "trial-02", offsetSamples: 34400, sampleCount: 12800},
+	{name: "trial-03", offsetSamples: 45600, sampleCount: 12800},
+	{name: "trial-04", offsetSamples: 61760, sampleCount: 12800},
+	{name: "trial-05", offsetSamples: 88160, sampleCount: 12800},
+	{name: "trial-06", offsetSamples: 114800, sampleCount: 12800},
+	{name: "trial-07", offsetSamples: 139040, sampleCount: 12800},
+	{name: "trial-08", offsetSamples: 155600, sampleCount: 12800},
+	{name: "trial-09", offsetSamples: 188960, sampleCount: 12800},
+	{name: "trial-10", offsetSamples: 238560, sampleCount: 12800},
 }
 
 func arenaAudioPath(name, suffix string) string {
@@ -149,6 +149,40 @@ func arenaClipPCMBytes(t *testing.T, pcm []byte, offsetSamples, sampleCount int)
 		t.Fatalf("arena clip range [%d,%d) outside source PCM length %d", start, end, len(pcm))
 	}
 	return append([]byte(nil), pcm[start:end]...)
+}
+
+func normalizeArenaClipPCM16(t *testing.T, pcm []byte) []byte {
+	t.Helper()
+	if len(pcm)%2 != 0 {
+		t.Fatalf("PCM byte length is odd: %d", len(pcm))
+	}
+	const targetPeak = 18000
+	maxAbs := 0
+	for off := 0; off < len(pcm); off += 2 {
+		sample := int(int16(binary.LittleEndian.Uint16(pcm[off:])))
+		if sample < 0 {
+			sample = -sample
+		}
+		if sample > maxAbs {
+			maxAbs = sample
+		}
+	}
+	if maxAbs == 0 {
+		return append([]byte(nil), pcm...)
+	}
+
+	out := make([]byte, len(pcm))
+	for off := 0; off < len(pcm); off += 2 {
+		sample := int64(int16(binary.LittleEndian.Uint16(pcm[off:])))
+		scaled := sample * targetPeak / int64(maxAbs)
+		if scaled > 32767 {
+			scaled = 32767
+		} else if scaled < -32768 {
+			scaled = -32768
+		}
+		binary.LittleEndian.PutUint16(out[off:], uint16(int16(scaled)))
+	}
+	return out
 }
 
 type wavFixtureFormat struct {

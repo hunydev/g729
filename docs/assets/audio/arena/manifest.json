@@ -11,11 +11,14 @@
   },
   "generation": {
     "trial_count": 10,
-    "trial_duration_seconds": 2.4,
+    "trial_duration_seconds": 1.6,
     "sample_rate": 8000,
-    "samples_per_trial": 19200,
+    "samples_per_trial": 12800,
+    "normalization": "Each selected clip is peak-normalized to 18000 before both codec paths.",
     "notes": [
       "Each trial compares two hidden paths: bcg729 black-box encode -> FFmpeg black-box decode, and local EncoderProfileCore -> local decoder.",
+      "Trial order is fixed; the web page randomizes only left/right placement.",
+      "Offsets are selected from speech-active windows instead of slicing from zero mechanically.",
       "bcg729 and FFmpeg were used only as executable black boxes while generating these demo assets.",
       "No third-party G.729 source or binary is redistributed in this directory."
     ]
@@ -23,61 +26,61 @@
   "trials": [
     {
       "id": "trial-01",
-      "offset_seconds": 0.0,
+      "offset_seconds": 0.52,
       "bcg729_ffmpeg": "trial-01-bcg729-ffmpeg.wav",
       "our_loopback": "trial-01-our-loopback.wav"
     },
     {
       "id": "trial-02",
-      "offset_seconds": 2.4,
+      "offset_seconds": 4.3,
       "bcg729_ffmpeg": "trial-02-bcg729-ffmpeg.wav",
       "our_loopback": "trial-02-our-loopback.wav"
     },
     {
       "id": "trial-03",
-      "offset_seconds": 4.8,
+      "offset_seconds": 5.7,
       "bcg729_ffmpeg": "trial-03-bcg729-ffmpeg.wav",
       "our_loopback": "trial-03-our-loopback.wav"
     },
     {
       "id": "trial-04",
-      "offset_seconds": 7.2,
+      "offset_seconds": 7.72,
       "bcg729_ffmpeg": "trial-04-bcg729-ffmpeg.wav",
       "our_loopback": "trial-04-our-loopback.wav"
     },
     {
       "id": "trial-05",
-      "offset_seconds": 9.6,
+      "offset_seconds": 11.02,
       "bcg729_ffmpeg": "trial-05-bcg729-ffmpeg.wav",
       "our_loopback": "trial-05-our-loopback.wav"
     },
     {
       "id": "trial-06",
-      "offset_seconds": 12.0,
+      "offset_seconds": 14.35,
       "bcg729_ffmpeg": "trial-06-bcg729-ffmpeg.wav",
       "our_loopback": "trial-06-our-loopback.wav"
     },
     {
       "id": "trial-07",
-      "offset_seconds": 14.4,
+      "offset_seconds": 17.38,
       "bcg729_ffmpeg": "trial-07-bcg729-ffmpeg.wav",
       "our_loopback": "trial-07-our-loopback.wav"
     },
     {
       "id": "trial-08",
-      "offset_seconds": 16.8,
+      "offset_seconds": 19.45,
       "bcg729_ffmpeg": "trial-08-bcg729-ffmpeg.wav",
       "our_loopback": "trial-08-our-loopback.wav"
     },
     {
       "id": "trial-09",
-      "offset_seconds": 19.2,
+      "offset_seconds": 23.62,
       "bcg729_ffmpeg": "trial-09-bcg729-ffmpeg.wav",
       "our_loopback": "trial-09-our-loopback.wav"
     },
     {
       "id": "trial-10",
-      "offset_seconds": 21.6,
+      "offset_seconds": 29.82,
       "bcg729_ffmpeg": "trial-10-bcg729-ffmpeg.wav",
       "our_loopback": "trial-10-our-loopback.wav"
     }

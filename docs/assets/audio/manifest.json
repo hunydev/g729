@@ -21,6 +21,8 @@
     "manifest": "arena/manifest.json",
     "source": "Open Speech Repository OSR_us_000_0010_8k.wav",
     "trials": 10,
+    "trial_duration_seconds": 1.6,
+    "selection": "speech-active windows, peak-normalized before both codec paths",
     "paths": [
       "bcg729 black-box encoder -> FFmpeg black-box decoder",
       "local EncoderProfileCore -> local decoder"
