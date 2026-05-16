@@ -29,17 +29,36 @@
   <main id="top">
     <section class="hero" aria-labelledby="hero-title">
       <canvas id="wave-scene" aria-hidden="true"></canvas>
-      <div class="hero-content">
-        <p class="eyebrow">Pure Go | MIT | G729/8000 | annexb=no</p>
-        <h1 id="hero-title">g729</h1>
-        <p class="hero-copy">
-          A clean-room, G.729A-compatible speech codec for Go services that need
-          RTP payload type 18 without cgo, native codec packages, or vendored
-          codec source.
-        </p>
-        <div class="hero-actions" aria-label="Project links">
-          <a class="button primary" href="https://pkg.go.dev/github.com/hunydev/g729">Go Reference</a>
-          <a class="button" href="https://github.com/hunydev/g729">Source</a>
+      <div class="hero-inner">
+        <div class="hero-content">
+          <p class="eyebrow">Pure Go | MIT | G729/8000 | annexb=no</p>
+          <h1 id="hero-title">g729</h1>
+          <p class="hero-copy">
+            A clean-room, G.729A-compatible speech codec for Go services that
+            need RTP payload type 18 without cgo, native codec packages, or
+            vendored codec source.
+          </p>
+          <div class="hero-actions" aria-label="Project links">
+            <a class="button primary" href="https://pkg.go.dev/github.com/hunydev/g729">Go Reference</a>
+            <a class="button" href="https://github.com/hunydev/g729">Source</a>
+          </div>
+        </div>
+        <div class="hero-proof-grid" aria-label="Release evidence">
+          <article>
+            <span>Decoder gate</span>
+            <strong>740800/740800</strong>
+            <p>Final PCM samples exact in the current private ITU Annex A oracle run.</p>
+          </article>
+          <article>
+            <span>Runtime shape</span>
+            <strong>0 cgo</strong>
+            <p>Pure Go implementation with no native codec dependency.</p>
+          </article>
+          <article>
+            <span>RTP target</span>
+            <strong>PT 18</strong>
+            <p>G729/8000 send paths with explicit <code>annexb=no</code>.</p>
+          </article>
         </div>
       </div>
     </section>
@@ -84,6 +103,21 @@
             <span class="status">Verified</span>
             <h3>Strict decoder</h3>
             <p>Private ITU Annex A oracle gate matches 740800/740800 final PCM samples.</p>
+          </article>
+          <article class="capability">
+            <span class="status">Quality-gated</span>
+            <h3>Independent encoder</h3>
+            <p>Core is selected by listening tests, PESQ diagnostics, and FFmpeg black-box gates.</p>
+          </article>
+          <article class="capability">
+            <span class="status">Pure Go</span>
+            <h3>No cgo dependency</h3>
+            <p>Deploy the codec as normal Go code without native codec packaging or vendored source.</p>
+          </article>
+          <article class="capability">
+            <span class="status">Benchmarked</span>
+            <h3>Realtime planning</h3>
+            <p>Single-thread RTF and jitter benchmarks help estimate channel density per core.</p>
           </article>
           <article class="capability">
             <span class="status muted">Not claimed</span>
@@ -134,8 +168,15 @@ a=maxptime:20</code></pre>
               <span class="sample-label">Source</span>
               <h3>Original 8 kHz 16-bit WAV</h3>
             </div>
-            <canvas class="mini-wave" width="420" height="92" aria-hidden="true"></canvas>
-            <audio controls preload="metadata"></audio>
+            <div class="wave-player">
+              <canvas class="mini-wave" width="760" height="132" aria-label="Source waveform"></canvas>
+              <div class="player-controls">
+                <button class="play-toggle" type="button" disabled>Play</button>
+                <input class="seek-bar" type="range" min="0" max="1000" value="0" disabled aria-label="Seek source sample">
+                <span class="time-readout">0:00 / 0:00</span>
+              </div>
+              <audio preload="metadata"></audio>
+            </div>
             <p class="sample-state">Sample pending.</p>
           </article>
           <article class="sample-card anchor-card" data-audio="assets/audio/bcg729-encode-ffmpeg-decode.wav">
@@ -143,8 +184,15 @@ a=maxptime:20</code></pre>
               <span class="sample-label">Black-box anchor</span>
               <h3>bcg729 encode -> FFmpeg decode</h3>
             </div>
-            <canvas class="mini-wave" width="420" height="92" aria-hidden="true"></canvas>
-            <audio controls preload="metadata"></audio>
+            <div class="wave-player">
+              <canvas class="mini-wave" width="560" height="116" aria-label="bcg729 FFmpeg decoded waveform"></canvas>
+              <div class="player-controls">
+                <button class="play-toggle" type="button" disabled>Play</button>
+                <input class="seek-bar" type="range" min="0" max="1000" value="0" disabled aria-label="Seek bcg729 FFmpeg decoded sample">
+                <span class="time-readout">0:00 / 0:00</span>
+              </div>
+              <audio preload="metadata"></audio>
+            </div>
             <p class="sample-state">Sample pending.</p>
           </article>
           <article class="sample-card anchor-card" data-audio="assets/audio/bcg729-encode-g729-decode.wav">
@@ -152,8 +200,15 @@ a=maxptime:20</code></pre>
               <span class="sample-label">Decoder check</span>
               <h3>bcg729 encode -> g729 decode</h3>
             </div>
-            <canvas class="mini-wave" width="420" height="92" aria-hidden="true"></canvas>
-            <audio controls preload="metadata"></audio>
+            <div class="wave-player">
+              <canvas class="mini-wave" width="560" height="116" aria-label="bcg729 local decoded waveform"></canvas>
+              <div class="player-controls">
+                <button class="play-toggle" type="button" disabled>Play</button>
+                <input class="seek-bar" type="range" min="0" max="1000" value="0" disabled aria-label="Seek bcg729 local decoded sample">
+                <span class="time-readout">0:00 / 0:00</span>
+              </div>
+              <audio preload="metadata"></audio>
+            </div>
             <p class="sample-state">Sample pending.</p>
           </article>
           <article class="sample-card" data-audio="assets/audio/g729-encode-g729-decode.wav">
@@ -161,8 +216,15 @@ a=maxptime:20</code></pre>
               <span class="sample-label">Project loopback</span>
               <h3>g729 encode -> g729 decode</h3>
             </div>
-            <canvas class="mini-wave" width="420" height="92" aria-hidden="true"></canvas>
-            <audio controls preload="metadata"></audio>
+            <div class="wave-player">
+              <canvas class="mini-wave" width="560" height="116" aria-label="g729 local decoded waveform"></canvas>
+              <div class="player-controls">
+                <button class="play-toggle" type="button" disabled>Play</button>
+                <input class="seek-bar" type="range" min="0" max="1000" value="0" disabled aria-label="Seek g729 local decoded sample">
+                <span class="time-readout">0:00 / 0:00</span>
+              </div>
+              <audio preload="metadata"></audio>
+            </div>
             <p class="sample-state">Sample pending.</p>
           </article>
           <article class="sample-card" data-audio="assets/audio/g729-encode-ffmpeg-decode.wav">
@@ -170,8 +232,15 @@ a=maxptime:20</code></pre>
               <span class="sample-label">Interop path</span>
               <h3>g729 encode -> FFmpeg decode</h3>
             </div>
-            <canvas class="mini-wave" width="420" height="92" aria-hidden="true"></canvas>
-            <audio controls preload="metadata"></audio>
+            <div class="wave-player">
+              <canvas class="mini-wave" width="560" height="116" aria-label="g729 FFmpeg decoded waveform"></canvas>
+              <div class="player-controls">
+                <button class="play-toggle" type="button" disabled>Play</button>
+                <input class="seek-bar" type="range" min="0" max="1000" value="0" disabled aria-label="Seek g729 FFmpeg decoded sample">
+                <span class="time-readout">0:00 / 0:00</span>
+              </div>
+              <audio preload="metadata"></audio>
+            </div>
             <p class="sample-state">Sample pending.</p>
           </article>
         </div>

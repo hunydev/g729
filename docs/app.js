@@ -56,62 +56,257 @@ function drawHeroWave(time = 0) {
   window.requestAnimationFrame(drawHeroWave);
 }
 
-function drawMiniWave(canvas, seed) {
-  const ctx = canvas.getContext("2d");
-  const width = canvas.width;
-  const height = canvas.height;
-
-  ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#f3f5f2";
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.strokeStyle = seed % 2 === 0 ? "#0f766e" : "#c2410c";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-
-  for (let x = 0; x <= width; x += 4) {
-    const unit = x / width;
-    const envelope = Math.sin(Math.PI * unit);
-    const detail = Math.sin(unit * Math.PI * (14 + seed)) * 0.45;
-    const voice = Math.sin(unit * Math.PI * (35 + seed * 2)) * 0.16;
-    const y = height * (0.5 + (detail + voice) * envelope * 0.42);
-    if (x === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-
-  ctx.stroke();
-}
-
 async function activateAudioSamples() {
   const cards = Array.from(document.querySelectorAll(".sample-card[data-audio]"));
 
-  cards.forEach((card, index) => {
-    const canvas = card.querySelector(".mini-wave");
-    if (canvas) drawMiniWave(canvas, index + 1);
-  });
-
-  await Promise.all(cards.map(async (card) => {
+  await Promise.all(cards.map(async (card, index) => {
     const audioPath = card.dataset.audio;
     const audio = card.querySelector("audio");
+    const canvas = card.querySelector(".mini-wave");
+    const playButton = card.querySelector(".play-toggle");
+    const seek = card.querySelector(".seek-bar");
+    const time = card.querySelector(".time-readout");
     const state = card.querySelector(".sample-state");
     const unavailable = card.dataset.unavailable;
 
     if (unavailable) {
       audio.removeAttribute("src");
+      if (playButton) playButton.disabled = true;
+      if (seek) seek.disabled = true;
       state.textContent = unavailable;
       return;
     }
 
     try {
-      const response = await fetch(audioPath, { method: "HEAD", cache: "no-store" });
+      const response = await fetch(audioPath, { cache: "no-store" });
       if (!response.ok) throw new Error(`missing ${response.status}`);
+      const wav = parsePCM16WAV(await response.arrayBuffer());
       audio.src = audioPath;
-      state.textContent = "Sample available.";
+      audio.preload = "metadata";
+      setupSamplePlayer({ card, audio, canvas, playButton, seek, time, state, wav, index });
     } catch {
       audio.removeAttribute("src");
+      if (canvas) drawEmptyWave(canvas);
+      if (playButton) playButton.disabled = true;
+      if (seek) seek.disabled = true;
       state.textContent = `Add a reviewed sample at ${audioPath} to publish this slot.`;
     }
   }));
+}
+
+let activeSampleAudio = null;
+const samplePlayers = [];
+
+function setupSamplePlayer({ audio, canvas, playButton, seek, time, state, wav, index }) {
+  const accent = index === 0 ? "#3558c7" : (index % 2 === 0 ? "#0f766e" : "#c2410c");
+  const duration = wav.samples.length / wav.sampleRate;
+  const player = { audio, canvas, samples: wav.samples, accent };
+  samplePlayers.push(player);
+
+  drawWaveform(canvas, wav.samples, 0, accent);
+  state.textContent = `${formatDuration(duration)} · ${wav.sampleRate / 1000} kHz mono PCM`;
+  playButton.disabled = false;
+  seek.disabled = false;
+  seek.value = "0";
+  time.textContent = `0:00 / ${formatDuration(duration)}`;
+
+  playButton.addEventListener("click", async () => {
+    if (activeSampleAudio && activeSampleAudio !== audio) activeSampleAudio.pause();
+    if (audio.paused) {
+      activeSampleAudio = audio;
+      await audio.play();
+    } else {
+      audio.pause();
+    }
+  });
+
+  seek.addEventListener("input", () => {
+    if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
+    audio.currentTime = (Number(seek.value) / 1000) * audio.duration;
+  });
+
+  canvas.addEventListener("click", (event) => {
+    if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
+    const rect = canvas.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    audio.currentTime = ratio * audio.duration;
+  });
+
+  audio.addEventListener("play", () => {
+    playButton.textContent = "Pause";
+  });
+
+  audio.addEventListener("pause", () => {
+    playButton.textContent = "Play";
+  });
+
+  audio.addEventListener("ended", () => {
+    playButton.textContent = "Play";
+    seek.value = "0";
+    drawWaveform(canvas, wav.samples, 0, accent);
+    time.textContent = `0:00 / ${formatDuration(duration)}`;
+  });
+
+  audio.addEventListener("timeupdate", () => {
+    const audioDuration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : duration;
+    const progress = audioDuration > 0 ? audio.currentTime / audioDuration : 0;
+    seek.value = String(Math.round(progress * 1000));
+    drawWaveform(canvas, wav.samples, progress, accent);
+    time.textContent = `${formatDuration(audio.currentTime)} / ${formatDuration(audioDuration)}`;
+  });
+}
+
+function redrawSamplePlayers() {
+  samplePlayers.forEach((player) => {
+    const duration = Number.isFinite(player.audio.duration) && player.audio.duration > 0 ? player.audio.duration : 0;
+    const progress = duration > 0 ? player.audio.currentTime / duration : 0;
+    drawWaveform(player.canvas, player.samples, progress, player.accent);
+  });
+}
+
+function parsePCM16WAV(buffer) {
+  const view = new DataView(buffer);
+  if (readASCII(view, 0, 4) !== "RIFF" || readASCII(view, 8, 4) !== "WAVE") {
+    throw new Error("expected RIFF/WAVE");
+  }
+
+  let channels = 0;
+  let sampleRate = 0;
+  let bitsPerSample = 0;
+  let audioFormat = 0;
+  let dataOffset = -1;
+  let dataSize = 0;
+
+  for (let offset = 12; offset + 8 <= view.byteLength;) {
+    const id = readASCII(view, offset, 4);
+    const size = view.getUint32(offset + 4, true);
+    const start = offset + 8;
+    const end = start + size;
+    if (end > view.byteLength) break;
+
+    if (id === "fmt ") {
+      audioFormat = view.getUint16(start, true);
+      channels = view.getUint16(start + 2, true);
+      sampleRate = view.getUint32(start + 4, true);
+      bitsPerSample = view.getUint16(start + 14, true);
+    } else if (id === "data") {
+      dataOffset = start;
+      dataSize = size;
+    }
+
+    offset = end + (size % 2);
+  }
+
+  if (audioFormat !== 1 || channels < 1 || bitsPerSample !== 16 || dataOffset < 0) {
+    throw new Error("expected PCM16 WAV");
+  }
+
+  const frameBytes = channels * 2;
+  const totalFrames = Math.floor(dataSize / frameBytes);
+  const samples = new Float32Array(totalFrames);
+  for (let i = 0; i < totalFrames; i += 1) {
+    let sum = 0;
+    const frameOffset = dataOffset + i * frameBytes;
+    for (let ch = 0; ch < channels; ch += 1) {
+      sum += view.getInt16(frameOffset + ch * 2, true);
+    }
+    samples[i] = (sum / channels) / 32768;
+  }
+
+  return { samples, sampleRate };
+}
+
+function readASCII(view, offset, length) {
+  let out = "";
+  for (let i = 0; i < length; i += 1) {
+    out += String.fromCharCode(view.getUint8(offset + i));
+  }
+  return out;
+}
+
+function drawEmptyWave(canvas) {
+  drawWaveform(canvas, new Float32Array(0), 0, "#8b919e");
+}
+
+function drawWaveform(canvas, samples, progress, accent) {
+  if (!canvas) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const cssWidth = Math.max(1, Math.floor(rect.width || canvas.width));
+  const cssHeight = Math.max(1, Math.floor(rect.height || canvas.height));
+  const width = Math.floor(cssWidth * dpr);
+  const height = Math.floor(cssHeight * dpr);
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#f6f8f5";
+  ctx.fillRect(0, 0, width, height);
+
+  const pad = Math.max(14 * dpr, height * 0.14);
+  const center = height / 2;
+  const usable = height - pad * 2;
+  const columns = Math.max(80, Math.floor(cssWidth / 2));
+  const barGap = Math.max(1, Math.floor(1.5 * dpr));
+  const barWidth = Math.max(1, Math.floor(width / columns) - barGap);
+  const peaks = waveformPeaks(samples, columns);
+
+  ctx.strokeStyle = "rgba(17, 19, 24, 0.07)";
+  ctx.lineWidth = 1;
+  for (let i = 1; i <= 3; i += 1) {
+    const y = pad + (usable / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(12 * dpr, y);
+    ctx.lineTo(width - 12 * dpr, y);
+    ctx.stroke();
+  }
+
+  drawWaveBars(ctx, peaks, 0, columns, center, usable, barWidth, barGap, dpr, "rgba(17, 19, 24, 0.16)");
+  drawWaveBars(ctx, peaks, 0, Math.floor(columns * Math.max(0, Math.min(1, progress))), center, usable, barWidth, barGap, dpr, accent);
+
+  ctx.fillStyle = "rgba(17, 19, 24, 0.46)";
+  ctx.fillRect(12 * dpr, center, width - 24 * dpr, Math.max(1, dpr));
+}
+
+function waveformPeaks(samples, columns) {
+  const peaks = new Float32Array(columns);
+  if (!samples.length) return peaks;
+  const step = samples.length / columns;
+  for (let i = 0; i < columns; i += 1) {
+    const start = Math.floor(i * step);
+    const end = Math.max(start + 1, Math.floor((i + 1) * step));
+    let peak = 0;
+    for (let j = start; j < end && j < samples.length; j += 1) {
+      const value = Math.abs(samples[j]);
+      if (value > peak) peak = value;
+    }
+    peaks[i] = Math.pow(peak, 0.72);
+  }
+  return peaks;
+}
+
+function drawWaveBars(ctx, peaks, start, end, center, usable, barWidth, barGap, dpr, color) {
+  ctx.fillStyle = color;
+  const minHeight = Math.max(2 * dpr, usable * 0.025);
+  for (let i = start; i < end; i += 1) {
+    const peak = peaks[i] || 0;
+    const h = Math.max(minHeight, peak * usable);
+    const x = 12 * dpr + i * (barWidth + barGap);
+    const y = center - h / 2;
+    ctx.fillRect(x, y, barWidth, h);
+  }
+}
+
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const total = Math.floor(seconds);
+  const minutes = Math.floor(total / 60);
+  const rest = String(total % 60).padStart(2, "0");
+  return `${minutes}:${rest}`;
 }
 
 function waitForWasmReady() {
@@ -396,7 +591,9 @@ async function activateWasmDemo() {
   });
 }
 
-window.addEventListener("resize", () => drawHeroWave(performance.now()), { passive: true });
+window.addEventListener("resize", () => {
+  redrawSamplePlayers();
+}, { passive: true });
 window.requestAnimationFrame(drawHeroWave);
 activateAudioSamples();
 activateWasmDemo();
