@@ -3,6 +3,10 @@
 This repository is distributed as MIT-licensed source code for
 `github.com/hunydev/g729`.
 
+See [CLEANROOM_AUDIT.md](CLEANROOM_AUDIT.md) and
+[IP_PROVENANCE.md](IP_PROVENANCE.md) for the clean-room boundary and
+provenance record.
+
 ## Distributed Source
 
 The distributed codec library source uses:

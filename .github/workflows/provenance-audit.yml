@@ -1,0 +1,76 @@
+name: provenance-audit
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  provenance-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: Run default tests
+        run: go test ./...
+
+      - name: Run distribution and oracle handoff audit tests when present
+        run: go test ./... -run 'TestMITDistributionAudit|TestOracleHandoff_' -count=1
+
+      - name: List dependency closure
+        run: go list -deps ./...
+
+      - name: Print module graph
+        run: go mod graph
+
+      - name: Check distribution hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          bad=0
+          while IFS= read -r path; do
+            case "$path" in
+              testdata/itu/*)
+                echo "forbidden tracked ITU vector path: $path"
+                bad=1
+                ;;
+              docs/superpowers/specs/itu/*)
+                echo "forbidden tracked ITU spec path: $path"
+                bad=1
+                ;;
+              testdata/external/*)
+                if [[ "$path" != "testdata/external/README.md" ]]; then
+                  echo "forbidden tracked external sample path: $path"
+                  bad=1
+                fi
+                ;;
+              third-party/*)
+                if [[ "$path" != third-party/g729-compare-web/* ]]; then
+                  echo "forbidden tracked third-party path: $path"
+                  bad=1
+                fi
+                ;;
+              *verifier-output*|*g729_untracked*)
+                echo "forbidden tracked private oracle path: $path"
+                bad=1
+                ;;
+              *.exe|*.dll|*.so|*.dylib|*.a)
+                echo "forbidden tracked native binary/archive path: $path"
+                bad=1
+                ;;
+              */g729a.c|*/g729.c|*/dec_gain.c|*/cod_ld8a.c|*/dec_ld8a.c|*/cb_search.c)
+                echo "forbidden tracked G.729 implementation-like source filename: $path"
+                bad=1
+                ;;
+            esac
+          done < <(git ls-files)
+          exit "$bad"

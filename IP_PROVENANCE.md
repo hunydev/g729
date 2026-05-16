@@ -5,6 +5,9 @@ MIT-licensed release of `github.com/hunydev/g729`.
 
 This is an engineering record, not legal advice.
 
+See [CLEANROOM_AUDIT.md](CLEANROOM_AUDIT.md) for the clean-room audit process,
+similarity-review criteria, and maintainer response workflow.
+
 ## Summary
 
 `github.com/hunydev/g729` is an independently developed clean-room

@@ -1,0 +1,102 @@
+name: IP similarity claim
+description: Report a concrete source-code similarity concern for clean-room review.
+title: "[IP similarity]: "
+labels:
+  - ip-review
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This form is for concrete clean-room similarity concerns. Vague claims are not actionable without exact file and line comparisons.
+
+        Do not ask maintainers to fetch or inspect forbidden G.729 implementation repositories. Provide precise references and explain why the similarity is not explained by the public G.729/G.729A specification.
+  - type: input
+    id: source_project
+    attributes:
+      label: Source project
+      description: Name the project or implementation you believe has similar code.
+      placeholder: "Example: project name and repository URL"
+    validations:
+      required: true
+  - type: input
+    id: source_file
+    attributes:
+      label: Source file path
+      description: Exact file path in the source project.
+      placeholder: "path/to/file.c"
+    validations:
+      required: true
+  - type: input
+    id: source_function
+    attributes:
+      label: Source function or symbol
+      description: Function, method, table, or symbol name, if applicable.
+      placeholder: "function_or_symbol_name"
+    validations:
+      required: true
+  - type: input
+    id: source_lines
+    attributes:
+      label: Source line range
+      description: Exact line range in the source project.
+      placeholder: "123-170"
+    validations:
+      required: true
+  - type: input
+    id: local_file
+    attributes:
+      label: Local repository file path
+      description: Exact file path in this repository.
+      placeholder: "internal/package/file.go"
+    validations:
+      required: true
+  - type: input
+    id: local_lines
+    attributes:
+      label: Local repository line range
+      description: Exact line range in this repository.
+      placeholder: "45-92"
+    validations:
+      required: true
+  - type: dropdown
+    id: similarity_type
+    attributes:
+      label: Type of similarity
+      multiple: true
+      options:
+        - Copied or lightly edited comments
+        - Unusual branch or control-flow structure
+        - Non-spec magic constants or table values
+        - Identical bug or edge-case behavior
+        - Translated source structure
+        - Naming or helper decomposition
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: explanation
+    attributes:
+      label: Why this is not explained by the public specification
+      description: Explain why the similarity is not expected for an independent standards-based G.729A implementation.
+      placeholder: "Describe the concrete similarity and why public G.729/G.729A text does not explain it."
+    validations:
+      required: true
+  - type: textarea
+    id: excerpts
+    attributes:
+      label: Short evidence excerpts
+      description: Keep excerpts short and only as needed for comparison. Do not paste large source files or proprietary material.
+      placeholder: "Short excerpt or pseudocode-level description, if legally shareable."
+    validations:
+      required: false
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Acknowledgements
+      options:
+        - label: I provided exact source and local file/line ranges.
+          required: true
+        - label: I explained why the similarity is not expected from the public G.729/G.729A specification.
+          required: true
+        - label: I understand vague claims without concrete comparisons may be closed as unactionable.
+          required: true

@@ -20,6 +20,7 @@ func TestMITDistributionAudit(t *testing.T) {
 	requireFileContains(t, "IP_PROVENANCE.md",
 		"MIT License",
 		"clean-room",
+		"CLEANROOM_AUDIT.md",
 		"Do not inspect ITU reference C",
 		"Do not inspect bcg729",
 		"Do not inspect FFmpeg G.729 implementation source",
@@ -28,12 +29,36 @@ func TestMITDistributionAudit(t *testing.T) {
 		"not legal advice",
 	)
 	requireFileContains(t, "THIRD_PARTY_NOTICES.md",
+		"CLEANROOM_AUDIT.md",
 		"Go standard library only",
 		"No vendored third-party source code",
 		"No third-party G.729 implementation source code",
 		"testdata/itu/",
 		"docs/superpowers/specs/itu/",
 		"testdata/external/*.g729",
+	)
+	requireFileContains(t, "CLEANROOM_AUDIT.md",
+		"engineering audit record, not legal advice",
+		"Forbidden Sources",
+		"Black-Box and Oracle Boundary",
+		"Expected Standards-Based Similarity",
+		"Meaningful Copying Concerns",
+		"Reporter Requirements",
+	)
+	requireFileContains(t, "CONTRIBUTING.md",
+		"Clean-Room Contribution Policy",
+		"Do not copy, translate, or derive code structure",
+		"Pull Request Provenance Notes",
+	)
+	requireFileContains(t, "docs/similarity-review.md",
+		"Expected Similarities",
+		"Concerning Similarities",
+		"Review Process",
+	)
+	requireFileContains(t, "docs/claims-and-nonclaims.md",
+		"Project Claims",
+		"Non-Claims",
+		"No ITU certification is claimed",
 	)
 
 	tracked, ok := gitTrackedFiles(t)
@@ -49,8 +74,14 @@ func TestMITDistributionAudit(t *testing.T) {
 			t.Fatalf("ITU spec PDF/text material must not be tracked: %s", clean)
 		case strings.HasPrefix(clean, "testdata/external/") && clean != "testdata/external/README.md":
 			t.Fatalf("external audio/payload samples must not be tracked: %s", clean)
+		case strings.HasPrefix(clean, "third-party/") && !strings.HasPrefix(clean, "third-party/g729-compare-web/"):
+			t.Fatalf("third-party codec source/binary paths must not be tracked: %s", clean)
+		case strings.Contains(clean, "verifier-output") || strings.Contains(clean, "g729_untracked"):
+			t.Fatalf("private verifier/oracle paths must not be tracked: %s", clean)
 		case isForbiddenImplementationFilename(clean):
 			t.Fatalf("forbidden external implementation source-like filename is tracked: %s", clean)
+		case isForbiddenNativeBinaryFilename(clean):
+			t.Fatalf("native third-party binary/archive-like filename is tracked: %s", clean)
 		}
 	}
 }
@@ -88,6 +119,16 @@ func isForbiddenImplementationFilename(path string) bool {
 	base := strings.ToLower(filepath.Base(path))
 	switch base {
 	case "g729a.c", "g729.c", "dec_gain.c", "cod_ld8a.c", "dec_ld8a.c", "cb_search.c":
+		return true
+	default:
+		return false
+	}
+}
+
+func isForbiddenNativeBinaryFilename(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".exe", ".dll", ".so", ".dylib", ".a":
 		return true
 	default:
 		return false

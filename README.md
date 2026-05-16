@@ -255,10 +255,11 @@ diagnostics. It is non-strict and is not used as evidence for the
 | Encoder quality | Public sample regression, private PESQ NB matrix, blind listening | Diagnostic quality evidence, not certification |
 | Performance | Single-thread RTF and frame-time jitter benchmarks | Real-time streaming capacity planning evidence |
 | RTP | Payload type 18, `ptime=10/20`, `annexb=no` checks | Send-path interoperability confidence |
-| IP | Clean-room provenance record | No third-party codec source used |
+| IP | Clean-room provenance and audit records | No third-party codec source used |
 
 For the full test matrix, opt-in commands, PESQ notes, and private oracle
-workflow, see [docs/validation.md](docs/validation.md).
+workflow, see [docs/validation.md](docs/validation.md). For release wording
+boundaries, see [docs/claims-and-nonclaims.md](docs/claims-and-nonclaims.md).
 
 ---
 
@@ -298,9 +299,12 @@ oracle outputs, and independently written tests were used. v0.1.0 claims
 strict decoder final-PCM sample equality against the current private ITU
 Annex A oracle gate; it does not claim ITU certification, ITU endorsement,
 or encoder byte-exact conformance.
-See [IP_PROVENANCE.md](IP_PROVENANCE.md) for the distribution provenance
-record and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the
-redistribution notice inventory.
+See [CLEANROOM_AUDIT.md](CLEANROOM_AUDIT.md) for the engineering clean-room
+audit record, [docs/similarity-review.md](docs/similarity-review.md) for
+similarity claim triage, [IP_PROVENANCE.md](IP_PROVENANCE.md) for the
+distribution provenance record, and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the redistribution notice
+inventory.
 
 Permitted reference materials, used during development:
 
@@ -334,9 +338,10 @@ declaration with citation list.
 ## License
 
 MIT. See [LICENSE](LICENSE). The repository includes an engineering
-provenance record in [IP_PROVENANCE.md](IP_PROVENANCE.md) and a
-third-party notice inventory in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+clean-room audit record in [CLEANROOM_AUDIT.md](CLEANROOM_AUDIT.md), a
+provenance record in [IP_PROVENANCE.md](IP_PROVENANCE.md), claims guidance in
+[docs/claims-and-nonclaims.md](docs/claims-and-nonclaims.md), and a third-party
+notice inventory in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ---
 
