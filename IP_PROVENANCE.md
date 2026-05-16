@@ -29,7 +29,9 @@ other third-party G.729 implementation source.
 - Project license: MIT.
 - SPDX identifier: `MIT`.
 - Copyright holder line: see [LICENSE](LICENSE).
-- Runtime dependencies: Go standard library only.
+- Codec library runtime dependencies: Go standard library only.
+- Non-runtime test dependency: Pion RTP, used only for generic RTP packet
+  fixture generation in `cmd/g729rtpcheck` tests.
 - Vendored third-party source code: none.
 
 The MIT License is an OSI-approved open source license:
@@ -60,6 +62,8 @@ Allowed inputs were limited to:
   histograms, and controlled notes.
 - Black-box executable/server behavior from tools such as FFmpeg, Asterisk,
   or FreeSWITCH, without reading their codec source code.
+- Generic RTP packet-library behavior from Pion RTP for test fixture
+  construction. This is outside the G.729 codec implementation boundary.
 
 ## Numeric Oracle Policy
 

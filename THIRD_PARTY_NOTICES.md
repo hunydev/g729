@@ -16,6 +16,12 @@ The distributed codec library source uses:
 - No third-party G.729 implementation source code.
 - No generated code copied from a third-party G.729 implementation.
 
+The repository test suite also imports `github.com/pion/rtp` to marshal generic
+RTP packets for `cmd/g729rtpcheck` interoperability fixtures. Pion RTP is a
+generic RTP packet library, not a G.729 codec implementation, and it is used
+only as a non-runtime test dependency. Pion RTP and its `pion/randutil`
+dependency are MIT-licensed and are not vendored in this repository.
+
 ## Distributed Documentation and Demo Assets
 
 The GitHub Pages documentation under `docs/` includes a browser demo and
@@ -98,6 +104,8 @@ For the distributed repository:
 
 - Project license: MIT.
 - Runtime third-party code for the Go codec library: none.
+- Non-runtime Go test dependency: Pion RTP, used only for generic RTP packet
+  fixture generation.
 - Documentation demo third-party helper: Go `wasm_exec.js` from the Go
   toolchain, under the Go BSD-style license.
 - Vendored codec code: none.

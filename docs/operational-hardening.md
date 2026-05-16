@@ -52,6 +52,13 @@ sequence/timestamp continuity, and optional decode traversal. The report also
 counts matching SSRC streams, RTP marker packets, padding packets, extension
 headers, and CSRC entries. Use `-json` for CI/release artifacts.
 
+The `cmd/g729rtpcheck` tests include Pion RTP generated packets in addition to
+hand-built packet fixtures. This keeps the RTP parser checked against a generic
+Go RTP implementation while keeping the codec runtime free of RTP-library
+dependencies. The same fixture path pins the current behavior for 2-byte
+Annex B SID/CNG payloads: they are rejected with `ErrUnsupportedAnnexB` until
+an explicit `annexb=yes` implementation exists.
+
 ## Encoder Quality Gate
 
 The release-facing FFmpeg black-box gate compares:

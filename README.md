@@ -133,6 +133,10 @@ See [`examples/`](examples/) for fuller programs:
 - `cmd/g729rtpcheck` — raw payload / Ethernet IPv4 UDP RTP pcap validator
 - `cmd/g729wasm` — Go WebAssembly wrapper used by the project website demo
 
+`cmd/g729rtpcheck` test fixtures include Pion RTP generated packets so the
+pcap path is checked against a generic Go RTP packet library. Pion is used only
+in tests and is not part of the codec runtime.
+
 Each `Encoder` and each `Decoder` is **single-threaded**. Concurrent
 calls on the same instance are a data race; one instance per stream.
 
