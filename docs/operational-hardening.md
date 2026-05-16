@@ -85,6 +85,8 @@ FreeSWITCH, SBCs, or media gateways used only as black boxes, see
 [`sip-rtp-blackbox-integration.md`](sip-rtp-blackbox-integration.md). That
 workflow records SDP, pcap, RTP checker JSON, and audio metrics without
 importing third-party codec source or committing private captures.
+Use `cmd/g729rtpreport` when the capture needs to be archived as compact JSON
+evidence.
 
 ## Encoder Quality Gate
 

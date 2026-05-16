@@ -70,9 +70,21 @@ G729_DECODER_REFERENCE_ORACLE_DIR=/path/to/private/verifier-output \
 go test ./internal/decoder -run TestOracleHandoff_CompareDecoderReferenceFinalPCM -count=1 -v
 ```
 
+If a private SIP/RTP black-box capture is available, generate an evidence
+report outside the public repository:
+
+```sh
+go run ./cmd/g729rtpreport \
+  -in /path/to/private/capture.pcap \
+  -pt 18 \
+  -ptime 20 \
+  -out /tmp/g729-sip-rtp-report.json
+```
+
 ## Final Notes
 
 - Distribution audit result:
 - Oracle/private validation result, if run:
+- SIP/RTP black-box report path, if run:
 - Known excluded private materials:
 - Release approval:

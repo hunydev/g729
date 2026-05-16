@@ -9,13 +9,14 @@ import (
 	"testing"
 
 	g729 "github.com/hunydev/g729"
+	"github.com/hunydev/g729/internal/rtpcheck"
 )
 
 func TestAnalyzePayloadStreamPtime20(t *testing.T) {
 	data := bytes.Repeat([]byte{0}, 2*g729.FrameBytes)
-	rep, err := analyzePayloadStream(bytes.NewReader(data), options{
-		mode:  "payload",
-		ptime: 20,
+	rep, err := rtpcheck.AnalyzePayloadStream(bytes.NewReader(data), rtpcheck.Options{
+		Mode:  "payload",
+		Ptime: 20,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -42,11 +43,11 @@ func TestAnalyzePCAPEthernetRTP(t *testing.T) {
 	payload := bytes.Repeat([]byte{0x55}, g729.FrameBytes)
 	pcap := buildPCAPForTest(buildEthernetIPv4UDPRTPForTest(7, 160, 0x11223344, rtpPayloadType18, payload))
 
-	rep, err := analyzePCAP(bytes.NewReader(pcap), options{
-		mode:        "pcap",
-		ptime:       10,
-		payloadType: rtpPayloadType18,
-		strictTS:    true,
+	rep, err := rtpcheck.AnalyzePCAP(bytes.NewReader(pcap), rtpcheck.Options{
+		Mode:        "pcap",
+		Ptime:       10,
+		PayloadType: rtpcheck.PayloadType18,
+		StrictTS:    true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -67,11 +68,11 @@ func TestAnalyzePCAPPtime20StrictTimestamp(t *testing.T) {
 	}
 	pcap := buildPCAPForTest(frames...)
 
-	rep, err := analyzePCAP(bytes.NewReader(pcap), options{
-		mode:        "pcap",
-		ptime:       20,
-		payloadType: rtpPayloadType18,
-		strictTS:    true,
+	rep, err := rtpcheck.AnalyzePCAP(bytes.NewReader(pcap), rtpcheck.Options{
+		Mode:        "pcap",
+		Ptime:       20,
+		PayloadType: rtpcheck.PayloadType18,
+		StrictTS:    true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -89,11 +90,11 @@ func TestAnalyzePCAPStrictSequenceRollover(t *testing.T) {
 	}
 	pcap := buildPCAPForTest(frames...)
 
-	if _, err := analyzePCAP(bytes.NewReader(pcap), options{
-		mode:        "pcap",
-		ptime:       10,
-		payloadType: rtpPayloadType18,
-		strictTS:    true,
+	if _, err := rtpcheck.AnalyzePCAP(bytes.NewReader(pcap), rtpcheck.Options{
+		Mode:        "pcap",
+		Ptime:       10,
+		PayloadType: rtpcheck.PayloadType18,
+		StrictTS:    true,
 	}); err != nil {
 		t.Fatalf("sequence rollover should pass strict-ts: %v", err)
 	}
@@ -102,10 +103,10 @@ func TestAnalyzePCAPStrictSequenceRollover(t *testing.T) {
 func TestAnalyzePCAPRejectsSIDLikePayload(t *testing.T) {
 	pcap := buildPCAPForTest(buildEthernetIPv4UDPRTPForTest(7, 160, 0x11223344, rtpPayloadType18, []byte{0, 0}))
 
-	_, err := analyzePCAP(bytes.NewReader(pcap), options{
-		mode:        "pcap",
-		ptime:       0,
-		payloadType: rtpPayloadType18,
+	_, err := rtpcheck.AnalyzePCAP(bytes.NewReader(pcap), rtpcheck.Options{
+		Mode:        "pcap",
+		Ptime:       0,
+		PayloadType: rtpcheck.PayloadType18,
 	})
 	if !errors.Is(err, g729.ErrUnsupportedAnnexB) {
 		t.Fatalf("err = %v, want ErrUnsupportedAnnexB", err)
@@ -122,10 +123,10 @@ func TestAnalyzePCAPPaddingExtensionCSRC(t *testing.T) {
 	})
 	pcap := buildPCAPForTest(buildEthernetIPv4UDPRTPBytesForTest(rtp))
 
-	rep, err := analyzePCAP(bytes.NewReader(pcap), options{
-		mode:        "pcap",
-		ptime:       10,
-		payloadType: rtpPayloadType18,
+	rep, err := rtpcheck.AnalyzePCAP(bytes.NewReader(pcap), rtpcheck.Options{
+		Mode:        "pcap",
+		Ptime:       10,
+		PayloadType: rtpcheck.PayloadType18,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -141,8 +142,8 @@ func TestReportJSONShape(t *testing.T) {
 	stdout = &buf
 	defer func() { stdout = oldStdout }()
 
-	printReport(report{Mode: "payload", Packets: 1, Frames: 2, PayloadBytes: 20, Streams: 1}, true)
-	var got report
+	printReport(rtpcheck.Report{Mode: "payload", Packets: 1, Frames: 2, PayloadBytes: 20, Streams: 1}, true)
+	var got rtpcheck.Report
 	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 		t.Fatalf("json output invalid: %v\n%s", err, buf.String())
 	}
@@ -159,11 +160,11 @@ func TestAnalyzePCAPStrictTimestamp(t *testing.T) {
 	}
 	pcap := buildPCAPForTest(frames...)
 
-	_, err := analyzePCAP(bytes.NewReader(pcap), options{
-		mode:        "pcap",
-		ptime:       10,
-		payloadType: rtpPayloadType18,
-		strictTS:    true,
+	_, err := rtpcheck.AnalyzePCAP(bytes.NewReader(pcap), rtpcheck.Options{
+		Mode:        "pcap",
+		Ptime:       10,
+		PayloadType: rtpcheck.PayloadType18,
+		StrictTS:    true,
 	})
 	if err == nil || !strings.Contains(err.Error(), "timestamp") {
 		t.Fatalf("err = %v, want strict timestamp error", err)

@@ -89,6 +89,7 @@ Capture RTP from a real call and validate packet shape:
 ```sh
 tcpdump -i any -s 0 -w /tmp/g729-call.pcap udp
 go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -json -in /tmp/g729-call.pcap
+go run ./cmd/g729rtpreport -in /tmp/g729-call.pcap -pt=18 -ptime=20 -out /tmp/g729-call-report.json
 ```
 
 Use `-ptime=10` when the call sends one speech frame per RTP packet. The
@@ -104,6 +105,11 @@ expected positive result is:
 If the deployment remaps payload type 18 dynamically, pass the negotiated
 payload type with `-pt`.
 
+`cmd/g729rtpreport` wraps the same pcap analysis with decoded PCM smoke
+metrics and integration metadata fields. Use optional flags such as `-peer`,
+`-peer-role`, `-topology`, `-sdp-offer`, `-sdp-answer`, and `-notes` to record
+the black-box peer context without committing private captures.
+
 ## Local Fixture Workflow
 
 Use the Pion RTP fixture generator for repeatable local tooling checks before
@@ -117,6 +123,12 @@ go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -json -in /tmp/
 The fixture is not a full SIP call. It checks that the pcap parser, RTP header
 handling, payload-type filtering, multi-SSRC accounting, and timestamp logic are
 working before external integration begins.
+
+The generated fixture can also exercise the report path:
+
+```sh
+go run ./cmd/g729rtpreport -in /tmp/g729-fixture.pcap -pt=18 -ptime=20 -out /tmp/g729-fixture-report.json
+```
 
 ## Negative Boundary Workflow
 
@@ -200,6 +212,6 @@ or encoder byte-exact conformance.
 ## Future Automation
 
 Future work may add an env-gated command or test that consumes externally
-captured pcaps, runs `cmd/g729rtpcheck`, optionally extracts payloads for local
-decode metrics, and writes a compact JSON report. Such automation must still
-keep pcaps and private audio outside git.
+captured pcaps and enforces site-specific acceptance thresholds over the
+`cmd/g729rtpreport` JSON output. Such automation must still keep pcaps and
+private audio outside git.

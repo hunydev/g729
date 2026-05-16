@@ -255,7 +255,7 @@ go test -run TestOracleHandoff_CompareFCBTreeSearchUserAudioHandoff -count=1 -v
 | FFmpeg quality | `G729_FFMPEG_BLACKBOX_QUALITY=1 G729_REQUIRE_FFMPEG_BLACKBOX_QUALITY=1 go test -run TestExternalFFmpegBlackboxQuality_SPEECH -count=1 -v` | **Binding for outbound G.729 encoder support.** |
 | Local decoder quality | `G729_FFMPEG_BLACKBOX_QUALITY=1 G729_REQUIRE_LOCAL_DECODER_FFMPEG_QUALITY=1 go test -run TestExternalFFmpegBlackboxLocalDecoderDelta_SPEECH -count=1 -v` | **Binding for strict local decoder regression coverage.** |
 | Asterisk local decode quality | `G729_DECODER_ASTERISK_FFMPEG_QUALITY=1 G729_REQUIRE_DECODER_ASTERISK_FFMPEG_QUALITY=1 go test ./internal/decoder -run TestPhase3rAsteriskFFmpegQualityGate -count=1 -v` | Binding when a local non-redistributed Asterisk-origin inbound sample is present. |
-| SIP/RTP black-box integration | `go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -json -in /path/to/private/capture.pcap` | Optional environment-dependent gate for real peer packetization and payload-shape evidence. See `docs/sip-rtp-blackbox-integration.md`. |
+| SIP/RTP black-box integration | `go run ./cmd/g729rtpreport -in /path/to/private/capture.pcap -pt=18 -ptime=20 -out /tmp/g729-call-report.json` | Optional environment-dependent gate for real peer packetization, payload-shape, and decode-smoke evidence. See `docs/sip-rtp-blackbox-integration.md`. |
 | Conformance | `go test -tags=conformance ./...` | Informational. Currently expects 0 failures. |
 | Diagnostic | `go test -tags=diagnostic ./...` | Informational. Historical PST-domain drift monitors pass when the current strict decoder path matches PST exactly. |
 
