@@ -61,7 +61,7 @@ undesirable.
 
 ## Supported codec scope
 
-| Capability | v0.1.0 status |
+| Capability | v0.1.x status |
 |---|---|
 | `G729/8000` RTP payload type 18 | **Encoder/send path supported for `annexb=no`; decoder supported** |
 | 10 ms frame: 80 int16 samples ↔ 10 packed bytes | **Supported** |
@@ -226,7 +226,7 @@ a=maxptime:20
 
 `annexb=no` MUST be advertised — this codec does not implement
 Annex B SID / CNG / DTX. Receiving SID frames is not supported in
-v0.1.0 and may return an error or produce invalid audio.
+v0.1.x and may return an error or produce invalid audio.
 
 ---
 
@@ -299,7 +299,7 @@ evidence, and standards certification:
 This project maintains a clean-room constraint. No ITU reference C,
 bcg729, FFmpeg, Sipro, or other G.729 implementation source was used.
 Public specifications, black-box executable behavior, private numeric
-oracle outputs, and independently written tests were used. v0.1.0 claims
+oracle outputs, and independently written tests were used. v0.1.x claims
 strict decoder final-PCM sample equality against the current private ITU
 Annex A oracle gate; it does not claim ITU certification, ITU endorsement,
 or encoder byte-exact conformance.
@@ -351,7 +351,7 @@ notice inventory in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Development status
 
-This is the v0.1.0 release line. The encoder/decoder core, RTP send-path
+This is the v0.1.x release line. The encoder/decoder core, RTP send-path
 tooling, decoder oracle workflow, WebAssembly demo assets, and release
 packaging pass the current project gates.
 
