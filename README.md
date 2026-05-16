@@ -6,24 +6,21 @@
 Website: <https://g729.huny.dev/>. The site includes listening samples and a
 browser-side WebAssembly encoder/decoder demo built from the same pure-Go code.
 
-Pure-Go, MIT-licensed G.729A-compatible speech codec for RTP
-`G729/8000` send paths.
+`github.com/hunydev/g729` is a clean-room, pure-Go, MIT-licensed
+G.729A-compatible codec for `G729/8000 annexb=no` RTP send paths.
 
-This project provides a clean-room Go implementation of a
-G.729A-compatible encoder and decoder with no cgo, no native
-dependencies, and no vendored codec source. It is intended for SIP/RTP,
-MRCP, TTS, IVR, and server-side media applications that need
-`G729/8000` with `annexb=no`.
+- **Encoder:** independent, quality-gated, and not byte-exact to the ITU
+  reference encoder or `bcg729`.
+- **Decoder:** the strict path matches private ITU Annex A reference PCM
+  sample-for-sample in the current verifier run (`740800/740800`).
+- **Scope:** G.729 Annex A, RTP payload type 18, `ptime=10`, and `ptime=20`.
+- **Not supported:** Annex B SID/CNG/DTX, G.729.1, G.729D, and G.729E.
+- **Certification:** no ITU certification, endorsement, or encoder byte-exact
+  conformance claim is made.
 
-**Status: v0.1.0-rc1.** The outbound encoder/RTP send path is
-quality-gated with black-box FFmpeg decoding, public sample regression,
-private PESQ NB sample diagnostics, blind listening checks, and optional
-external MOS-LQO tooling when available. The decoder has a stronger
-conformance result: in the current private verifier run, fixed ITU Annex A
-bitstreams decoded by this package match the official reference PCM
-sample-for-sample (`740800/740800` final PCM samples exact). This is a
-decoder correctness claim, not ITU certification and not an encoder
-byte-exact claim.
+No cgo, native codec dependency, or vendored codec source is required. The
+intended deployment targets are SIP/RTP, MRCP, TTS, IVR, and server-side media
+applications that need `G729/8000` with `annexb=no`.
 
 ---
 
@@ -160,23 +157,15 @@ interpretation.
 ### Encoder profiles
 
 `NewEncoder()` and `NewStreamingEncoder()` use `EncoderProfileCore`, the
-product default. Other profiles are diagnostic-only and are intended for
-regression, PESQ experiments, or listening comparisons. They are not
-conformance claims.
+product default.
 
-The default encoder profile is selected by listening quality, not PESQ alone.
-A diagnostic PESQ-oriented profile can score closer to the local `bcg729`
-black-box anchor on some samples, but recent blind tests preferred Core because
-the PESQ-led candidate sounded slightly more muffled.
+`EncoderProfileCoreFast` is available as an explicit opt-in performance
+trade-off for high-density deployments. Diagnostic profiles are available for
+PESQ experiments, A/B listening, and regression analysis. All profiles emit
+normal 10-byte G.729 frames, but non-default profiles are not conformance
+claims and are not recommended as the default send path.
 
-`EncoderProfileCoreFast` is available as an explicit opt-in for
-low-latency/high-density deployments. It keeps normal 10-byte G.729 payloads
-and zero steady-state allocations, but reduces selected encoder search
-precision/budget. It is a performance trade-off profile, not the product
-default and not a stronger conformance claim.
-
-See [docs/encoder-profiles.md](docs/encoder-profiles.md) for detailed profile
-notes.
+See [docs/encoder-profiles.md](docs/encoder-profiles.md) for details.
 
 ---
 
@@ -246,15 +235,8 @@ endpoint.
 Decoder side is provided for inbound audio (e.g. ASR ingress),
 loopback testing, and tooling.
 
-Current status: the outbound TTS/RTP send path passes the binding FFmpeg
-black-box encoder quality gate for `G729/8000 annexb=no` payloads. The
-strict local decoder also passes the strongest decoder gate available to
-this project: fixed ITU Annex A `.BIT` streams decoded by this package match
-the companion reference `.PST` PCM sample-for-sample in the private oracle
-run (`740800/740800` final PCM samples exact). This gives the decoder a
-concrete conformance basis beyond MOS/PESQ-style quality scores. It is still
-not ITU certification, not an endorsement by ITU, and not a claim that the
-encoder is byte-exact to the ITU reference encoder.
+Validation evidence is summarized below and detailed in
+[docs/validation.md](docs/validation.md).
 
 An experimental `DecodeFrameEnhanced` path remains available for listening
 diagnostics. It is non-strict and is not used as evidence for the
@@ -358,19 +340,16 @@ third-party notice inventory in
 
 ## Development status
 
-- **Phase 0 / 1 / 2** — encoder/decoder core implementation, completed.
-  See `docs/superpowers/plans/2026-05-02-phase2-encoder-plan.md`
-  (master plan).
-- **Phase 3 — CLOSED**. Decoder exactness work reached strict final-PCM
-  equality against the private ITU Annex A oracle gate (`740800/740800`
-  samples exact). Encoder quality remains bounded by the FFmpeg black-box
-  outbound gate and listening diagnostics; encoder byte-exact conformance is
-  not claimed.
-- **Phase 4 — CLOSED**. Release packaging cycle for v0.1.0-rc1. See
-  [Phase 4 plan](docs/superpowers/plans/2026-05-04-phase4-v0.1.0-release-packaging-plan.md).
+This is a v0.1.0 release candidate. The encoder/decoder core, RTP send-path
+tooling, decoder oracle workflow, and release packaging pass the current
+project gates.
 
-This is a release candidate. The public API (`Encoder`, `Decoder`,
-`EncoderProfile`, `NewEncoder`, `NewEncoderWithProfile`, `NewDecoder`,
-`NewStreamingEncoder`, `NewStreamingEncoderWithProfile`, `EncodeFrame`,
-`DecodeFrame`, `Reset`, `Write`, `Flush`, sentinel errors, frame-shape
-constants) is intended to be stable across the v0.1.x line.
+The public API (`Encoder`, `Decoder`, `EncoderProfile`, `NewEncoder`,
+`NewEncoderWithProfile`, `NewDecoder`, `NewStreamingEncoder`,
+`NewStreamingEncoderWithProfile`, `EncodeFrame`, `DecodeFrame`, `Reset`,
+`Write`, `Flush`, sentinel errors, and frame-shape constants) is intended to be
+stable across the v0.1.x line.
+
+Detailed engineering plans and historical diagnostics remain in
+[`docs/superpowers/`](docs/superpowers/) for auditability, but they are not
+required reading for normal use.

@@ -95,6 +95,11 @@ available without importing third-party codec source:
    listening-quality number, not as a subjective MOS panel result and not as an
    ITU conformance certificate.
 
+PESQ is used as a regression signal, not as the final product-quality
+selector. The default encoder remains Core because recent blind listening
+preferred it over the PESQ-led candidate, even when the candidate scored higher
+on PESQ NB.
+
 Representative private PESQ NB runs on the current sample set place the best
 diagnostic candidate close to the local `bcg729` anchor while leaving Core as
 the default for listening quality:
