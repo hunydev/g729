@@ -13,6 +13,7 @@ constraint).
 | `decode_g729/` | Packed 10-byte G.729 frames from stdin → raw int16 LE 8 kHz mono PCM to stdout |
 | `streaming_encode/` | Same as `encode_pcm` but uses `NewStreamingEncoder` + `Write` + `Flush` (handles non-frame-aligned chunks) |
 | `rtp_packetize/` | Illustrative RTP payload packetization (`-ptime=10` or `-ptime=20`); emits hex-dump lines (no real RTP header generation) |
+| `rtp_pion_packetize/` | Practical full RTP packet marshal example using Pion RTP; emits one full RTP packet hex line per RTP packet |
 | `../cmd/g729rtpcheck/` | Black-box raw payload / Ethernet IPv4 UDP RTP pcap validator for payload type 18 captures |
 
 ## Running
@@ -32,6 +33,9 @@ go run ./examples/streaming_encode < input.pcm > output.g729
 # Illustrative RTP packetization (ptime=10 or ptime=20):
 go run ./examples/rtp_packetize -ptime=10 < output.g729
 go run ./examples/rtp_packetize -ptime=20 < output.g729
+
+# Full RTP packet marshal example using Pion RTP:
+go run ./examples/rtp_pion_packetize -ptime=20 -seq=1000 -ts=3200 -ssrc=0x11223344 < output.g729
 
 # Validate raw payload bytes or an RTP pcap:
 go run ./cmd/g729rtpcheck -mode=payload -ptime=10 -in output.g729
@@ -77,6 +81,9 @@ Annex B SID / CNG / DTX. RTP Annex B SID/CNG frames are rejected with
   sender (RFC 3550 / RFC 3551) handles RTP header construction,
   timestamp continuity, sequence numbers, SSRC, and jitter buffering;
   none of that belongs in this codec module.
+- The `rtp_pion_packetize` example shows full RTP header marshaling with
+  Pion RTP, but still does not open sockets, implement RTCP, or provide a
+  complete RTP media stack.
 - Each `g729.Encoder` and `g729.Decoder` instance is single-threaded.
   Concurrent calls on the same instance are a data race; create one
   instance per RTP stream / channel.
