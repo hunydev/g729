@@ -64,6 +64,12 @@ go test -run TestExternalFFmpegBlackboxQuality_SPEECH -count=1 -v
 
 env GOCACHE=/tmp/go-build \
 G729_FFMPEG_BLACKBOX_QUALITY=1 \
+G729_REQUIRE_FFMPEG_BLACKBOX_QUALITY=1 \
+G729_FFMPEG_BLACKBOX_REPORT=/tmp/g729-encoder-speech-ffmpeg.json \
+go test -run TestExternalFFmpegBlackboxQuality_SPEECH -count=1 -v
+
+env GOCACHE=/tmp/go-build \
+G729_FFMPEG_BLACKBOX_QUALITY=1 \
 G729_REQUIRE_LOCAL_DECODER_FFMPEG_QUALITY=1 \
 go test -run TestExternalFFmpegBlackboxLocalDecoderDelta_SPEECH -count=1 -v
 ```
@@ -89,8 +95,8 @@ go test -run TestExternalSamplePESQMatrixDiagnostic -count=1 -v
 
 ## Next Work
 
-- Convert the SPEECH black-box output into a small machine-readable report so
-  release logs do not depend on manually copied `go test -v` output.
+- Extend the machine-readable FFmpeg black-box report from SPEECH to the private
+  sample matrix, without committing private media or oracle data.
 - Build a private sample manifest format that records source duration, speech
   type, language/accent, input headroom, and whether the sample is
   redistributable.

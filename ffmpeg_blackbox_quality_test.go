@@ -3,6 +3,7 @@ package g729
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -122,6 +123,22 @@ func TestExternalFFmpegBlackboxQuality_SPEECH(t *testing.T) {
 		t.Logf("%-42s %6d %10.0f %10.2f %10.2f", "our encoder shift "+itoaSigned(shift)+" -> ffmpeg", sh, rmsAmp(shiftedFF), g, s)
 	}
 	t.Logf("encoder-only delta vs ffmpeg reference decode: GlobalSNR %+0.2f dB ; SegSNR %+0.2f dB", gOur-gITU, sOur-sITU)
+	if reportPath := strings.TrimSpace(os.Getenv("G729_FFMPEG_BLACKBOX_REPORT")); reportPath != "" {
+		writeFFmpegBlackboxQualityReport(t, reportPath, ffmpegBlackboxQualityReport{
+			Schema:        "g729.encoder.ffmpeg_blackbox_quality.v1",
+			Corpus:        "SPEECH",
+			Frames:        frames,
+			Samples:       totalSamples,
+			MaxShift:      maxShift,
+			GlobalDeltaDB: gOur - gITU,
+			SegDeltaDB:    sOur - sITU,
+			Metrics: []ffmpegBlackboxQualityMetric{
+				{Pipeline: "SPEECH.PST", Shift: shPST, RMS: rmsAmp(pst), GlobalSNRDB: gPST, SegSNRDB: sPST},
+				{Pipeline: "SPEECH.BIT -> ffmpeg", Shift: shITU, RMS: rmsAmp(ituFF), GlobalSNRDB: gITU, SegSNRDB: sITU},
+				{Pipeline: "our Core encoder -> ffmpeg", Shift: shOur, RMS: rmsAmp(ourFF), GlobalSNRDB: gOur, SegSNRDB: sOur},
+			},
+		})
+	}
 	if os.Getenv("G729_REQUIRE_FFMPEG_BLACKBOX_QUALITY") == "1" {
 		const minDeltaDB = -2.0
 		if gOur-gITU < minDeltaDB || sOur-sITU < minDeltaDB {
@@ -129,6 +146,38 @@ func TestExternalFFmpegBlackboxQuality_SPEECH(t *testing.T) {
 				gOur-gITU, sOur-sITU, minDeltaDB)
 		}
 	}
+}
+
+type ffmpegBlackboxQualityReport struct {
+	Schema        string                        `json:"schema"`
+	Corpus        string                        `json:"corpus"`
+	Frames        int                           `json:"frames"`
+	Samples       int                           `json:"samples"`
+	MaxShift      int                           `json:"maxShiftSamples"`
+	GlobalDeltaDB float64                       `json:"globalDeltaDb"`
+	SegDeltaDB    float64                       `json:"segDeltaDb"`
+	Metrics       []ffmpegBlackboxQualityMetric `json:"metrics"`
+}
+
+type ffmpegBlackboxQualityMetric struct {
+	Pipeline    string  `json:"pipeline"`
+	Shift       int     `json:"shiftSamples"`
+	RMS         float64 `json:"rms"`
+	GlobalSNRDB float64 `json:"globalSnrDb"`
+	SegSNRDB    float64 `json:"segSnrDb"`
+}
+
+func writeFFmpegBlackboxQualityReport(t *testing.T, path string, report ffmpegBlackboxQualityReport) {
+	t.Helper()
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal FFmpeg black-box report: %v", err)
+	}
+	data = append(data, '\n')
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write FFmpeg black-box report %s: %v", path, err)
+	}
+	t.Logf("wrote FFmpeg black-box quality report: %s", path)
 }
 
 func TestWriteOurEncodedRawG729UsesProductDefault(t *testing.T) {
