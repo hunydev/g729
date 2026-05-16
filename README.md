@@ -1,4 +1,8 @@
-# g729
+<p align="center">
+  <img src="docs/favicon.svg" alt="g729 logo" width="96" height="96">
+</p>
+
+<h1 align="center">g729</h1>
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/hunydev/g729.svg)](https://pkg.go.dev/github.com/hunydev/g729)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)

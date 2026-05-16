@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="g729 logo">
+  <rect width="64" height="64" rx="16" fill="#111318"/>
+  <path d="M15 35c5 0 5-8 10-8s5 8 10 8 5-8 10-8 5 8 10 8" fill="none" stroke="#79d8ca" stroke-width="5" stroke-linecap="round"/>
+  <path d="M16 45h32" fill="none" stroke="#f6a65c" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="49" cy="19" r="5" fill="#79d8ca"/>
+</svg>
