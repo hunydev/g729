@@ -669,18 +669,33 @@ pre code {
 .wasm-panel {
   display: grid;
   gap: 18px;
-  padding: 24px;
+  padding: clamp(20px, 2.6vw, 28px);
   border: 1px solid var(--line);
-  border-radius: 22px;
+  border-radius: 26px;
   background: var(--surface);
   min-width: 0;
 }
 
 .wasm-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 0.64fr) minmax(0, 1.36fr);
-  gap: clamp(30px, 5vw, 64px);
+  grid-template-columns: minmax(420px, 0.95fr) minmax(0, 1.05fr);
+  gap: clamp(28px, 4vw, 54px);
   align-items: start;
+}
+
+.wasm-copy {
+  max-width: 640px;
+}
+
+.wasm-copy h2 {
+  max-width: 640px;
+  font-size: clamp(34px, 5vw, 58px);
+}
+
+.wasm-copy p:not(.eyebrow) {
+  margin: 0;
+  color: var(--muted);
+  font-size: 18px;
 }
 
 .file-picker {
@@ -779,6 +794,7 @@ pre code {
 }
 
 .wasm-player {
+  min-width: 0;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -810,6 +826,20 @@ pre code {
   border-top: 1px solid var(--line);
   color: var(--muted);
   background: var(--surface);
+}
+
+@media (max-width: 1100px) {
+  .wasm-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .wasm-copy {
+    max-width: 860px;
+  }
+
+  .wasm-audio-grid {
+    grid-template-columns: repeat(2, minmax(280px, 1fr));
+  }
 }
 
 @media (max-width: 980px) {
