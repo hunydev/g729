@@ -60,7 +60,7 @@ Single-core encode soak:
 ```sh
 go run ./cmd/g729loadtest \
   -mode=encode -profile=core -streams=1 -gomaxprocs=1 -duration=60s \
-  -max-p99-deadline-ratio=1
+  -max-p99-deadline-ratio=1 -json
 ```
 
 Single-core multi-stream capacity probe:
@@ -68,7 +68,7 @@ Single-core multi-stream capacity probe:
 ```sh
 go run ./cmd/g729loadtest \
   -mode=encode -profile=core -streams=64 -gomaxprocs=1 -duration=60s \
-  -max-p99-deadline-ratio=1
+  -max-p99-deadline-ratio=1 -json
 ```
 
 Loopback stress, useful as a conservative upper-bound check:
@@ -76,7 +76,7 @@ Loopback stress, useful as a conservative upper-bound check:
 ```sh
 go run ./cmd/g729loadtest \
   -mode=loopback -profile=core -streams=32 -gomaxprocs=1 -duration=60s \
-  -max-p99-deadline-ratio=1
+  -max-p99-deadline-ratio=1 -json
 ```
 
 The command reports:
@@ -87,6 +87,10 @@ The command reports:
 - `codec_deadline_misses`: frames whose codec processing time exceeded 10 ms.
 - `p99_deadline`: p99 processing time divided by the 10 ms frame deadline.
 - `wake_late_*`: scheduler/timer wake-up lateness in realtime mode.
+
+Use `-json` when recording release or CI artifacts. Duration fields in the
+JSON report are emitted as nanoseconds with companion microsecond stats for
+the processing and wake-late distributions.
 
 Treat wake lateness as an OS scheduling signal, not codec work. A loaded VM can
 wake goroutines late even when codec processing is well below the 10 ms budget.

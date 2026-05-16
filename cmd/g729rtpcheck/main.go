@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -16,6 +17,8 @@ const (
 	rtpPayloadType18 = 18
 )
 
+var stdout io.Writer = os.Stdout
+
 type options struct {
 	mode        string
 	path        string
@@ -23,19 +26,29 @@ type options struct {
 	payloadType int
 	decode      bool
 	strictTS    bool
+	jsonOutput  bool
 }
 
 type report struct {
-	Mode          string
-	Packets       int
-	Frames        int
-	PayloadBytes  int
-	DecodedFrames int
-	Skipped       int
+	Mode             string `json:"mode"`
+	Packets          int    `json:"packets"`
+	Frames           int    `json:"frames"`
+	PayloadBytes     int    `json:"payloadBytes"`
+	DecodedFrames    int    `json:"decodedFrames"`
+	Skipped          int    `json:"skipped"`
+	MarkerPackets    int    `json:"markerPackets"`
+	PaddingPackets   int    `json:"paddingPackets"`
+	ExtensionPackets int    `json:"extensionPackets"`
+	CSRCEntries      int    `json:"csrcEntries"`
+	Streams          int    `json:"streams"`
 }
 
 type rtpPacket struct {
 	PayloadType int
+	Marker      bool
+	Padding     bool
+	Extension   bool
+	CSRCCount   int
 	Sequence    uint16
 	Timestamp   uint32
 	SSRC        uint32
@@ -56,6 +69,7 @@ func main() {
 	flag.IntVar(&opt.payloadType, "pt", rtpPayloadType18, "RTP payload type to inspect in pcap mode")
 	flag.BoolVar(&opt.decode, "decode", false, "decode each 10-byte G.729 frame to exercise the codec API")
 	flag.BoolVar(&opt.strictTS, "strict-ts", false, "require RTP sequence + timestamp continuity per SSRC")
+	flag.BoolVar(&opt.jsonOutput, "json", false, "print a machine-readable JSON report")
 	flag.Parse()
 
 	in := io.Reader(os.Stdin)
@@ -72,8 +86,7 @@ func main() {
 	if err != nil {
 		exitErr(err)
 	}
-	fmt.Printf("mode=%s packets=%d frames=%d payload_bytes=%d decoded_frames=%d skipped=%d\n",
-		rep.Mode, rep.Packets, rep.Frames, rep.PayloadBytes, rep.DecodedFrames, rep.Skipped)
+	printReport(rep, opt.jsonOutput)
 }
 
 func exitErr(err error) {
@@ -132,6 +145,9 @@ func analyzePayloadStream(r io.Reader, opt options) (report, error) {
 			}
 		}
 	}
+	if rep.Packets > 0 {
+		rep.Streams = 1
+	}
 	return rep, nil
 }
 
@@ -153,6 +169,7 @@ func analyzePCAP(r io.Reader, opt options) (report, error) {
 	var dec g729.Decoder
 	var pcm [g729.FrameSamples]int16
 	streams := map[uint32]streamState{}
+	seenStreams := map[uint32]struct{}{}
 
 	for i, frame := range pcap.frames {
 		rtp, ok, err := parseEthernetIPv4UDPRTP(frame)
@@ -168,6 +185,17 @@ func analyzePCAP(r io.Reader, opt options) (report, error) {
 			rep.Skipped++
 			continue
 		}
+		seenStreams[rtp.SSRC] = struct{}{}
+		if rtp.Marker {
+			rep.MarkerPackets++
+		}
+		if rtp.Padding {
+			rep.PaddingPackets++
+		}
+		if rtp.Extension {
+			rep.ExtensionPackets++
+		}
+		rep.CSRCEntries += rtp.CSRCCount
 
 		frames, err := validatePayload(rtp.Payload, framesPerPacket)
 		if err != nil {
@@ -210,8 +238,23 @@ func analyzePCAP(r io.Reader, opt options) (report, error) {
 	if rep.Packets == 0 {
 		return rep, fmt.Errorf("no RTP packets with payload type %d found", opt.payloadType)
 	}
+	rep.Streams = len(seenStreams)
 	_ = rtpClockHz
 	return rep, nil
+}
+
+func printReport(rep report, jsonOutput bool) {
+	if jsonOutput {
+		data, err := json.MarshalIndent(rep, "", "  ")
+		if err != nil {
+			exitErr(err)
+		}
+		fmt.Fprintln(stdout, string(data))
+		return
+	}
+	fmt.Fprintf(stdout, "mode=%s packets=%d frames=%d payload_bytes=%d decoded_frames=%d skipped=%d marker_packets=%d padding_packets=%d extension_packets=%d csrc_entries=%d streams=%d\n",
+		rep.Mode, rep.Packets, rep.Frames, rep.PayloadBytes, rep.DecodedFrames, rep.Skipped,
+		rep.MarkerPackets, rep.PaddingPackets, rep.ExtensionPackets, rep.CSRCEntries, rep.Streams)
 }
 
 func packetFrameCount(ptime int) (int, error) {
@@ -352,6 +395,7 @@ func parseRTP(data []byte) (rtpPacket, error) {
 		return rtpPacket{}, errors.New("RTP version is not 2")
 	}
 	cc := int(data[0] & 0x0f)
+	padding := data[0]&0x20 != 0
 	x := data[0]&0x10 != 0
 	off := 12 + cc*4
 	if len(data) < off {
@@ -367,11 +411,23 @@ func parseRTP(data []byte) (rtpPacket, error) {
 			return rtpPacket{}, errors.New("short RTP extension payload")
 		}
 	}
+	end := len(data)
+	if padding {
+		padLen := int(data[len(data)-1])
+		if padLen == 0 || padLen > len(data)-off {
+			return rtpPacket{}, errors.New("invalid RTP padding length")
+		}
+		end -= padLen
+	}
 	return rtpPacket{
 		PayloadType: int(data[1] & 0x7f),
+		Marker:      data[1]&0x80 != 0,
+		Padding:     padding,
+		Extension:   x,
+		CSRCCount:   cc,
 		Sequence:    binary.BigEndian.Uint16(data[2:4]),
 		Timestamp:   binary.BigEndian.Uint32(data[4:8]),
 		SSRC:        binary.BigEndian.Uint32(data[8:12]),
-		Payload:     data[off:],
+		Payload:     data[off:end],
 	}, nil
 }

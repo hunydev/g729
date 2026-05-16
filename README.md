@@ -199,6 +199,9 @@ go run ./cmd/g729rtpcheck -mode=payload -ptime=10 -in output.g729
 
 # Validate payload type 18 packets in a pcap and check RTP continuity.
 go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -in capture.pcap
+
+# Add -json when the result should be archived by CI or release tooling.
+go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -json -in capture.pcap
 ```
 
 ---

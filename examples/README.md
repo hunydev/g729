@@ -36,6 +36,7 @@ go run ./examples/rtp_packetize -ptime=20 < output.g729
 # Validate raw payload bytes or an RTP pcap:
 go run ./cmd/g729rtpcheck -mode=payload -ptime=10 -in output.g729
 go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -in capture.pcap
+go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -json -in capture.pcap
 ```
 
 Build all example binaries:

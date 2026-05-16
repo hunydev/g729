@@ -50,7 +50,7 @@ blind listening preferred Core on private samples.
 | Decoder separation | Compare local decoder and FFmpeg on the same local encoder payload | `TestExternalFFmpegBlackboxLocalDecoderDelta_SPEECH` |
 | Profile comparison | Track Core, CoreFast, and diagnostic profile quality without changing defaults | `TestExternalFFmpegBlackboxProfileCompare_SPEECH` and external sample profile diagnostics |
 | Private listening matrix | Compare Core, diagnostic profiles, `bcg729` black-box anchor, FFmpeg decode, and exact local decode on private samples | `TestExternalSamplePESQMatrixDiagnostic` and comparison web app blind arena |
-| Realtime safety | Quantify encoder RTF, p95/p99 processing time, deadline ratio, and deadline misses | `cmd/g729loadtest` |
+| Realtime safety | Quantify encoder RTF, p95/p99 processing time, deadline ratio, and deadline misses | `cmd/g729loadtest -json` |
 
 ## Required Product-Default Commands
 
@@ -72,6 +72,10 @@ env GOCACHE=/tmp/go-build \
 G729_FFMPEG_BLACKBOX_QUALITY=1 \
 G729_REQUIRE_LOCAL_DECODER_FFMPEG_QUALITY=1 \
 go test -run TestExternalFFmpegBlackboxLocalDecoderDelta_SPEECH -count=1 -v
+
+env GOCACHE=/tmp/go-build go run ./cmd/g729loadtest \
+  -mode=encode -profile=core -streams=1 -duration=5s -gomaxprocs=1 \
+  -max-codec-deadline-miss-ratio=0 -max-p99-deadline-ratio=0.10 -json
 ```
 
 ## Exploratory Commands

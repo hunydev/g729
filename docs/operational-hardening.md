@@ -44,10 +44,13 @@ pcaps:
 go run ./cmd/g729rtpcheck -mode=payload -ptime=10 -in output.g729
 go run ./cmd/g729rtpcheck -mode=payload -ptime=20 -in output.g729
 go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -in capture.pcap
+go run ./cmd/g729rtpcheck -mode=pcap -pt=18 -ptime=20 -strict-ts -json -in capture.pcap
 ```
 
 The checker verifies payload length, packetized frame count, optional RTP
-sequence/timestamp continuity, and optional decode traversal.
+sequence/timestamp continuity, and optional decode traversal. The report also
+counts matching SSRC streams, RTP marker packets, padding packets, extension
+headers, and CSRC entries. Use `-json` for CI/release artifacts.
 
 ## Encoder Quality Gate
 
@@ -80,15 +83,15 @@ Single-core smoke commands:
 ```sh
 env GOCACHE=/tmp/go-build go run ./cmd/g729loadtest \
   -mode=encode -profile=core -streams=1 -duration=5s -gomaxprocs=1 \
-  -max-codec-deadline-miss-ratio=0 -max-p99-deadline-ratio=0.10
+  -max-codec-deadline-miss-ratio=0 -max-p99-deadline-ratio=0.10 -json
 
 env GOCACHE=/tmp/go-build go run ./cmd/g729loadtest \
   -mode=decode -streams=1 -duration=5s -gomaxprocs=1 \
-  -max-codec-deadline-miss-ratio=0 -max-p99-deadline-ratio=0.05
+  -max-codec-deadline-miss-ratio=0 -max-p99-deadline-ratio=0.05 -json
 
 env GOCACHE=/tmp/go-build go run ./cmd/g729loadtest \
   -mode=loopback -profile=core -streams=1 -duration=5s -gomaxprocs=1 \
-  -max-codec-deadline-miss-ratio=0 -max-p99-deadline-ratio=0.15
+  -max-codec-deadline-miss-ratio=0 -max-p99-deadline-ratio=0.15 -json
 ```
 
 Longer production soak runs should use the same commands with a longer

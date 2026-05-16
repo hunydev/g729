@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -17,6 +18,8 @@ import (
 
 const frameDeadline = 10 * time.Millisecond
 
+var stdout io.Writer = os.Stdout
+
 func main() {
 	var (
 		mode              = flag.String("mode", "encode", "operation: encode, decode, loopback, or streaming")
@@ -29,6 +32,7 @@ func main() {
 		maxP99Ratio       = flag.Float64("max-p99-deadline-ratio", 1.0, "fail if p99 processing time divided by the 10 ms frame deadline exceeds this value")
 		maxWakeLateRatio  = flag.Float64("max-wake-late-ratio", 1.0, "fail if realtime wake-late ratio exceeds this value")
 		wakeLateThreshold = flag.Duration("wake-late-threshold", time.Millisecond, "scheduler wake lateness threshold")
+		jsonOutput        = flag.Bool("json", false, "print a machine-readable JSON report")
 	)
 	flag.Parse()
 
@@ -68,7 +72,7 @@ func main() {
 	elapsed := time.Since(start)
 
 	report := mergeResults(results, elapsed, *streams, *gomaxprocs, operation, profileNameString(profile), *realtime, *wakeLateThreshold)
-	printReport(report)
+	printReport(report, *jsonOutput)
 
 	exitCode := 0
 	if report.Errors > 0 {
@@ -369,22 +373,111 @@ func percentile(sorted []int64, p float64) int64 {
 	return sorted[idx]
 }
 
-func printReport(report loadReport) {
-	fmt.Printf("g729 load test\n")
-	fmt.Printf("mode=%s profile=%s realtime=%t streams=%d gomaxprocs=%d elapsed=%s\n",
+func printReport(report loadReport, jsonOutput bool) {
+	if jsonOutput {
+		data, err := json.MarshalIndent(report.toJSON(), "", "  ")
+		if err != nil {
+			failf("%v", err)
+		}
+		fmt.Fprintln(stdout, string(data))
+		return
+	}
+
+	fmt.Fprintf(stdout, "g729 load test\n")
+	fmt.Fprintf(stdout, "mode=%s profile=%s realtime=%t streams=%d gomaxprocs=%d elapsed=%s\n",
 		report.Mode, report.Profile, report.Realtime, report.Streams, report.GOMAXPROCS, report.Elapsed)
-	fmt.Printf("frames=%d errors=%d media=%s processing=%s\n",
+	fmt.Fprintf(stdout, "frames=%d errors=%d media=%s processing=%s\n",
 		report.Frames, report.Errors, report.MediaDuration, report.ProcessingTotal)
-	fmt.Printf("wall_rtf=%.6f wall_x_realtime=%.2fx codec_rtf=%.6f codec_streams_per_core=%.2f\n",
+	fmt.Fprintf(stdout, "wall_rtf=%.6f wall_x_realtime=%.2fx codec_rtf=%.6f codec_streams_per_core=%.2f\n",
 		report.WallRTF, report.WallXRealtime, report.CodecRTF, report.CodecStreamsPerCore)
-	fmt.Printf("codec_deadline_misses=%d ratio=%.6f deadline=%s\n",
+	fmt.Fprintf(stdout, "codec_deadline_misses=%d ratio=%.6f deadline=%s\n",
 		report.CodecDeadlineMisses, report.CodecDeadlineMissRatio, frameDeadline)
-	fmt.Printf("processing_us mean=%.2f p50=%.2f p95=%.2f p99=%.2f max=%.2f p99_deadline=%.6f\n",
+	fmt.Fprintf(stdout, "processing_us mean=%.2f p50=%.2f p95=%.2f p99=%.2f max=%.2f p99_deadline=%.6f\n",
 		us(report.ProcessingStats.Mean), us(report.ProcessingStats.P50), us(report.ProcessingStats.P95), us(report.ProcessingStats.P99), us(report.ProcessingStats.Max), report.P99DeadlineRatio)
 	if report.Realtime {
-		fmt.Printf("wake_late_over_%s=%d ratio=%.6f\n", report.WakeLateThreshold, report.WakeLate, report.WakeLateRatio)
-		fmt.Printf("wake_late_us mean=%.2f p50=%.2f p95=%.2f p99=%.2f max=%.2f\n",
+		fmt.Fprintf(stdout, "wake_late_over_%s=%d ratio=%.6f\n", report.WakeLateThreshold, report.WakeLate, report.WakeLateRatio)
+		fmt.Fprintf(stdout, "wake_late_us mean=%.2f p50=%.2f p95=%.2f p99=%.2f max=%.2f\n",
 			us(report.WakeLateStats.Mean), us(report.WakeLateStats.P50), us(report.WakeLateStats.P95), us(report.WakeLateStats.P99), us(report.WakeLateStats.Max))
+	}
+}
+
+type loadReportJSON struct {
+	Streams                int               `json:"streams"`
+	GOMAXPROCS             int               `json:"gomaxprocs"`
+	Mode                   string            `json:"mode"`
+	Profile                string            `json:"profile"`
+	Realtime               bool              `json:"realtime"`
+	ElapsedNanos           int64             `json:"elapsedNanos"`
+	Frames                 int64             `json:"frames"`
+	Errors                 int64             `json:"errors"`
+	CodecDeadlineMisses    int64             `json:"codecDeadlineMisses"`
+	WakeLate               int64             `json:"wakeLate"`
+	WakeLateThresholdNanos int64             `json:"wakeLateThresholdNanos"`
+	CodecDeadlineMissRatio float64           `json:"codecDeadlineMissRatio"`
+	WakeLateRatio          float64           `json:"wakeLateRatio"`
+	MediaDurationNanos     int64             `json:"mediaDurationNanos"`
+	ProcessingTotalNanos   int64             `json:"processingTotalNanos"`
+	WallRTF                float64           `json:"wallRTF"`
+	WallXRealtime          float64           `json:"wallXRealtime"`
+	CodecRTF               float64           `json:"codecRTF"`
+	CodecStreamsPerCore    float64           `json:"codecStreamsPerCore"`
+	P99DeadlineRatio       float64           `json:"p99DeadlineRatio"`
+	ProcessingStats        durationStatsJSON `json:"processingStats"`
+	WakeLateStats          durationStatsJSON `json:"wakeLateStats"`
+}
+
+type durationStatsJSON struct {
+	MeanNanos int64   `json:"meanNanos"`
+	P50Nanos  int64   `json:"p50Nanos"`
+	P95Nanos  int64   `json:"p95Nanos"`
+	P99Nanos  int64   `json:"p99Nanos"`
+	MaxNanos  int64   `json:"maxNanos"`
+	MeanUS    float64 `json:"meanUS"`
+	P50US     float64 `json:"p50US"`
+	P95US     float64 `json:"p95US"`
+	P99US     float64 `json:"p99US"`
+	MaxUS     float64 `json:"maxUS"`
+}
+
+func (report loadReport) toJSON() loadReportJSON {
+	return loadReportJSON{
+		Streams:                report.Streams,
+		GOMAXPROCS:             report.GOMAXPROCS,
+		Mode:                   report.Mode,
+		Profile:                report.Profile,
+		Realtime:               report.Realtime,
+		ElapsedNanos:           report.Elapsed.Nanoseconds(),
+		Frames:                 report.Frames,
+		Errors:                 report.Errors,
+		CodecDeadlineMisses:    report.CodecDeadlineMisses,
+		WakeLate:               report.WakeLate,
+		WakeLateThresholdNanos: report.WakeLateThreshold.Nanoseconds(),
+		CodecDeadlineMissRatio: report.CodecDeadlineMissRatio,
+		WakeLateRatio:          report.WakeLateRatio,
+		MediaDurationNanos:     report.MediaDuration.Nanoseconds(),
+		ProcessingTotalNanos:   report.ProcessingTotal.Nanoseconds(),
+		WallRTF:                report.WallRTF,
+		WallXRealtime:          report.WallXRealtime,
+		CodecRTF:               report.CodecRTF,
+		CodecStreamsPerCore:    report.CodecStreamsPerCore,
+		P99DeadlineRatio:       report.P99DeadlineRatio,
+		ProcessingStats:        report.ProcessingStats.toJSON(),
+		WakeLateStats:          report.WakeLateStats.toJSON(),
+	}
+}
+
+func (stats durationStats) toJSON() durationStatsJSON {
+	return durationStatsJSON{
+		MeanNanos: stats.Mean.Nanoseconds(),
+		P50Nanos:  stats.P50.Nanoseconds(),
+		P95Nanos:  stats.P95.Nanoseconds(),
+		P99Nanos:  stats.P99.Nanoseconds(),
+		MaxNanos:  stats.Max.Nanoseconds(),
+		MeanUS:    us(stats.Mean),
+		P50US:     us(stats.P50),
+		P95US:     us(stats.P95),
+		P99US:     us(stats.P99),
+		MaxUS:     us(stats.Max),
 	}
 }
 
