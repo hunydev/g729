@@ -1783,6 +1783,21 @@ const pageHTML = `<!doctype html>
     .tab.active { background:#111318; color:#fff; }
     .tab-panel { display:none; }
     .tab-panel.active { display:block; }
+    .tree-wrap { margin-top:18px; }
+    .tree-wrap h2 { margin:0; font-size:20px; }
+    .tree-wrap > p { margin:6px 0 0; color:var(--muted); }
+    .profile-tree { display:grid; gap:14px; margin-top:16px; }
+    .tree-node { position:relative; border:1px solid var(--line); border-radius:10px; background:#fff; padding:14px; display:grid; gap:10px; }
+    .tree-node.root { border-color:#111318; box-shadow:0 10px 30px rgba(17,19,24,.07); }
+    .tree-node.anchor { background:#f8fafc; }
+    .tree-title { display:flex; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap; }
+    .tree-title strong { font-size:16px; }
+    .tree-title small { color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:.03em; }
+    .tree-note { margin:0; color:var(--muted); font-size:13px; line-height:1.45; }
+    .tree-metrics { display:flex; flex-wrap:wrap; gap:8px; }
+    .tree-badge { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:999px; padding:6px 9px; background:#f8fafc; color:#333843; font-size:12px; }
+    .tree-badge.missing { color:var(--muted); opacity:.7; }
+    .tree-children { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:14px; padding-left:18px; border-left:2px solid var(--line); }
     .grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:16px; margin-top:18px; }
     .battle-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:16px; }
     .battle-arena { display:grid; gap:16px; margin-top:18px; }
@@ -1815,7 +1830,7 @@ const pageHTML = `<!doctype html>
     .noise-note { margin:10px 0 0; color:var(--muted); font-size:13px; line-height:1.45; }
     .seek-cell { display:flex; gap:8px; align-items:center; }
     .seek { min-height:28px; padding:0 10px; background:#111318; font-size:12px; }
-    @media (max-width: 820px) { .controls, .battle-controls, .grid, .battle-grid, .battle-result { grid-template-columns:1fr; } main, header { padding:20px; } }
+    @media (max-width: 820px) { .controls, .battle-controls, .tree-children, .grid, .battle-grid, .battle-result { grid-template-columns:1fr; } main, header { padding:20px; } }
   </style>
 </head>
 <body>
@@ -1840,6 +1855,7 @@ const pageHTML = `<!doctype html>
         <p class="status" id="status">Ready. For raw PCM, use 8 kHz mono signed 16-bit little-endian samples.</p>
         <div class="downloads" id="downloads"></div>
       </section>
+      <section id="profileTree"></section>
       <section class="grid" id="audioGrid"></section>
       <section id="metrics"></section>
     </section>
@@ -1885,6 +1901,27 @@ const pageHTML = `<!doctype html>
       external_local: { label: "bcg729 -> local decode" },
       external_ffmpeg: { label: "bcg729 -> FFmpeg decode" }
     };
+    const profileLineage = {
+      title: "Converted source PCM",
+      kind: "root input",
+      note: "All candidates start from the same 8 kHz mono signed 16-bit PCM produced from the uploaded file.",
+      keys: ["source"],
+      children: [
+        {
+          title: "Our Core encoder",
+          kind: "product default root",
+          note: "NewEncoder() / NewStreamingEncoder() default. This is the baseline pure-Go send path.",
+          keys: ["core_local", "core_ffmpeg"]
+        },
+        {
+          title: "bcg729 black-box anchor",
+          kind: "external reference anchor",
+          note: "External executable anchor, used only for black-box comparison. It is not source-derived and does not affect our encoder implementation.",
+          keys: ["external_local", "external_ffmpeg"],
+          className: "anchor"
+        }
+      ]
+    };
     const battleState = { trials: [], index: 0, pair: [] };
 
     document.querySelectorAll(".tab").forEach((tab) => {
@@ -1900,6 +1937,7 @@ const pageHTML = `<!doctype html>
       if (!file) { $("status").textContent = "파일을 선택하세요."; return; }
       $("run").disabled = true;
       $("status").textContent = "Uploading and running comparison.";
+      $("profileTree").replaceChildren();
       $("audioGrid").replaceChildren();
       $("metrics").replaceChildren();
       $("downloads").replaceChildren();
@@ -2147,6 +2185,7 @@ const pageHTML = `<!doctype html>
     }
 
     function render(data) {
+      renderProfileTree(data);
       const grid = $("audioGrid");
       Object.entries(labels).forEach(([key, label]) => {
         if (!data.audio || !data.audio[key]) return;
@@ -2178,6 +2217,50 @@ const pageHTML = `<!doctype html>
       renderNotes(data);
       renderNoise(data);
       renderClips(data);
+    }
+    function renderProfileTree(data) {
+      const host = $("profileTree");
+      host.replaceChildren();
+      const section = document.createElement("section");
+      section.className = "card tree-wrap";
+      section.innerHTML =
+        "<h2>Candidate lineage</h2>" +
+        "<p>Full compare keeps the metric table below, and this tree shows the two active comparison roots without exposing lower-scoring diagnostic branches.</p>" +
+        "<div class=\"profile-tree\">" + renderLineageNode(profileLineage, data, true) + "</div>";
+      host.append(section);
+    }
+    function renderLineageNode(node, data, root = false) {
+      const cls = ["tree-node"];
+      if (root) cls.push("root");
+      if (node.className) cls.push(node.className);
+      const children = (node.children || []).length
+        ? "<div class=\"tree-children\">" + node.children.map((child) => renderLineageNode(child, data, false)).join("") + "</div>"
+        : "";
+      return "<article class=\"" + cls.join(" ") + "\">" +
+        "<div class=\"tree-title\"><strong>" + escapeHTML(node.title) + "</strong><small>" + escapeHTML(node.kind || "") + "</small></div>" +
+        "<p class=\"tree-note\">" + escapeHTML(node.note || "") + "</p>" +
+        renderLineageBadges(node.keys || [], data) +
+        children +
+        "</article>";
+    }
+    function renderLineageBadges(keys, data) {
+      if (!keys.length) return "";
+      return "<div class=\"tree-metrics\">" + keys.map((key) => lineageBadge(key, data)).join("") + "</div>";
+    }
+    function lineageBadge(key, data) {
+      if (key === "source") {
+        const sec = data && data.input ? fmtMaybe(data.input.durationSec, 2) + "s" : "input";
+        return "<span class=\"tree-badge\">" + escapeHTML(labels[key] || key) + " / " + sec + "</span>";
+      }
+      const metric = ((data && data.metrics) || []).find((m) => m.key === key);
+      if (!metric) {
+        return "<span class=\"tree-badge missing\">" + escapeHTML(labels[key] || key) + " / not loaded</span>";
+      }
+      return "<span class=\"tree-badge\">" + escapeHTML(labels[key] || key) +
+        " / PESQ " + fmtMaybe(metric.pesq, 3) +
+        " / SNR " + fmt(metric.snrDb) +
+        " / clip " + metric.nearClip +
+        "</span>";
     }
     function renderNotes(data) {
       const notes = ((data && data.notes) || []).filter((note) => String(note).includes("PESQ"));
