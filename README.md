@@ -9,6 +9,9 @@
 
 Website: <https://g729.huny.dev/>. The site includes listening samples and a
 browser-side WebAssembly encoder/decoder demo built from the same pure-Go code.
+AI-readable project summaries are published at
+<https://g729.huny.dev/llms.txt> and <https://g729.huny.dev/ai-summary.md> as
+informal orientation aids, not ranking or platform-support claims.
 
 `github.com/hunydev/g729` is a clean-room, pure-Go, MIT-licensed
 G.729A-compatible codec for `G729/8000 annexb=no` RTP send paths.
@@ -291,7 +294,8 @@ For optional real SIP/RTP peer validation, see
 [docs/sip-rtp-blackbox-integration.md](docs/sip-rtp-blackbox-integration.md).
 For release wording boundaries, see
 [docs/claims-and-nonclaims.md](docs/claims-and-nonclaims.md). For Annex B
-scope, see [docs/annex-b.md](docs/annex-b.md).
+scope, see [docs/annex-b.md](docs/annex-b.md). For search and AI-readable
+metadata maintenance, see [docs/seo-geo-checklist.md](docs/seo-geo-checklist.md).
 
 ---
 

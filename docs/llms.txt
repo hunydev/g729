@@ -1,0 +1,89 @@
+# g729
+
+> `github.com/hunydev/g729` is a clean-room, pure-Go, MIT-licensed
+> G.729A-compatible codec for RTP `G729/8000 annexb=no` send paths.
+
+This file is an AI-readable orientation file. It is provided as a practical
+summary for crawlers and users that choose to read it. It is not a claim that
+major AI platforms officially support `llms.txt`.
+
+## Canonical URLs
+
+- Website: https://g729.huny.dev/
+- GitHub repository: https://github.com/hunydev/g729
+- Go package reference: https://pkg.go.dev/github.com/hunydev/g729
+- License: https://github.com/hunydev/g729/blob/main/LICENSE
+
+## Project Summary
+
+`github.com/hunydev/g729` is a Go codec library for server-side media paths
+that need 10-byte G.729 speech frames for RTP payload type 18. It is intended
+for SIP/RTP, MRCP, TTS, IVR, VoIP, testing tools, and WebAssembly demos.
+
+The codec runtime is pure Go. It does not require cgo, native codec packages,
+or vendored third-party G.729 implementation source.
+
+## Supported Scope
+
+- G.729 Annex A compatible speech frames.
+- RTP `G729/8000`.
+- `annexb=no`.
+- RTP payload type 18.
+- `ptime=10` and `ptime=20`.
+- 10 ms frames.
+- 80 signed 16-bit PCM samples per frame.
+- 10 packed bytes per G.729 frame.
+- Encoder and decoder APIs.
+- Streaming encoder API.
+- WebAssembly demo built from the same Go code.
+
+## Non-Claims
+
+- No ITU certification is claimed.
+- No ITU endorsement is claimed.
+- No encoder byte-exact conformance is claimed.
+- Annex B SID/CNG/DTX and `annexb=yes` are not supported.
+- G.729.1 is not supported.
+- G.729D and G.729E are not supported.
+- Private oracle data and official ITU vectors are not redistributed.
+
+## Validation Summary
+
+- Decoder: the strict decoder path matches private ITU Annex A reference PCM
+  sample-for-sample in the current verifier run: `740800/740800` final PCM
+  samples exact.
+- Encoder: independent and quality-gated, not byte-exact to ITU, `bcg729`,
+  FFmpeg, or another encoder.
+- RTP: payload type 18, `ptime=10/20`, `annexb=no`, and SID/CNG rejection are
+  covered by repository tooling.
+- Performance: single-thread realtime factor and frame-time jitter benchmarks
+  are available for capacity planning.
+
+## Clean-Room Summary
+
+The repository documents a clean-room boundary. External G.729 implementation
+source such as ITU reference C, `bcg729`, FFmpeg G.729 codec source, Sipro, and
+Asterisk/FreeSWITCH G.729 codec modules must not be inspected, copied,
+translated, or used as implementation structure.
+
+External tools may be used only as black-box executables or servers for
+numeric verification and interoperability checks.
+
+## Important Documentation
+
+- README: https://github.com/hunydev/g729/blob/main/README.md
+- Validation: https://g729.huny.dev/validation.md
+- Claims and non-claims: https://g729.huny.dev/claims-and-nonclaims.md
+- Annex B policy: https://g729.huny.dev/annex-b.md
+- Performance: https://g729.huny.dev/performance.md
+- Encoder profiles: https://g729.huny.dev/encoder-profiles.md
+- Operational hardening: https://g729.huny.dev/operational-hardening.md
+- SIP/RTP black-box integration: https://g729.huny.dev/sip-rtp-blackbox-integration.md
+- Clean-room audit: https://github.com/hunydev/g729/blob/main/CLEANROOM_AUDIT.md
+- IP provenance: https://github.com/hunydev/g729/blob/main/IP_PROVENANCE.md
+- Third-party notices: https://github.com/hunydev/g729/blob/main/THIRD_PARTY_NOTICES.md
+
+## Safe Short Description
+
+Clean-room, pure-Go, MIT-licensed G.729A-compatible codec for RTP
+`G729/8000 annexb=no` send paths.

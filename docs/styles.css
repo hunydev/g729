@@ -818,6 +818,29 @@ pre code {
   font-weight: 800;
 }
 
+.faq-section {
+  background: #fffdf8;
+}
+
+.faq-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.faq-grid article {
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: 0 16px 42px rgba(17, 19, 24, 0.07);
+}
+
+.faq-grid p {
+  margin: 0;
+  color: var(--muted);
+}
+
 .site-footer {
   display: flex;
   justify-content: space-between;
@@ -826,6 +849,17 @@ pre code {
   border-top: 1px solid var(--line);
   color: var(--muted);
   background: var(--surface);
+}
+
+.site-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px 18px;
+}
+
+.site-footer a {
+  font-weight: 800;
 }
 
 @media (max-width: 1100px) {
@@ -911,7 +945,8 @@ pre code {
   .sample-grid,
   .metric-grid,
   .wasm-audio-grid,
-  .arena-score-grid {
+  .arena-score-grid,
+  .faq-grid {
     grid-template-columns: 1fr;
   }
 

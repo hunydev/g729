@@ -3,16 +3,63 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>g729 - Pure-Go G.729A-compatible codec</title>
-  <meta name="description" content="Pure-Go MIT-licensed G.729A-compatible codec for RTP G729/8000 annexb=no send paths.">
-  <meta property="og:title" content="g729">
-  <meta property="og:description" content="Pure-Go MIT-licensed G.729A-compatible codec for RTP G729/8000 annexb=no send paths.">
+  <title>g729 - Pure-Go MIT G.729A-compatible codec for RTP G729/8000 annexb=no</title>
+  <meta name="description" content="Clean-room, pure-Go, MIT-licensed G.729A-compatible codec for RTP G729/8000 annexb=no send paths in SIP/RTP, MRCP, TTS, IVR, and VoIP systems.">
+  <meta property="og:title" content="g729 - Pure-Go G.729A-compatible codec">
+  <meta property="og:description" content="Clean-room, pure-Go, MIT-licensed G.729A-compatible codec for RTP G729/8000 annexb=no send paths.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://g729.huny.dev/">
+  <meta property="og:image" content="https://g729.huny.dev/favicon.svg">
+  <meta property="og:site_name" content="g729">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="g729 - Pure-Go G.729A-compatible codec">
+  <meta name="twitter:description" content="Clean-room, pure-Go, MIT-licensed G.729A-compatible codec for RTP G729/8000 annexb=no send paths.">
+  <meta name="twitter:image" content="https://g729.huny.dev/favicon.svg">
   <meta name="theme-color" content="#111318">
   <link rel="canonical" href="https://g729.huny.dev/">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://g729.huny.dev/#website",
+        "name": "g729",
+        "url": "https://g729.huny.dev/",
+        "description": "Clean-room, pure-Go, MIT-licensed G.729A-compatible codec for RTP G729/8000 annexb=no send paths."
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "@id": "https://g729.huny.dev/#source",
+        "name": "g729",
+        "url": "https://g729.huny.dev/",
+        "codeRepository": "https://github.com/hunydev/g729",
+        "programmingLanguage": "Go",
+        "license": "https://github.com/hunydev/g729/blob/main/LICENSE",
+        "runtimePlatform": "Go 1.22+",
+        "description": "Clean-room, pure-Go, MIT-licensed G.729A-compatible codec for RTP G729/8000 annexb=no send paths.",
+        "applicationCategory": "Audio codec library",
+        "keywords": [
+          "G.729",
+          "G.729A",
+          "G729/8000",
+          "annexb=no",
+          "RTP payload type 18",
+          "VoIP",
+          "MRCP",
+          "TTS",
+          "IVR",
+          "pure Go",
+          "clean-room",
+          "MIT"
+        ],
+        "isAccessibleForFree": true
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <header class="site-header" aria-label="Primary">
@@ -23,6 +70,7 @@
       <a href="#quality">Quality</a>
       <a href="#arena">Arena</a>
       <a href="#wasm">WASM</a>
+      <a href="#faq">FAQ</a>
       <a href="#clean-room">Clean room</a>
       <a href="https://github.com/hunydev/g729">GitHub</a>
     </nav>
@@ -68,7 +116,7 @@
     <section class="band intro-band" aria-labelledby="intro-title">
       <div class="section-inner intro-grid">
         <div>
-          <p class="eyebrow">v0.1.0-rc1</p>
+          <p class="eyebrow">v0.2.x release line</p>
           <h2 id="intro-title">Built for server-side RTP media paths.</h2>
         </div>
         <p>
@@ -412,17 +460,75 @@ a=maxptime:20</code></pre>
         </div>
         <ul class="link-list" aria-label="Project documents">
           <li><a href="https://github.com/hunydev/g729/blob/main/README.md">README</a></li>
+          <li><a href="validation.md">Validation summary</a></li>
+          <li><a href="claims-and-nonclaims.md">Claims and non-claims</a></li>
           <li><a href="https://github.com/hunydev/g729/blob/main/IP_PROVENANCE.md">IP provenance</a></li>
+          <li><a href="https://github.com/hunydev/g729/blob/main/CLEANROOM_AUDIT.md">Clean-room audit</a></li>
           <li><a href="https://github.com/hunydev/g729/blob/main/THIRD_PARTY_NOTICES.md">Third-party notices</a></li>
-          <li><a href="https://github.com/hunydev/g729/releases/tag/v0.1.0-rc1">v0.1.0-rc1 release</a></li>
+          <li><a href="llms.txt">AI-readable summary</a></li>
+          <li><a href="https://github.com/hunydev/g729/releases">Releases</a></li>
         </ul>
+      </div>
+    </section>
+
+    <section class="section faq-section" id="faq" aria-labelledby="faq-title">
+      <div class="section-inner">
+        <div class="section-heading">
+          <p class="eyebrow">Search and AI summary</p>
+          <h2 id="faq-title">Short answers about g729.</h2>
+          <p>
+            These answers are intentionally concise so humans, search engines,
+            and AI retrieval systems can quote the project scope without
+            expanding the claim.
+          </p>
+        </div>
+        <div class="faq-grid">
+          <article>
+            <h3>What is github.com/hunydev/g729?</h3>
+            <p>It is a clean-room, pure-Go, MIT-licensed G.729A-compatible codec for RTP <code>G729/8000 annexb=no</code> send paths.</p>
+          </article>
+          <article>
+            <h3>Does it require cgo or native codec libraries?</h3>
+            <p>No. The codec runtime is Go code and does not require cgo, native codec packages, or vendored G.729 implementation source.</p>
+          </article>
+          <article>
+            <h3>What scope is supported?</h3>
+            <p>The supported scope is 10 ms G.729 Annex A speech frames, RTP payload type 18, <code>ptime=10</code>, <code>ptime=20</code>, and <code>annexb=no</code>.</p>
+          </article>
+          <article>
+            <h3>Does it support Annex B?</h3>
+            <p>No. SID/CNG/DTX and <code>annexb=yes</code> are not supported. SID/CNG-shaped payloads are rejected rather than decoded as speech.</p>
+          </article>
+          <article>
+            <h3>Is it ITU certified?</h3>
+            <p>No. The project does not claim ITU certification or ITU endorsement.</p>
+          </article>
+          <article>
+            <h3>Is the encoder byte-exact?</h3>
+            <p>No. The encoder is independent and quality-gated; byte-exact conformance to ITU, <code>bcg729</code>, FFmpeg, or another encoder is not claimed.</p>
+          </article>
+          <article>
+            <h3>How was the decoder validated?</h3>
+            <p>The strict decoder path matches private ITU Annex A reference PCM sample-for-sample in the current verifier run: 740800/740800 final PCM samples exact.</p>
+          </article>
+          <article>
+            <h3>What are the intended use cases?</h3>
+            <p>Primary use cases are server-side SIP/RTP, MRCP, TTS, IVR, VoIP media paths, testing tools, and WebAssembly codec demos.</p>
+          </article>
+        </div>
       </div>
     </section>
   </main>
 
   <footer class="site-footer">
-    <span>MIT-licensed pure-Go G.729A-compatible codec.</span>
-    <a href="https://github.com/hunydev/g729">github.com/hunydev/g729</a>
+    <span>MIT-licensed pure-Go G.729A-compatible codec for G729/8000 annexb=no.</span>
+    <nav aria-label="Footer links">
+      <a href="https://github.com/hunydev/g729">GitHub</a>
+      <a href="https://pkg.go.dev/github.com/hunydev/g729">Go Reference</a>
+      <a href="validation.md">Validation</a>
+      <a href="claims-and-nonclaims.md">Claims</a>
+      <a href="llms.txt">AI summary</a>
+    </nav>
   </footer>
 
   <script src="assets/wasm/wasm_exec.js"></script>

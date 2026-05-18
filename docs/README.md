@@ -5,6 +5,23 @@ This directory is the source for <https://g729.huny.dev/>.
 GitHub Pages should be configured to publish from the `main` branch and the
 `/docs` path. `CNAME` pins the custom domain to `g729.huny.dev`.
 
+## Search and AI-readable metadata
+
+The Pages root includes static metadata intended to make the project easier for
+search engines, GitHub previews, and AI retrieval systems to understand:
+
+- `docs/index.html` — canonical landing page with static project copy,
+  Open Graph/Twitter metadata, and JSON-LD structured data.
+- `docs/robots.txt` — crawler policy with a sitemap pointer.
+- `docs/sitemap.xml` — canonical public Pages URLs.
+- `docs/llms.txt` — informal AI-readable orientation file.
+- `docs/ai-summary.md` — quote-safe canonical facts and claim boundaries.
+- `docs/seo-geo-checklist.md` — manual search-console and GitHub metadata
+  checklist.
+
+The `llms.txt` file is provided as a practical orientation aid only. It is not
+a claim that major AI platforms officially support or rank `llms.txt` files.
+
 ## Verification note
 
 The Pages assets are demo and listening assets, not conformance oracle data.
