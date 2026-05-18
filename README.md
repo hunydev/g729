@@ -9,9 +9,10 @@
 
 Website: <https://g729.huny.dev/>. The site includes listening samples and a
 browser-side WebAssembly encoder/decoder demo built from the same pure-Go code.
-AI-readable project summaries are published at
-<https://g729.huny.dev/llms.txt> and <https://g729.huny.dev/ai-summary.md> as
-informal orientation aids, not ranking or platform-support claims.
+Optional orientation summaries are published at
+<https://g729.huny.dev/llms.txt> and <https://g729.huny.dev/ai-summary.md>.
+They are not special Google Search markup; the primary discovery path remains
+crawlable, useful project content.
 
 `github.com/hunydev/g729` is a clean-room, pure-Go, MIT-licensed
 G.729A-compatible codec for `G729/8000 annexb=no` RTP send paths.

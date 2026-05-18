@@ -4,6 +4,20 @@ This checklist records repository and GitHub Pages discoverability tasks for
 `github.com/hunydev/g729` and <https://g729.huny.dev/>. It is an engineering
 checklist, not a promise of search ranking or AI citation.
 
+## Google Generative AI Search Reality Check
+
+- [ ] Treat AEO/GEO work as normal SEO for Google Search, not as a separate
+      hack layer.
+- [ ] Prioritize helpful, unique, people-first content over AI-specific files.
+- [ ] Use the project's non-commodity evidence: clean-room provenance, decoder
+      exact validation, RTP scope, performance metrics, and listening samples.
+- [ ] Do not create mass query-variant pages solely to capture fan-out queries.
+- [ ] Do not rewrite pages only for AI systems or stuff long-tail keyword
+      variants into copy.
+- [ ] Do not treat `llms.txt` or Markdown summaries as required Google Search
+      markup.
+- [ ] Use structured data only when it is accurate and useful for normal SEO.
+
 ## Automatic Repository Checks
 
 - [ ] `README.md` opens with the canonical project identity:
@@ -18,10 +32,21 @@ checklist, not a promise of search ranking or AI citation.
 - [ ] Important website text is present in static HTML, not only JavaScript.
 - [ ] `docs/robots.txt` allows crawling and references the sitemap.
 - [ ] `docs/sitemap.xml` lists canonical public pages only.
-- [ ] `docs/llms.txt` exists as an informal AI-readable orientation file.
+- [ ] `docs/llms.txt` exists as an optional informal orientation file, not a
+      Google ranking requirement.
 - [ ] `docs/ai-summary.md` exists as a quote-safe canonical facts page.
+- [ ] FAQ and canonical facts are easy to read as static HTML or Markdown.
 - [ ] No page claims ITU certification, ITU endorsement, encoder byte-exact
       conformance, Annex B support, G.729.1 support, or G.729D/E support.
+
+## Agent-Friendly And Accessibility Checks
+
+- [ ] Important project identity, claims, and links are visible in the DOM.
+- [ ] Interactive audio controls have clear labels.
+- [ ] Canvas waveform visuals are decorative or backed by text labels.
+- [ ] The FAQ, validation summary, and clean-room links are usable without
+      running the codec WebAssembly demo.
+- [ ] Page layout is usable on desktop and mobile without horizontal overflow.
 
 ## Manual GitHub Repository Metadata
 
@@ -93,6 +118,13 @@ gh repo edit hunydev/g729 \
 - [ ] Verify pkg.go.dev is reachable for `github.com/hunydev/g729`.
 - [ ] Check snippets for important queries after indexing.
 
+## Not Applicable For This Project
+
+- Google Business Profile is not applicable unless a separate business listing
+  is intentionally maintained.
+- Google Merchant Center is not applicable unless paid products or commercial
+  listings are added.
+
 ## Suggested Queries To Monitor
 
 - `github.com/hunydev/g729`
@@ -107,7 +139,8 @@ gh repo edit hunydev/g729 \
 
 ## Notes
 
-`llms.txt` is an informal proposal and should be treated as a low-cost
-orientation file, not a guaranteed AI ranking or citation mechanism. The
-canonical evidence remains the repository README, validation docs, claim
-boundary docs, and clean-room provenance records.
+`llms.txt` is an informal proposal and should be treated as a low-cost optional
+orientation file, not a guaranteed AI ranking or citation mechanism. Google's
+generative AI Search features rely on normal Search indexing and quality
+systems, so the canonical evidence remains the repository README, validation
+docs, claim boundary docs, and clean-room provenance records.

@@ -19,8 +19,11 @@ search engines, GitHub previews, and AI retrieval systems to understand:
 - `docs/seo-geo-checklist.md` — manual search-console and GitHub metadata
   checklist.
 
-The `llms.txt` file is provided as a practical orientation aid only. It is not
-a claim that major AI platforms officially support or rank `llms.txt` files.
+Google's generative AI Search guidance treats AEO/GEO work as SEO: crawlable,
+useful, people-first content remains the main path. The `llms.txt` file is
+provided as a practical orientation aid only. It is not special Google Search
+markup and is not a claim that major AI platforms officially support or rank
+`llms.txt` files.
 
 ## Verification note
 

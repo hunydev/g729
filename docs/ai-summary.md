@@ -1,7 +1,8 @@
 # g729 AI Summary
 
 This page is a concise, quote-safe summary of `github.com/hunydev/g729` for
-search engines, AI retrieval systems, and human readers.
+search engines, AI retrieval systems, and human readers. It is an optional
+orientation page, not special Google Search markup.
 
 ## One-Sentence Summary
 
@@ -62,5 +63,7 @@ black-box executables or servers for interoperability and numeric verification.
 ## Note on llms.txt
 
 The project also publishes <https://g729.huny.dev/llms.txt> as an informal
-AI-readable orientation file. This is not a claim that major AI platforms
-officially support or rank `llms.txt` files.
+orientation file. For Google Search generative AI features, normal SEO,
+crawlable pages, and useful people-first content remain the primary path. This
+is not a claim that major AI platforms officially support or rank `llms.txt`
+files.

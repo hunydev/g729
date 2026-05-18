@@ -3,9 +3,11 @@
 > `github.com/hunydev/g729` is a clean-room, pure-Go, MIT-licensed
 > G.729A-compatible codec for RTP `G729/8000 annexb=no` send paths.
 
-This file is an AI-readable orientation file. It is provided as a practical
-summary for crawlers and users that choose to read it. It is not a claim that
-major AI platforms officially support `llms.txt`.
+This optional file is a practical orientation summary for crawlers and users
+that choose to read it. For Google Search generative AI features, normal SEO,
+crawlable pages, and useful people-first content remain the primary path. This
+file is not special Google Search markup and is not a claim that major AI
+platforms officially support `llms.txt`.
 
 ## Canonical URLs
 

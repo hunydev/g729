@@ -13,8 +13,8 @@ Improve how the project is understood and surfaced by:
 
 - GitHub repository search and topic discovery.
 - Web search engines such as Google and Bing.
-- AI answer engines and retrieval systems that read public repository and site
-  content.
+- AI retrieval systems, including generative AI search experiences that use
+  publicly crawlable Search-index content.
 - Human evaluators who need a quick, accurate summary of what this project is
   and is not.
 
@@ -32,6 +32,25 @@ The project should be discoverable for queries around:
 
 Do not optimize by keyword stuffing or making stronger technical claims. The
 goal is accurate machine-readable and human-readable positioning.
+
+## Google Generative AI Search Interpretation
+
+Google Search guidance treats AEO/GEO work as SEO for Google Search. The
+practical implication is:
+
+- Keep the site crawlable and indexable.
+- Publish useful, unique, people-first content.
+- Use clear headings, readable structure, accessible controls, and normal link
+  paths.
+- Do not create special pages only for query fan-out variants.
+- Do not rely on `llms.txt`, Markdown summaries, or chunking as special Google
+  Search markup.
+- Do not pursue inauthentic mentions or over-optimized AI-targeted wording.
+
+For this project, the strongest non-commodity content is the engineering
+evidence that only this repository can provide: decoder exact validation,
+clean-room provenance, RTP scope, performance benchmarks, release notes,
+listening samples, and WebAssembly smoke testing.
 
 ## Claim Boundary
 
@@ -169,6 +188,9 @@ Required checks:
 - Links to GitHub, pkg.go.dev, README, validation, claims/non-claims, and
   clean-room provenance are visible.
 - Audio/demo content has accessible labels.
+- Canvas waveform visuals are decorative or backed by text labels.
+- The page is usable by browser agents that inspect rendered layout, DOM, and
+  accessibility tree.
 
 Do not hide the important project identity only in canvas, images, or
 JavaScript-rendered text.
@@ -214,7 +236,7 @@ Do not put unsupported claims or certification-like wording in structured data.
 
 ## GEO / AI-Readable Files
 
-Add or update AI-readable summary files under `docs/`.
+Add or update optional orientation summary files under `docs/`.
 
 Preferred files:
 
@@ -223,10 +245,10 @@ Preferred files:
 
 Important caveat:
 
-`llms.txt` is an informal proposal, not a guaranteed ranking or citation
-mechanism. Do not claim that major AI providers officially use it. Treat it as
-a low-cost, high-signal orientation file for crawlers and users that choose to
-read it.
+`llms.txt` is an informal proposal, not required Google Search markup, and not
+a guaranteed ranking or citation mechanism. Do not claim that major AI
+providers officially use it. Treat it as a low-cost orientation file for
+crawlers and users that choose to read it.
 
 `llms.txt` should include:
 
@@ -261,6 +283,16 @@ Questions to answer:
 
 Answers should be short, factual, and consistent with
 `docs/claims-and-nonclaims.md`.
+
+## Content Quality Rules
+
+- Prefer original engineering evidence over generic codec explainers.
+- Do not create scaled pages for every possible query phrase.
+- Do not duplicate the same claims across many pages unless the page has a
+  distinct user purpose.
+- Keep summaries quote-safe, but write for human readers first.
+- If AI tools assist with copy, review the result against the repository claim
+  boundary and clean-room documents.
 
 ## Link Graph
 
