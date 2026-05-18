@@ -11,7 +11,7 @@ constraint).
 |---|---|
 | `encode_pcm/` | Raw int16 LE 8 kHz mono PCM from stdin → packed 10-byte G.729 frames to stdout |
 | `decode_g729/` | Packed 10-byte G.729 frames from stdin → raw int16 LE 8 kHz mono PCM to stdout |
-| `streaming_encode/` | Same as `encode_pcm` but uses `NewStreamingEncoder` + `Write` + `Flush` (handles non-frame-aligned chunks) |
+| `streaming_encode/` | Same as `encode_pcm` but uses `NewStreamingEncoder` plus streaming `Write` / `Flush` (handles non-frame-aligned chunks) |
 | `rtp_packetize/` | Illustrative RTP payload packetization (`-ptime=10` or `-ptime=20`); emits hex-dump lines (no real RTP header generation) |
 | `rtp_pion_packetize/` | Practical full RTP packet marshal example using Pion RTP; emits one full RTP packet hex line per RTP packet |
 | `../cmd/g729rtpfixture/` | Pion RTP pcap fixture generator for `g729rtpcheck` and integration smoke tests |

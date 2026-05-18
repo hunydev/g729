@@ -131,11 +131,18 @@ func main() {
 }
 ```
 
+For streaming input, construct one streaming encoder per logical audio stream.
+`Write` accepts any chunk length, emits one 10-byte frame per 80-sample
+boundary, and buffers a trailing partial frame until the next `Write` or
+`Flush`. The package-level `g729.Write(enc, pcm)` and `g729.Flush(enc)`
+helpers are thin wrappers around `enc.Write(pcm)` and `enc.Flush()`.
+
 See [`examples/`](examples/) for fuller programs:
 
 - `examples/encode_pcm` — raw PCM int16 LE 8 kHz mono → G.729 frames
 - `examples/decode_g729` — G.729 frames → raw PCM int16 LE 8 kHz mono
-- `examples/streaming_encode` — `NewStreamingEncoder` + `Write` + `Flush`
+- `examples/streaming_encode` — `NewStreamingEncoder` + streaming `Write` /
+  `Flush`
 - `examples/rtp_packetize` — illustrative RTP payload packetization
 - `examples/rtp_pion_packetize` — full RTP packet marshal example using Pion RTP
 - `cmd/g729rtpfixture` — Pion RTP pcap fixture generator for integration tests

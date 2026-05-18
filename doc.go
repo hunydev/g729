@@ -34,6 +34,7 @@
 //
 //   - NewStreamingEncoder, NewStreamingEncoderWithProfile,
 //     (*Encoder).Write, (*Encoder).Flush
+//   - Write, Flush (top-level convenience wrappers)
 //
 // Frame-shape constants:
 //
