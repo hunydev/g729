@@ -394,10 +394,13 @@ a=maxptime:20</code></pre>
             Upload audio in the browser, resample it to 8 kHz mono PCM with
             Web Audio, encode and decode it through the current Go WASM Core
             default, then preview the exact 8 kHz input and decoded WAV through
-            the custom waveform player. Raw <code>.g729</code> payload files
-            can be uploaded for decode-only checks. The browser demo is a
-            smoke/interoperability check; the published samples above remain
-            the reviewed listening references.
+            the custom waveform player. The live loopback button feeds that
+            same PCM to the WASM streaming encoder in 10 ms or 20 ms chunks and
+            schedules decoded chunks through Web Audio like a phone media
+            stream. Raw <code>.g729</code> payload files can be uploaded for
+            decode-only checks. The browser demo is a smoke/interoperability
+            check; the published samples above remain the reviewed listening
+            references.
           </p>
         </div>
         <div class="wasm-panel" id="wasm-demo">
@@ -407,7 +410,14 @@ a=maxptime:20</code></pre>
           </label>
           <div class="wasm-actions">
             <button class="button primary wasm-button" id="wasm-run" type="button" disabled>Encode / Decode</button>
-            <button class="button wasm-button" id="wasm-stream" type="button" disabled>Play result</button>
+            <label class="wasm-select-label">
+              <span>Live chunk</span>
+              <select id="wasm-stream-ptime">
+                <option value="20" selected>20 ms</option>
+                <option value="10">10 ms</option>
+              </select>
+            </label>
+            <button class="button wasm-button" id="wasm-stream" type="button" disabled>Play live loopback</button>
           </div>
           <div class="wasm-downloads">
             <a class="button wasm-button disabled" id="wasm-download-g729" href="#" download="g729-wasm-encoded.g729" aria-disabled="true">Download G.729</a>

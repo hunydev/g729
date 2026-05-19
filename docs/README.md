@@ -143,16 +143,18 @@ The browser demo accepts normal browser-decodable audio files, resamples them
 to 8 kHz mono signed 16-bit PCM through Web Audio, runs the Go WASM
 `EncoderProfileCore` encode/decode path, and previews the exact 8 kHz input
 and decoded WAV through the same custom waveform player used by the listening
-samples. Raw `.g729` payload uploads are decoded directly through the WASM
-decoder. The WASM demo is a smoke/interoperability check; the reviewed
-listening references are the generated sample files above.
+samples. The live loopback control feeds the same 8 kHz PCM to a WASM
+streaming encoder session in 10 ms or 20 ms chunks and schedules decoded chunks
+through Web Audio as they are emitted. Raw `.g729` payload uploads are decoded
+directly through the WASM decoder. The WASM demo is a smoke/interoperability
+check; the reviewed listening references are the generated sample files above.
 
 The checked-in WASM binary must be rebuilt whenever the codec algorithm or
 default encoder profile changes. The current public asset is built from the
 Core-default code path and has SHA-256:
 
 ```text
-96b3cc3d506bb99eedc3e71f6f53a9705630bd454ea7899368b50086acacc463  docs/assets/wasm/g729.wasm
+1799f324b282916afe3382c79c934f213709906a2d365e263e28533bc7ff43cf  docs/assets/wasm/g729.wasm
 ```
 
 Rebuild the WASM asset with:

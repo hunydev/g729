@@ -550,7 +550,7 @@ async function loadG729Wasm() {
   if (typeof Go === "undefined") throw new Error("Go WASM runtime is unavailable");
 
   const go = new Go();
-  const wasmURL = "assets/wasm/g729.wasm?v=96b3cc3d506b";
+  const wasmURL = "assets/wasm/g729.wasm?v=1799f324b282";
   let result;
   try {
     result = await WebAssembly.instantiateStreaming(fetch(wasmURL, { cache: "no-store" }), go.importObject);
@@ -588,6 +588,27 @@ function writeASCII(view, offset, text) {
   for (let i = 0; i < text.length; i += 1) {
     view.setUint8(offset + i, text.charCodeAt(i));
   }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function schedulePCM16Bytes(audioContext, bytes, startTime, sampleRate = 8000) {
+  if (!bytes || bytes.byteLength === 0) return startTime;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const samples = bytes.byteLength / 2;
+  const buffer = audioContext.createBuffer(1, samples, sampleRate);
+  const channel = buffer.getChannelData(0);
+  for (let i = 0; i < samples; i += 1) {
+    const value = view.getInt16(i * 2, true);
+    channel[i] = value < 0 ? value / 32768 : value / 32767;
+  }
+  const source = audioContext.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioContext.destination);
+  source.start(startTime);
+  return startTime + samples / sampleRate;
 }
 
 async function decodeToPCM16(file) {
@@ -646,6 +667,7 @@ async function activateWasmDemo() {
   const fileInput = demo.querySelector("#wasm-file");
   const runButton = demo.querySelector("#wasm-run");
   const streamButton = demo.querySelector("#wasm-stream");
+  const streamPtime = demo.querySelector("#wasm-stream-ptime");
   const downloadG729 = demo.querySelector("#wasm-download-g729");
   const downloadWAV = demo.querySelector("#wasm-download-wav");
   const status = demo.querySelector("#wasm-status");
@@ -662,6 +684,8 @@ async function activateWasmDemo() {
   let selected;
   let decodedPCM;
   let objectURLs = [];
+  let liveContext;
+  let liveRunID = 0;
 
   function rememberURL(url) {
     objectURLs.push(url);
@@ -687,6 +711,11 @@ async function activateWasmDemo() {
   }
 
   function resetResult() {
+    liveRunID += 1;
+    if (liveContext) {
+      liveContext.close().catch(() => {});
+      liveContext = null;
+    }
     clearAudioPlayer(sourcePlayer, "Input preview pending.");
     clearAudioPlayer(decodedPlayer, "Roundtrip pending.");
     clearObjectURLs();
@@ -786,7 +815,7 @@ async function activateWasmDemo() {
         ]);
         status.textContent = "WASM encode/decode complete.";
       }
-      streamButton.disabled = false;
+      streamButton.disabled = !selected || isG729Payload(file);
     } catch (err) {
       status.textContent = `WASM demo failed: ${err.message}`;
     } finally {
@@ -795,17 +824,88 @@ async function activateWasmDemo() {
   });
 
   streamButton.addEventListener("click", async () => {
-    if (!decodedPCM || !decodedPlayer.ready) return;
-    if (activeAudioPlayer && activeAudioPlayer !== decodedPlayer) {
+    if (!selected || !wasm || !wasm.newLoopbackStream) return;
+    if (activeAudioPlayer) {
       activeAudioPlayer.audio.pause();
     }
-    decodedPlayer.audio.currentTime = 0;
-    activeAudioPlayer = decodedPlayer;
+
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) {
+      status.textContent = "Live loopback requires Web Audio playback support.";
+      return;
+    }
+
+    liveRunID += 1;
+    const runID = liveRunID;
+    if (liveContext) {
+      await liveContext.close().catch(() => {});
+    }
     try {
-      await decodedPlayer.audio.play();
-      status.textContent = "Playing the current WASM result through the same WAV/media path used by the waveform player.";
+      liveContext = new AudioCtor({ sampleRate: selected.sampleRate });
+    } catch {
+      liveContext = new AudioCtor();
+    }
+    if (liveContext.state === "suspended") {
+      await liveContext.resume();
+    }
+
+    const chunkMS = streamPtime && streamPtime.value === "10" ? 10 : 20;
+    const chunkSamples = chunkMS === 10 ? 80 : 160;
+    const chunkBytes = chunkSamples * 2;
+    const stream = wasm.newLoopbackStream();
+    let scheduledTime = liveContext.currentTime + 0.06;
+    const startedAt = performance.now();
+    let frames = 0;
+
+    streamButton.disabled = true;
+    runButton.disabled = true;
+    status.textContent = `Live loopback started: feeding ${chunkMS} ms PCM chunks through WASM Write/Flush.`;
+
+    try {
+      for (let off = 0; off < selected.pcm.byteLength; off += chunkBytes) {
+        if (runID !== liveRunID) return;
+        const end = Math.min(off + chunkBytes, selected.pcm.byteLength);
+        const chunk = selected.pcm.slice(off, end);
+        const result = stream.write(chunk);
+        if (!result.ok) throw new Error(result.error || "WASM stream write failed");
+        frames += result.frames;
+        scheduledTime = schedulePCM16Bytes(liveContext, result.decodedPCM16, scheduledTime, result.sampleRate);
+        const fedSamples = end / 2;
+        const targetElapsed = (fedSamples / selected.sampleRate) * 1000;
+        status.textContent = `Live loopback: ${formatDuration(fedSamples / selected.sampleRate)} fed, ${frames} frames emitted, ${result.bufferedSamples} samples buffered.`;
+        const waitMS = startedAt + targetElapsed - performance.now();
+        if (waitMS > 1) await sleep(waitMS);
+      }
+
+      const flushed = stream.flush();
+      if (!flushed.ok) throw new Error(flushed.error || "WASM stream flush failed");
+      frames += flushed.frames;
+      scheduledTime = schedulePCM16Bytes(liveContext, flushed.decodedPCM16, scheduledTime, flushed.sampleRate);
+      const tailSamples = selected.samples % 80;
+      const paddedSamples = tailSamples === 0 ? 0 : 80 - tailSamples;
+
+      renderMetrics(metrics, [
+        ["profile", "EncoderProfileCore"],
+        ["path", "streaming Core loopback"],
+        ["chunk", `${chunkMS} ms`],
+        ["input samples", String(selected.samples)],
+        ["frames", String(frames)],
+        ["tail padding", `${paddedSamples} samples`]
+      ]);
+
+      const remainingMS = Math.max(0, (scheduledTime - liveContext.currentTime) * 1000);
+      status.textContent = `Live loopback scheduled ${frames} frames through Web Audio.`;
+      await sleep(remainingMS + 40);
+      if (runID === liveRunID) {
+        status.textContent = `Live loopback complete: ${frames} frames at ${chunkMS} ms input cadence.`;
+      }
     } catch (err) {
-      status.textContent = `Playback failed: ${err.message}`;
+      status.textContent = `Live loopback failed: ${err.message}`;
+    } finally {
+      if (runID === liveRunID) {
+        streamButton.disabled = !selected;
+        runButton.disabled = !fileInput.files.length;
+      }
     }
   });
 }

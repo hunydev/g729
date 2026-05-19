@@ -720,12 +720,37 @@ pre code {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  align-items: stretch;
 }
 
 .wasm-downloads {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.wasm-select-label {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wasm-select-label select {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
 }
 
 .wasm-button {
