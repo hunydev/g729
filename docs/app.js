@@ -686,6 +686,7 @@ async function activateWasmDemo() {
   let objectURLs = [];
   let liveContext;
   let liveRunID = 0;
+  let livePlaying = false;
 
   function rememberURL(url) {
     objectURLs.push(url);
@@ -710,12 +711,22 @@ async function activateWasmDemo() {
     link.setAttribute("aria-disabled", "false");
   }
 
-  function resetResult() {
+  async function stopLiveLoopback(message = "Live loopback stopped.") {
     liveRunID += 1;
+    livePlaying = false;
     if (liveContext) {
-      liveContext.close().catch(() => {});
+      const ctx = liveContext;
       liveContext = null;
+      await ctx.close().catch(() => {});
     }
+    streamButton.textContent = "Play live loopback";
+    streamButton.disabled = !selected;
+    runButton.disabled = !fileInput.files.length;
+    status.textContent = message;
+  }
+
+  function resetResult() {
+    stopLiveLoopback("Live loopback reset.").catch(() => {});
     clearAudioPlayer(sourcePlayer, "Input preview pending.");
     clearAudioPlayer(decodedPlayer, "Roundtrip pending.");
     clearObjectURLs();
@@ -824,6 +835,10 @@ async function activateWasmDemo() {
   });
 
   streamButton.addEventListener("click", async () => {
+    if (livePlaying) {
+      await stopLiveLoopback();
+      return;
+    }
     if (!selected || !wasm || !wasm.newLoopbackStream) return;
     if (activeAudioPlayer) {
       activeAudioPlayer.audio.pause();
@@ -857,7 +872,9 @@ async function activateWasmDemo() {
     const startedAt = performance.now();
     let frames = 0;
 
-    streamButton.disabled = true;
+    livePlaying = true;
+    streamButton.textContent = "Stop live loopback";
+    streamButton.disabled = false;
     runButton.disabled = true;
     status.textContent = `Live loopback started: feeding ${chunkMS} ms PCM chunks through WASM Write/Flush.`;
 
@@ -903,8 +920,15 @@ async function activateWasmDemo() {
       status.textContent = `Live loopback failed: ${err.message}`;
     } finally {
       if (runID === liveRunID) {
+        livePlaying = false;
+        streamButton.textContent = "Play live loopback";
         streamButton.disabled = !selected;
         runButton.disabled = !fileInput.files.length;
+        if (liveContext) {
+          const ctx = liveContext;
+          liveContext = null;
+          ctx.close().catch(() => {});
+        }
       }
     }
   });
